@@ -66,8 +66,9 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
                      +------------------------+-----------------------+
                      v                        v                       v
                  tools/*.py               client.py             formatting.py
-             (thin tool defs)      (httpx, auth, rate limit,   (API JSON ->
-                                    retries, error mapping)     compact output)
+             (thin tool defs)      (httpx, auth, retries,     (API JSON ->
+                                    error mapping, owns the    compact output)
+                                    one ratelimit.TokenBucket)
                                               |
                                         https://api.lexware.io/v1/...
 ```
@@ -77,7 +78,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `server.py` | `MCPServer` instance, tool registration, CLI and `main()`. |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. |
 | `config.py` | Settings resolution (CLI > env > `.env` in the config dir > default), credential lookup, download directory. |
-| `client.py` | All HTTP access to the API: auth header, rate limiter, retry/backoff, pagination, error normalization. Nothing else talks to the network. |
+| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Owns the one rate limiter instance. Nothing else talks to the network. |
+| `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. |
 | `policy.py` | Permission tiers, tool registry, enforcement wrapper. |
 | `formatting.py` | API JSON to compact, token-frugal tool output. |
 | `errors.py` | `ToolError` and its subclasses. |

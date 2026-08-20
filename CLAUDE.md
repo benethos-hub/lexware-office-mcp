@@ -19,9 +19,10 @@ How to work in this repository. Read this before making changes. See
    are English. Conversation with the user may be German.
 4. **stdio is sacred.** stdout carries the MCP JSON-RPC stream. Never
    `print()` to stdout from server or library code, log to **stderr** only.
-5. **One rate limiter.** Every outbound request passes the single shared token
-   bucket in `client.py`. The upstream limit is global across all endpoints, so
-   a second bucket anywhere is a bug. See SPECS.md section 10.1.
+5. **One rate limiter.** Every outbound request passes the single
+   `ratelimit.TokenBucket` that `client.py` owns — retries and pagination
+   follow-ups included. The upstream limit is global across all endpoints, so a
+   second bucket anywhere is a bug. See SPECS.md section 10.1.
 6. **Secrets never travel.** The API key is never logged, never returned in a
    tool result, and redacted from error text. No real key, tenant ID,
    organization ID, voucher ID or customer record in any versioned file.
@@ -48,7 +49,8 @@ src/benethos_lexware_office_mcp/
   server.py       # MCPServer instance, tool registration, CLI main()
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
   config.py       # settings resolution, credential lookup
-  client.py       # ALL HTTP access: auth, rate limiter, retries, errors
+  client.py       # ALL HTTP access: auth, retries, error mapping
+  ratelimit.py    # the one token bucket, clock injectable for tests
   policy.py       # permission tiers and enforcement
   formatting.py   # API JSON -> compact tool output
   errors.py       # ToolError hierarchy
@@ -61,7 +63,8 @@ new HTTP call goes in `client.py`, never in a tool function.
 
 ## How to add or change a tool
 
-1. Add the request to `client.py`. Acquire from the shared rate limiter, map
+1. Add the request to `client.py`, using `request()` so the shared limiter and
+   the retry rules apply automatically. Never retry a POST yourself. Map
    the upstream status to the right `ToolError` subclass, and pass the page
    parameters through rather than walking every page.
 2. Normalize the response in `formatting.py`. Drop null and empty fields, keep

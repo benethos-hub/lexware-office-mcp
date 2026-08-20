@@ -39,6 +39,14 @@ housekeeping are out of scope here — design decisions live in
   that order of precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`, `LXO_MCP_BASE_URL`,
   `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`, `LXO_MCP_TIMEOUT`,
   `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE`, `LXO_MCP_LOG_LEVEL`.
+- **`get_profile`**, the first tool. Shows which Lexware Office account the
+  server is connected to and doubles as the connection check. Costs one API
+  call.
+- HTTP client for the API, with the single shared token bucket every request
+  passes, retries decided per method and failure mode, and upstream statuses
+  mapped onto concise errors. A failed POST is reported with its outcome
+  marked unknown rather than retried. Repeated rate limiting trips a breaker
+  that holds the bucket shut instead of hammering the API.
 - `config/.env.sample` — a commented sample listing every setting with its
   default. Copy it to `config/.env` and fill in the key. The copy is
   gitignored, the sample is committed and holds no key.
