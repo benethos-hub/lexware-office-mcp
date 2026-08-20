@@ -710,7 +710,8 @@ async def test_the_default_is_stated_where_the_model_reads_it() -> None:
     assert field["default"] == DEFAULT_PDF_PAGES
     assert str(DEFAULT_PDF_PAGES) in field["description"]
     assert tool.description is not None
-    assert f"first {DEFAULT_PDF_PAGES} pages" in tool.description
+    assert str(DEFAULT_PDF_PAGES) in tool.description
+    assert "max_pages" in tool.description
 
 
 async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> None:
@@ -880,11 +881,18 @@ async def test_something_far_too_large_is_refused_rather_than_inlined(
 
 
 async def test_the_description_says_which_form_to_expect() -> None:
+    """Every kind is named, so the model knows what it is about to receive.
+
+    Asserted on the content rather than on a sentence, so that rewording the
+    description does not fail the test while dropping a kind does.
+    """
     server = build_server(Settings(api_key=API_KEY))
     tool = next(t for t in await server.list_tools() if t.name == "read_download")
+
     assert tool.description is not None
-    assert "XML arrives as text" in tool.description
-    assert "no** API call" in tool.description or "no API call" in tool.description
+    for kind in ("XML", "text", "PDF", "pages", "Image", "binary"):
+        assert kind in tool.description, kind
+    assert "No API call" in tool.description
 
 
 # -- surviving a restart --------------------------------------------------
@@ -973,7 +981,8 @@ async def test_a_configured_default_is_stated_in_the_schema_too() -> None:
     assert field["default"] == 4
     assert "Defaults to 4" in field["description"]
     assert tool.description is not None
-    assert "first 4 pages" in tool.description
+    assert "first 4" in tool.description
+    assert str(DEFAULT_PDF_PAGES) not in tool.description, "the built-in default leaked"
 
 
 async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> None:
@@ -1065,17 +1074,3 @@ async def test_the_description_tells_the_model_all_three_routes() -> None:
     for route in ("`path`", "`uri`", "`deeplink`"):
         assert route in tool.description, route
     assert "read_download" in tool.description
-
-
-async def test_the_download_descriptions_stay_short() -> None:
-    """Descriptions ship on every request, so prose creep is paid for forever.
-
-    A generous ceiling that a rewrite into explanation would cross, not a
-    style rule. Both sat well under half of it when this was written.
-    """
-    server = build_server(Settings(api_key=API_KEY))
-    tools = {t.name: t for t in await server.list_tools()}
-
-    for name in ("download_file", "download_document"):
-        description = tools[name].description or ""
-        assert len(description) < 700, f"{name} is {len(description)} characters"

@@ -80,9 +80,8 @@ new HTTP call goes in `client.py`, never in a tool function.
    answers with the same envelope. A tool that **writes** builds its request
    body in `payloads.py`, never inline: an update has to read the record and
    merge, because the API replaces rather than patches.
-3. Expose it in the matching `tools/` module. The **docstring becomes the tool
-   description** the model sees — write it for an LLM caller and say when to
-   use this tool rather than a neighbouring one.
+3. Expose it in the matching `tools/` module, then write the docstring by the
+   rule below.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds.
 5. Classify it in `policy.py` (`read`, `write` or `full`). A write tool must
@@ -93,6 +92,45 @@ new HTTP call goes in `client.py`, never in a tool function.
 Prefer grouping related endpoints behind one tool with an enum parameter over
 one tool per path. Descriptions and schemas are sent on every request, so a
 wide tool surface is paid for continuously.
+
+## Writing a tool description
+
+The **docstring becomes the tool description** the model reads, and it is sent
+on **every** request for the life of the server. It is not documentation. It
+is a briefing for a caller deciding, right now, whether to call this tool and
+with what.
+
+**Put in only what changes a decision:**
+
+- what the tool does, in one line
+- what it costs in API calls
+- when to use it instead of a neighbouring tool, and what to fetch first
+- how to read the result where that is not obvious from the schema
+- what cannot be undone
+
+**Leave out:**
+
+- **why** it is built this way. Design reasoning belongs in SPECS.md. A caller
+  cannot act on it and pays for it every time.
+- behaviour the caller has no choice about. That a download never overwrites
+  is true and worth documenting — in the README, not here.
+- anything the schema already says. Types, defaults and enum values are in the
+  schema, so repeating them in prose buys nothing.
+
+**Budget: under 700 characters.** Not a style rule but a ceiling that a
+rewrite into explanation will cross. When one grows past it, the fix is
+usually to move a paragraph into SPECS.md rather than to compress the wording.
+
+Nothing enforces this automatically, deliberately: a character count is a poor
+judge of whether a sentence earns its place, and a test would turn the
+judgement into a number to be gamed. Look at the lengths when you touch a
+docstring:
+
+```
+uv run python -c "import asyncio; from benethos_lexware_office_mcp.config import Settings; from benethos_lexware_office_mcp.server import build_server; print(sorted(((len(t.description or ''), t.name) for t in asyncio.run(build_server(Settings(mode='full')).list_tools())), reverse=True))"
+```
+
+Section 8 of SPECS.md records the same rule.
 
 ## Verifying
 

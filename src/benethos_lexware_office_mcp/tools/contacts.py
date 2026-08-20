@@ -140,18 +140,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Find contacts by name, email address, number or role.
 
-        Costs one API call per page. Returns short rows carrying the contact
-        id, the name, the customer and vendor numbers and one way to get in
-        touch. Use `get_contact` afterwards for the full record with its
-        addresses.
+        One API call per page. This is how a name becomes an id: every tool
+        taking a `contact_id` expects one from here, never a guessed value.
+        Use `get_contact` afterwards for the full record with its addresses.
 
-        This is how a name becomes an id. Any tool that takes a `contact_id`
-        expects one from here, never a guessed or assembled value.
+        Rows carry the id, name, customer and vendor numbers and one way to
+        get in touch. A row marked `archived` is no longer in active use.
 
-        All filters given are combined with AND, and leaving them all out
-        lists the account's contacts in name order. Rows marked `archived` are
-        no longer in active use, unmarked rows are active. Read `page` in the
-        result to see whether more pages follow rather than paging blindly.
+        Filters combine with AND. Giving none lists the account in name order.
+        Read `page` before asking for another one.
         """
         payload = await provider.get().contacts(
             name=name,
@@ -218,18 +215,13 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Create a new customer or vendor in the account.
 
-        Writes to real accounting data. Confirm with `get_profile` which
-        organization is connected before calling this, and search for the name
-        first: Lexware does not prevent a second contact with the same name,
-        so a careless create leaves two records that later documents can be
-        attached to at random.
+        Writes real accounting data. Confirm the organization with
+        `get_profile` first, and search the name with `search_contacts`:
+        Lexware allows a second contact with the same name, and later
+        documents then attach to either at random. One API call.
 
-        Returns the new contact's id and version, not the whole record, and
-        costs one API call. The customer and vendor numbers are assigned by
-        Lexware, so read the contact back if they are needed.
-
-        The API requires a name and at least one role, and refuses a country
-        code that is not ISO 3166 alpha-2.
+        Returns the id and version, not the record. Lexware assigns the
+        customer and vendor numbers, so read the contact back to see them.
         """
         body = contact_body(
             kind=kind,
@@ -294,18 +286,13 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Change an existing contact. Only the fields you give are changed.
 
-        Writes to real accounting data. Read the contact with `get_contact`
-        first, both to see what is there and to get the `version` this tool
-        needs.
+        Writes real accounting data. Read the contact with `get_contact`
+        first: it shows what is there and carries the `version` this needs.
+        Two API calls.
 
-        Costs two API calls: the API replaces the whole record rather than
-        patching it, so the current one is read and the changes are laid on
-        top. Without that, an update naming only a new email address would
-        empty out the addresses, the note and everything else.
-
-        If the contact changed between your read and this call, the update is
-        refused and nothing is written. Read it again and decide what to do
-        with the change you would have overwritten.
+        If the contact changed since that read, nothing is written and the
+        error says so. Read it again and decide what to do with the change you
+        would have overwritten.
         """
         client = provider.get()
         current = await client.contact(contact_id)

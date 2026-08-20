@@ -22,13 +22,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     async def get_profile() -> dict[str, Any]:
         """Show which Lexware Office account this server is connected to.
 
-        Returns the organization, company name, tax setup and small-business
-        status. Costs one API call.
+        One API call. Returns the organization, company name, tax setup and
+        small-business status.
 
-        Use this first when the answer depends on *which* account is in play,
-        and before any operation that changes data, so that the organization
-        can be confirmed rather than assumed. It also doubles as the
-        connection check: if it succeeds, the API key works.
+        Call it before anything that changes data, so the organization is
+        confirmed rather than assumed. It doubles as the connection check: if
+        it succeeds, the API key works.
         """
         return formatting.profile(await provider.get().profile())
 

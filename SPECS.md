@@ -412,10 +412,17 @@ accidental call fails with a clear message instead of an irreversible effect.
 - Every parameter gets an `Annotated[type, Field(description=...)]`, numeric
   limits get `ge`/`le` bounds, enums are real `Literal` types so the client can
   only send a valid value.
-- The docstring is the tool description the model reads. It is written for an
-  LLM caller and states what the tool does, when to use it instead of a
-  neighbouring tool, and what the caller must fetch first (for example the
-  `version` before an update).
+- The docstring is the tool description the model reads, and it is sent on
+  **every** request for the life of the server. It carries only what changes a
+  caller's decision: what the tool does, what it costs in API calls, when to
+  use it instead of a neighbouring tool, what to fetch first (the `version`
+  before an update), how to read a result the schema does not explain, and
+  what cannot be undone. Design reasoning stays in this document, where it is
+  paid for once. **Under 700 characters**, which is a ceiling a rewrite into
+  explanation will cross rather than a limit on wording — the fix when one
+  grows past it is to move a paragraph here. Not enforced by a test on
+  purpose: a character count cannot judge whether a sentence earns its place,
+  and making it a gate would turn the judgement into a number to be gamed.
 - IDs are Lexware UUIDs. No tool invents, guesses or assembles an ID. A caller
   that has only a name uses `search_contacts` or `search_vouchers` first.
 

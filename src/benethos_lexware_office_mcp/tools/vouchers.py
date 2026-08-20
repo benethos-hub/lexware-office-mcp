@@ -166,20 +166,17 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Find invoices, credit notes, quotations and bookkeeping vouchers.
 
-        Costs one API call per page. This is the entry point to almost
-        everything else: it is the only way to turn a question about the books
-        into the ids that `get_voucher`, `get_payments` and the document tools
-        need. A caller that has a customer name starts at `search_contacts`,
-        takes the contact id and passes it here.
+        One API call per page. The only way to turn a question about the books
+        into the ids `get_voucher`, `get_payments` and the document tools
+        need. Starting from a customer name, get the contact id from
+        `search_contacts` first and pass it here.
 
-        Returns short rows with the id, type, status, number, dates, contact
-        name, total and open amount. Rows marked `archived` are filed away,
-        unmarked rows are active.
+        Rows carry id, type, status, number, dates, contact name, total and
+        open amount. A row marked `archived` is filed away.
 
-        The type and status are answered by the API for the whole account, so
-        narrowing them is what keeps an answer small. `only_open` and
-        `only_overdue` answer "what is still outstanding" directly and are
-        cheaper than paging through everything and filtering afterwards.
+        Narrow `voucher_type` and `voucher_status` to keep the answer small.
+        `only_open` and `only_overdue` answer "what is still outstanding"
+        without paging through everything.
         """
         payload = await provider.get().voucherlist(
             voucher_type=voucher_type,
@@ -219,12 +216,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Read one bookkeeping voucher, by id or by its document number.
 
-        Returns the booked amounts, the tax type, the posting category of
-        every line, the contact and the `version`. Costs one API call.
+        One API call. Returns the booked amounts, tax type, the posting
+        category of every line, the contact and the `version`.
 
-        Looking a voucher up by its number is the one thing `search_vouchers`
-        cannot do, which is why this tool accepts either. Use the id when you
-        have it, since a number is only unique by convention.
+        Prefer the id. The number is the fallback, because `search_vouchers`
+        cannot filter by it, and it is unique only by convention.
 
         For whether it has been paid, use `get_payments` with the same id.
         """
@@ -347,18 +343,14 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Record a bookkeeping voucher in the account.
 
-        Writes to real accounting data, and there is **no undo**: the API has
-        no way to delete a voucher, so a wrong one has to be corrected in the
-        Lexware web app. Confirm with `get_profile` which organization is
-        connected before calling this.
+        Writes real accounting data and **cannot be undone**: the API has no
+        way to delete a voucher. Confirm the organization with `get_profile`
+        first. One API call, never retried.
 
-        Costs one API call, which is never retried, because a repeated create
-        is a second booking of the same amount.
-
-        The totals are added up from the lines unless you state them. Every
-        line needs a posting category id, which comes from `get_master_data`
-        with kind 'posting-categories' and is not a name. Set `unchecked` when
-        the entry should wait for review rather than count immediately.
+        Every line needs a posting category **id**, from `get_master_data`
+        with kind 'posting-categories'. Totals are added up from the lines
+        unless stated. Set `unchecked` for an entry that should wait for
+        review instead of counting immediately.
         """
         body = voucher_body(
             voucher_type=voucher_type,
@@ -423,16 +415,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Change a bookkeeping voucher that is already recorded.
 
-        Writes to real accounting data. Read it with `get_voucher` first, both
-        to see what is there and to get the `version` this needs.
+        Writes real accounting data. Read it with `get_voucher` first: it
+        shows what is there and carries the `version` this needs. Two API
+        calls. Passing `items` **replaces** every line rather than adding one.
 
-        Costs two API calls: the API replaces the whole record rather than
-        patching it, so the current one is read and the changes are laid on
-        top. Passing `items` replaces every line, it does not add one.
-
-        If the voucher changed between your read and this call, nothing is
-        written. A voucher that has already been paid or booked may be refused
-        by the API regardless of the version.
+        If the voucher changed since that read, nothing is written. One that
+        is already paid or booked may be refused whatever the version.
         """
         client = provider.get()
         current = await client.voucher(voucher_id)

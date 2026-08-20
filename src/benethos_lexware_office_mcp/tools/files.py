@@ -300,24 +300,14 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> Delivered:
         """Put the contents of a downloaded file into this conversation.
 
-        Costs **no** API call: the file is already on the server. Use this
-        when the client cannot follow the resource link a download returned,
-        or when the content itself is the answer.
+        No API call. Use it when the client cannot open the `path` or follow
+        the `uri`, or when the content itself is the answer.
 
-        What comes back depends on what the file is, because the useful form
-        differs. **XML arrives as text**, which is the case worth knowing
-        about: an XRechnung becomes readable, so its amounts and dates can
-        actually be used. **A PDF arrives as pictures of its pages**, since a
-        PDF itself cannot be displayed by every client. An image arrives as an
-        image. Anything else arrives as an embedded binary for the client to
-        handle.
-
-        A PDF is rendered to its first {pages} pages unless `max_pages` says
-        otherwise, and the result reports how many pages the document has
-        alongside how many were rendered, so a partial read never looks
-        complete. Raise `max_pages`, or pass null for all of them, when the
-        rest matters — at roughly two thousand tokens a page. Prefer the
-        `path` or the resource `uri` when the client can use them directly.
+        What arrives depends on the file: XML as **text**, so an XRechnung can
+        be read. PDF as **pictures of its pages**, first {pages} unless
+        `max_pages` says otherwise — check `pages` against `pagesShown` and
+        raise it, or pass null, if the rest matters. Images as images.
+        Anything else as an embedded binary.
         """
         if not uri.startswith(resources.SCHEME):
             raise ValidationError(
@@ -365,20 +355,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ],
     ) -> dict[str, Any]:
-        """Upload a receipt and let Lexware create the voucher for it.
+        """Upload a receipt, which also creates a bookkeeping voucher for it.
 
-        Writes to real accounting data, and does more than the name suggests:
-        the API answers with both a file id and a **new bookkeeping voucher**
-        built around it. Confirm with `get_profile` which organization is
-        connected before calling this, and expect a voucher to appear that
-        nobody explicitly asked for. It cannot be deleted through the API.
+        Writes real accounting data and **cannot be undone**: the answer
+        carries a `voucherId` as well as a file id, and that voucher cannot be
+        deleted through the API. Confirm the organization with `get_profile`
+        first. One API call, never retried.
 
-        Costs one API call, which is never retried, because a repeated upload
-        is a second voucher for the same receipt.
-
-        PDFs and images are accepted, plain text is not, and the limit is 5
-        MiB. A file that is too large is refused here before a request is
-        spent on it.
+        Takes PDF, JPEG, PNG or XML, at most 5 MiB. An XML file is treated as
+        an XRechnung.
         """
         content, name, content_type = _read_upload(path)
         return dict(await provider.get().upload_file(content, name, content_type))
