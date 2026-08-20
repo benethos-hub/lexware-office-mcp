@@ -1050,3 +1050,32 @@ async def test_the_link_follows_the_configured_web_app(tmp_path: Path) -> None:
         "https://example.invalid/permalink/"
     )
     await provider.aclose()
+
+
+async def test_the_description_tells_the_model_all_three_routes() -> None:
+    """The routes only help if the description names them and says when.
+
+    A tool result carrying `path`, `uri` and `deeplink` is useless if the
+    model has to guess which one its client can act on.
+    """
+    server = build_server(Settings(api_key=API_KEY))
+    tool = next(t for t in await server.list_tools() if t.name == "download_file")
+
+    assert tool.description is not None
+    for route in ("`path`", "`uri`", "`deeplink`"):
+        assert route in tool.description, route
+    assert "read_download" in tool.description
+
+
+async def test_the_download_descriptions_stay_short() -> None:
+    """Descriptions ship on every request, so prose creep is paid for forever.
+
+    A generous ceiling that a rewrite into explanation would cross, not a
+    style rule. Both sat well under half of it when this was written.
+    """
+    server = build_server(Settings(api_key=API_KEY))
+    tools = {t.name: t for t in await server.list_tools()}
+
+    for name in ("download_file", "download_document"):
+        description = tools[name].description or ""
+        assert len(description) < 700, f"{name} is {len(description)} characters"

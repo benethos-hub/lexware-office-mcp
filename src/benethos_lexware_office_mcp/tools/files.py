@@ -196,25 +196,19 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         ],
         file_format: FormatField = "pdf",
     ) -> Download:
-        """Save a stored file, such as an uploaded receipt, and hand it over.
+        """Save a stored file, such as an uploaded receipt. One API call.
 
-        Costs one API call. The file is written to the server's download
-        directory and reported two ways: a `path`, which is usable when the
-        client runs on the same machine as this server, and a `uri` under
-        which the same bytes can be fetched with a resource read, which works
-        whatever machine the server is on. The bytes themselves are not put in
-        the result, because that is base64 nothing can read and everything
-        pays for.
+        The bytes are not in this answer. Three ways to reach them:
 
-        An existing file is never replaced. A second download of the same
-        document is saved alongside the first with a counter in its name.
+        - `path` — the file on the server's disk. Works if the client runs on
+          that machine.
+        - `uri` — pass it to `read_download` to put the content in the
+          conversation, or read it as a resource.
+        - `deeplink` — give this to a person. Opens the document in the web
+          app and needs neither of the above.
 
-        The result also carries a `deeplink` that opens the document in the
-        Lexware Office web app. Pass it on when a person should look at the
-        document themselves, which is often the shortest route.
-
-        Use `download_document` for an invoice or another sales document,
-        which is rendered rather than stored.
+        Use `download_document` for a sales document, which is rendered
+        rather than stored.
         """
         response = await provider.get().file(file_id, MIME[file_format])
         return _deliver(
@@ -243,17 +237,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> Download:
         """Save the rendered PDF of an invoice or another sales document.
 
-        Costs one API call. Reports a `path` and a `uri` exactly as
-        `download_file` does, and as there, nothing is overwritten and the
-        bytes stay out of the answer.
+        One API call. Reports `path`, `uri` and `deeplink` and keeps the bytes
+        out of the answer, exactly as `download_file` does.
 
-        The result also carries a `deeplink` into the Lexware Office web app,
-        which is worth passing on to a person.
-
-        A document is only rendered once it leaves draft, so a draft has
-        nothing to download and the API says so. An XRechnung is XML by
-        nature and its PDF is a preview, not a valid e-invoice. A ZUGFeRD
-        document exists only as a PDF, with the XML inside it.
+        A draft has not been rendered and cannot be downloaded. An XRechnung
+        is XML by nature and its PDF is only a preview. A ZUGFeRD document is
+        a PDF with the XML inside it.
         """
         response = await provider.get().document_file(
             RESOURCES[document_type], document_id, MIME[file_format]
