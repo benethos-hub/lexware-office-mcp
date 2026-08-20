@@ -103,8 +103,11 @@ Write tools, only with `LXO_MCP_MODE=write` or higher. None of these exist yet:
 2. Open the public API add-on at
    <https://app.lexware.de/addons/public-api>.
 3. Create a key and copy it once — it is shown a single time.
-4. Keep it out of any file that goes into version control. The server reads it
-   from the environment or from a `.env` in your user config directory.
+4. Keep it out of any file that goes into version control. Put it in
+   `config/.env`, which is gitignored, or pass it as an environment variable.
+   A key in `config/.env` is found no matter which directory the server is
+   started from, so a client such as Claude Desktop needs no key of its own in
+   its configuration file.
 
 A key can be revoked on the same page at any time, which is the fastest way to
 cut access if anything looks wrong.

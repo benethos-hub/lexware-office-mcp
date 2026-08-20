@@ -25,13 +25,18 @@ def server_parameters(tmp_path: Path) -> StdioServerParameters:
     return StdioServerParameters(
         command=sys.executable,
         args=["-m", "benethos_lexware_office_mcp"],
-        # A directory of its own, so the developer's real config/.env is not
-        # picked up and no credential is anywhere near this test.
+        # A directory of its own, so no `.env` beside the caller is read.
         cwd=str(tmp_path),
         env={
             "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
             "PYTHONIOENCODING": "utf-8",
             "LXO_MCP_LOG_LEVEL": "ERROR",
+            # A working directory of its own is not enough: the server also
+            # reads the checkout's own config/.env, which on a developer
+            # machine holds a real key. A real environment variable outranks
+            # every file, so setting it empty keeps this test away from any
+            # credential. Listing tools needs none.
+            "LXO_MCP_API_KEY": "",
         },
     )
 

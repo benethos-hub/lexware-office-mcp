@@ -224,11 +224,22 @@ section 2.
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr. | `INFO` |
 
-The API key is read from a real environment variable, or from a `.env` in the
-user config directory resolved via `platformdirs`, never from the working
-directory of the client that spawned the process and never from a file in the
-repository. Precedence: real env var > repo `.env` (development only) >
-config dir `.env`.
+Precedence, highest first: a real environment variable, `.env` in the working
+directory, `config/.env` in the working directory, `config/.env` of the source
+checkout the package runs from, and `.env` in the per-user config directory
+resolved via `platformdirs`.
+
+The fourth rule exists because a client such as Claude Desktop spawns the
+server with a working directory of its own, so a clone had to be startable from
+anywhere without repeating its configuration. It is limited to a **source
+checkout**, decided by a `pyproject.toml` beside the `config/` directory. An
+installed package sits in `site-packages`, which has none, so nothing is read
+from there — configuration read out of a directory shared with every other
+installed package is not a property this server should have. The invocation
+outranks the installation, which is why the working directory sits above it.
+
+No secret is ever read from a versioned file. `config/.env` is gitignored and
+`config/.env.sample`, which is committed, holds no key.
 
 ## 8. Tools
 

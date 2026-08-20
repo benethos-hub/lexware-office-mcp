@@ -33,8 +33,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   all, and the tier is checked again when a call arrives, so a client holding a
   stale list cannot get one through.
 - **Configuration** from a real environment variable, a `.env` in the working
-  directory, `config/.env`, or a `.env` in the per-user config directory, in
-  that order of precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`,
+  directory, `config/.env` in the working directory, `config/.env` of the clone
+  the server runs from, or a `.env` in the per-user config directory, in that
+  order of precedence. The fourth rule means a clone configures itself no
+  matter which directory it is started from, which is what a client such as
+  Claude Desktop needs. Settings: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`,
   `LXO_MCP_BASE_URL`, `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`,
   `LXO_MCP_TIMEOUT`, `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE` and
   `LXO_MCP_LOG_LEVEL`. Values are validated when they are read, so a page size

@@ -1,10 +1,25 @@
 """Settings resolution and credential lookup.
 
-Precedence, highest first: a real environment variable, a ``.env`` in the
-working directory, ``config/.env`` below the working directory, and a ``.env``
-in the per-user config directory. ``config/.env.sample`` in this repository
-documents every setting and is the file to copy. No secret is ever read from a
-versioned file.
+Precedence, highest first:
+
+1. a real environment variable
+2. ``.env`` in the working directory
+3. ``config/.env`` below the working directory
+4. ``config/.env`` of the source checkout this package runs from
+5. ``.env`` in the per-user config directory
+
+Rule 4 is what makes a clone usable no matter where it is started from, which
+matters because a client such as Claude Desktop spawns the server with a
+working directory of its own. It applies **only to a source checkout**, and
+:func:`_project_config` decides that by looking for a ``pyproject.toml``. A
+package installed from a wheel sits in ``site-packages``, which has no
+``pyproject.toml``, so nothing is read from there — reading configuration out
+of a shared install directory is not a property this server should have.
+
+The invocation beats the installation, so 2 and 3 sit above 4.
+
+``config/.env.sample`` documents every setting and is the file to copy. No
+secret is ever read from a versioned file.
 """
 
 from __future__ import annotations
@@ -94,11 +109,26 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+def _project_config() -> Path | None:
+    """``config/.env`` of the source checkout, or ``None`` when installed.
+
+    The package lives at ``<root>/src/<package>/``, so the root is two levels
+    up. A ``pyproject.toml`` there is what distinguishes a checkout from a
+    wheel unpacked into ``site-packages``, where that path would point at a
+    directory shared with every other installed package.
+    """
+    root = Path(__file__).resolve().parents[2]
+    return root / "config" / ".env" if (root / "pyproject.toml").is_file() else None
+
+
 def _env_lookup(cwd: Path | None = None) -> dict[str, str]:
     """Merge every source into one mapping, highest precedence last."""
     here = cwd or Path.cwd()
     merged: dict[str, str] = {}
     merged.update(_parse_env_file(config_dir() / ".env"))
+    project = _project_config()
+    if project is not None:
+        merged.update(_parse_env_file(project))
     merged.update(_parse_env_file(here / "config" / ".env"))
     merged.update(_parse_env_file(here / ".env"))
     merged.update(os.environ)
