@@ -1,9 +1,12 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: design phase.** This document describes what is being built. No
-> code exists in this repository yet. Sections marked **(to verify)** rest on
-> the public documentation and must be confirmed against the live API before
-> the corresponding code is written.
+> **Status: 0.1.0 in progress.** The client, the configuration, the permission
+> tiers and the first tool are built and tested. Everything else in this
+> document describes what is still being built, and the roadmap in section 16
+> says which is which. Sections marked **(to verify)** rest on the public
+> documentation and must be confirmed against the live API before the
+> corresponding code is written. Facts already checked against a live account
+> say so with their date.
 
 ## 1. Purpose
 
@@ -625,7 +628,7 @@ subclasses with concise, actionable messages.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | planned |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping and `get_profile` done and verified against a live account. The remaining read tools and CI are open. |
 | 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | planned |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |

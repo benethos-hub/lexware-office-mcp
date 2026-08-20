@@ -27,10 +27,10 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: design phase.**
-> This repository currently contains the specification and this README. There
-> is no installable package yet. Everything below describes the intended
-> shape and is subject to change until 0.1.0 ships. See
+> **Status: 0.1.0 in progress, not published yet.**
+> The server runs over stdio and answers `get_profile`. The rest of the tools
+> below are specified but not built, and the table says which is which. There
+> is no PyPI release yet, so installation means cloning the repository. See
 > [SPECS.md](SPECS.md) for the full technical specification and the roadmap.
 
 ## Why this exists
@@ -57,36 +57,39 @@ The server points at a real accounting system, so the defaults are cautious.
 - The API key is never logged, never returned in a tool result, and redacted
   from error messages.
 
-## Planned tools
+## Tools
+
+**Built** means it works today. The rest are specified in
+[SPECS.md](SPECS.md) and not implemented yet.
 
 Read tools, available in every mode:
 
-| Tool | What it does |
-|---|---|
-| `get_profile` | Company profile and connection check |
-| `search_contacts` | Find customers and vendors by name, email or number |
-| `get_contact` | One contact with addresses and roles |
-| `search_articles` | Find articles by title, number or GTIN |
-| `get_article` | One article |
-| `search_vouchers` | The central query — filter the voucher list by type, status, contact and date range |
-| `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice |
-| `get_voucher` | Read a bookkeeping voucher |
-| `get_payments` | Payment status and open amount of a voucher |
-| `get_recurring_templates` | Recurring invoice templates |
-| `get_master_data` | Countries, payment conditions, posting categories, print layouts |
-| `get_document_pdf` | Render a document and optionally save the PDF |
-| `download_file` | Download a stored file by its ID |
-| `get_deeplink` | Build a permalink into the Lexware Office web app |
+| Tool | What it does | Status |
+|---|---|---|
+| `get_profile` | Company profile and connection check | **built** |
+| `search_contacts` | Find customers and vendors by name, email or number | planned |
+| `get_contact` | One contact with addresses and roles | planned |
+| `search_articles` | Find articles by title, number or GTIN | planned |
+| `get_article` | One article | planned |
+| `search_vouchers` | The central query — filter the voucher list by type, status, contact and date range | planned |
+| `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice | planned |
+| `get_voucher` | Read a bookkeeping voucher | planned |
+| `get_payments` | Payment status and open amount of a voucher | planned |
+| `get_recurring_templates` | Recurring invoice templates | planned |
+| `get_master_data` | Countries, payment conditions, posting categories, print layouts | planned |
+| `get_document_pdf` | Render a document and optionally save the PDF | planned |
+| `download_file` | Download a stored file by its ID | planned |
+| `get_deeplink` | Build a permalink into the Lexware Office web app | planned |
 
-Write tools, only with `LXO_MCP_MODE=write` or higher:
+Write tools, only with `LXO_MCP_MODE=write` or higher. None of these exist yet:
 
-| Tool | What it does |
-|---|---|
-| `create_contact`, `update_contact` | Create and update customers and vendors |
-| `create_article`, `update_article` | Create and update articles |
-| `create_voucher`, `update_voucher` | Create and update bookkeeping vouchers |
-| `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested |
-| `upload_file` | Upload a receipt |
+| Tool | What it does | Status |
+|---|---|---|
+| `create_contact`, `update_contact` | Create and update customers and vendors | planned |
+| `create_article`, `update_article` | Create and update articles | planned |
+| `create_voucher`, `update_voucher` | Create and update bookkeeping vouchers | planned |
+| `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested | planned |
+| `upload_file` | Upload a receipt | planned |
 
 ## Requirements
 
@@ -106,29 +109,33 @@ Write tools, only with `LXO_MCP_MODE=write` or higher:
 A key can be revoked on the same page at any time, which is the fastest way to
 cut access if anything looks wrong.
 
-## Planned installation
+## Installation
 
-Once 0.1.0 is published:
-
-```powershell
-# Windows (PowerShell)
-py -m venv "$env:USERPROFILE\mcp-lexware"
-& "$env:USERPROFILE\mcp-lexware\Scripts\python.exe" -m pip install benethos-lexware-office-mcp
-```
+There is no PyPI release yet, so this means cloning the repository. With
+[uv](https://docs.astral.sh/uv/):
 
 ```bash
-# Linux / macOS
-python3 -m venv ~/mcp-lexware
-~/mcp-lexware/bin/python -m pip install benethos-lexware-office-mcp
+git clone https://github.com/benethos-hub/lexware-office-mcp
+cd lexware-office-mcp
+uv sync
+cp config/.env.sample config/.env    # then put your API key in it
 ```
 
-Then point Claude Desktop at it in `claude_desktop_config.json`:
+Check that it works:
+
+```bash
+uv run benethos-lexware-office-mcp --help
+```
+
+Then point Claude Desktop at it in `claude_desktop_config.json`. Use the
+interpreter from the virtual environment directly, so no generated launcher is
+involved:
 
 ```json
 {
   "mcpServers": {
     "lexware-office": {
-      "command": "C:\\Users\\<you>\\mcp-lexware\\Scripts\\python.exe",
+      "command": "C:\path\to\lexware-office-mcp\.venv\Scripts\python.exe",
       "args": ["-m", "benethos_lexware_office_mcp"],
       "env": {
         "LXO_MCP_API_KEY": "<your api key>"
@@ -148,13 +155,16 @@ window — so the tool list is reloaded.
 | `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |
 | `LXO_MCP_MODE` | `read`, `write` or `full` | `read` |
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
-| `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
-| `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
+| `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks *(no effect yet)* | `https://app.lexware.de` |
+| `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land *(no effect yet)* | user cache directory |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity | `2` |
-| `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
+| `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns *(no effect yet)* | `25` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
+
+*(no effect yet)* marks settings that are read and validated but that no
+tool consumes so far, because the tool that needs them is not built.
 
 ## Transport
 
