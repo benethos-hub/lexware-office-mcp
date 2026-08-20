@@ -4,7 +4,8 @@ A PDF cannot be handed to every client as a PDF. Claude Desktop maps a binary
 resource onto an image block when it builds its own API request, and
 ``application/pdf`` is not a permitted image type there, so the request is
 refused outright (SPECS.md section 13). Rendering the pages is what makes a
-document visible at all in such a client.
+document visible at all in such a client, confirmed against Claude Desktop on
+2026-08-20 rather than merely reasoned about.
 
 Two choices worth stating, both measured rather than assumed on 2026-08-20
 against a two-page A4 invoice:

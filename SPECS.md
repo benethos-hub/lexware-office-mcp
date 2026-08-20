@@ -824,8 +824,10 @@ subclasses with concise, actionable messages.
   put a PDF in front of that client is to turn it into something else, namely
   its extracted text or its pages rendered as images.
 - **So a PDF is delivered as pictures of its pages.** `read_download` renders
-  them rather than handing over bytes no client will show. The decisions
-  behind it were measured on 2026-08-20 against a two-page A4 invoice:
+  them rather than handing over bytes no client will show, and **the rendered
+  pages were confirmed to arrive in Claude Desktop on 2026-08-20**: the client
+  that refuses the blob displays these. The decisions behind them were
+  measured the same day against a two-page A4 invoice:
   - **`pypdfium2`, not PyMuPDF.** PyMuPDF is faster and better known, and it
     is AGPL-3.0 or a commercial licence from Artifex, which an MIT project
     cannot take. `pypdfium2` binds the same PDFium that Chrome uses, under
