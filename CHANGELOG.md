@@ -89,6 +89,13 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   with the server can still fetch the bytes. Registered per file, so each
   carries its own content type and only what was actually downloaded is
   reachable.
+- **The same file is never downloaded twice into two copies.** Saving still
+  refuses to overwrite a file whose contents differ, but a file whose contents
+  are identical is reused instead of being written again beside the first.
+- **A download link survives a restart of the server.** `read_download`
+  resolves the file from the download directory rather than from a registry
+  that only lives as long as the process, so a URI handed out earlier keeps
+  working.
 - **`read_download`** — put a downloaded file into the answer, for clients
   that do not follow resource links. Claude Desktop is one of them, so this is
   the route that always works. What comes back depends on the file: **XML

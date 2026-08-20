@@ -800,6 +800,22 @@ subclasses with concise, actionable messages.
   read a PDF anyway. Instead each download is reported twice: a `path`, which
   is what a client sharing the machine with the server wants, and a `uri` under
   which the client can read the bytes on demand. Both name the same file.
+- **A PDF cannot be delivered to Claude Desktop at all, in any encoding.**
+  Measured on 2026-08-20 by reading the raw JSON-RPC off a real subprocess:
+  the server sends `type: "resource"` with `mimeType: application/pdf` and a
+  blob, which is what the specification prescribes and contains no image block
+  of any kind. Claude Desktop nevertheless maps a binary embedded resource
+  onto an **image** block when it builds its own API request, and that request
+  is then refused with
+  `ClaudeAiToolResultRequest.content.0.image.source.media_type: Input is not
+  one of the permitted values` — the permitted ones being `image/jpeg`,
+  `image/png`, `image/gif` and `image/webp`. A PNG goes through the same path
+  without trouble, so the obstacle is the media type and not the route. Two
+  things follow: re-encoding the same bytes cannot help, and the only way to
+  put a PDF in front of that client is to turn it into something else, namely
+  its extracted text or its pages rendered as images. **(to decide)** — it is
+  the first runtime dependency the project would take, and the obvious
+  rendering library is AGPL against an MIT project.
 - **A client that cannot follow the link still gets the file.** Resource
   links are the cheap path, not a requirement: `read_download` takes the same
   URI and puts the content into the answer directly, because a tool call is
@@ -810,6 +826,19 @@ subclasses with concise, actionable messages.
   **images**, and everything else as an embedded binary the client handles.
   Capped at 5 MiB, the same number the upload accepts, because base64 of
   anything larger would swallow the answer it was meant to be part of.
+- **A downloaded file is reused, not copied.** Saving refuses to overwrite a
+  file whose contents differ, because replacing last month's invoice with this
+  month's is worse than failing. A file whose contents are *identical* is
+  handed back instead of duplicated: four downloads of one unchanged invoice
+  used to leave four copies numbered up to `-4`, which is not caution but
+  litter.
+- **A link keeps working after a restart.** `read_download` resolves the file
+  from the download directory rather than from the resource registry, which
+  only knows what the current process fetched. The file outlives the process,
+  and only the registration was ever tied to one. The name is sanitized and
+  the result checked to be inside the directory, since it arrives from the
+  caller. Its content type comes from the extension, which is the name the API
+  itself chose in its `Content-Disposition`.
 - **The URI is an MCP resource, registered per download.** A path only means
   something while client and server share a filesystem, which the stdio
   transport happens to give and the HTTP transport of section 6 will not. What

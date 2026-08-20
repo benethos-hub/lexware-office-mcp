@@ -445,21 +445,41 @@ async def test_nothing_is_published_before_a_download(tmp_path: Path) -> None:
     await provider.aclose()
 
 
-async def test_two_downloads_are_two_resources(tmp_path: Path) -> None:
-    """The second file is saved beside the first, so it needs its own URI."""
+async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
+    """Four downloads of one unchanged invoice used to leave four copies."""
     handler = Recorder(headers={"content-type": "application/pdf"})
     server, provider = server_for(handler, tmp_path)
 
-    first = await server.call_tool("download_file", {"file_id": FILE_ID})
-    second = await server.call_tool("download_file", {"file_id": FILE_ID})
+    results = [
+        await server.call_tool("download_file", {"file_id": FILE_ID}) for _ in range(4)
+    ]
 
-    uris = {
-        (first.structured_content or {})["uri"],
-        (second.structured_content or {})["uri"],
-    }
-    assert len(uris) == 2
-    assert {str(r.uri) for r in await server.list_resources()} == uris
+    uris = {(r.structured_content or {})["uri"] for r in results}
+    assert len(uris) == 1
+    assert len(list(tmp_path.iterdir())) == 1
     await provider.aclose()
+
+
+async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:
+    """The other half of the rule: nothing is ever overwritten."""
+    directory = tmp_path
+    first = storage.save(b"january", "invoice.pdf", directory)
+    second = storage.save(b"february", "invoice.pdf", directory)
+
+    assert first.name == "invoice.pdf"
+    assert second.name == "invoice-2.pdf"
+    assert first.read_bytes() == b"january"
+
+
+def test_reusing_a_copy_that_already_carries_a_counter(tmp_path: Path) -> None:
+    """The match may be behind a name that was itself pushed aside once."""
+    storage.save(b"january", "invoice.pdf", tmp_path)
+    numbered = storage.save(b"february", "invoice.pdf", tmp_path)
+
+    again = storage.save(b"february", "invoice.pdf", tmp_path)
+
+    assert again == numbered
+    assert len(list(tmp_path.iterdir())) == 2
 
 
 async def test_a_content_type_with_parameters_is_reduced_to_the_type(
@@ -573,7 +593,13 @@ async def test_an_xrechnung_comes_back_as_readable_text(tmp_path: Path) -> None:
 
 async def test_an_image_comes_back_as_an_image(tmp_path: Path) -> None:
     png = b"\x89PNG\r\n\x1a\n" + b"payload"
-    handler = Recorder(content=png, headers={"content-type": "image/png"})
+    handler = Recorder(
+        content=png,
+        headers={
+            "content-type": "image/png",
+            "content-disposition": "inline; filename=scan.png;",
+        },
+    )
     server, provider = server_for(handler, tmp_path)
     uri = await _downloaded(server, handler)
 
@@ -651,3 +677,59 @@ async def test_the_description_says_which_form_to_expect() -> None:
     assert tool.description is not None
     assert "XML arrives as text" in tool.description
     assert "no** API call" in tool.description or "no API call" in tool.description
+
+
+# -- surviving a restart --------------------------------------------------
+
+
+async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> None:
+    """The registry lives in a process, the file does not.
+
+    A URI handed out yesterday used to stop resolving today even though the
+    file was sitting in the download directory, because only the in-memory
+    registration knew about it.
+    """
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    handler = Recorder()
+    fresh, provider = server_for(handler, tmp_path)
+
+    assert await fresh.list_resources() == [], "nothing was downloaded by this process"
+
+    result = await fresh.call_tool(
+        "read_download", {"uri": "lexware://download/invoice.pdf"}
+    )
+
+    assert (result.structured_content or {})["deliveredAs"] == "binary"
+    assert base64.b64decode(result.content[0].resource.blob) == PDF
+    await provider.aclose()
+
+
+async def test_the_content_type_comes_from_the_name_on_disk(tmp_path: Path) -> None:
+    """Which is the name the API itself chose, in its Content-Disposition."""
+    (tmp_path / "e-rechnung.xml").write_bytes(b"<Invoice/>")
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool(
+        "read_download", {"uri": "lexware://download/e-rechnung.xml"}
+    )
+
+    assert (result.structured_content or {})["mimeType"] == "application/xml"
+    assert (result.structured_content or {})["deliveredAs"] == "text"
+    await provider.aclose()
+
+
+async def test_a_uri_cannot_climb_out_of_the_download_directory(
+    tmp_path: Path,
+) -> None:
+    """The name comes from the caller, so it is sanitized like any other input."""
+    secret = tmp_path.parent / "secret.pdf"
+    secret.write_bytes(b"not yours")
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "read_download", {"uri": "lexware://download/../secret.pdf"}
+        )
+    await provider.aclose()

@@ -10,13 +10,20 @@ month's is worse than one that fails.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import httpx
 
 from .config import Settings, download_dir
 
-__all__ = ["directory_for", "save", "suggested_name"]
+__all__ = [
+    "content_type_for",
+    "directory_for",
+    "resolve",
+    "save",
+    "suggested_name",
+]
 
 # Anything outside this set is replaced. Deliberately narrow: a filename that
 # reaches the disk should be boring.
@@ -66,20 +73,69 @@ def _safe_name(raw: str) -> str:
 
 
 def save(content: bytes, name: str, directory: Path) -> Path:
-    """Write ``content`` under ``name``, without ever replacing a file.
+    """Write ``content`` under ``name``, replacing nothing and repeating nothing.
 
-    A name already taken gets a counter before its extension, so repeated
-    downloads of the same document accumulate rather than overwrite.
+    Two rules that pull in opposite directions, so both are stated:
+
+    - A file whose contents differ is never overwritten. Replacing last
+      month's invoice with this month's is worse than failing.
+    - A file whose contents are **identical** is reused rather than copied.
+      Downloading the same unchanged document four times used to leave four
+      copies numbered up to ``-4``, which is not caution, it is litter.
     """
-    target = directory / name
-    if not target.exists():
-        target.write_bytes(content)
-        return target
-
-    stem, suffix = target.stem, target.suffix
-    for counter in range(2, 1000):
-        candidate = directory / f"{stem}-{counter}{suffix}"
+    for candidate in _candidates(name, directory):
         if not candidate.exists():
             candidate.write_bytes(content)
             return candidate
+        if candidate.read_bytes() == content:
+            return candidate
     raise FileExistsError(f"Too many files already named like {name!r} in {directory}.")
+
+
+def _candidates(name: str, directory: Path) -> Iterator[Path]:
+    """The plain name first, then the same name with a counter."""
+    target = directory / name
+    yield target
+    stem, suffix = target.stem, target.suffix
+    for counter in range(2, 1000):
+        yield directory / f"{stem}-{counter}{suffix}"
+
+
+def resolve(name: str, directory: Path) -> Path | None:
+    """The downloaded file called ``name``, or ``None``.
+
+    Used instead of an in-memory registry so a link keeps working after the
+    server restarts: the file is on disk either way, and only the registration
+    was ever tied to a process. The name is sanitized and the result checked
+    to be inside ``directory``, because the name arrives from the caller.
+    """
+    safe = _safe_name(name)
+    if not safe:
+        return None
+    candidate = (directory / safe).resolve()
+    try:
+        candidate.relative_to(directory.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+# Enough to tell a client what it is holding. Anything unlisted is handed over
+# as an opaque download rather than guessed at.
+CONTENT_TYPES: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".xml": "application/xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".txt": "text/plain",
+    ".json": "application/json",
+    ".csv": "text/csv",
+}
+
+
+def content_type_for(path: Path) -> str:
+    """The content type of a saved file, from its extension."""
+    return CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")

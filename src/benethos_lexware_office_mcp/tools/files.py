@@ -12,15 +12,12 @@ import base64
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.types import (
     BlobResourceContents,
     CallToolResult,
     EmbeddedResource,
     ImageContent,
-    InputRequiredResult,
     TextContent,
 )
 from pydantic import BaseModel, Field
@@ -28,7 +25,7 @@ from pydantic import BaseModel, Field
 from .. import resources, storage
 from ..client import ClientProvider
 from ..config import Settings
-from ..errors import NotFoundError, UpstreamError, ValidationError
+from ..errors import NotFoundError, ValidationError
 from ..policy import requires, should_register
 from ._base import register_tool
 
@@ -277,29 +274,25 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
         Prefer the `path` or the resource `uri` when the client can use them.
         Embedding a large PDF here spends a great deal of the answer's budget
-        on bytes nothing will read.
+        on bytes nothing will read, and some clients cannot display an
+        embedded PDF at all. Say so rather than claiming the file was shown.
         """
         if not uri.startswith(resources.SCHEME):
             raise ValidationError(
                 f"{uri!r} is not a download from this server. Pass the `uri` "
                 f"a download reported, which starts with {resources.SCHEME}."
             )
-        try:
-            found = await server.read_resource(uri)
-        except ResourceNotFoundError as exc:
-            raise NotFoundError("download", uri) from exc
-        if isinstance(found, InputRequiredResult):
-            # Only a template function taking a Context can ask for input, and
-            # downloads are registered as plain resources.
-            raise UpstreamError(f"Reading {uri} asked for input unexpectedly.")
-        contents: list[ReadResourceContents] = list(found)
-        if not contents:
+        # Resolved from disk rather than from the resource registry, which
+        # only knows what this process downloaded. The file outlives the
+        # process, so a link handed out before a restart still works.
+        found = storage.resolve(
+            uri[len(resources.SCHEME) :], storage.directory_for(settings)
+        )
+        if found is None:
             raise NotFoundError("download", uri)
 
-        item = contents[0]
-        raw = item.content
-        payload = raw.encode("utf-8") if isinstance(raw, str) else raw
-        mime = item.mime_type or resources.DEFAULT_TYPE
+        payload = found.read_bytes()
+        mime = storage.content_type_for(found)
         if len(payload) > MAX_INLINE:
             raise ValidationError(
                 f"{uri} is {len(payload) / 1024 / 1024:.1f} MiB, too much to "
