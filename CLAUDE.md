@@ -107,6 +107,13 @@ response shapes. Verify anything new against the live API with a read-only
 call before building on it, and mark unverified assumptions **(to verify)** in
 SPECS.md rather than stating them as fact.
 
+**A live check is always a manual run, never a gate.** No key ships with the
+repository and none goes into CI, so anything automated has to pass with no
+key, no network and no account. Never write a test that reaches the API, and
+never write one that skips itself when no key is present — that reports green
+while checking nothing. Live verification belongs in the separate read-only
+script described in SPECS.md section 14.1.
+
 ## Conventions
 
 - Type hints everywhere, `from __future__ import annotations` at the top.

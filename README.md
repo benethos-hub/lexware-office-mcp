@@ -231,8 +231,11 @@ key, so it runs anywhere. Three of the tests start the server as a real
 subprocess and speak MCP to it over stdio, which is also what proves that
 nothing writes to stdout on the startup path.
 
-A read-only smoke script for manual checks against a live account is planned
-and does not exist yet.
+No API key ships with this repository and none belongs in CI, so a checkout
+can never talk to Lexware on its own. Checking the server against the real API
+is therefore always a deliberate local run with a key you supply, separate from
+the suite above and never part of it. A read-only smoke script for that is
+planned and does not exist yet, see [SPECS.md](SPECS.md) section 14.1.
 
 Contributions and issues are welcome once the first release is out. Until
 then, [SPECS.md](SPECS.md) is the place where design decisions are recorded,

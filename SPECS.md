@@ -676,15 +676,14 @@ subclasses with concise, actionable messages.
 
 ## 14. Testing
 
+The suite that gates the project and the checks that touch a live account are
+two different things, kept apart deliberately. Section 14.1 says why.
+
 - Offline unit tests using `httpx.MockTransport`, no network in the suite, no
   API key needed to run it.
 - Fixtures are anonymized copies of real response shapes, with placeholder IDs.
-- Coverage floor 80 percent, enforced in CI.
-- A separate `tests/smoke.py`, not collected by pytest, runs **read-only**
-  calls against a live account for manual verification. It never writes.
-  **Not built yet** — live checks have so far been one-off scripts kept outside
-  the repository, which is fine for a probe and no substitute for a script
-  anyone can rerun.
+- Coverage floor 80 percent, measured over the offline suite alone and
+  enforced by CI once CI exists.
 - **The rate limiter is unit tested against an injected clock**, never against
   `time.sleep`, so the suite stays fast and deterministic. The properties worth
   asserting follow straight from the algorithm in section 10.1: the bucket is
@@ -695,6 +694,35 @@ subclasses with concise, actionable messages.
   cannot spend the same token twice, and a run of 429s trips the circuit
   breaker instead of retrying forever.
 - Gates: `pytest -q`, `ruff check .`, `ruff format --check .`, `mypy`.
+
+### 14.1 Live checks are not a gate
+
+No API key ships with this repository and none is ever placed in CI. A public
+checkout cannot talk to Lexware at all, and that is the intended state: a key
+held in a CI secret would put a real accounting system one merge away from a
+workflow file that anyone able to open a pull request can edit.
+
+The consequences are the point of writing this down.
+
+- **The offline suite is the only gate.** Everything CI runs has to pass with
+  no key, no network and no account. That is true today and stays true. A test
+  that quietly skips when no key is present is not a gate, it is a hole that
+  reports green.
+- **`tests/smoke.py` is run by hand and never collected by pytest.** It takes
+  a key from the normal configuration chain of section 7, refuses to start
+  without one, calls `get_profile` first so whoever runs it sees which
+  organization is about to be read, and performs **read-only** calls only.
+  **Not built yet** — live checks have so far been one-off scripts kept
+  outside the repository, which is fine for a probe and no substitute for a
+  script anyone can rerun.
+- **Upstream drift is invisible to CI.** The suite mocks HTTP completely, so
+  it stays green through any change in Lexware's field names or response
+  shapes. Only a live run catches that, and only someone holding an account
+  can perform one. This is why statements about the API in this document carry
+  **(to verify)** until a live call has confirmed them.
+- **The open questions below cannot be closed by CI.** Questions 2 and 3 need
+  write calls against a disposable test account, see section 11.1. That is a
+  deliberate act by the account owner, not something automation initiates.
 
 ## 15. Conventions
 
