@@ -91,7 +91,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles. | planned |
-| `tools/vouchers.py` | Voucher list and bookkeeping vouchers. | planned |
+| `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
 | `tools/sales_documents.py` | The seven sales document types. | planned |
 | `tools/files.py` | Upload, download, PDF rendering, deeplinks. | planned |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | planned |
@@ -190,6 +190,7 @@ Facts taken from <https://developers.lexware.io/docs/>.
 | Contacts | `/v1/contacts` | GET, POST, PUT |
 | Articles | `/v1/articles` | GET, POST, PUT, DELETE |
 | Voucherlist | `/v1/voucherlist` | GET |
+| Payments | `/v1/payments/{voucherId}` | GET |
 | Vouchers | `/v1/vouchers` | GET, POST, PUT |
 | Invoices | `/v1/invoices` | GET, POST |
 | Quotations | `/v1/quotations` | GET, POST |
@@ -210,6 +211,40 @@ Facts taken from <https://developers.lexware.io/docs/>.
 
 Event subscriptions (`/v1/event-subscriptions`) are deliberately unused, see
 section 2.
+
+### Voucher semantics, verified 2026-08-20
+
+- **"Voucher" is three things.** `/v1/voucherlist` is a read-only **index**
+  over sales and bookkeeping documents and the only way to find one without
+  its id. `/v1/vouchers` holds **bookkeeping vouchers**, a booked amount
+  against a posting category. The sales documents live behind their own paths.
+  Conflating them is the easiest mistake to make here.
+- **`voucherType` and `voucherStatus` are required**, not optional filters.
+  Without them the API answers "Missing required request parameters". The
+  accepted values were measured by trying every plausible one:
+  `any, invoice, salesinvoice, purchaseinvoice, creditnote, salescreditnote,
+  purchasecreditnote, orderconfirmation, quotation, deliverynote,
+  downpaymentinvoice` and `any, draft, open, paid, paidoff, voided,
+  transferred, sepadebit, overdue, accepted, rejected, unchecked`. **`dunning`
+  is not accepted**, so dunnings cannot be found through the voucher list at
+  all.
+- **`sort` accepts only the voucher date**, ascending or descending. Anything
+  else is refused with "parameter 'sort' is invalid".
+- **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
+  answers 404, so a wrong entry has to be corrected in the web app. Creating
+  one without `voucherStatus` books it as `open` immediately, and
+  `voucherStatus: unchecked` is the way to record one that still needs review.
+- **A PUT must not echo `voucherStatus`.** Unlike a contact, which accepts its
+  read-only fields and ignores them, a voucher is refused outright with
+  `voucherStatus: invalid_value`. `payloads.VOUCHER_PUT_DROP` is what strips
+  it, along with `contactName`, the timestamps and `organizationId`.
+- **The API checks the totals against the lines** and refuses a mismatch with
+  `totalGrossAmount: invalid_total_amount`, and the tax against the tax type
+  with `voucherItems[0].taxAmount: invalid_taxamount`. Every voucher
+  validation failure arrives as **406**.
+- **Payment information exists only once a voucher is booked.** Asking for an
+  `unchecked` one is refused with "No payment information for this
+  voucher/voucher type".
 
 ### Document semantics that shape the tools
 
@@ -301,10 +336,10 @@ exposed one tool per path.
 | `get_contact` | `contact_id` | the full contact including addresses, roles and `version`, with `organizationId` dropped: it is identical on every record and `get_profile` already answers it. A drop-list, not an allow-list, so a field added upstream still surfaces. Built and verified against live records 2026-08-20. | 1 |
 | `search_articles` | `query`, `article_number`, `gtin`, `type`, `page`, `size` | list of `{id, version, title, articleNumber, type, unitName, price, currency}` | 1 |
 | `get_article` | `article_id` | full article including version | 1 |
-| `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `archived`, `sort`, `page`, `size` | list of `{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, currency, openAmount}` plus page info. The central discovery tool. | 1 |
+| `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `only_open`, `only_overdue`, `archived`, `sort`, `page`, `size` | `{vouchers: [{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, openAmount, currency, archived?}], page: {...}}`. The central discovery tool, and the only way to find a document at all. `voucher_type` and `voucher_status` default to `any` because the API requires them, so the tool always sends both. `createdDate` and `updatedDate` are dropped from the rows: they say when somebody typed it in, not when the document is dated. Built and verified live 2026-08-20. | 1 |
 | `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document, normalized to a common envelope with the type-specific fields kept intact | 1 |
-| `get_voucher` | `voucher_id` | bookkeeping voucher including line items and posting category | 1 |
-| `get_payments` | `voucher_id` | payment status, open amount, payment items | 1 |
+| `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
+| `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
 | `get_document_pdf` | `document_type`, `document_id`, `save` (bool) | `{documentFileId, mimeType, path?}`. Renders, and when `save` is set writes the file into the download directory and returns its path. | 1, or 2 with `save` |
@@ -322,7 +357,7 @@ exposed one tool per path.
 |---|---|
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the phase 1 table above for what they cost. |
 | `create_article` / `update_article` | same version rule |
-| `create_voucher` / `update_voucher` | bookkeeping vouchers |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
 | `upload_file` | multipart upload of a receipt, size and MIME restrictions **(to verify)** |
 
@@ -801,9 +836,10 @@ Built, tested offline and exercised against a live test account:
 
 - `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
   `formatting.py`, `server.py`, `tools/diagnostics.py` and `tools/contacts.py`
-- five tools over the **stdio** transport: `get_profile`, `search_contacts`
-  and `get_contact` at tier `read`, `create_contact` and `update_contact`
-  at tier `write`
+- ten tools over the **stdio** transport. At tier `read`: `get_profile`,
+  `search_contacts`, `get_contact`, `search_vouchers`, `get_voucher` and
+  `get_payments`. At tier `write`: `create_contact`, `update_contact`,
+  `create_voucher` and `update_voucher`
 - permission tier `read` by default, enforced at registration and at call
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
@@ -819,19 +855,21 @@ that master data comes back as a bare list, that a key can be created inside a
 test account, and that the bucket paces real calls (five tool calls at rate 1.5
 took 2.69 seconds).
 
-The contact tools were exercised against that account end to end: contacts
-created, read back, searched, and updated in a way that proved the merge keeps
-the fields the caller did not mention. The record shapes in the test fixtures
-are the shapes the API actually returned.
+The contact and voucher tools were exercised against that account end to end:
+records created, read back, searched, and updated in a way that proved the
+merge keeps the fields the caller did not mention. The shapes in the test
+fixtures are the shapes the API actually returned, and the enum values in the
+voucher schemas were measured rather than taken from the documentation, which
+does not list them.
 
-**The immediate next step** is `search_vouchers`, which brings the voucher
-filters and the document types. It is the tool that turns the server from
-"which account is this" into an answer about the books.
+**The immediate next step** is the sales documents: reading an invoice, a
+quotation or a credit note in full. `search_vouchers` already returns their
+ids, so they are the missing half of every question it can answer.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging and the full contact group are done and exercised against a live account. The remaining read tools and CI are open. |
-| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts are written and the locking round trip works, the remaining resources are open |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging and the contact and voucher groups are done and exercised against a live account. Articles, sales documents, files, master data and CI are open. |
+| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts and bookkeeping vouchers are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | per-tool permission policy (section 9.2), recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |

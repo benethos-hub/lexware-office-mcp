@@ -58,6 +58,7 @@ src/benethos_lexware_office_mcp/
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
+                  # built: diagnostics, contacts, vouchers
 tests/            # offline, httpx MockTransport (a read-only smoke.py is planned)
 ```
 

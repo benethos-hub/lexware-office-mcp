@@ -15,7 +15,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-__all__ = ["compact", "contact", "contacts_page", "page", "page_info", "profile"]
+__all__ = [
+    "compact",
+    "contact",
+    "contacts_page",
+    "page",
+    "page_info",
+    "payments",
+    "profile",
+    "voucher",
+    "vouchers_page",
+]
 
 
 def compact(value: Any) -> Any:
@@ -172,3 +182,51 @@ def _first_entry(block: Any, kinds: tuple[str, ...]) -> str | None:
         if isinstance(values, list) and values:
             return str(values[0])
     return None
+
+
+# The voucher list is the discovery tool, so its rows carry what a caller
+# needs to choose one: what it is, what state it is in, who it is for, what it
+# is worth and what is still open. `createdDate` and `updatedDate` come along
+# upstream and are dropped, because the voucher date is the one that matters
+# for a document and the other two only say when somebody typed it in.
+VOUCHER_ROW_DROP = ("createdDate", "updatedDate")
+
+# Repeated on every voucher and answered once by `get_profile`.
+VOUCHER_DROP = ("organizationId",)
+
+
+def voucher_row(item: dict[str, Any]) -> dict[str, Any]:
+    """One line of a voucher search result.
+
+    ``archived`` is kept only when true, as in a contact row: it is false on
+    nearly every voucher and repeating it costs more than it says.
+    """
+    row = {key: value for key, value in item.items() if key not in VOUCHER_ROW_DROP}
+    if not row.get("archived"):
+        row.pop("archived", None)
+    return dict(compact(row))
+
+
+def vouchers_page(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a page of ``GET /v1/voucherlist``."""
+    return page(payload, voucher_row, key="vouchers")
+
+
+def voucher(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one bookkeeping voucher.
+
+    A drop-list rather than an allow-list, so a field added upstream still
+    surfaces. Amounts pass through exactly as the API reported them.
+    """
+    kept = {k: v for k, v in payload.items() if k not in VOUCHER_DROP}
+    return dict(compact(kept))
+
+
+def payments(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize ``GET /v1/payments/{voucherId}``.
+
+    Nothing is dropped by name here. The response is six fields wide and every
+    one of them answers part of "has this been paid", including an
+    ``openAmount`` of ``0``, which :func:`compact` keeps on purpose.
+    """
+    return dict(compact(payload))

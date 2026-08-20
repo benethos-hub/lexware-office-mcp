@@ -89,16 +89,35 @@ def test_missing_api_key_explains_where_to_get_one() -> None:
     assert "LXO_MCP_API_KEY" in str(excinfo.value)
 
 
-def test_env_file_is_read_but_real_environment_wins(tmp_path: Path) -> None:
+def test_env_file_is_read_but_real_environment_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both halves of the claim, against a controlled environment.
+
+    The real ``os.environ`` is replaced rather than read. A developer with
+    ``LXO_MCP_MODE`` set in their own shell would otherwise flip the answer,
+    and the assertion would be about their machine instead of about the
+    precedence rule. The second half was missing entirely: the name promised
+    that the environment wins and only the file was ever checked.
+    """
+    from benethos_lexware_office_mcp import config as C
+
     (tmp_path / ".env").write_text(
         "# a comment\nLXO_MCP_API_KEY='from-file-123456'\nexport LXO_MCP_MODE=write\n",
         encoding="utf-8",
     )
-    from benethos_lexware_office_mcp.config import _env_lookup
+    monkeypatch.setattr(C, "_project_config", lambda: None)
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
 
-    merged = _env_lookup(cwd=tmp_path)
-    assert merged["LXO_MCP_API_KEY"] == "from-file-123456"
-    assert merged["LXO_MCP_MODE"] == "write"
+    monkeypatch.setattr(C.os, "environ", {})
+    from_file = C._env_lookup(cwd=tmp_path)
+    assert from_file["LXO_MCP_API_KEY"] == "from-file-123456"
+    assert from_file["LXO_MCP_MODE"] == "write"
+
+    monkeypatch.setattr(C.os, "environ", {"LXO_MCP_MODE": "read"})
+    overridden = C._env_lookup(cwd=tmp_path)
+    assert overridden["LXO_MCP_MODE"] == "read", "the file beat the environment"
+    assert overridden["LXO_MCP_API_KEY"] == "from-file-123456"
 
 
 def test_malformed_env_file_lines_are_ignored(tmp_path: Path) -> None:

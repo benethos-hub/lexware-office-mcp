@@ -37,6 +37,12 @@ def server_parameters(tmp_path: Path) -> StdioServerParameters:
             # every file, so setting it empty keeps this test away from any
             # credential. Listing tools needs none.
             "LXO_MCP_API_KEY": "",
+            # Same reasoning for the tier. A developer who set write mode in
+            # their own config/.env must not be able to turn a gate that
+            # asserts the *default* into one that asserts their setting. An
+            # empty value falls back to the default, so this neutralizes every
+            # file without pinning the answer the test is checking for.
+            "LXO_MCP_MODE": "",
         },
     )
 

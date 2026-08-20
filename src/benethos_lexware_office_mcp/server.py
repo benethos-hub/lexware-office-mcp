@@ -33,8 +33,10 @@ the account owner enabled writing.
 
 Identifiers are Lexware UUIDs and are never invented. To act on a document or
 a contact, find it first with search_vouchers or search_contacts and use the
-id from the result. Monetary values are returned exactly as the API reports
-them, always with their currency.
+id from the result. search_vouchers is the only way to find a document at all,
+so a question about invoices, credit notes or what is still unpaid starts
+there. Monetary values are returned exactly as the API reports them, always
+with their currency.
 """
 
 

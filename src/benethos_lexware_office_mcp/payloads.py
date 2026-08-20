@@ -21,7 +21,16 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Address", "ContactKind", "Role", "contact_body"]
+__all__ = [
+    "Address",
+    "ContactKind",
+    "Role",
+    "TaxType",
+    "VoucherItem",
+    "VoucherType",
+    "contact_body",
+    "voucher_body",
+]
 
 ContactKind = Literal["company", "person"]
 Role = Literal["customer", "vendor"]
@@ -188,3 +197,150 @@ def _address_body(address: Address) -> dict[str, Any]:
         "countryCode": address.country_code,
     }
     return {key: value for key, value in fields.items() if value is not None}
+
+
+VoucherType = Literal[
+    "salesinvoice", "salescreditnote", "purchaseinvoice", "purchasecreditnote"
+]
+TaxType = Literal["net", "gross", "vatfree"]
+
+# Fields a voucher carries when read but refuses when written back. Contacts
+# accept their read-only fields and ignore them, vouchers do not: a PUT that
+# echoes `voucherStatus` is refused outright with `voucherStatus:
+# invalid_value`. Verified 2026-08-20, which is the only way this would have
+# been found — the offline suite mocks the API and would have stayed green.
+VOUCHER_PUT_DROP = (
+    "voucherStatus",
+    "contactName",
+    "createdDate",
+    "updatedDate",
+    "organizationId",
+)
+
+
+class VoucherItem(BaseModel):
+    """One line of a bookkeeping voucher.
+
+    The API checks these against the voucher's totals and refuses a mismatch
+    with ``totalGrossAmount: invalid_total_amount``. It also checks the tax
+    against the tax type: with ``net`` the amount is net and a gross figure is
+    refused as ``voucherItems[0].taxAmount: invalid_taxamount``. Verified
+    2026-08-20.
+    """
+
+    amount: float = Field(
+        description=(
+            "The line amount. Gross when the voucher's tax_type is 'gross', "
+            "net when it is 'net'."
+        )
+    )
+    tax_amount: float = Field(
+        description="The tax on this line. Zero for a vatfree voucher."
+    )
+    tax_rate_percent: float = Field(
+        description="The tax rate as a percentage, for example 19."
+    )
+    category_id: str = Field(
+        description=(
+            "The posting category this line books to, from get_master_data "
+            "with kind 'posting-categories'. Not a name, the category's id."
+        )
+    )
+
+
+def voucher_body(
+    *,
+    base: dict[str, Any] | None = None,
+    voucher_type: VoucherType | None = None,
+    voucher_number: str | None = None,
+    voucher_date: str | None = None,
+    due_date: str | None = None,
+    shipping_date: str | None = None,
+    tax_type: TaxType | None = None,
+    contact_id: str | None = None,
+    use_collective_contact: bool | None = None,
+    items: list[VoucherItem] | None = None,
+    total_gross_amount: float | None = None,
+    total_tax_amount: float | None = None,
+    remark: str | None = None,
+    voucher_status: str | None = None,
+) -> dict[str, Any]:
+    """Build the body for creating or updating a bookkeeping voucher.
+
+    As with :func:`contact_body`, ``base`` turns this from a create into an
+    update, because a PUT replaces the record rather than patching it.
+
+    The totals are computed from the items when the caller does not state
+    them. That is arithmetic, not invention: the API rejects totals that do
+    not match the lines, and a caller who does state them has theirs sent
+    unchanged and checked upstream.
+    """
+    body: dict[str, Any] = (
+        {k: v for k, v in base.items() if k not in VOUCHER_PUT_DROP}
+        if base
+        else {"version": 0}
+    )
+
+    _set(body, "type", voucher_type)
+    _set(body, "voucherNumber", voucher_number)
+    _set(body, "voucherDate", voucher_date)
+    _set(body, "dueDate", due_date)
+    _set(body, "shippingDate", shipping_date)
+    _set(body, "taxType", tax_type)
+    _set(body, "remark", remark)
+    _set(body, "voucherStatus", voucher_status)
+
+    if contact_id is not None:
+        body["contactId"] = contact_id
+        body["useCollectiveContact"] = False
+    elif use_collective_contact is not None:
+        body["useCollectiveContact"] = use_collective_contact
+        if use_collective_contact:
+            body.pop("contactId", None)
+
+    if items is not None:
+        body["voucherItems"] = [_item_body(item) for item in items]
+
+    lines = body.get("voucherItems") or []
+    effective_tax_type = body.get("taxType")
+    body["totalTaxAmount"] = (
+        total_tax_amount if total_tax_amount is not None else _sum(lines, "taxAmount")
+    )
+    body["totalGrossAmount"] = (
+        total_gross_amount
+        if total_gross_amount is not None
+        else _gross_total(lines, effective_tax_type)
+    )
+    return body
+
+
+def _set(body: dict[str, Any], key: str, value: Any) -> None:
+    """Assign only what the caller actually mentioned."""
+    if value is not None:
+        body[key] = value
+
+
+def _item_body(item: VoucherItem) -> dict[str, Any]:
+    return {
+        "amount": item.amount,
+        "taxAmount": item.tax_amount,
+        "taxRatePercent": item.tax_rate_percent,
+        "categoryId": item.category_id,
+    }
+
+
+def _sum(lines: list[dict[str, Any]], key: str) -> float:
+    return round(sum(float(line.get(key) or 0) for line in lines), 2)
+
+
+def _gross_total(lines: list[dict[str, Any]], tax_type: Any) -> float:
+    """What the lines add up to including tax.
+
+    With ``gross`` the line amounts already include it. With ``net`` and with
+    ``vatfree`` they do not, and for vatfree the tax is zero anyway, so adding
+    it is correct in both cases.
+    """
+    amounts = _sum(lines, "amount")
+    if tax_type == "gross":
+        return amounts
+    return round(amounts + _sum(lines, "taxAmount"), 2)

@@ -7,6 +7,7 @@ from collections.abc import Iterator
 import pytest
 
 from benethos_lexware_office_mcp import policy
+from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import PermissionDeniedError
 from benethos_lexware_office_mcp.policy import (
     active_mode,
@@ -26,7 +27,16 @@ def _restore_mode() -> Iterator[None]:
 
 
 def test_default_tier_is_the_safest_one() -> None:
-    assert policy._ACTIVE == "read"
+    """A server that forgets to configure itself must only be able to read.
+
+    Asserted against the declared defaults rather than against ``_ACTIVE``,
+    which is process-wide state that any earlier import or test can have
+    moved. Reading it here would make this gate depend on what ran before it,
+    and on whichever tier the developer happens to have in their own
+    ``config/.env``.
+    """
+    assert policy.DEFAULT_MODE == "read"
+    assert Settings().mode == "read"
 
 
 @pytest.mark.parametrize(

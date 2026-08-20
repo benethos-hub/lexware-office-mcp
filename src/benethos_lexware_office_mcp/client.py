@@ -335,6 +335,93 @@ class LexwareClient:
         response = await self.request("PUT", f"/v1/contacts/{contact_id}", json=body)
         return _expect_object(response.json(), "contacts")
 
+    # -- vouchers ---------------------------------------------------------
+
+    async def voucherlist(
+        self,
+        *,
+        voucher_type: str,
+        voucher_status: str,
+        contact_id: str | None = None,
+        voucher_date_from: str | None = None,
+        voucher_date_to: str | None = None,
+        only_overdue: bool | None = None,
+        only_open: bool | None = None,
+        archived: bool | None = None,
+        sort: str | None = None,
+        page: int = 0,
+        size: int = DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        """``GET /v1/voucherlist``. One API call returning **one** page.
+
+        The index over every sales and bookkeeping document, and the only way
+        to find one without already knowing its id. ``voucherType`` and
+        ``voucherStatus`` are **required** by the API, not optional filters
+        (verified 2026-08-20), so the caller always states both even if only
+        to say ``any``.
+        """
+        params = _page_params(
+            page,
+            size,
+            voucherType=voucher_type,
+            voucherStatus=voucher_status,
+            contactId=contact_id,
+            voucherDateFrom=voucher_date_from,
+            voucherDateTo=voucher_date_to,
+            onlyOverdue=only_overdue,
+            onlyOpen=only_open,
+            archived=archived,
+            sort=sort,
+        )
+        return _expect_object(
+            await self.get_json("/v1/voucherlist", params=params), "voucherlist"
+        )
+
+    async def voucher(self, voucher_id: str) -> dict[str, Any]:
+        """``GET /v1/vouchers/{id}``. One API call."""
+        return _expect_object(
+            await self.get_json(f"/v1/vouchers/{voucher_id}"), "vouchers"
+        )
+
+    async def vouchers_by_number(self, voucher_number: str) -> dict[str, Any]:
+        """``GET /v1/vouchers?voucherNumber=``. One API call.
+
+        The only lookup by document number the API offers: ``voucherlist``
+        cannot filter by number at all. The response is a page of whole
+        vouchers rather than of rows.
+        """
+        return _expect_object(
+            await self.get_json(
+                "/v1/vouchers", params={"voucherNumber": voucher_number}
+            ),
+            "vouchers",
+        )
+
+    async def payments(self, voucher_id: str) -> dict[str, Any]:
+        """``GET /v1/payments/{voucherId}``. One API call.
+
+        Takes the id of the **voucher**, not of a payment.
+        """
+        return _expect_object(
+            await self.get_json(f"/v1/payments/{voucher_id}"), "payments"
+        )
+
+    async def create_voucher(self, body: dict[str, Any]) -> dict[str, Any]:
+        """``POST /v1/vouchers``. One API call, never retried."""
+        response = await self.request("POST", "/v1/vouchers", json=body)
+        return _expect_object(response.json(), "vouchers")
+
+    async def update_voucher(
+        self, voucher_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """``PUT /v1/vouchers/{id}``. One API call.
+
+        As with contacts the body replaces the record and has to carry the
+        ``version`` that was read.
+        """
+        response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
+        return _expect_object(response.json(), "vouchers")
+
     # -- internals --------------------------------------------------------
 
     async def _backoff(self, attempt: int, retry_after: str | None = None) -> None:
@@ -381,9 +468,8 @@ class LexwareClient:
             )
         if status == 406:
             return ValidationError(
-                f"The API refused {method} {path}. Either the request is not "
-                "valid or it is not allowed in the record's current state, for "
-                f"example pursuing a document that is still a draft.{detail}"
+                f"The API refused {method} {path}. The request is either not "
+                f"valid or not allowed in this record's current state.{detail}"
             )
         return ValidationError(f"The API rejected {method} {path}.{detail}")
 

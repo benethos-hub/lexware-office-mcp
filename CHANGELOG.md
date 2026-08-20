@@ -48,6 +48,31 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   addresses, the note and everything else. It needs the `version` from your
   last read, and if the record changed in between the update is refused before
   anything is sent. Requires `LXO_MCP_MODE=write`.
+- **`search_vouchers`** — the way into the books. Filter invoices, credit
+  notes, quotations, delivery notes and bookkeeping vouchers by type, status,
+  contact, date range, and by whether anything is still open or overdue.
+  Returns short rows with the id, number, dates, contact, total and open
+  amount. Costs one API call per page. This is the only way to find a document
+  at all, so any question about what a customer owes starts here.
+- **`get_voucher`** — one bookkeeping voucher in full, with its lines, posting
+  categories, tax type and `version`. Takes either the Lexware id or the
+  number printed on the document, because the voucher list cannot search by
+  number. A number matching several vouchers is reported with their ids rather
+  than guessed at. Costs one API call.
+- **`get_payments`** — whether a voucher has been paid, what is still
+  outstanding, and the individual payments recorded against it. An open amount
+  of 0 is reported rather than dropped, because it is the answer. Costs one
+  API call. Vouchers that have not been booked yet have no payment
+  information, and the API says so rather than returning zeros.
+- **`create_voucher`** — record a bookkeeping voucher. Takes the type, date,
+  tax type and lines, each line naming the posting category it books to. The
+  totals are added up from the lines unless you state them. Pass `unchecked`
+  to record an entry that still needs review instead of booking it straight
+  away. Requires `LXO_MCP_MODE=write`, costs one API call that is never
+  retried, and **cannot be undone**: the API has no way to delete a voucher.
+- **`update_voucher`** — change a recorded voucher. As with `update_contact`,
+  only the fields you name change and the rest is carried over, at the cost of
+  a second API call. Requires `LXO_MCP_MODE=write`.
 - **The same page shape for every list.** A search result is
   `{records: [...], "page": {number, size, totalElements, totalPages, last}}`,
   so paging works the same way across tools as they are added. The API's

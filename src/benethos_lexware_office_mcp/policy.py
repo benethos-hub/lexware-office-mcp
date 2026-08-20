@@ -25,6 +25,7 @@ from .config import Mode
 from .errors import PermissionDeniedError
 
 __all__ = [
+    "DEFAULT_MODE",
     "active_mode",
     "allows",
     "required_tier",
@@ -45,7 +46,8 @@ _REGISTRY: dict[str, Mode] = {}
 
 # The tier this process runs at. Deliberately starts at the safest value, so a
 # server that forgets to configure itself can only read.
-_ACTIVE: Mode = "read"
+DEFAULT_MODE: Mode = "read"
+_ACTIVE: Mode = DEFAULT_MODE
 
 
 def set_active_mode(mode: Mode) -> None:
