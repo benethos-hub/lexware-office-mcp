@@ -111,7 +111,14 @@ SPECS.md rather than stating them as fact.
 - **No semicolons in prose** — README, docstrings, commit messages, docs. Code
   is unaffected.
 - `CHANGELOG.md` gets an entry under `[Unreleased]` in the same commit as the
-  change it describes, never in a later pass.
+  change it describes, never in a later pass. It records what changed **for
+  someone using this server** — tools, parameters, output, configuration,
+  behaviour, dependencies, packaging. It is not a work log. Conversations,
+  research, decisions that were considered and dropped, and edits to the
+  development guidelines do **not** get an entry. Where such a thing matters,
+  it belongs in `SPECS.md` as a design decision or in `README.md` as something
+  a user needs to know, and if it belongs in neither it does not belong in the
+  repository at all.
 
 ## Git and commits
 

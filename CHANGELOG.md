@@ -6,7 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Every user-facing change gets an entry under `[Unreleased]` in the same commit
-that makes the change, never in a later cleanup pass.
+that makes the change, never in a later cleanup pass. Entries describe what
+changed for someone using this server. Development process and internal
+housekeeping are out of scope here — design decisions live in
+[SPECS.md](SPECS.md).
 
 ## [Unreleased]
 
