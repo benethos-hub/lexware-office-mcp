@@ -13,58 +13,59 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+Nothing has been released yet. This section describes what 0.1.0 will contain.
+
 ### Added
 
-- `SPECS.md` — full technical specification: purpose and scope, naming, module
-  layout, the upstream API surface, transport plan, configuration, the tool set
-  per phase with its API call cost, the three-tier permission model, client
-  behaviour, error mapping, output format, test strategy, roadmap and open
-  questions. Notable decisions recorded there:
-  - a **single process-wide token bucket**, because the upstream limit of 2
-    requests per second is global across all endpoints rather than per endpoint
-  - **method-aware retries**: a failed POST is never repeated, since a 5xx or
-    timeout does not reveal whether the document was created and a duplicate
-    invoice cannot be undone by the client
-  - **no sandbox exists**, so development happens against free 30-day test
-    accounts and the isolation comes from the account rather than the URL
-- `README.md` — disclaimer block below the title, project overview, safety
-  model, planned tools, API key setup, configuration reference, rate limit
-  explanation and trademark notice.
-- `CLAUDE.md` — working guidelines: golden rules, environment, the recipe for
-  adding a tool, verification gates, conventions and the branch workflow.
-- Installable package `benethos-lexware-office-mcp` with the console script of
-  the same name and `python -m benethos_lexware_office_mcp`. Speaks stdio.
-- Configuration from the environment, from a `.env` in the working directory,
-  from `config/.env`, or from a `.env` in the per-user config directory, in
-  that order of precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`, `LXO_MCP_BASE_URL`,
-  `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`, `LXO_MCP_TIMEOUT`,
-  `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE`, `LXO_MCP_LOG_LEVEL`.
-- **`get_profile`**, the first tool. Shows which Lexware Office account the
-  server is connected to and doubles as the connection check. Costs one API
-  call. The creating user's email address, which the API returns alongside, is
-  dropped rather than passed on.
-- `LXO_MCP_PAGE_SIZE` is validated against the upstream maximum of 250, so a
-  value the API would reject fails at startup instead of mid-conversation.
-- HTTP client for the API, with the single shared token bucket every request
-  passes, retries decided per method and failure mode, and upstream statuses
-  mapped onto concise errors. A failed POST is reported with its outcome
-  marked unknown rather than retried. Repeated rate limiting trips a breaker
-  that holds the bucket shut instead of hammering the API.
-- `config/.env.sample` — a commented sample listing every setting with its
-  default. Copy it to `config/.env` and fill in the key. The copy is
-  gitignored, the sample is committed and holds no key.
-- Permission tiers `read`, `write` and `full`, selectable with `--mode` or
-  `LXO_MCP_MODE` and defaulting to `read`. Enforced twice: a tool above the
-  tier is never registered, and the tier is checked again when a call arrives.
-- Error hierarchy reported to the client, with the API key redacted from every
-  message. A write whose outcome is unknown says so explicitly instead of
-  looking like a clean failure.
-- `LICENSE` — MIT.
-- Repository scaffolding: `.gitignore` and `.gitattributes` (LF in the index,
-  native on checkout).
+- **`get_profile`** — the first tool. Shows which Lexware Office account the
+  server is connected to: organization, company name, tax setup, small-business
+  status and the enabled business features. Doubles as the connection check,
+  and costs one API call. The email address of the user who created the
+  account, which the API returns alongside, is dropped rather than handed on.
+- **The server itself** — installable as `benethos-lexware-office-mcp`, started
+  through the console script of the same name or
+  `python -m benethos_lexware_office_mcp`. Speaks **stdio**, which is what
+  Claude Desktop and comparable local clients use. `--mode`, `--log-level` and
+  `--version` on the command line, each winning over its environment variable.
+- **Read-only by default.** Three permission tiers, `read`, `write` and `full`,
+  selected with `--mode` or `LXO_MCP_MODE`. Enforced twice: a tool above the
+  active tier is never registered, so it does not appear in the tool list at
+  all, and the tier is checked again when a call arrives, so a client holding a
+  stale list cannot get one through.
+- **Configuration** from a real environment variable, a `.env` in the working
+  directory, `config/.env`, or a `.env` in the per-user config directory, in
+  that order of precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`,
+  `LXO_MCP_BASE_URL`, `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`,
+  `LXO_MCP_TIMEOUT`, `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE` and
+  `LXO_MCP_LOG_LEVEL`. Values are validated when they are read, so a page size
+  the API would refuse fails at startup rather than mid-conversation.
+- **`config/.env.sample`** — a commented sample listing every setting with its
+  default and the reasoning behind it. Copy it to `config/.env` and fill in the
+  key. That copy is gitignored, the sample is committed and holds no key.
+- **Rate limiting that matches the account, not the endpoint.** The Lexware
+  limit of two requests per second covers the whole API at once, so the server
+  keeps a single token bucket that every request passes, retries included. It
+  refills slightly below the documented rate by default, because the API
+  documentation warns that aiming exactly at the limit still produces 429s once
+  network jitter shifts the timing. Repeated rate limiting holds the bucket
+  shut for a cool-down instead of hammering a limit that can block a key
+  permanently.
+- **Retries that cannot duplicate a document.** A failed `POST` is never
+  repeated: a 5xx or a timeout does not say whether the invoice was created,
+  and a duplicate with a consecutive number is not something the caller can
+  undo. It is reported with its outcome marked unknown instead. A 429 is safe
+  to repeat for any method, because the documentation states the call was not
+  performed.
+- **Errors written for the caller**, not stack traces: the key was rejected,
+  the record changed since it was read, the resource does not exist. The API
+  key is redacted from every message, and monetary values are passed through
+  exactly as the API reported them, always with their currency.
+- `README.md` and `LICENSE` (MIT).
 
-### Notes
+### Not yet
 
-No code yet. The project is in the design phase, and section 16 of `SPECS.md`
-lists the open questions that must be answered against the live API before
-0.1.0 can be implemented.
+Only `get_profile` exists. Searching contacts, articles and vouchers, reading
+sales documents, downloading PDFs and every write operation are specified but
+not built — see the roadmap in [SPECS.md](SPECS.md) section 16, along with the
+questions still open against the live API. The HTTP transport is planned for
+0.3.0 and will ship with its own authentication in front of the API key.
