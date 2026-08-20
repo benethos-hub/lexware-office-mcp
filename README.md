@@ -28,10 +28,11 @@ contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
 > **Status: 0.1.0 in progress, not published yet.**
-> The server runs over stdio and answers `get_profile`. The rest of the tools
-> below are specified but not built, and the table says which is which. There
-> is no PyPI release yet, so installation means cloning the repository. See
-> [SPECS.md](SPECS.md) for the full technical specification and the roadmap.
+> The server runs over stdio and answers `get_profile`, `search_contacts` and
+> `get_contact`. The rest of the tools below are specified but not built, and
+> the table says which is which. There is no PyPI release yet, so installation
+> means cloning the repository. See [SPECS.md](SPECS.md) for the full
+> technical specification and the roadmap.
 
 ## Why this exists
 
@@ -67,8 +68,8 @@ Read tools, available in every mode:
 | Tool | What it does | Status |
 |---|---|---|
 | `get_profile` | Company profile and connection check | **built** |
-| `search_contacts` | Find customers and vendors by name, email or number | planned |
-| `get_contact` | One contact with addresses and roles | planned |
+| `search_contacts` | Find customers and vendors by name, email, number or role | **built** |
+| `get_contact` | One contact with addresses, roles and version | **built** |
 | `search_articles` | Find articles by title, number or GTIN | planned |
 | `get_article` | One article | planned |
 | `search_vouchers` | The central query — filter the voucher list by type, status, contact and date range | planned |

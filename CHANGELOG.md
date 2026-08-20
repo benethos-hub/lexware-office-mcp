@@ -22,6 +22,17 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   status and the enabled business features. Doubles as the connection check,
   and costs one API call. The email address of the user who created the
   account, which the API returns alongside, is dropped rather than handed on.
+- **`search_contacts`** — find customers and vendors by part of their name,
+  part of an email address, their customer or vendor number, or their role.
+  Returns one page of short rows with the contact id, name, customer and vendor
+  numbers and one way to get in touch, plus the page information needed to ask
+  for the next page. `page` and `size` are the caller's to set, and one call
+  fetches one page: walking every page would spend a rate limit that covers the
+  whole account. Costs one API call.
+- **`get_contact`** — one contact in full by id, including billing and shipping
+  addresses, all email addresses and phone numbers, the roles with their
+  numbers and the `version` an update will have to send back. Costs one API
+  call.
 - **The server itself** — installable as `benethos-lexware-office-mcp`, started
   through the console script of the same name or
   `python -m benethos_lexware_office_mcp`. Speaks **stdio**, which is what
@@ -60,9 +71,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   to repeat for any method, because the documentation states the call was not
   performed.
 - **Errors written for the caller**, not stack traces: the key was rejected,
-  the record changed since it was read, the resource does not exist. The API
-  key is redacted from every message, and monetary values are passed through
-  exactly as the API reported them, always with their currency.
+  the record changed since it was read, the resource does not exist. When the
+  API refuses a parameter it sometimes sends no message at all, only a list of
+  issues naming the field and what was wrong with it, so that list is folded
+  into the message rather than dropped. The API key is redacted from every
+  message, and monetary values are passed through exactly as the API reported
+  them, always with their currency.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet

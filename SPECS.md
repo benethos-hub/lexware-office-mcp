@@ -123,9 +123,12 @@ Facts taken from <https://developers.lexware.io/docs/>.
 - **Pagination:** `page` (zero-indexed) and `size`, response carries
   `totalPages`, `totalElements`, `size`, `number`, `first`, `last`,
   `numberOfElements`. The documented 25 is the *default*, not the ceiling.
-  **Verified 2026-08-20:** `size` may go up to **250**, and 251 is refused with
-  "parameter 'size' must be equal or lower than 250". The same limit held for
-  `voucherlist` and `contacts`. `LXO_MCP_PAGE_SIZE` is validated against it, so
+  **Verified 2026-08-20:** the ceiling is **per endpoint**, not one number for
+  the whole API. `voucherlist` refuses 251 with "parameter 'size' must be equal
+  or lower than 250". `contacts` accepts 500 and refuses 1000 with a different
+  message, "parameter 'size' exceeds the limit". This project caps at **250**
+  regardless, because it is the lowest ceiling measured and therefore the one
+  value that works everywhere. `LXO_MCP_PAGE_SIZE` is validated against it, so
   a misconfiguration fails at startup rather than as an API error later.
 - **Master data is not paginated.** `countries` and `payment-conditions` return
   a bare JSON array, not a page object. Verified 2026-08-20. Anything reading
@@ -133,6 +136,17 @@ Facts taken from <https://developers.lexware.io/docs/>.
 - **Filtering:** `?filter_1=value_1&filter_n=value_n`, combined with AND.
   Pattern matching supports `_` (one character) and `%` (many), escaped with a
   backslash.
+- **Filter validation is per parameter and the messages are poor.** Verified
+  2026-08-20 on `contacts`: `name` and `email` are refused below three
+  characters, and the refusal reads "size must be between 3 and 128" although
+  `size` is a different parameter entirely. `number` is numeric, and a
+  non-numeric value gives a 400 whose body carries no `message` at all, only
+  `IssueList: [{source: "number", i18nKey: "invalid_value"}]`. An out-of-range
+  `page` or `size` is **not** refused, it is silently replaced by the default.
+  Two conclusions: the tool schemas enforce what the API enforces, so a caller
+  gets a comprehensible constraint instead of a misleading error, and
+  `IssueList` is parsed into the error text because sometimes it is the only
+  thing the response says.
 - **Optimistic locking:** mutable resources carry a `version` integer. A PUT
   must send the version it read, and a mismatch returns 409.
 - **Datetimes:** RFC 3339 with offset, for example
@@ -256,8 +270,8 @@ exposed one tool per path.
 | Tool | Inputs | Output | Calls |
 |---|---|---|---|
 | `get_profile` | — | `{organizationId, companyName, connectionId, taxType, smallBusiness, businessFeatures}`. Verified against a live account 2026-08-20. The `created` block the API also returns is **dropped**: it carries the setting-up user's email address, which the tool does not need and which has no business reaching a language model. Doubles as the connection check. | 1 |
-| `search_contacts` | `query`, `email`, `number`, `role` (customer/vendor/any), `page`, `size` | list of `{id, version, number, name, type, email, phone, roles}` plus page info | 1 |
-| `get_contact` | `contact_id` | full contact including addresses, roles, version | 1 |
+| `search_contacts` | `name`, `email`, `number`, `role` (customer/vendor/any), `page`, `size` | `{contacts: [{id, version, name, type, roles, customerNumber, vendorNumber, email, phone, archived?}], page: {number, size, totalElements, totalPages, last}}`. The filter is named `name` rather than `query`, because it matches names only and calling it a query would promise a full-text search the API does not offer. `name` and `email` carry the API's three-character minimum in the schema. The response's `sort` block is dropped, and `archived` appears only when true. Built 2026-08-20. Row shape **(to verify)** against a populated account. | 1 |
+| `get_contact` | `contact_id` | the full contact including addresses, roles and `version`, with `organizationId` dropped: it is identical on every record and `get_profile` already answers it. A drop-list, not an allow-list, so a field added upstream still surfaces. Built 2026-08-20. **(to verify)** against a populated account. | 1 |
 | `search_articles` | `query`, `article_number`, `gtin`, `type`, `page`, `size` | list of `{id, version, title, articleNumber, type, unitName, price, currency}` | 1 |
 | `get_article` | `article_id` | full article including version | 1 |
 | `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `archived`, `sort`, `page`, `size` | list of `{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, currency, openAmount}` plus page info. The central discovery tool. | 1 |
@@ -746,25 +760,35 @@ The consequences are the point of writing this down.
 Built, tested offline and exercised against a live test account:
 
 - `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
-  `formatting.py`, `server.py` and `tools/diagnostics.py`
-- one tool, `get_profile`, over the **stdio** transport
+  `formatting.py`, `server.py`, `tools/diagnostics.py` and `tools/contacts.py`
+- three tools over the **stdio** transport: `get_profile`, `search_contacts`
+  and `get_contact`
 - permission tier `read` by default, enforced at registration and at call
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
+- paging and filtering in the client, one page per call, never a walk over
+  every page
 
 Verified against a live account rather than assumed: the profile response
-shape, the 250 row page ceiling, the 404 and 400 error bodies, that master data
-comes back as a bare list, that a key can be created inside a test account, and
-that the bucket paces real calls (five `get_profile` calls at rate 1.5 took
-2.14 seconds).
+shape, the per-endpoint page ceiling, the 404 and 400 error bodies including
+the `IssueList`-only form, the three-character minimum on the contact filters,
+that master data comes back as a bare list, that a key can be created inside a
+test account, and that the bucket paces real calls (five tool calls at rate 1.5
+took 2.69 seconds).
 
-**The immediate next step** is `search_vouchers` and `search_contacts`, which
-need paging and filter parameters in the client. They are the first tools that
-make the server useful for a question rather than a connection check.
+**Not yet verified:** the shape of a contact record itself. The test account
+holds no contacts, so `GET /v1/contacts` returns an empty page there. The page
+envelope, the filters and the error behaviour are measured, the fields inside a
+contact follow the documentation and are marked **(to verify)** in section 8
+until one real record has been read.
+
+**The immediate next step** is `search_vouchers`, which brings the voucher
+filters and the document types. It is the tool that turns the server from
+"which account is this" into an answer about the books.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping and `get_profile` done and verified against a live account. The remaining read tools and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging and the profile and contact tools are done and exercised against a live account. The remaining read tools and CI are open. |
 | 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | planned |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |

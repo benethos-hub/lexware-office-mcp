@@ -33,7 +33,7 @@ from typing import Any
 import httpx
 
 from . import __version__
-from .config import Settings
+from .config import DEFAULT_PAGE_SIZE, Settings
 from .errors import (
     AuthError,
     ConflictError,
@@ -61,6 +61,36 @@ BACKOFF_CAP = 8.0
 # harder is what turns a transient limit into a permanently blocked key.
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 30.0
+
+
+def _expect_object(payload: Any, endpoint: str) -> dict[str, Any]:
+    """Insist that an endpoint documented to return an object returned one."""
+    if not isinstance(payload, dict):
+        raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+    return payload
+
+
+def _issue_texts(issues: Any) -> list[str]:
+    """Flatten the API's ``IssueList`` into readable fragments.
+
+    A rejected query parameter comes back as
+    ``{"source": "number", "i18nKey": "invalid_value"}`` and nothing else, so
+    dropping either half leaves the caller guessing which field was wrong or
+    what was wrong with it.
+    """
+    if not isinstance(issues, list):
+        return []
+    texts = []
+    for issue in issues:
+        if not isinstance(issue, dict):
+            continue
+        source = str(issue.get("source") or "")
+        kind = str(issue.get("i18nKey") or issue.get("type") or "")
+        if source and kind:
+            texts.append(f"{source}: {kind}")
+        elif source or kind:
+            texts.append(source or kind)
+    return texts
 
 
 class LexwareClient:
@@ -195,10 +225,49 @@ class LexwareClient:
 
     async def profile(self) -> dict[str, Any]:
         """``GET /v1/profile``. One API call."""
-        payload = await self.get_json("/v1/profile")
-        if not isinstance(payload, dict):
-            raise UpstreamError("The profile endpoint returned an unexpected shape.")
-        return payload
+        return _expect_object(await self.get_json("/v1/profile"), "profile")
+
+    async def contacts(
+        self,
+        *,
+        name: str | None = None,
+        email: str | None = None,
+        number: int | None = None,
+        customer: bool | None = None,
+        vendor: bool | None = None,
+        page: int = 0,
+        size: int = DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        """``GET /v1/contacts``. One API call returning **one** page.
+
+        Paging is the caller's business on purpose. Walking every page here
+        would turn one tool call into an unbounded number of API calls against
+        a limit that covers the whole account.
+
+        Filters combine with AND upstream. ``name`` and ``email`` are
+        case-insensitive substring matches and are rejected below three
+        characters (verified 2026-08-20).
+        """
+        params: dict[str, Any] = {"page": page, "size": size}
+        if name is not None:
+            params["name"] = name
+        if email is not None:
+            params["email"] = email
+        if number is not None:
+            params["number"] = number
+        if customer is not None:
+            params["customer"] = customer
+        if vendor is not None:
+            params["vendor"] = vendor
+        return _expect_object(
+            await self.get_json("/v1/contacts", params=params), "contacts"
+        )
+
+    async def contact(self, contact_id: str) -> dict[str, Any]:
+        """``GET /v1/contacts/{id}``. One API call."""
+        return _expect_object(
+            await self.get_json(f"/v1/contacts/{contact_id}"), "contacts"
+        )
 
     # -- internals --------------------------------------------------------
 
@@ -257,13 +326,7 @@ class LexwareClient:
         if not isinstance(body, dict):
             return ""
         parts = [str(body[key]) for key in ("errorCode", "message") if body.get(key)]
-        issues = body.get("IssueList")
-        if isinstance(issues, list):
-            parts.extend(
-                str(issue.get("source", "") or issue.get("type", ""))
-                for issue in issues
-                if isinstance(issue, dict)
-            )
+        parts.extend(_issue_texts(body.get("IssueList")))
         text = " ".join(part for part in parts if part).strip()
         return f" {text}" if text else ""
 

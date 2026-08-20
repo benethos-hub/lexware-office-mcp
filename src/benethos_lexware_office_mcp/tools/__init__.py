@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 
 from ..client import ClientProvider
 from ..config import Settings
-from . import diagnostics
+from . import contacts, diagnostics
 from ._base import register_tool
 
 __all__ = ["register_tool", "register_tools"]
@@ -22,7 +22,7 @@ __all__ = ["register_tool", "register_tools"]
 Registrar = Callable[[MCPServer, Settings, ClientProvider], None]
 
 # Filled in as the tool modules appear. Order is the order tools are listed.
-_MODULES: Sequence[Registrar] = (diagnostics.register,)
+_MODULES: Sequence[Registrar] = (diagnostics.register, contacts.register)
 
 
 def register_tools(

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["compact", "profile"]
+__all__ = ["compact", "contact", "contacts_page", "profile"]
 
 
 def compact(value: Any) -> Any:
@@ -57,3 +57,101 @@ def profile(payload: dict[str, Any]) -> dict[str, Any]:
     """
     kept = {k: v for k, v in payload.items() if k not in PROFILE_DROP}
     return dict(compact(kept))
+
+
+# The same organization id sits on every record the account returns, and
+# `get_profile` already answers which organization is connected. Repeating it
+# on every contact buys the caller nothing and is paid for on every call.
+CONTACT_DROP = ("organizationId",)
+
+# Order of preference when picking the one address or number worth putting in
+# a search result. Business before private, because a search result is a
+# business record.
+_EMAIL_KINDS = ("business", "office", "private", "other")
+_PHONE_KINDS = ("business", "office", "mobile", "private", "fax", "other")
+
+
+def contact(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one contact from ``GET /v1/contacts/{id}``.
+
+    A drop-list rather than an allow-list, so a field Lexware adds upstream
+    shows up instead of being silently swallowed. ``version`` is kept: an
+    update has to send back the version it read.
+    """
+    kept = {k: v for k, v in payload.items() if k not in CONTACT_DROP}
+    return dict(compact(kept))
+
+
+def contacts_page(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a page of ``GET /v1/contacts`` into rows plus page info.
+
+    The API's ``sort`` block describes the ordering with five fields per sort
+    key and is identical on every response, so it is dropped. What survives is
+    what a caller needs to decide whether to ask for another page.
+    """
+    rows = [contact_row(item) for item in payload.get("content", [])]
+    page = {
+        "number": payload.get("number"),
+        "size": payload.get("size"),
+        "totalElements": payload.get("totalElements"),
+        "totalPages": payload.get("totalPages"),
+        "last": payload.get("last"),
+    }
+    return {"contacts": rows, "page": dict(compact(page))}
+
+
+def contact_row(item: dict[str, Any]) -> dict[str, Any]:
+    """One line of a contact search result.
+
+    Identity, the numbers a human uses to refer to the record, and one way to
+    reach it. Everything else is what ``get_contact`` is for.
+
+    ``archived`` appears only when it is true. It is false on nearly every row
+    and repeating it costs more than it tells anyone, which is why the tool
+    description states that an unmarked row is active.
+    """
+    roles = item.get("roles") or {}
+    company = item.get("company") or {}
+    person = item.get("person") or {}
+
+    row: dict[str, Any] = {
+        "id": item.get("id"),
+        "version": item.get("version"),
+        "name": _contact_name(company, person),
+        "type": "company" if company else ("person" if person else None),
+        "roles": [name for name in ("customer", "vendor") if name in roles],
+        "customerNumber": (roles.get("customer") or {}).get("number"),
+        "vendorNumber": (roles.get("vendor") or {}).get("number"),
+        "email": _first_entry(item.get("emailAddresses"), _EMAIL_KINDS),
+        "phone": _first_entry(item.get("phoneNumbers"), _PHONE_KINDS),
+    }
+    if item.get("archived"):
+        row["archived"] = True
+    return dict(compact(row))
+
+
+def _contact_name(company: dict[str, Any], person: dict[str, Any]) -> str:
+    """The name a person would use for this contact.
+
+    A contact is either a company or a person upstream. The salutation is
+    deliberately left out: it identifies nobody and is paid for on every row.
+    """
+    if company.get("name"):
+        return str(company["name"])
+    parts = [person.get("firstName"), person.get("lastName")]
+    return " ".join(str(part) for part in parts if part)
+
+
+def _first_entry(block: Any, kinds: tuple[str, ...]) -> str | None:
+    """The first value in ``block`` following the preference in ``kinds``.
+
+    The API groups addresses and numbers by kind, each a list. A search result
+    has room for one, so the kinds are tried in order rather than merged.
+    """
+    if not isinstance(block, dict):
+        return None
+    for kind in kinds:
+        values = block.get(kind)
+        if isinstance(values, list) and values:
+            return str(values[0])
+    return None
