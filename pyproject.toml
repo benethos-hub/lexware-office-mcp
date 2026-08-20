@@ -44,6 +44,11 @@ dependencies = [
     # Resolves the per-user config and cache directories, so nothing is read
     # from or written to the working directory of the spawning client.
     "platformdirs>=4.0",
+    # Renders PDF pages to images, because a PDF itself cannot be displayed by
+    # every client. PDFium under BSD-3-Clause and Apache-2.0. PyMuPDF is the
+    # better known binding and is AGPL-3.0 or a commercial licence, which this
+    # MIT project cannot take. See src/.../rendering.py.
+    "pypdfium2>=5.0",
 ]
 
 [project.urls]
@@ -103,3 +108,10 @@ files = ["src"]
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
+
+# pypdfium2 ships no type information. Narrowed to that one module so the
+# rest of the tree keeps its guarantees, and confined to `rendering.py`,
+# which is the only place allowed to touch it.
+[[tool.mypy.overrides]]
+module = "pypdfium2"
+ignore_missing_imports = true

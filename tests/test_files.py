@@ -18,7 +18,7 @@ import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import policy, storage
+from benethos_lexware_office_mcp import policy, rendering, storage
 from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
@@ -26,7 +26,57 @@ from benethos_lexware_office_mcp.server import build_server
 
 API_KEY = "test-key-0123456789"
 FILE_ID = "PLACEHOLDER-FILE-1"
-PDF = b"%PDF-1.4\ntrailer<</Root 1 0 R>>\n%%EOF\n"
+
+
+def make_pdf(pages: int = 1) -> bytes:
+    """A real PDF with real glyphs, built here rather than checked in.
+
+    The stub that used to stand in for one was never a valid document. It was
+    enough while a PDF was only ever copied around, and stopped being enough
+    the moment the server started rendering it, which is exactly the kind of
+    fixture that hides a feature not working.
+    """
+    stream = (
+        b"BT /F1 12 Tf 1 0 0 1 60 760 Tm (Rechnung RE-2026-0142) Tj "
+        b"0 -20 Td (Gesamtbetrag 2.200,91 EUR) Tj ET"
+    )
+    kids = " ".join(f"{4 + n} 0 R" for n in range(pages))
+    objects = [
+        b"<</Type/Catalog/Pages 2 0 R>>",
+        f"<</Type/Pages/Kids[{kids}]/Count {pages}>>".encode(),
+        b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+    ]
+    objects += [
+        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]"
+        b"/Resources<</Font<</F1 3 0 R>>>>/Contents "
+        + str(4 + pages).encode()
+        + b" 0 R>>"
+        for _ in range(pages)
+    ]
+    objects.append(
+        b"<</Length "
+        + str(len(stream)).encode()
+        + b">>stream\n"
+        + stream
+        + b"\nendstream"
+    )
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj".encode() + body + b"endobj\n"
+    start = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += (
+        f"trailer<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{start}\n%%EOF\n"
+    ).encode()
+    return bytes(out)
+
+
+PDF = make_pdf()
 
 UPLOADED = {"id": "PLACEHOLDER-FILE-2", "voucherId": "PLACEHOLDER-VOUCHER-9"}
 
@@ -561,18 +611,84 @@ async def _downloaded(server: Any, handler: Recorder, fmt: str = "pdf") -> str:
     return (result.structured_content or {})["uri"]
 
 
-async def test_a_pdf_comes_back_as_an_embedded_binary(tmp_path: Path) -> None:
-    """Nothing can read it, so it is handed over for the client to deal with."""
+async def test_a_pdf_comes_back_as_pictures_of_its_pages(tmp_path: Path) -> None:
+    """A PDF itself cannot be displayed by every client, a picture can."""
     handler = Recorder(headers={"content-type": "application/pdf"})
     server, provider = server_for(handler, tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri})
 
+    payload = result.structured_content or {}
+    assert payload["deliveredAs"] == "pages"
+    assert payload["pages"] == 1
+    assert payload["pagesShown"] == 1
+
+    images = [b for b in result.content if b.type == "image"]
+    assert len(images) == 1
+    assert images[0].mime_type == "image/png"
+    assert base64.b64decode(images[0].data).startswith(b"\x89PNG\r\n\x1a\n")
+    await provider.aclose()
+
+
+async def test_a_rendered_page_is_sized_for_a_model_to_read(tmp_path: Path) -> None:
+    """Past the client's own resize threshold the extra pixels are discarded."""
+    pages, total = rendering.pdf_pages_as_png(make_pdf())
+
+    assert total == 1
+    page = pages[0]
+    assert max(page.width, page.height) == rendering.MAX_EDGE
+    # A4 is taller than it is wide, and that has to survive rendering.
+    assert page.height > page.width
+
+
+async def test_a_long_document_is_cut_off_and_says_so(tmp_path: Path) -> None:
+    """Each page costs tokens by its dimensions, so the count is the budget."""
+    handler = Recorder(
+        content=make_pdf(pages=9), headers={"content-type": "application/pdf"}
+    )
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    payload = result.structured_content or {}
+    assert payload["pages"] == 9
+    assert payload["pagesShown"] == rendering.MAX_PAGES
+    assert len([b for b in result.content if b.type == "image"]) == rendering.MAX_PAGES
+    assert "9 pages" in result.content[0].text
+    await provider.aclose()
+
+
+async def test_a_damaged_pdf_says_what_happened(tmp_path: Path) -> None:
+    """Rather than a stack trace, or an empty answer that looks like success."""
+    handler = Recorder(
+        content=b"%PDF-1.4 not really", headers={"content-type": "application/pdf"}
+    )
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool("read_download", {"uri": uri})
+
+    assert "could not be rendered" in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_something_that_is_not_a_document_still_comes_back_as_a_blob(
+    tmp_path: Path,
+) -> None:
+    """The fallback is still there for anything with no better shape."""
+    (tmp_path / "archive.bin").write_bytes(b"\x00\x01\x02")
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool(
+        "read_download", {"uri": "lexware://download/archive.bin"}
+    )
+
     assert (result.structured_content or {})["deliveredAs"] == "binary"
-    block = result.content[0]
-    assert block.type == "resource"
-    assert base64.b64decode(block.resource.blob) == PDF
+    assert result.content[0].type == "resource"
     await provider.aclose()
 
 
@@ -623,6 +739,21 @@ async def test_reading_costs_no_api_call(tmp_path: Path) -> None:
     await server.call_tool("read_download", {"uri": uri})
 
     assert len(handler.requests) == before
+    await provider.aclose()
+
+
+async def test_rendering_does_not_touch_the_file_it_read(tmp_path: Path) -> None:
+    """A download stays exactly what the API sent, whatever is shown from it."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+    downloaded = await server.call_tool("download_file", {"file_id": FILE_ID})
+    path = Path((downloaded.structured_content or {})["path"])
+
+    await server.call_tool(
+        "read_download", {"uri": (downloaded.structured_content or {})["uri"]}
+    )
+
+    assert path.read_bytes() == PDF
     await provider.aclose()
 
 
@@ -699,8 +830,8 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
         "read_download", {"uri": "lexware://download/invoice.pdf"}
     )
 
-    assert (result.structured_content or {})["deliveredAs"] == "binary"
-    assert base64.b64decode(result.content[0].resource.blob) == PDF
+    assert (result.structured_content or {})["deliveredAs"] == "pages"
+    assert any(b.type == "image" for b in result.content)
     await provider.aclose()
 
 

@@ -85,6 +85,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | Permission tiers and their enforcement, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, and because an existing file is never overwritten. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
@@ -381,7 +382,7 @@ exposed one tool per path.
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
 | `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool. **(to verify)** against a live sales document. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
-| `read_download` | `uri` | `{uri, mimeType, size, deliveredAs}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
+| `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts, vouchers and files, since the permalink shape is the same for all of them and the extra entries cost nothing. Built 2026-08-20. | 0 |
 
 ### Phase 2 — writes, behind `LXO_MCP_MODE=write`
@@ -813,9 +814,32 @@ subclasses with concise, actionable messages.
   without trouble, so the obstacle is the media type and not the route. Two
   things follow: re-encoding the same bytes cannot help, and the only way to
   put a PDF in front of that client is to turn it into something else, namely
-  its extracted text or its pages rendered as images. **(to decide)** — it is
-  the first runtime dependency the project would take, and the obvious
-  rendering library is AGPL against an MIT project.
+  its extracted text or its pages rendered as images.
+- **So a PDF is delivered as pictures of its pages.** `read_download` renders
+  them rather than handing over bytes no client will show. The decisions
+  behind it were measured on 2026-08-20 against a two-page A4 invoice:
+  - **`pypdfium2`, not PyMuPDF.** PyMuPDF is faster and better known, and it
+    is AGPL-3.0 or a commercial licence from Artifex, which an MIT project
+    cannot take. `pypdfium2` binds the same PDFium that Chrome uses, under
+    BSD-3-Clause and Apache-2.0, in a 3.7 MiB wheel. It is the project's first
+    runtime dependency beyond the MCP SDK, httpx and platformdirs.
+  - **PNG, encoded here rather than by an imaging library.** Writing a PNG
+    from raw pixels is zlib and four chunks. Pillow would be a second
+    dependency to save fifteen lines, and the adaptive filtering it brings
+    measured *larger* on rendered pages, where rows are mostly white and a
+    per-row filter only adds entropy at glyph edges: 48.9 KiB unfiltered
+    against 57.3 KiB with PNG's Up filter.
+  - **1400 px on the long edge**, which puts an A4 page at 990x1400. Claude
+    resizes anything past roughly 1568 px before looking at it, so rendering
+    larger spends bytes on pixels that are then discarded.
+  - **Colour, not grayscale.** Grayscale is a third of the bytes (17.3 KiB
+    against 48.9 KiB) but an image is charged by its dimensions rather than
+    its weight, so the saving is in transfer only, and a red overdue stamp on
+    an invoice is information.
+  - **At most five pages**, because the page count is the real budget: one
+    page costs roughly its pixels divided by 750 in tokens whatever it weighs.
+    The result reports how many pages the document has and how many were
+    shown.
 - **A client that cannot follow the link still gets the file.** Resource
   links are the cheap path, not a requirement: `read_download` takes the same
   URI and puts the content into the answer directly, because a tool call is

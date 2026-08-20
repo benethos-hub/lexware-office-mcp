@@ -56,6 +56,7 @@ src/benethos_lexware_office_mcp/
   payloads.py     # tool arguments -> API request bodies
   storage.py      # where downloads land, filenames made safe first
   resources.py    # downloads published as MCP resources for the client
+  rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
   errors.py       # ToolError hierarchy
   tools/
     _base.py      # registration helper, tidies the docstring first

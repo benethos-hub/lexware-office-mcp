@@ -122,9 +122,20 @@ first with a counter in its name.
 
 If your client does not follow resource links — Claude Desktop does not —
 `read_download` takes the same URI and puts the content into the answer
-instead. What arrives depends on the file: XML as text, which makes an
-XRechnung readable, images as images, anything else as an embedded binary.
-It costs no API call, since the file is already on the server.
+instead. What arrives depends on the file:
+
+| File | Arrives as |
+|---|---|
+| XML | text, so an XRechnung can actually be read |
+| PDF | pictures of its pages, at most five |
+| Image | the image |
+| Anything else | an embedded binary for the client to handle |
+
+A PDF is rendered rather than passed through because Claude Desktop turns
+an embedded binary into an image block when it calls the API, and
+`application/pdf` is not a permitted image type there, so the whole
+request is refused. Rendering costs no API call either, since the file is
+already on the server.
 
 `upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
 is what the API takes. An XML file is treated as an XRechnung and is
@@ -132,7 +143,8 @@ rejected if it is not one.
 
 ## Requirements
 
-- Python 3.11 or newer
+- Python 3.11 or newer. Installing pulls in the MCP SDK, httpx,
+  platformdirs and pypdfium2, the last of these to render PDF pages
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 

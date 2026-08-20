@@ -100,8 +100,13 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   that do not follow resource links. Claude Desktop is one of them, so this is
   the route that always works. What comes back depends on the file: **XML
   arrives as text**, which makes an XRechnung readable and its amounts usable,
-  images arrive as images, and anything else as an embedded binary for the
-  client to handle. Costs **no** API call, since the file is already on the
+  **a PDF arrives as pictures of its pages** since no client will display an
+  embedded PDF, images arrive as images, and anything else as an embedded
+  binary for the client to handle. A long document is cut off after five pages
+  and the answer says how many it has.
+- **New dependency: `pypdfium2`**, which renders those pages. PDFium under
+  BSD-3-Clause and Apache-2.0, a 3.7 MiB wheel. The better known PyMuPDF is
+  AGPL-3.0 or a commercial licence, which this MIT project cannot take. Costs **no** API call, since the file is already on the
   server. Only files this server downloaded can be read, and nothing above
   5 MiB, because base64 of a large file would swallow the answer.
 - **`download_document`** — the same for the rendered PDF of an invoice,

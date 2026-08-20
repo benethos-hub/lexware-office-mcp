@@ -22,7 +22,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel, Field
 
-from .. import resources, storage
+from .. import rendering, resources, storage
 from ..client import ClientProvider
 from ..config import Settings
 from ..errors import NotFoundError, ValidationError
@@ -105,9 +105,16 @@ class Delivered(BaseModel):
     deliveredAs: str = Field(
         description=(
             "How the content was put into the answer: 'text' for something "
-            "readable such as an XRechnung, 'image', or 'binary' for anything "
-            "the client has to handle itself."
+            "readable such as an XRechnung, 'image' for a picture, 'pages' "
+            "for a PDF rendered to images, or 'binary' for anything the "
+            "client has to handle itself."
         )
+    )
+    pages: int | None = Field(
+        None, description="How many pages the document has, for a PDF."
+    )
+    pagesShown: int | None = Field(
+        None, description="How many of them were rendered into this answer."
     )
 
 
@@ -268,14 +275,14 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         What comes back depends on what the file is, because the useful form
         differs. **XML arrives as text**, which is the case worth knowing
         about: an XRechnung becomes readable, so its amounts and dates can
-        actually be used. An image arrives as an image. Anything else, a PDF
-        in particular, arrives as an embedded binary for the client to handle,
-        and a model cannot read it.
+        actually be used. **A PDF arrives as pictures of its pages**, since a
+        PDF itself cannot be displayed by every client. An image arrives as an
+        image. Anything else arrives as an embedded binary for the client to
+        handle.
 
-        Prefer the `path` or the resource `uri` when the client can use them.
-        Embedding a large PDF here spends a great deal of the answer's budget
-        on bytes nothing will read, and some clients cannot display an
-        embedded PDF at all. Say so rather than claiming the file was shown.
+        A long PDF is cut off after the first few pages, and the result says
+        how many pages it has and how many were shown. Prefer the `path` or
+        the resource `uri` when the client can use them directly.
         """
         if not uri.startswith(resources.SCHEME):
             raise ValidationError(
@@ -343,11 +350,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 def _inline(uri: str, payload: bytes, mime: str) -> Any:
     """Choose the content block that makes this file usable.
 
-    Three shapes, because the same bytes are worth different things: text a
-    model can read, an image it can see, and a blob only the client can do
+    Four shapes, because the same bytes are worth different things: text a
+    model can read, an image it can see, a PDF turned into pictures of its
+    pages so that it can be seen at all, and a blob only the client can do
     anything with.
     """
     summary = {"uri": uri, "mimeType": mime, "size": len(payload)}
+
+    if mime == "application/pdf":
+        return _rendered(uri, payload, summary)
 
     if mime.startswith("text/") or mime in TEXT_TYPES:
         text = payload.decode("utf-8", errors="replace")
@@ -371,6 +382,47 @@ def _inline(uri: str, payload: bytes, mime: str) -> Any:
             )
         ],
         structured_content={**summary, "deliveredAs": "binary"},
+    )
+
+
+def _rendered(uri: str, payload: bytes, summary: dict[str, Any]) -> Any:
+    """A PDF as pictures of its pages."""
+    try:
+        pages, total = rendering.pdf_pages_as_png(payload)
+    except Exception as exc:  # pypdfium2 raises its own errors
+        raise ValidationError(
+            f"{uri} could not be rendered: {exc}. It may be encrypted or "
+            "damaged. The file itself is on disk either way."
+        ) from exc
+
+    if not pages:
+        raise ValidationError(f"{uri} has no pages to show.")
+
+    blocks: list[Any] = [
+        TextContent(
+            type="text",
+            text=(
+                f"{total} page{'s' if total != 1 else ''}, showing "
+                f"{len(pages)} as images."
+            ),
+        )
+    ]
+    blocks += [
+        ImageContent(
+            type="image",
+            data=base64.b64encode(page.png).decode("ascii"),
+            mime_type="image/png",
+        )
+        for page in pages
+    ]
+    return CallToolResult(
+        content=blocks,
+        structured_content={
+            **summary,
+            "deliveredAs": "pages",
+            "pages": total,
+            "pagesShown": len(pages),
+        },
     )
 
 
