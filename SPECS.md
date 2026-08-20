@@ -299,22 +299,94 @@ accidental call fails with a clear message instead of an irreversible effect.
 
 ## 9. Permission model
 
-Three tiers, checked at two levels (defence in depth):
+Two gates, and a call needs both. The **tier** is the coarse ceiling an
+operator sets. The **per-tool policy** refines what is allowed inside it.
+Enabling a tool in the policy can never lift it above the tier, so a deployment
+pinned to `read` stays read-only whatever any file says.
+
+### 9.1 Tier — the ceiling (implemented)
 
 | Mode | Allows |
 |---|---|
-| `read` (default) | GET only |
-| `write` | GET, plus create and update of drafts and master records |
-| `full` | additionally the irreversible operations of section 8 phase 3 |
+| `read` (default) | queries only |
+| `write` | additionally create and update of drafts and master records |
+| `full` | additionally the irreversible operations: finalizing a document, booking a voucher, deleting an article |
 
-1. **Registration level:** tools above the active mode are not registered, so
-   they never appear in `list_tools` and cost no tokens.
-2. **Call level:** a `PolicyMCPServer` wrapper re-checks the tier before
-   dispatch, so a stale client-side tool list cannot smuggle a call through.
+Set with `--mode` or `LXO_MCP_MODE`, so a container, a CI job or a client
+configuration can pin it without touching a file. Deliberately coarse and
+deliberately not changeable at runtime: it states what this process may at
+most do.
+
+Checked at two levels (defence in depth):
+
+1. **Registration:** a tool above the active tier is not registered, so it
+   never appears in `list_tools` and costs no tokens.
+2. **Call:** the tier is checked again when a call arrives, so a client holding
+   a stale tool list cannot smuggle one through.
 
 The default is `read` because this server points at a real accounting system
 holding real business records. Nothing that writes is reachable without a
-deliberate configuration change by the account owner.
+deliberate change by the account owner.
+
+### 9.2 Per-tool policy — the refinement (planned)
+
+**A single read/write/full switch is too blunt.** Raising the tier to `write`
+so the model may draft a quotation also hands it every other write tool in the
+server. What is wanted is a decision per tool, with groups as a convenience
+rather than as the unit of truth.
+
+**Registry.** Every tool carries metadata, recorded where the tool is defined
+so the classification cannot drift away from the code:
+
+| Field | Values |
+|---|---|
+| `domain` | diagnostics, contacts, articles, vouchers, sales documents, payments, files, master data |
+| `access` | `read` or `write` |
+| `effect` | write tools only: `create`, `update`, `delete`, `book`, `finalize` |
+
+`delete`, `book` and `finalize` are marked **irreversible**. In this product
+that is not a figure of speech: a finalized invoice carries a consecutive
+number and can be corrected only by a further document, which is the same
+reason section 10.2 refuses to retry a failed creation.
+
+**Policy store.** Flags per tool in a JSON file, in the config directory and
+never in the repository:
+
+```json
+{ "get_profile": true, "search_vouchers": true, "create_invoice": false }
+```
+
+Defaults when the file is missing or a tool is absent from it: **read tools on,
+write tools off, unknown tools off.** A tool that arrives with an upgrade is
+therefore off until someone turns it on, rather than silently enabled by an
+update.
+
+**Group actions are presets, not state.** "All contact tools on", "everything
+read-only", "irreversible off" set individual flags and nothing else. The truth
+stays per tool, so the file always says exactly what is allowed.
+
+**Enforcement** mirrors 9.1 and adds the policy to both gates: a disabled tool
+is not listed, and a call to one is refused with a message naming the tool and
+where to enable it.
+
+**Changing it while the server runs.** Under stdio the client spawns the server
+as its own process, so a configuration interface is a separate process and the
+two share the policy file: the interface writes it, the server re-reads it when
+answering `tools/list` and before each call. Re-reading a small JSON file per
+request is cheap and beats holding a copy that can go stale. The server then
+sends `notifications/tools/list_changed` so the client refetches. **(to
+verify)** how completely the SDK supports a tool list that changes after
+startup. Under the HTTP transport of 0.3.0 both would live in one process and
+share the state directly, with the file serving only to survive a restart.
+
+**Interface.** The natural home is the configuration interface of section 16.1:
+a table grouped by domain, one toggle per row, `read` and `write` marked,
+irreversible effects flagged, and the connected organization shown at the top
+from `get_profile` — so it is never in doubt which account the permissions
+being granted apply to.
+
+Later, if it earns its place: confirmation required rather than plain on and
+off for irreversible tools.
 
 ## 10. Client behaviour (`client.py`)
 
@@ -643,7 +715,7 @@ subclasses with concise, actionable messages.
 | 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | planned |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
-| later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
+| later | per-tool permission policy (section 9.2), recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,
 independently of the tool roadmap above.
@@ -681,9 +753,9 @@ the package. This has to be reworked rather than patched.
 - **A small local configuration interface.** A page served on localhost that
   shows which settings are active and where each one came from, lets the key
   be entered without going through a text file, and names the storage paths
-  explicitly. It would also be the natural place to raise the permission tier
-  deliberately, which is a decision that deserves more friction than editing a
-  line in a file. Runs only when asked and never as part of the MCP server
+  explicitly. It would also be the natural place to manage the per-tool
+  permission policy of section 9.2 and to raise the tier deliberately, which is
+  a decision that deserves more friction than editing a line in a file. Runs only when asked and never as part of the MCP server
   itself, since that speaks stdio.
 - **A read-only diagnostic** as a smaller version of the same idea: report
   every candidate path, whether it exists, and which value won, without ever
