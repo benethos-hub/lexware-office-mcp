@@ -63,11 +63,57 @@ BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 30.0
 
 
+def _page_params(page: int, size: int, **filters: Any) -> dict[str, Any]:
+    """Query parameters for a list endpoint.
+
+    A filter left unset must be absent from the query string, not sent as the
+    string "None", which is what happens if the dictionary is handed to httpx
+    with its nulls still in it.
+    """
+    params: dict[str, Any] = {"page": page, "size": size}
+    params.update({key: value for key, value in filters.items() if value is not None})
+    return params
+
+
 def _expect_object(payload: Any, endpoint: str) -> dict[str, Any]:
     """Insist that an endpoint documented to return an object returned one."""
     if not isinstance(payload, dict):
         raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
     return payload
+
+
+def _json_object(response: httpx.Response) -> dict[str, Any]:
+    """The response body as a dictionary, or an empty one."""
+    try:
+        body = response.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _detail_text(body: dict[str, Any]) -> str:
+    """The API's own wording for a failure, without ever echoing the key."""
+    parts = [str(body[key]) for key in ("errorCode", "message") if body.get(key)]
+    parts.extend(_issue_texts(body.get("IssueList")))
+    text = " ".join(part for part in parts if part).strip()
+    return f" {text}" if text else ""
+
+
+def _issue_sources(body: dict[str, Any]) -> set[str]:
+    """Which fields an error blamed.
+
+    The status alone does not say what went wrong: contacts answer a missing
+    role, a second billing address and a stale version all with 406. The
+    ``source`` is what tells those apart.
+    """
+    issues = body.get("IssueList")
+    if not isinstance(issues, list):
+        return set()
+    return {
+        str(issue["source"])
+        for issue in issues
+        if isinstance(issue, dict) and issue.get("source")
+    }
 
 
 def _issue_texts(issues: Any) -> list[str]:
@@ -248,17 +294,15 @@ class LexwareClient:
         case-insensitive substring matches and are rejected below three
         characters (verified 2026-08-20).
         """
-        params: dict[str, Any] = {"page": page, "size": size}
-        if name is not None:
-            params["name"] = name
-        if email is not None:
-            params["email"] = email
-        if number is not None:
-            params["number"] = number
-        if customer is not None:
-            params["customer"] = customer
-        if vendor is not None:
-            params["vendor"] = vendor
+        params = _page_params(
+            page,
+            size,
+            name=name,
+            email=email,
+            number=number,
+            customer=customer,
+            vendor=vendor,
+        )
         return _expect_object(
             await self.get_json("/v1/contacts", params=params), "contacts"
         )
@@ -268,6 +312,28 @@ class LexwareClient:
         return _expect_object(
             await self.get_json(f"/v1/contacts/{contact_id}"), "contacts"
         )
+
+    async def create_contact(self, body: dict[str, Any]) -> dict[str, Any]:
+        """``POST /v1/contacts``. One API call, never retried.
+
+        Returns the small envelope the API answers a creation with:
+        ``{id, resourceUri, createdDate, updatedDate, version}``. The record
+        itself has to be read back if the caller wants to see it.
+        """
+        response = await self.request("POST", "/v1/contacts", json=body)
+        return _expect_object(response.json(), "contacts")
+
+    async def update_contact(
+        self, contact_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """``PUT /v1/contacts/{id}``. One API call.
+
+        The body replaces the record, so it has to be complete. It also has to
+        carry the ``version`` that was read, which is what makes a concurrent
+        change fail instead of being overwritten.
+        """
+        response = await self.request("PUT", f"/v1/contacts/{contact_id}", json=body)
+        return _expect_object(response.json(), "contacts")
 
     # -- internals --------------------------------------------------------
 
@@ -288,7 +354,9 @@ class LexwareClient:
         self, response: httpx.Response, method: str, path: str
     ) -> Exception:
         status = response.status_code
-        detail = self._detail(response)
+        body = _json_object(response)
+        detail = _detail_text(body)
+        sources = _issue_sources(body)
 
         if status == 401:
             return AuthError(
@@ -303,32 +371,21 @@ class LexwareClient:
             )
         if status == 404:
             return NotFoundError("resource", path.rsplit("/", 1)[-1])
-        if status == 409:
+        # A stale `version` arrives as 406 naming `version`, not as 409.
+        # Verified 2026-08-20 by updating a contact with the version it had
+        # before an earlier update.
+        if status == 409 or (status == 406 and "version" in sources):
             return ConflictError(
                 "The record changed since it was read, or it is locked. Read it "
                 f"again to get the current version, then retry.{detail}"
             )
         if status == 406:
             return ValidationError(
-                "The API refused the action in the record's current state, for "
-                "example pursuing a document that is still a draft."
-                f"{detail}"
+                f"The API refused {method} {path}. Either the request is not "
+                "valid or it is not allowed in the record's current state, for "
+                f"example pursuing a document that is still a draft.{detail}"
             )
         return ValidationError(f"The API rejected {method} {path}.{detail}")
-
-    @staticmethod
-    def _detail(response: httpx.Response) -> str:
-        """Pull the API's own error text out, without ever echoing the key."""
-        try:
-            body = response.json()
-        except ValueError:
-            return ""
-        if not isinstance(body, dict):
-            return ""
-        parts = [str(body[key]) for key in ("errorCode", "message") if body.get(key)]
-        parts.extend(_issue_texts(body.get("IssueList")))
-        text = " ".join(part for part in parts if part).strip()
-        return f" {text}" if text else ""
 
 
 class ClientProvider:

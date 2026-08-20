@@ -33,6 +33,26 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   addresses, all email addresses and phone numbers, the roles with their
   numbers and the `version` an update will have to send back. Costs one API
   call.
+- **`create_contact`** — create a customer or vendor. Takes the name, the
+  roles, and optionally an email address, a phone number, a billing and a
+  shipping address, tax details and a note. Returns the new id and version.
+  The customer and vendor numbers are assigned by Lexware, so read the contact
+  back if you need them. Requires `LXO_MCP_MODE=write`, and costs one API call
+  that is never retried: a repeated create is a second contact nobody asked
+  for.
+- **`update_contact`** — change an existing contact. Only the fields you name
+  are changed, everything else stays as it was. This costs two API calls
+  rather than one, because the API replaces a record instead of patching it,
+  so the current contact is read first and the change is laid on top. Without
+  that, an update naming only a new email address would empty out the
+  addresses, the note and everything else. It needs the `version` from your
+  last read, and if the record changed in between the update is refused before
+  anything is sent. Requires `LXO_MCP_MODE=write`.
+- **The same page shape for every list.** A search result is
+  `{records: [...], "page": {number, size, totalElements, totalPages, last}}`,
+  so paging works the same way across tools as they are added. The API's
+  ordering block is dropped: it repeats on every response and says nothing a
+  caller can act on.
 - **The server itself** — installable as `benethos-lexware-office-mcp`, started
   through the console script of the same name or
   `python -m benethos_lexware_office_mcp`. Speaks **stdio**, which is what
@@ -74,7 +94,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   the record changed since it was read, the resource does not exist. When the
   API refuses a parameter it sometimes sends no message at all, only a list of
   issues naming the field and what was wrong with it, so that list is folded
-  into the message rather than dropped. The API key is redacted from every
+  into the message rather than dropped. An update rejected because somebody
+  else changed the record first is reported as a conflict telling you to read
+  it again, rather than as a validation error telling you to fix input that
+  was never wrong. The API key is redacted from every
   message, and monetary values are passed through exactly as the API reported
   them, always with their currency.
 - `README.md` and `LICENSE` (MIT).

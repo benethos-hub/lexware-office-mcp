@@ -28,11 +28,12 @@ contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
 > **Status: 0.1.0 in progress, not published yet.**
-> The server runs over stdio and answers `get_profile`, `search_contacts` and
-> `get_contact`. The rest of the tools below are specified but not built, and
-> the table says which is which. There is no PyPI release yet, so installation
-> means cloning the repository. See [SPECS.md](SPECS.md) for the full
-> technical specification and the roadmap.
+> The server runs over stdio and handles contacts completely: find them,
+> read them, create them and change them. `get_profile` answers which
+> account is connected. The rest of the tools below are specified but not
+> built, and the table says which is which. There is no PyPI release yet, so
+> installation means cloning the repository. See [SPECS.md](SPECS.md) for the
+> full technical specification and the roadmap.
 
 ## Why this exists
 
@@ -82,15 +83,23 @@ Read tools, available in every mode:
 | `download_file` | Download a stored file by its ID | planned |
 | `get_deeplink` | Build a permalink into the Lexware Office web app | planned |
 
-Write tools, only with `LXO_MCP_MODE=write` or higher. None of these exist yet:
+Write tools, only with `LXO_MCP_MODE=write` or higher:
 
 | Tool | What it does | Status |
 |---|---|---|
-| `create_contact`, `update_contact` | Create and update customers and vendors | planned |
+| `create_contact` | Create a customer or vendor | **built** |
+| `update_contact` | Change one, without touching what you did not name | **built** |
 | `create_article`, `update_article` | Create and update articles | planned |
 | `create_voucher`, `update_voucher` | Create and update bookkeeping vouchers | planned |
 | `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested | planned |
 | `upload_file` | Upload a receipt | planned |
+
+`update_contact` costs two API calls rather than one. The API replaces a
+record instead of patching it, so the current contact is read first and the
+change is laid on top. Without that, changing only an email address would
+empty out the addresses, the note and everything else. It also needs the
+`version` you last read: if the record changed in between, the update is
+refused and nothing is written.
 
 ## Requirements
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from benethos_lexware_office_mcp import formatting
 from benethos_lexware_office_mcp.formatting import compact, profile
 
 
@@ -80,3 +81,40 @@ def test_profile_keeps_fields_the_api_adds_later() -> None:
     """A drop-list, not an allow-list, so new fields surface instead of vanishing."""
     result = profile({"companyName": "Example GmbH", "someNewField": "kept"})
     assert result["someNewField"] == "kept"
+
+
+# -- the shared page envelope ---------------------------------------------
+
+
+def test_every_list_endpoint_is_shaped_the_same_way() -> None:
+    """One page shape across all list tools, so paging is learned once."""
+    payload = {
+        "content": [{"id": "a"}, {"id": "b"}],
+        "first": True,
+        "last": False,
+        "number": 1,
+        "numberOfElements": 2,
+        "size": 2,
+        "sort": [{"property": "name", "nullHandling": "NATIVE"}],
+        "totalElements": 9,
+        "totalPages": 5,
+    }
+    result = formatting.page(payload, lambda item: item, key="articles")
+
+    assert result["articles"] == [{"id": "a"}, {"id": "b"}]
+    assert result["page"] == {
+        "number": 1,
+        "size": 2,
+        "totalElements": 9,
+        "totalPages": 5,
+        "last": False,
+    }
+
+
+def test_the_page_block_keeps_a_false_last() -> None:
+    """`last: false` is the signal that another page exists, so it must survive."""
+    assert formatting.page_info({"number": 0, "last": False})["last"] is False
+
+
+def test_a_response_without_content_is_an_empty_list_not_a_crash() -> None:
+    assert formatting.page({}, lambda item: item, key="rows")["rows"] == []

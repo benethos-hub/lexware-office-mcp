@@ -53,6 +53,7 @@ src/benethos_lexware_office_mcp/
   ratelimit.py    # the one token bucket, clock injectable for tests
   policy.py       # permission tiers and enforcement
   formatting.py   # API JSON -> compact tool output
+  payloads.py     # tool arguments -> API request bodies
   errors.py       # ToolError hierarchy
   tools/
     _base.py      # registration helper, tidies the docstring first
@@ -71,7 +72,10 @@ new HTTP call goes in `client.py`, never in a tool function.
    parameters through rather than walking every page.
 2. Normalize the response in `formatting.py`. Drop null and empty fields, keep
    monetary values exactly as the API returned them, and always carry the
-   currency.
+   currency. A paged list goes through `formatting.page`, so every list tool
+   answers with the same envelope. A tool that **writes** builds its request
+   body in `payloads.py`, never inline: an update has to read the record and
+   merge, because the API replaces rather than patches.
 3. Expose it in the matching `tools/` module. The **docstring becomes the tool
    description** the model sees — write it for an LLM caller and say when to
    use this tool rather than a neighbouring one.

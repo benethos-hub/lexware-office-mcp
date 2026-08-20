@@ -1,15 +1,15 @@
-"""Contacts: the client call, the trimming, and the two tools.
+"""Contacts: the client calls, the trimming, and the four tools.
 
-The contact fixtures below follow the shape the Lexware documentation gives.
-They have **not** been confirmed against a live response: the test account
-holds no contacts, so ``GET /v1/contacts`` returns an empty page there and
-there is nothing to compare against. What *has* been verified live is the page
-envelope, the filter constraints and the error bodies, and those carry a date
-where they are asserted. See SPECS.md section 5.
+The fixtures are shapes a live account actually returned on 2026-08-20, with
+placeholder identifiers: a company and a person contact, the page envelope
+including the ``sort`` block that gets dropped, and the error bodies. The
+write half was exercised against the same account, which is where the merging
+behaviour asserted here comes from. See SPECS.md section 5.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -21,7 +21,11 @@ from mcp.server.mcpserver.exceptions import ToolError
 from benethos_lexware_office_mcp import formatting, policy
 from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.config import Settings
-from benethos_lexware_office_mcp.errors import NotFoundError, ValidationError
+from benethos_lexware_office_mcp.errors import (
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
 
@@ -465,3 +469,190 @@ async def test_get_contact_returns_the_full_record() -> None:
     assert payload["addresses"]["billing"][0]["zip"] == "10115"
     assert handler.path == "/v1/contacts/PLACEHOLDER-CONTACT-1"
     await provider.aclose()
+
+
+# -- writing --------------------------------------------------------------
+
+
+class Scripted:
+    """Answers a scripted sequence, and remembers what it was sent."""
+
+    def __init__(self, *responses: tuple[int, Any]) -> None:
+        self._responses = list(responses)
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        status, payload = self._responses.pop(0) if self._responses else (200, {})
+        return httpx.Response(status, json=payload)
+
+    @property
+    def methods(self) -> list[str]:
+        return [request.method for request in self.requests]
+
+    def body(self, index: int) -> Any:
+        return json.loads(self.requests[index].content)
+
+
+CREATED = {
+    "id": "PLACEHOLDER-CONTACT-3",
+    "resourceUri": "https://api.lexware.io/v1/contacts/PLACEHOLDER-CONTACT-3",
+    "createdDate": "2026-08-20T15:49:29.076+02:00",
+    "updatedDate": "2026-08-20T15:49:29.080+02:00",
+    "version": 1,
+}
+
+
+def write_server(handler: Scripted) -> tuple[Any, ClientProvider]:
+    settings = Settings(api_key=API_KEY, mode="write")
+    provider = ClientProvider(
+        settings,
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
+    return build_server(settings, provider), provider
+
+
+async def test_the_write_tools_are_absent_in_read_mode() -> None:
+    """A tool above the tier never reaches the client's list at all."""
+    names = [tool.name for tool in await build_server(Settings()).list_tools()]
+    assert "create_contact" not in names
+    assert "update_contact" not in names
+
+
+async def test_the_write_tools_appear_in_write_mode() -> None:
+    names = [
+        tool.name for tool in await build_server(Settings(mode="write")).list_tools()
+    ]
+    assert "create_contact" in names
+    assert "update_contact" in names
+
+
+async def test_create_contact_sends_what_the_api_requires() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = write_server(handler)
+
+    result = await server.call_tool(
+        "create_contact",
+        {
+            "kind": "company",
+            "name": "Neu GmbH",
+            "roles": ["customer", "vendor"],
+            "email": "neu@example.invalid",
+            "billing_address": {
+                "street": "Musterweg 1",
+                "zip": "10115",
+                "city": "Berlin",
+                "country_code": "DE",
+            },
+        },
+    )
+
+    assert handler.methods == ["POST"]
+    body = handler.body(0)
+    assert body["version"] == 0
+    assert body["roles"] == {"customer": {}, "vendor": {}}
+    assert body["company"] == {"name": "Neu GmbH"}
+    assert body["addresses"]["billing"][0]["countryCode"] == "DE"
+    assert result.structured_content is not None
+    assert result.structured_content["id"] == "PLACEHOLDER-CONTACT-3"
+    await provider.aclose()
+
+
+async def test_a_create_is_one_call_and_is_not_retried() -> None:
+    """A retried POST is a second contact nobody asked for."""
+    handler = Scripted((500, {}), (201, CREATED))
+    server, provider = write_server(handler)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "create_contact",
+            {"kind": "company", "name": "Neu GmbH", "roles": ["customer"]},
+        )
+
+    assert len(handler.requests) == 1
+    await provider.aclose()
+
+
+async def test_update_contact_reads_the_record_before_replacing_it() -> None:
+    """The API replaces rather than patches, so the current record is the base."""
+    handler = Scripted((200, COMPANY), (200, CREATED))
+    server, provider = write_server(handler)
+
+    await server.call_tool(
+        "update_contact",
+        {
+            "contact_id": "PLACEHOLDER-CONTACT-1",
+            "version": 3,
+            "email": "neu@example.invalid",
+        },
+    )
+
+    assert handler.methods == ["GET", "PUT"]
+    sent = handler.body(1)
+    # The one change asked for.
+    assert sent["emailAddresses"]["business"] == ["neu@example.invalid"]
+    # And everything that was not asked about, still there.
+    assert sent["addresses"] == COMPANY["addresses"]
+    assert sent["company"]["taxNumber"] == "12345/67890"
+    assert sent["version"] == 3
+    await provider.aclose()
+
+
+async def test_a_stale_version_is_refused_before_anything_is_written() -> None:
+    """Verified live: the API answers this with 406, after the round trip."""
+    handler = Scripted((200, COMPANY), (200, CREATED))
+    server, provider = write_server(handler)
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool(
+            "update_contact",
+            {"contact_id": "PLACEHOLDER-CONTACT-1", "version": 1, "note": "nope"},
+        )
+
+    assert "version 3" in str(excinfo.value)
+    assert handler.methods == ["GET"], "the update was sent anyway"
+    await provider.aclose()
+
+
+async def test_a_stale_version_from_the_api_is_a_conflict() -> None:
+    """406 naming `version` is the API's way of saying somebody else was first.
+
+    Live body, 2026-08-20. Reporting it as a plain validation error would tell
+    the caller to fix their input, when the fix is to read the record again.
+    """
+    body = {
+        "IssueList": [
+            {
+                "i18nKey": "invalid_value",
+                "source": "version",
+                "type": "validation_failure",
+            }
+        ]
+    }
+    handler = Capturing(body, status=406)
+    async with make_client(handler) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.update_contact("PLACEHOLDER-CONTACT-1", {"version": 1})
+
+    assert "read it" in str(excinfo.value).lower()
+
+
+async def test_another_406_is_still_a_validation_error() -> None:
+    """Contacts answer a missing role with 406 too, and that is the caller's bug."""
+    body = {
+        "IssueList": [
+            {
+                "i18nKey": "missing_entity",
+                "source": "company or person",
+                "type": "validation_failure",
+            }
+        ]
+    }
+    handler = Capturing(body, status=406)
+    async with make_client(handler) as client:
+        with pytest.raises(ValidationError) as excinfo:
+            await client.create_contact({"version": 0})
+
+    assert "company or person" in str(excinfo.value)

@@ -12,9 +12,10 @@ before it leaves. Two rules matter more than brevity:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
-__all__ = ["compact", "contact", "contacts_page", "profile"]
+__all__ = ["compact", "contact", "contacts_page", "page", "page_info", "profile"]
 
 
 def compact(value: Any) -> Any:
@@ -38,6 +39,35 @@ def _is_empty(value: Any) -> bool:
     if isinstance(value, str | list | dict | tuple):
         return len(value) == 0
     return False
+
+
+# Every list endpoint answers with the same envelope. Of its nine fields these
+# five are what a caller needs to decide whether to ask for another page.
+# `first` restates `number == 0`, `numberOfElements` restates the row count,
+# and `sort` describes the ordering with five fields per sort key and is
+# identical on every response, so all three are dropped.
+PAGE_KEYS = ("number", "size", "totalElements", "totalPages", "last")
+
+
+def page_info(payload: dict[str, Any]) -> dict[str, Any]:
+    """The paging part of a list response, trimmed."""
+    return dict(compact({key: payload.get(key) for key in PAGE_KEYS}))
+
+
+def page(
+    payload: dict[str, Any],
+    row: Callable[[dict[str, Any]], dict[str, Any]],
+    *,
+    key: str,
+) -> dict[str, Any]:
+    """A list response as ``{<key>: [rows], "page": {...}}``.
+
+    Shared by every paged endpoint so the shape stays the same across tools: a
+    caller that has learned to page through one list can page through all of
+    them. Only ``row`` differs, because only the records differ.
+    """
+    rows = [row(item) for item in payload.get("content") or []]
+    return {key: rows, "page": page_info(payload)}
 
 
 # `created` carries `userEmail` and `userName`, which are the address of the
@@ -83,21 +113,8 @@ def contact(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def contacts_page(payload: dict[str, Any]) -> dict[str, Any]:
-    """Normalize a page of ``GET /v1/contacts`` into rows plus page info.
-
-    The API's ``sort`` block describes the ordering with five fields per sort
-    key and is identical on every response, so it is dropped. What survives is
-    what a caller needs to decide whether to ask for another page.
-    """
-    rows = [contact_row(item) for item in payload.get("content", [])]
-    page = {
-        "number": payload.get("number"),
-        "size": payload.get("size"),
-        "totalElements": payload.get("totalElements"),
-        "totalPages": payload.get("totalPages"),
-        "last": payload.get("last"),
-    }
-    return {"contacts": rows, "page": dict(compact(page))}
+    """Normalize a page of ``GET /v1/contacts`` into rows plus page info."""
+    return page(payload, contact_row, key="contacts")
 
 
 def contact_row(item: dict[str, Any]) -> dict[str, Any]:

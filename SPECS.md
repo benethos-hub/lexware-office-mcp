@@ -84,11 +84,12 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | Permission tiers and their enforcement, see section 9. | built |
-| `formatting.py` | API JSON to compact, token-frugal tool output. | built |
+| `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
-| `tools/contacts.py` | Contacts. | planned |
+| `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles. | planned |
 | `tools/vouchers.py` | Voucher list and bookkeeping vouchers. | planned |
 | `tools/sales_documents.py` | The seven sales document types. | planned |
@@ -148,12 +149,38 @@ Facts taken from <https://developers.lexware.io/docs/>.
   `IssueList` is parsed into the error text because sometimes it is the only
   thing the response says.
 - **Optimistic locking:** mutable resources carry a `version` integer. A PUT
-  must send the version it read, and a mismatch returns 409.
+  must send the version it read. **Verified 2026-08-20:** a mismatch comes back
+  as **406**, not the 409 the documentation implies, and the body names the
+  field: `IssueList: [{source: "version", i18nKey: "invalid_value"}]`. Status
+  alone is therefore not enough to tell a stale version from any other refusal,
+  which is why the client reads the issue sources. See section 12.
+- **A PUT replaces the record, it does not patch it.** Verified 2026-08-20 on
+  contacts: a body carrying only the changed fields does not leave the rest
+  alone, it empties it. Any update therefore reads the current record first and
+  lays the change on top, which costs a second API call and is not optional.
+  Read-only fields in the record that comes back (`organizationId`, the role
+  numbers, `archived`) are accepted and ignored on the way in, so they can be
+  sent back untouched.
 - **Datetimes:** RFC 3339 with offset, for example
   `2023-02-21T00:00:00.000+01:00`. **Country codes:** ISO 3166 alpha-2.
 - **Known constraints:** at most 300 line items per voucher, at most one
   billing and one shipping address per contact for API writes, at most one
   entry per email or phone type, at most one contact person per company.
+- **Contact writes, verified 2026-08-20.** A new contact needs `version: 0`,
+  at least one of `roles.customer` and `roles.vendor` (an empty object is
+  enough, the numbers are assigned by Lexware), and exactly one of `company`
+  and `person` — sending both is refused. Every one of these refusals arrives
+  as **406** with an `IssueList` naming the field:
+  `roles.customer or roles.vendor: missing_entity`,
+  `company or person: missing_entity`, `company and person: invalid_value`,
+  `addresses.billing.size: invalid_value`, `countryCode:
+  countrycode_is_not_valid`. A creation answers with
+  `{id, resourceUri, createdDate, updatedDate, version}` and `version` starts
+  at 1, not 0.
+- **A contact cannot be deleted or archived through the API.** Verified
+  2026-08-20: `DELETE /v1/contacts/{id}` answers 404, there is no such route,
+  and a PUT setting `archived: true` answers 200 and leaves the flag at
+  `false`. `archived` is therefore something a tool reports and never sets.
 
 ### Endpoints in use
 
@@ -270,8 +297,8 @@ exposed one tool per path.
 | Tool | Inputs | Output | Calls |
 |---|---|---|---|
 | `get_profile` | — | `{organizationId, companyName, connectionId, taxType, smallBusiness, businessFeatures}`. Verified against a live account 2026-08-20. The `created` block the API also returns is **dropped**: it carries the setting-up user's email address, which the tool does not need and which has no business reaching a language model. Doubles as the connection check. | 1 |
-| `search_contacts` | `name`, `email`, `number`, `role` (customer/vendor/any), `page`, `size` | `{contacts: [{id, version, name, type, roles, customerNumber, vendorNumber, email, phone, archived?}], page: {number, size, totalElements, totalPages, last}}`. The filter is named `name` rather than `query`, because it matches names only and calling it a query would promise a full-text search the API does not offer. `name` and `email` carry the API's three-character minimum in the schema. The response's `sort` block is dropped, and `archived` appears only when true. Built 2026-08-20. Row shape **(to verify)** against a populated account. | 1 |
-| `get_contact` | `contact_id` | the full contact including addresses, roles and `version`, with `organizationId` dropped: it is identical on every record and `get_profile` already answers it. A drop-list, not an allow-list, so a field added upstream still surfaces. Built 2026-08-20. **(to verify)** against a populated account. | 1 |
+| `search_contacts` | `name`, `email`, `number`, `role` (customer/vendor/any), `page`, `size` | `{contacts: [{id, version, name, type, roles, customerNumber, vendorNumber, email, phone, archived?}], page: {number, size, totalElements, totalPages, last}}`. The filter is named `name` rather than `query`, because it matches names only and calling it a query would promise a full-text search the API does not offer. `name` and `email` carry the API's three-character minimum in the schema. The response's `sort` block is dropped, and `archived` appears only when true. Built and verified against live records 2026-08-20. | 1 |
+| `get_contact` | `contact_id` | the full contact including addresses, roles and `version`, with `organizationId` dropped: it is identical on every record and `get_profile` already answers it. A drop-list, not an allow-list, so a field added upstream still surfaces. Built and verified against live records 2026-08-20. | 1 |
 | `search_articles` | `query`, `article_number`, `gtin`, `type`, `page`, `size` | list of `{id, version, title, articleNumber, type, unitName, price, currency}` | 1 |
 | `get_article` | `article_id` | full article including version | 1 |
 | `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `archived`, `sort`, `page`, `size` | list of `{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, currency, openAmount}` plus page info. The central discovery tool. | 1 |
@@ -286,9 +313,14 @@ exposed one tool per path.
 
 ### Phase 2 — writes, behind `LXO_MCP_MODE=write`
 
+| Tool | Inputs | Calls | Notes |
+|---|---|---|---|
+| `create_contact` | `kind` (company/person), `name`, `roles`, `first_name`, `salutation`, `email`, `phone`, `billing_address`, `shipping_address`, `vat_registration_id`, `tax_number`, `note` | 1 | Returns the id and version the API answers with, not the record. The customer and vendor numbers are assigned by Lexware, so they are only visible after reading the contact back. The parameters are flat rather than the API's nested object because the API itself allows only one billing address, one shipping address and one entry per email or phone type, so flat loses nothing. Addresses are the exception and stay structured, since they have five fields each. Built 2026-08-20. |
+| `update_contact` | `contact_id`, `version`, then the same fields, all optional | 2 | Reads the record and lays the given fields on top, because a PUT replaces rather than patches. The `version` the caller passes is checked against the record before anything is sent, so a stale one costs one read and no write. Built 2026-08-20. |
+
 | Tool | Notes |
 |---|---|
-| `create_contact` / `update_contact` | `update_contact` requires the `version` read beforehand, a mismatch surfaces as a conflict error naming the current version. |
+| `create_contact` / `update_contact` | **Built 2026-08-20**, see the phase 1 table above for what they cost. |
 | `create_article` / `update_article` | same version rule |
 | `create_voucher` / `update_voucher` | bookkeeping vouchers |
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
@@ -681,6 +713,14 @@ subclasses with concise, actionable messages.
   more to give. The default of `25` matches the documented typical page size,
   and open question 1 is what would let it be raised per endpoint with
   evidence.
+- **Every paged list has the same shape**, `{<records>: [...], "page": {...}}`,
+  where `page` carries `number`, `size`, `totalElements`, `totalPages` and
+  `last`. A caller that has learned to page through one list can page through
+  all of them, and only the row formatter differs per resource. Of the nine
+  fields the API's envelope carries, `first` restates `number == 0`,
+  `numberOfElements` restates the row count, and `sort` describes the ordering
+  with five fields per sort key and is identical on every response, so all
+  three are dropped.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be
@@ -761,13 +801,16 @@ Built, tested offline and exercised against a live test account:
 
 - `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
   `formatting.py`, `server.py`, `tools/diagnostics.py` and `tools/contacts.py`
-- three tools over the **stdio** transport: `get_profile`, `search_contacts`
-  and `get_contact`
+- five tools over the **stdio** transport: `get_profile`, `search_contacts`
+  and `get_contact` at tier `read`, `create_contact` and `update_contact`
+  at tier `write`
 - permission tier `read` by default, enforced at registration and at call
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
-  every page
+  every page, and one page shape shared by every list tool
+- `payloads.py`, which builds request bodies and does the read-then-merge an
+  update needs
 
 Verified against a live account rather than assumed: the profile response
 shape, the per-endpoint page ceiling, the 404 and 400 error bodies including
@@ -776,11 +819,10 @@ that master data comes back as a bare list, that a key can be created inside a
 test account, and that the bucket paces real calls (five tool calls at rate 1.5
 took 2.69 seconds).
 
-**Not yet verified:** the shape of a contact record itself. The test account
-holds no contacts, so `GET /v1/contacts` returns an empty page there. The page
-envelope, the filters and the error behaviour are measured, the fields inside a
-contact follow the documentation and are marked **(to verify)** in section 8
-until one real record has been read.
+The contact tools were exercised against that account end to end: contacts
+created, read back, searched, and updated in a way that proved the merge keeps
+the fields the caller did not mention. The record shapes in the test fixtures
+are the shapes the API actually returned.
 
 **The immediate next step** is `search_vouchers`, which brings the voucher
 filters and the document types. It is the tool that turns the server from
@@ -788,8 +830,8 @@ filters and the document types. It is the tool that turns the server from
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging and the profile and contact tools are done and exercised against a live account. The remaining read tools and CI are open. |
-| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | planned |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging and the full contact group are done and exercised against a live account. The remaining read tools and CI are open. |
+| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | per-tool permission policy (section 9.2), recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
