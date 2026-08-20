@@ -9,6 +9,7 @@ ceiling is 5 MiB exactly.
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -528,3 +529,125 @@ async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> No
 
     assert handler.requests == []
     await provider.aclose()
+
+
+# -- reading a download into the answer -----------------------------------
+
+
+async def _downloaded(server: Any, handler: Recorder, fmt: str = "pdf") -> str:
+    result = await server.call_tool(
+        "download_file", {"file_id": FILE_ID, "file_format": fmt}
+    )
+    return (result.structured_content or {})["uri"]
+
+
+async def test_a_pdf_comes_back_as_an_embedded_binary(tmp_path: Path) -> None:
+    """Nothing can read it, so it is handed over for the client to deal with."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    assert (result.structured_content or {})["deliveredAs"] == "binary"
+    block = result.content[0]
+    assert block.type == "resource"
+    assert base64.b64decode(block.resource.blob) == PDF
+    await provider.aclose()
+
+
+async def test_an_xrechnung_comes_back_as_readable_text(tmp_path: Path) -> None:
+    """The case worth having: an e-invoice a model can actually use."""
+    invoice = b'<?xml version="1.0"?><Invoice><Total>119.00</Total></Invoice>'
+    handler = Recorder(content=invoice, headers={"content-type": "application/xml"})
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler, fmt="xml")
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    assert (result.structured_content or {})["deliveredAs"] == "text"
+    assert result.content[0].type == "text"
+    assert "119.00" in result.content[0].text
+    await provider.aclose()
+
+
+async def test_an_image_comes_back_as_an_image(tmp_path: Path) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"payload"
+    handler = Recorder(content=png, headers={"content-type": "image/png"})
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    assert (result.structured_content or {})["deliveredAs"] == "image"
+    block = result.content[0]
+    assert block.type == "image"
+    assert block.mime_type == "image/png"
+    assert base64.b64decode(block.data) == png
+    await provider.aclose()
+
+
+async def test_reading_costs_no_api_call(tmp_path: Path) -> None:
+    """The file is already on the server's disk."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+    before = len(handler.requests)
+
+    await server.call_tool("read_download", {"uri": uri})
+
+    assert len(handler.requests) == before
+    await provider.aclose()
+
+
+async def test_only_this_servers_downloads_can_be_read(tmp_path: Path) -> None:
+    """Not a file reader. Anything outside the published set is refused."""
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    for outside in (
+        "file:///C:/Windows/win.ini",
+        "/etc/passwd",
+        "https://example.invalid/x",
+    ):
+        with pytest.raises(ToolError) as excinfo:
+            await server.call_tool("read_download", {"uri": outside})
+        assert "lexware://download/" in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_a_download_that_was_never_made_is_a_not_found(tmp_path: Path) -> None:
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool(
+            "read_download", {"uri": "lexware://download/never-fetched.pdf"}
+        )
+
+    assert "never-fetched.pdf" in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_something_far_too_large_is_refused_rather_than_inlined(
+    tmp_path: Path,
+) -> None:
+    """Base64 of a big file would swallow the whole answer."""
+    huge = b"%PDF-1.4" + b"x" * (5 * 1024 * 1024 + 1)
+    handler = Recorder(content=huge, headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool("read_download", {"uri": uri})
+
+    assert "MiB" in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_the_description_says_which_form_to_expect() -> None:
+    server = build_server(Settings(api_key=API_KEY))
+    tool = next(t for t in await server.list_tools() if t.name == "read_download")
+    assert tool.description is not None
+    assert "XML arrives as text" in tool.description
+    assert "no** API call" in tool.description or "no API call" in tool.description

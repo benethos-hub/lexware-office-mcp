@@ -82,6 +82,7 @@ Read tools, available in every mode:
 | `get_master_data` | Countries, payment conditions, posting categories, print layouts | planned |
 | `download_document` | Save the rendered PDF or XML of a sales document | **built** |
 | `download_file` | Save a stored file, such as an uploaded receipt | **built** |
+| `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link | **built** |
 | `get_deeplink` | Build a permalink into the Lexware Office web app, without an API call | **built** |
 
 Write tools, only with `LXO_MCP_MODE=write` or higher:
@@ -118,6 +119,12 @@ never travels inside the tool result, because base64 costs roughly 1.37
 times the file size in context and no model can read a PDF anyway. An
 existing file is never replaced: a second download is saved beside the
 first with a counter in its name.
+
+If your client does not follow resource links — Claude Desktop does not —
+`read_download` takes the same URI and puts the content into the answer
+instead. What arrives depends on the file: XML as text, which makes an
+XRechnung readable, images as images, anything else as an embedded binary.
+It costs no API call, since the file is already on the server.
 
 `upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
 is what the API takes. An XML file is treated as an XRechnung and is

@@ -8,17 +8,27 @@ wants, and as a **resource link**, which is what everyone else needs. See
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.mcpserver import MCPServer
-from mcp.types import CallToolResult, TextContent
+from mcp.server.mcpserver.exceptions import ResourceNotFoundError
+from mcp.types import (
+    BlobResourceContents,
+    CallToolResult,
+    EmbeddedResource,
+    ImageContent,
+    InputRequiredResult,
+    TextContent,
+)
 from pydantic import BaseModel, Field
 
 from .. import resources, storage
 from ..client import ClientProvider
 from ..config import Settings
-from ..errors import ValidationError
+from ..errors import NotFoundError, UpstreamError, ValidationError
 from ..policy import requires, should_register
 from ._base import register_tool
 
@@ -88,6 +98,30 @@ class Download(BaseModel):
     mimeType: str = Field(description="The file's content type.")
     size: int = Field(description="Size in bytes.")
 
+
+class Delivered(BaseModel):
+    """What `read_download` reports alongside the content it delivers."""
+
+    uri: str = Field(description="The download that was read.")
+    mimeType: str = Field(description="The file's content type.")
+    size: int = Field(description="Size in bytes.")
+    deliveredAs: str = Field(
+        description=(
+            "How the content was put into the answer: 'text' for something "
+            "readable such as an XRechnung, 'image', or 'binary' for anything "
+            "the client has to handle itself."
+        )
+    )
+
+
+# Base64 costs roughly 1.37 times the file size in the answer, so this is a
+# ceiling on damage rather than a working size. It is the same 5 MiB the API
+# accepts for an upload, so there is one number to remember.
+MAX_INLINE = 5 * 1024 * 1024
+
+# Types a model can actually read. XML is the one that matters: an XRechnung
+# is an invoice in text form.
+TEXT_TYPES = ("application/xml", "text/xml", "application/json")
 
 Format = Literal["pdf", "xml"]
 
@@ -215,6 +249,65 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             return {"url": f"{base}/permalink/{resource}/{target_id}"}
         return {"url": f"{base}/permalink/{resource}/{action}/{target_id}"}
 
+    @requires("read")
+    async def read_download(
+        uri: Annotated[
+            str,
+            Field(
+                description=(
+                    "The `uri` a download reported, of the form "
+                    "lexware://download/... Only files this server downloaded "
+                    "can be read."
+                )
+            ),
+        ],
+    ) -> Delivered:
+        """Put the contents of a downloaded file into this conversation.
+
+        Costs **no** API call: the file is already on the server. Use this
+        when the client cannot follow the resource link a download returned,
+        or when the content itself is the answer.
+
+        What comes back depends on what the file is, because the useful form
+        differs. **XML arrives as text**, which is the case worth knowing
+        about: an XRechnung becomes readable, so its amounts and dates can
+        actually be used. An image arrives as an image. Anything else, a PDF
+        in particular, arrives as an embedded binary for the client to handle,
+        and a model cannot read it.
+
+        Prefer the `path` or the resource `uri` when the client can use them.
+        Embedding a large PDF here spends a great deal of the answer's budget
+        on bytes nothing will read.
+        """
+        if not uri.startswith(resources.SCHEME):
+            raise ValidationError(
+                f"{uri!r} is not a download from this server. Pass the `uri` "
+                f"a download reported, which starts with {resources.SCHEME}."
+            )
+        try:
+            found = await server.read_resource(uri)
+        except ResourceNotFoundError as exc:
+            raise NotFoundError("download", uri) from exc
+        if isinstance(found, InputRequiredResult):
+            # Only a template function taking a Context can ask for input, and
+            # downloads are registered as plain resources.
+            raise UpstreamError(f"Reading {uri} asked for input unexpectedly.")
+        contents: list[ReadResourceContents] = list(found)
+        if not contents:
+            raise NotFoundError("download", uri)
+
+        item = contents[0]
+        raw = item.content
+        payload = raw.encode("utf-8") if isinstance(raw, str) else raw
+        mime = item.mime_type or resources.DEFAULT_TYPE
+        if len(payload) > MAX_INLINE:
+            raise ValidationError(
+                f"{uri} is {len(payload) / 1024 / 1024:.1f} MiB, too much to "
+                "put in an answer. It is on disk already, so use the path the "
+                "download reported."
+            )
+        return _inline(uri, payload, mime)
+
     @requires("write")
     async def upload_file(
         path: Annotated[
@@ -249,8 +342,43 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         register_tool(server, download_file)
         register_tool(server, download_document)
         register_tool(server, get_deeplink)
+        register_tool(server, read_download)
     if should_register("write", settings.mode):
         register_tool(server, upload_file)
+
+
+def _inline(uri: str, payload: bytes, mime: str) -> Any:
+    """Choose the content block that makes this file usable.
+
+    Three shapes, because the same bytes are worth different things: text a
+    model can read, an image it can see, and a blob only the client can do
+    anything with.
+    """
+    summary = {"uri": uri, "mimeType": mime, "size": len(payload)}
+
+    if mime.startswith("text/") or mime in TEXT_TYPES:
+        text = payload.decode("utf-8", errors="replace")
+        return CallToolResult(
+            content=[TextContent(type="text", text=text)],
+            structured_content={**summary, "deliveredAs": "text"},
+        )
+
+    encoded = base64.b64encode(payload).decode("ascii")
+    if mime.startswith("image/"):
+        return CallToolResult(
+            content=[ImageContent(type="image", data=encoded, mime_type=mime)],
+            structured_content={**summary, "deliveredAs": "image"},
+        )
+
+    return CallToolResult(
+        content=[
+            EmbeddedResource(
+                type="resource",
+                resource=BlobResourceContents(uri=uri, mime_type=mime, blob=encoded),
+            )
+        ],
+        structured_content={**summary, "deliveredAs": "binary"},
+    )
 
 
 def _deliver(

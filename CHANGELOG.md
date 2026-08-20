@@ -89,6 +89,14 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   with the server can still fetch the bytes. Registered per file, so each
   carries its own content type and only what was actually downloaded is
   reachable.
+- **`read_download`** — put a downloaded file into the answer, for clients
+  that do not follow resource links. Claude Desktop is one of them, so this is
+  the route that always works. What comes back depends on the file: **XML
+  arrives as text**, which makes an XRechnung readable and its amounts usable,
+  images arrive as images, and anything else as an embedded binary for the
+  client to handle. Costs **no** API call, since the file is already on the
+  server. Only files this server downloaded can be read, and nothing above
+  5 MiB, because base64 of a large file would swallow the answer.
 - **`download_document`** — the same for the rendered PDF of an invoice,
   quotation, credit note, order confirmation, delivery note, dunning or down
   payment invoice. `xml` is available for an XRechnung. A document still in

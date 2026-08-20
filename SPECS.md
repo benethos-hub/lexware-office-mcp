@@ -381,6 +381,7 @@ exposed one tool per path.
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
 | `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool. **(to verify)** against a live sales document. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
+| `read_download` | `uri` | `{uri, mimeType, size, deliveredAs}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts, vouchers and files, since the permalink shape is the same for all of them and the extra entries cost nothing. Built 2026-08-20. | 0 |
 
 ### Phase 2 — writes, behind `LXO_MCP_MODE=write`
@@ -799,6 +800,16 @@ subclasses with concise, actionable messages.
   read a PDF anyway. Instead each download is reported twice: a `path`, which
   is what a client sharing the machine with the server wants, and a `uri` under
   which the client can read the bytes on demand. Both name the same file.
+- **A client that cannot follow the link still gets the file.** Resource
+  links are the cheap path, not a requirement: `read_download` takes the same
+  URI and puts the content into the answer directly, because a tool call is
+  something every client makes. Claude Desktop turned out not to resolve
+  resource links from a tool result, so this is not hypothetical. The delivery
+  form follows the content rather than being one shape for everything — XML as
+  **text**, so an XRechnung becomes an invoice a model can read, images as
+  **images**, and everything else as an embedded binary the client handles.
+  Capped at 5 MiB, the same number the upload accepts, because base64 of
+  anything larger would swallow the answer it was meant to be part of.
 - **The URI is an MCP resource, registered per download.** A path only means
   something while client and server share a filesystem, which the stdio
   transport happens to give and the HTTP transport of section 6 will not. What
@@ -889,9 +900,9 @@ Built, tested offline and exercised against a live test account:
 
 - `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
   `formatting.py`, `server.py`, `tools/diagnostics.py` and `tools/contacts.py`
-- fourteen tools over the **stdio** transport. At tier `read`:
-  `get_profile`, `search_contacts`, `get_contact`, `search_vouchers`,
-  `get_voucher`, `get_payments`, `download_file`, `download_document` and
+- fifteen tools over the **stdio** transport. At tier `read`: `get_profile`,
+  `search_contacts`, `get_contact`, `search_vouchers`, `get_voucher`,
+  `get_payments`, `download_file`, `download_document`, `read_download` and
   `get_deeplink`. At tier `write`: `create_contact`, `update_contact`,
   `create_voucher`, `update_voucher` and `upload_file`
 - permission tier `read` by default, enforced at registration and at call
