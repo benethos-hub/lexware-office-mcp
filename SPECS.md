@@ -87,7 +87,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
 | `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
-| `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, and because an existing file is never overwritten. | built |
+| `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. | built |
@@ -963,8 +963,10 @@ The consequences are the point of writing this down.
 
 Built, tested offline and exercised against a live test account:
 
-- `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
-  `formatting.py`, `server.py`, `tools/diagnostics.py` and `tools/contacts.py`
+- every module in the table of section 4 except the three still marked
+  planned, which are the article, sales document and master data tools. The
+  table is the list, so that this does not become a second one to keep in
+  step.
 - fifteen tools over the **stdio** transport. At tier `read`: `get_profile`,
   `search_contacts`, `get_contact`, `search_vouchers`, `get_voucher`,
   `get_payments`, `download_file`, `download_document`, `read_download` and
@@ -975,18 +977,21 @@ Built, tested offline and exercised against a live test account:
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
   every page, and one page shape shared by every list tool
-- `payloads.py`, which builds request bodies and does the read-then-merge an
-  update needs, and `storage.py`, which decides where a download lands and
-  refuses to overwrite anything
+- writes that read before they replace, so an update changes only what it was
+  given, and a stale `version` is refused before anything is sent
 - binary downloads and multipart uploads through the same rate limiter and
-  the same retry rules as every other call
+  retry rules as every other call, and three ways to hand a downloaded file
+  to a client: a path, an MCP resource, and the file rendered into the answer
 
-Verified against a live account rather than assumed: the profile response
-shape, the per-endpoint page ceiling, the 404 and 400 error bodies including
-the `IssueList`-only form, the three-character minimum on the contact filters,
-that master data comes back as a bare list, that a key can be created inside a
-test account, and that the bucket paces real calls (five tool calls at rate 1.5
-took 2.69 seconds).
+Verified against a live account rather than assumed, and written up where it
+belongs in section 5: the profile response shape, the per-endpoint page
+ceiling, the 404 and 400 error bodies including the `IssueList`-only form, the
+three-character minimum on the contact filters, the voucher type and status
+enums, that a stale version arrives as 406 rather than 409, that a voucher PUT
+must not echo its status, the upload contract and its 5 MiB ceiling, that
+master data comes back as a bare list, that a key can be created inside a test
+account, and that the bucket paces real calls (five tool calls at rate 1.5 took
+2.69 seconds).
 
 The contact and voucher tools were exercised against that account end to end:
 records created, read back, searched, and updated in a way that proved the
@@ -1074,8 +1079,8 @@ item. Answered questions stay in place with their answer.
    creation can be retried at all, see section 10.2.
 3. ~~File upload limits: maximum size, accepted MIME types, and whether
    `type=voucher` is the only accepted form value.~~ **Answered
-   2026-08-20:** 5 MiB inclusive, PDFs and images, and yes — `voucher` is
-   the only accepted value. See section 5.
+   2026-08-20:** 5 MiB inclusive, PDF, JPEG, PNG and XML, and yes —
+   `voucher` is the only accepted value. See section 5.
 4. The correct app base URL for deeplinks per account region. The permalink
    *shape* was confirmed against the documentation on 2026-08-20, the host
    was not. Two independent
