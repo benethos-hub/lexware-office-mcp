@@ -46,7 +46,7 @@ from .ratelimit import TokenBucket
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["LexwareClient"]
+__all__ = ["ClientProvider", "LexwareClient"]
 
 # PUT and DELETE are idempotent, and an update additionally carries the
 # `version` it read: if the first attempt succeeded the version has moved on
@@ -266,3 +266,33 @@ class LexwareClient:
             )
         text = " ".join(part for part in parts if part).strip()
         return f" {text}" if text else ""
+
+
+class ClientProvider:
+    """Hands out the one client a server process is allowed to have.
+
+    Tools must not build their own client. Each ``LexwareClient`` carries its
+    own token bucket and connection pool, so a client per tool call would mean
+    a rate limiter per tool call — every one of them starting full, every one
+    of them convinced it was within the limit, and together far past the two
+    requests per second the account actually has.
+
+    Creation is lazy, so building a server to list its tools does not open a
+    connection pool that nobody uses.
+    """
+
+    def __init__(self, settings: Settings, **kwargs: Any) -> None:
+        self._settings = settings
+        self._kwargs = kwargs
+        self._client: LexwareClient | None = None
+
+    def get(self) -> LexwareClient:
+        """The process-wide client, built on first use."""
+        if self._client is None:
+            self._client = LexwareClient(self._settings, **self._kwargs)
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None

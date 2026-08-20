@@ -20,6 +20,7 @@ import sys
 from mcp.server.mcpserver import MCPServer
 
 from . import __version__
+from .client import ClientProvider
 from .config import LOG_LEVELS, MODES, Mode, Settings, load_settings
 from .policy import set_active_mode
 from .tools import register_tools
@@ -37,8 +38,15 @@ them, always with their currency.
 """
 
 
-def build_server(settings: Settings) -> MCPServer:
-    """Create a server whose registered tools match the permission tier."""
+def build_server(
+    settings: Settings, provider: ClientProvider | None = None
+) -> MCPServer:
+    """Create a server whose registered tools match the permission tier.
+
+    ``provider`` is injectable for tests. Left out, the server builds the one
+    client it is allowed to have, and every tool shares it — and with it the
+    one rate limiter.
+    """
     set_active_mode(settings.mode)
     server = MCPServer(
         name="benethos-lexware-office-mcp",
@@ -46,7 +54,7 @@ def build_server(settings: Settings) -> MCPServer:
         version=__version__,
         instructions=_INSTRUCTIONS,
     )
-    register_tools(server, settings)
+    register_tools(server, settings, provider or ClientProvider(settings))
     return server
 
 

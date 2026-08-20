@@ -39,24 +39,19 @@ def _restore_mode() -> Iterator[None]:
     policy.set_active_mode(previous)
 
 
+async def _no_sleep(_seconds: float) -> None:
+    return None
+
+
 @pytest.fixture
-def offline_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Point every client this test builds at a mock transport."""
-    original = client_module.LexwareClient.__init__
-
-    async def no_sleep(_seconds: float) -> None:
-        return None
-
-    def patched(self, settings, **kwargs):  # type: ignore[no-untyped-def]
-        kwargs.setdefault(
-            "transport",
-            httpx.MockTransport(lambda request: httpx.Response(200, json=PROFILE)),
-        )
-        kwargs.setdefault("bucket", TokenBucket(1000.0, 100, sleep=no_sleep))
-        kwargs.setdefault("sleep", no_sleep)
-        original(self, settings, **kwargs)
-
-    monkeypatch.setattr(client_module.LexwareClient, "__init__", patched)
+def offline_api() -> client_module.ClientProvider:
+    """The one client the server may have, pointed at a mock transport."""
+    return client_module.ClientProvider(
+        Settings(api_key="test-key-0123456789"),
+        transport=httpx.MockTransport(lambda _r: httpx.Response(200, json=PROFILE)),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
 
 
 async def test_get_profile_is_listed_in_read_mode() -> None:
@@ -74,8 +69,10 @@ async def test_the_description_tells_the_model_when_to_use_it() -> None:
     assert "one api call" in tool.description.lower()
 
 
-async def test_get_profile_returns_the_account(offline_api: None) -> None:
-    server = build_server(Settings(api_key="test-key-0123456789"))
+async def test_get_profile_returns_the_account(
+    offline_api: client_module.ClientProvider,
+) -> None:
+    server = build_server(Settings(api_key="test-key-0123456789"), offline_api)
     result = await server.call_tool("get_profile", {})
     assert result.is_error is not True
     payload = result.structured_content
@@ -86,6 +83,7 @@ async def test_get_profile_returns_the_account(offline_api: None) -> None:
     assert "distanceSalesPrincipal" not in payload
     # The creating user's address never reaches the model.
     assert "example.invalid" not in str(payload)
+    await offline_api.aclose()
 
 
 async def test_get_profile_is_still_available_in_full_mode() -> None:

@@ -7,7 +7,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from .. import formatting
-from ..client import LexwareClient
+from ..client import ClientProvider
 from ..config import Settings
 from ..policy import requires, should_register
 from ._base import register_tool
@@ -15,7 +15,7 @@ from ._base import register_tool
 __all__ = ["register"]
 
 
-def register(server: MCPServer, settings: Settings) -> None:
+def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the diagnostics tools allowed at the active permission tier."""
 
     @requires("read")
@@ -30,8 +30,7 @@ def register(server: MCPServer, settings: Settings) -> None:
         can be confirmed rather than assumed. It also doubles as the
         connection check: if it succeeds, the API key works.
         """
-        async with LexwareClient(settings) as client:
-            return formatting.profile(await client.profile())
+        return formatting.profile(await provider.get().profile())
 
     if should_register("read", settings.mode):
         register_tool(server, get_profile)
