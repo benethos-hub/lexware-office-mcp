@@ -226,9 +226,13 @@ uv run ruff format --check .
 uv run mypy
 ```
 
-The test suite is fully offline. It mocks the HTTP layer and needs no API key,
-so it can run in CI and on any machine. A separate read-only smoke script
-exists for manual checks against a live account.
+The test suite is fully offline. It mocks the HTTP layer and needs no API
+key, so it runs anywhere. Three of the tests start the server as a real
+subprocess and speak MCP to it over stdio, which is also what proves that
+nothing writes to stdout on the startup path.
+
+A read-only smoke script for manual checks against a live account is planned
+and does not exist yet.
 
 Contributions and issues are welcome once the first release is out. Until
 then, [SPECS.md](SPECS.md) is the place where design decisions are recorded,

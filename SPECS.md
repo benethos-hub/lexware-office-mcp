@@ -76,23 +76,24 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
                                         https://api.lexware.io/v1/...
 ```
 
-| Module | Responsibility |
-|--------|----------------|
-| `server.py` | `MCPServer` instance, tool registration, CLI and `main()`. |
-| `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. |
-| `config.py` | Settings resolution (CLI > env > `.env` in the config dir > default), credential lookup, download directory. |
-| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Owns the one rate limiter instance. Nothing else talks to the network. |
-| `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. |
-| `policy.py` | Permission tiers, tool registry, enforcement wrapper. |
-| `formatting.py` | API JSON to compact, token-frugal tool output. |
-| `errors.py` | `ToolError` and its subclasses. |
-| `tools/diagnostics.py` | Profile and connection check. |
-| `tools/contacts.py` | Contacts. |
-| `tools/articles.py` | Articles. |
-| `tools/vouchers.py` | Voucher list and bookkeeping vouchers. |
-| `tools/sales_documents.py` | The seven sales document types. |
-| `tools/files.py` | Upload, download, PDF rendering, deeplinks. |
-| `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. |
+| Module | Responsibility | State |
+|--------|----------------|-------|
+| `server.py` | `MCPServer` instance, tool registration, CLI and `main()`. | built |
+| `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
+| `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
+| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
+| `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
+| `policy.py` | Permission tiers and their enforcement, see section 9. | built |
+| `formatting.py` | API JSON to compact, token-frugal tool output. | built |
+| `errors.py` | `ToolError` and its subclasses. | built |
+| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. | built |
+| `tools/diagnostics.py` | Profile and connection check. | built |
+| `tools/contacts.py` | Contacts. | planned |
+| `tools/articles.py` | Articles. | planned |
+| `tools/vouchers.py` | Voucher list and bookkeeping vouchers. | planned |
+| `tools/sales_documents.py` | The seven sales document types. | planned |
+| `tools/files.py` | Upload, download, PDF rendering, deeplinks. | planned |
+| `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | planned |
 
 **Layer rule:** tool functions stay thin. Every HTTP call lives in
 `client.py`, never in a tool function.
@@ -681,6 +682,9 @@ subclasses with concise, actionable messages.
 - Coverage floor 80 percent, enforced in CI.
 - A separate `tests/smoke.py`, not collected by pytest, runs **read-only**
   calls against a live account for manual verification. It never writes.
+  **Not built yet** — live checks have so far been one-off scripts kept outside
+  the repository, which is fine for a probe and no substitute for a script
+  anyone can rerun.
 - **The rate limiter is unit tested against an injected clock**, never against
   `time.sleep`, so the suite stays fast and deterministic. The properties worth
   asserting follow straight from the algorithm in section 10.1: the bucket is
@@ -708,6 +712,27 @@ subclasses with concise, actionable messages.
   so a clone cannot silently inherit a different one from a global git config.
 
 ## 16. Roadmap
+
+### What exists today
+
+Built, tested offline and exercised against a live test account:
+
+- `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
+  `formatting.py`, `server.py` and `tools/diagnostics.py`
+- one tool, `get_profile`, over the **stdio** transport
+- permission tier `read` by default, enforced at registration and at call
+- one shared token bucket per process, retries decided per method and failure
+  mode, upstream statuses mapped onto `ToolError` subclasses
+
+Verified against a live account rather than assumed: the profile response
+shape, the 250 row page ceiling, the 404 and 400 error bodies, that master data
+comes back as a bare list, that a key can be created inside a test account, and
+that the bucket paces real calls (five `get_profile` calls at rate 1.5 took
+2.14 seconds).
+
+**The immediate next step** is `search_vouchers` and `search_contacts`, which
+need paging and filter parameters in the client. They are the first tools that
+make the server useful for a question rather than a connection check.
 
 | Phase | Content | State |
 |---|---|---|

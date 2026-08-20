@@ -54,8 +54,10 @@ src/benethos_lexware_office_mcp/
   policy.py       # permission tiers and enforcement
   formatting.py   # API JSON -> compact tool output
   errors.py       # ToolError hierarchy
-  tools/          # one module per resource group, thin tool definitions
-tests/            # offline, httpx MockTransport (+ read-only smoke.py)
+  tools/
+    _base.py      # registration helper, tidies the docstring first
+    <group>.py    # one module per resource group, thin tool definitions
+tests/            # offline, httpx MockTransport (a read-only smoke.py is planned)
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
@@ -137,8 +139,11 @@ SPECS.md rather than stating them as fact.
   file does.
 - **A branch carries as many commits as the work needs.** Commit whenever
   something is worth recording, but do not treat every commit as the end of the
-  work stream. Corrections, review findings and follow-up fixes belong on the
-  same branch as the thing they correct.
+  work stream. Corrections, review findings and documentation about the work
+  itself — a changelog entry, a README the branch just made wrong — belong on
+  the same branch. What does not is a **new subject**: specifying a feature this
+  branch is not building is its own work stream, even though it is only a
+  document. Say so before writing it, rather than adding it quietly.
 - **While the project has no remote**, merge into `main` yourself once the work
   stream is genuinely finished — the feature works, the gates are green, and
   nothing about it is still open. Then delete the branch. Merging after each
