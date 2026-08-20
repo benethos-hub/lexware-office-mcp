@@ -83,19 +83,35 @@ def _expect_object(payload: Any, endpoint: str) -> dict[str, Any]:
 
 
 def _json_object(response: httpx.Response) -> dict[str, Any]:
-    """The response body as a dictionary, or an empty one."""
+    """The response body as a useful mapping, or an empty one.
+
+    A bare JSON string is a body too: the files endpoint answers an unknown
+    upload type with ``"Invalid or missing upload type."`` and nothing else.
+    Wrapping it keeps that sentence instead of discarding it for not being an
+    object.
+    """
     try:
         body = response.json()
     except ValueError:
         return {}
+    if isinstance(body, str):
+        return {"message": body}
     return body if isinstance(body, dict) else {}
 
 
 def _detail_text(body: dict[str, Any]) -> str:
-    """The API's own wording for a failure, without ever echoing the key."""
+    """The API's own wording for a failure, without ever echoing the key.
+
+    Three shapes are in use upstream and all three carry the only information
+    there is: ``errorCode``/``message``, an ``IssueList``, and a single issue
+    flattened onto the top level, which is how the files endpoint reports a
+    missing form field.
+    """
     parts = [str(body[key]) for key in ("errorCode", "message") if body.get(key)]
     parts.extend(_issue_texts(body.get("IssueList")))
-    text = " ".join(part for part in parts if part).strip()
+    if "IssueList" not in body:
+        parts.extend(_issue_texts([body]))
+    text = " ".join(dict.fromkeys(part for part in parts if part)).strip()
     return f" {text}" if text else ""
 
 
@@ -108,7 +124,7 @@ def _issue_sources(body: dict[str, Any]) -> set[str]:
     """
     issues = body.get("IssueList")
     if not isinstance(issues, list):
-        return set()
+        issues = [body] if body.get("source") else []
     return {
         str(issue["source"])
         for issue in issues
@@ -191,18 +207,34 @@ class LexwareClient:
         *,
         params: dict[str, Any] | None = None,
         json: Any = None,
+        files: Any = None,
+        data: Any = None,
+        accept: str | None = None,
     ) -> httpx.Response:
-        """Perform one API call, with rate limiting, retries and error mapping."""
+        """Perform one API call, with rate limiting, retries and error mapping.
+
+        ``accept`` overrides the client's default of ``application/json``,
+        which matters for anything that comes back as bytes: asking a download
+        endpoint for JSON is asking the wrong question.
+        """
         method = method.upper()
         retryable = method in RETRYABLE_METHODS
         headers = {"Authorization": f"Bearer {self.settings.require_api_key()}"}
+        if accept is not None:
+            headers["Accept"] = accept
         last_attempt = MAX_ATTEMPTS - 1
 
         for attempt in range(MAX_ATTEMPTS):
             await self._bucket.acquire()
             try:
                 response = await self._http.request(
-                    method, path, params=params, json=json, headers=headers
+                    method,
+                    path,
+                    params=params,
+                    json=json,
+                    files=files,
+                    data=data,
+                    headers=headers,
                 )
             except httpx.TimeoutException as exc:
                 if retryable and attempt < last_attempt:
@@ -422,6 +454,67 @@ class LexwareClient:
         response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
         return _expect_object(response.json(), "vouchers")
 
+    # -- files ------------------------------------------------------------
+
+    async def download(self, path: str, accept: str | None = None) -> httpx.Response:
+        """GET something that comes back as bytes rather than JSON.
+
+        The response is returned whole, because a caller needs the body, the
+        content type and the filename the server suggested, and only the
+        response carries all three.
+        """
+        return await self.request("GET", path, accept=accept)
+
+    async def file(self, file_id: str, accept: str | None = None) -> httpx.Response:
+        """``GET /v1/files/{id}``. One API call.
+
+        Verified 2026-08-20: the body is the file, the content type is the
+        file's own, and ``Content-Disposition`` names it ``{id}.{extension}``.
+        Asking for ``application/xml`` when the file is a PDF is a 404 rather
+        than a 406.
+        """
+        return await self.download(f"/v1/files/{file_id}", accept)
+
+    async def document_file(
+        self, resource: str, document_id: str, accept: str | None = None
+    ) -> httpx.Response:
+        """``GET /v1/{resource}/{id}/file``. One API call.
+
+        The rendered document itself. **(to verify)** against a live sales
+        document: the test account holds none, and a bookkeeping voucher
+        answers this path with 404.
+        """
+        return await self.download(f"/v1/{resource}/{document_id}/file", accept)
+
+    async def document_meta(self, resource: str, document_id: str) -> dict[str, Any]:
+        """``GET /v1/{resource}/{id}/document``. One API call.
+
+        Returns the ``documentFileId`` under which the rendered document is
+        filed. **(to verify)**, for the same reason as `document_file`.
+        """
+        return _expect_object(
+            await self.get_json(f"/v1/{resource}/{document_id}/document"), "document"
+        )
+
+    async def upload_file(
+        self, content: bytes, filename: str, content_type: str
+    ) -> dict[str, Any]:
+        """``POST /v1/files``. One API call, never retried.
+
+        Verified 2026-08-20: the form part must be named ``file``, the
+        ``type`` field is required and ``voucher`` is its only accepted value,
+        and the answer is **202** with ``{id, voucherId}``. Uploading does not
+        only store a file, it also creates the bookkeeping voucher the file
+        belongs to, which is why this is a write in every sense.
+        """
+        response = await self.request(
+            "POST",
+            "/v1/files",
+            files={"file": (filename, content, content_type)},
+            data={"type": "voucher"},
+        )
+        return _expect_object(response.json(), "files")
+
     # -- internals --------------------------------------------------------
 
     async def _backoff(self, attempt: int, retry_after: str | None = None) -> None:
@@ -457,7 +550,7 @@ class LexwareClient:
                 f"permissions the key was created with.{detail}"
             )
         if status == 404:
-            return NotFoundError("resource", path.rsplit("/", 1)[-1])
+            return NotFoundError(f"{path}{detail}")
         # A stale `version` arrives as 406 naming `version`, not as 409.
         # Verified 2026-08-20 by updating a contact with the version it had
         # before an earlier update.

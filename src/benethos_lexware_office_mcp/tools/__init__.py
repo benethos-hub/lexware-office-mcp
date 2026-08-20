@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 
 from ..client import ClientProvider
 from ..config import Settings
-from . import contacts, diagnostics, vouchers
+from . import contacts, diagnostics, files, vouchers
 from ._base import register_tool
 
 __all__ = ["register_tool", "register_tools"]
@@ -26,6 +26,7 @@ _MODULES: Sequence[Registrar] = (
     diagnostics.register,
     contacts.register,
     vouchers.register,
+    files.register,
 )
 
 

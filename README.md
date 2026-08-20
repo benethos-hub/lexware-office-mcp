@@ -28,13 +28,13 @@ contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
 > **Status: 0.1.0 in progress, not published yet.**
-> The server runs over stdio and handles contacts and vouchers completely:
-> find them, read them, create them and change them, and see what is still
-> unpaid. `get_profile` answers which account is connected. The rest of the
-> tools below are specified but not built, and the table says which is which.
-> There is no PyPI release yet, so installation means cloning the repository.
-> See [SPECS.md](SPECS.md) for the full technical specification and the
-> roadmap.
+> The server runs over stdio and handles contacts, vouchers and documents:
+> find them, read them, create them, change them, see what is still unpaid,
+> download a PDF and upload a receipt. `get_profile` answers which account
+> is connected. The rest of the tools below are specified but not built, and
+> the table says which is which. There is no PyPI release yet, so
+> installation means cloning the repository. See [SPECS.md](SPECS.md) for
+> the full technical specification and the roadmap.
 
 ## Why this exists
 
@@ -80,9 +80,9 @@ Read tools, available in every mode:
 | `get_payments` | Payment status and open amount of a voucher | **built** |
 | `get_recurring_templates` | Recurring invoice templates | planned |
 | `get_master_data` | Countries, payment conditions, posting categories, print layouts | planned |
-| `get_document_pdf` | Render a document and optionally save the PDF | planned |
-| `download_file` | Download a stored file by its ID | planned |
-| `get_deeplink` | Build a permalink into the Lexware Office web app | planned |
+| `download_document` | Save the rendered PDF or XML of a sales document | **built** |
+| `download_file` | Save a stored file, such as an uploaded receipt | **built** |
+| `get_deeplink` | Build a permalink into the Lexware Office web app, without an API call | **built** |
 
 Write tools, only with `LXO_MCP_MODE=write` or higher:
 
@@ -94,7 +94,7 @@ Write tools, only with `LXO_MCP_MODE=write` or higher:
 | `create_voucher` | Record a bookkeeping voucher | **built** |
 | `update_voucher` | Change one that is already recorded | **built** |
 | `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested | planned |
-| `upload_file` | Upload a receipt | planned |
+| `upload_file` | Upload a receipt, which also creates its voucher | **built** |
 
 `update_contact` and `update_voucher` cost two API calls rather than one.
 The API replaces a record instead of patching it, so the current one is read
@@ -106,7 +106,15 @@ update is refused and nothing is written.
 **A bookkeeping voucher cannot be deleted through the API.** There is no
 endpoint for it, so a wrong `create_voucher` has to be corrected in the
 Lexware Office web app. Pass `unchecked` to record an entry for review
-rather than booking it straight away.
+rather than booking it straight away. The same applies to `upload_file`:
+uploading a receipt also creates the voucher that goes with it, so it
+leaves a record behind even though its name only mentions the file.
+
+Downloads are written into the download directory and the path is returned,
+rather than the file coming back in the answer. A PDF in a tool result is
+base64 that costs context and that nothing can open. An existing file is
+never replaced: a second download is saved beside the first with a counter
+in its name.
 
 ## Requirements
 
@@ -175,16 +183,17 @@ window — so the tool list is reloaded.
 | `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |
 | `LXO_MCP_MODE` | `read`, `write` or `full` | `read` |
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
-| `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks *(no effect yet)* | `https://app.lexware.de` |
-| `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land *(no effect yet)* | user cache directory |
+| `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
+| `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity | `2` |
-| `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns *(no effect yet)* | `25` |
+| `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
 
-*(no effect yet)* marks settings that are read and validated but that no
-tool consumes so far, because the tool that needs them is not built.
+Every setting above is in use. `LXO_MCP_PAGE_SIZE` is capped at 250, which is
+the lowest page size any endpoint accepts, and a larger value is refused at
+startup rather than turning into an API error later.
 
 ## Transport
 

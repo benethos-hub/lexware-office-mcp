@@ -78,10 +78,20 @@ class ValidationError(ToolError):
 
 
 class NotFoundError(ToolError):
-    """No resource with the given ID (HTTP 404)."""
+    """Nothing there (HTTP 404).
 
-    def __init__(self, resource: str, resource_id: str) -> None:
-        super().__init__(f"No {resource} with ID {resource_id}.")
+    Two forms, because a 404 answers two different questions. A caller that
+    looked something up by id gets told which id: ``NotFoundError("voucher",
+    "abc")``. A caller that asked for a path gets told the path, which is the
+    only thing the client knows — guessing an id out of it produces messages
+    like "No resource with ID file" for ``/v1/invoices/{id}/file``.
+    """
+
+    def __init__(self, resource: str, resource_id: str | None = None) -> None:
+        if resource_id is None:
+            super().__init__(f"The API has nothing at {resource}.")
+        else:
+            super().__init__(f"No {resource} with ID {resource_id}.")
 
 
 class ConflictError(ToolError):

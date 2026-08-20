@@ -54,11 +54,12 @@ src/benethos_lexware_office_mcp/
   policy.py       # permission tiers and enforcement
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies
+  storage.py      # where downloads land, filenames made safe first
   errors.py       # ToolError hierarchy
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
-                  # built: diagnostics, contacts, vouchers
+                  # built: diagnostics, contacts, vouchers, files
 tests/            # offline, httpx MockTransport (a read-only smoke.py is planned)
 ```
 

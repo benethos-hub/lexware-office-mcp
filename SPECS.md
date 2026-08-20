@@ -85,6 +85,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | Permission tiers and their enforcement, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, and because an existing file is never overwritten. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. | built |
@@ -93,7 +94,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/articles.py` | Articles. | planned |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
 | `tools/sales_documents.py` | The seven sales document types. | planned |
-| `tools/files.py` | Upload, download, PDF rendering, deeplinks. | planned |
+| `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | planned |
 
 **Layer rule:** tool functions stay thin. Every HTTP call lives in
@@ -211,6 +212,38 @@ Facts taken from <https://developers.lexware.io/docs/>.
 
 Event subscriptions (`/v1/event-subscriptions`) are deliberately unused, see
 section 2.
+
+### Files, verified 2026-08-20
+
+- **Uploading creates a voucher.** `POST /v1/files` answers **202** with
+  `{id, voucherId}`: it does not only store a file, it also creates the
+  bookkeeping voucher the file belongs to. Any tool that uploads is therefore
+  a write in the fullest sense, and the voucher it produces cannot be deleted.
+- **The form.** The part must be named `file`, and `type` is a required form
+  field whose only accepted value is `voucher` — `receipt` is refused with
+  "Invalid or missing upload type." That settles open question 3.
+- **The ceiling is 5 MiB inclusive.** 5,242,880 bytes is accepted, one byte
+  more is refused with `max_file_size_exceeded`. The tool checks this before
+  spending a request.
+- **What may be uploaded.** PDFs and real images. `text/plain` is refused with
+  `inacceptable_file_extension`, a degenerate 1x1 PNG with
+  `image_conversion_error`, and a structurally broken PDF with
+  `voucher_upload_toxic_pdf` — the API inspects the content, so a correct
+  extension is not enough.
+- **Downloading.** `GET /v1/files/{id}` returns the bytes with the file's own
+  content type and `Content-Disposition: inline; filename={id}.{ext};`.
+  Asking for `application/xml` when the file is a PDF is a **404**, not a 406.
+  The client's default `Accept: application/json` has to be overridden or the
+  wrong representation comes back.
+- **Rendered documents are for sales documents only.**
+  `/v1/vouchers/{id}/document` and `/v1/vouchers/{id}/file` answer 404 for a
+  bookkeeping voucher. The sales document paths are **(to verify)**: the test
+  account holds no sales documents, so `download_document` follows the
+  documented Accept matrix without a live check behind it.
+- **Deeplinks** are `{appbaseurl}/permalink/{resource}/{action}/{id}` with
+  **plural, kebab-cased** resources (`contacts`, `credit-notes`), and files
+  are the exception at `{appbaseurl}/permalink/files/{id}` with no action.
+  Taken from the documentation's own quoted examples rather than guessed.
 
 ### Voucher semantics, verified 2026-08-20
 
@@ -342,9 +375,9 @@ exposed one tool per path.
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
-| `get_document_pdf` | `document_type`, `document_id`, `save` (bool) | `{documentFileId, mimeType, path?}`. Renders, and when `save` is set writes the file into the download directory and returns its path. | 1, or 2 with `save` |
-| `download_file` | `file_id`, `accept` (pdf/xml) | `{path, mimeType, size}` | 1 |
-| `get_deeplink` | `document_type`, `document_id`, `action` (view/edit) | the permalink URL | 0 |
+| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool. **(to verify)** against a live sales document. | 1 |
+| `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. The bytes stay out of the answer on purpose: a PDF in a tool result is base64 that costs context and that nothing downstream can read, while a path can be opened. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
+| `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts, vouchers and files, since the permalink shape is the same for all of them and the extra entries cost nothing. Built 2026-08-20. | 0 |
 
 ### Phase 2 — writes, behind `LXO_MCP_MODE=write`
 
@@ -359,7 +392,7 @@ exposed one tool per path.
 | `create_article` / `update_article` | same version rule |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
-| `upload_file` | multipart upload of a receipt, size and MIME restrictions **(to verify)** |
+| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Refuses a missing file, an extension the API does not take and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
 ### Phase 3 — irreversible, behind `LXO_MCP_MODE=full`
 
@@ -836,17 +869,21 @@ Built, tested offline and exercised against a live test account:
 
 - `config.py`, `errors.py`, `policy.py`, `ratelimit.py`, `client.py`,
   `formatting.py`, `server.py`, `tools/diagnostics.py` and `tools/contacts.py`
-- ten tools over the **stdio** transport. At tier `read`: `get_profile`,
-  `search_contacts`, `get_contact`, `search_vouchers`, `get_voucher` and
-  `get_payments`. At tier `write`: `create_contact`, `update_contact`,
-  `create_voucher` and `update_voucher`
+- fourteen tools over the **stdio** transport. At tier `read`:
+  `get_profile`, `search_contacts`, `get_contact`, `search_vouchers`,
+  `get_voucher`, `get_payments`, `download_file`, `download_document` and
+  `get_deeplink`. At tier `write`: `create_contact`, `update_contact`,
+  `create_voucher`, `update_voucher` and `upload_file`
 - permission tier `read` by default, enforced at registration and at call
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
   every page, and one page shape shared by every list tool
 - `payloads.py`, which builds request bodies and does the read-then-merge an
-  update needs
+  update needs, and `storage.py`, which decides where a download lands and
+  refuses to overwrite anything
+- binary downloads and multipart uploads through the same rate limiter and
+  the same retry rules as every other call
 
 Verified against a live account rather than assumed: the profile response
 shape, the per-endpoint page ceiling, the 404 and 400 error bodies including
@@ -864,12 +901,15 @@ does not list them.
 
 **The immediate next step** is the sales documents: reading an invoice, a
 quotation or a credit note in full. `search_vouchers` already returns their
-ids, so they are the missing half of every question it can answer.
+ids and `download_document` can already fetch their PDFs, so reading the
+document itself is the missing piece — and it would also put a real sales
+document in the test account, which is what `download_document` still
+needs to be verified against.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging and the contact and voucher groups are done and exercised against a live account. Articles, sales documents, files, master data and CI are open. |
-| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts and bookkeeping vouchers are written and the locking round trip works, the remaining resources are open |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
+| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | per-tool permission policy (section 9.2), recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
@@ -929,15 +969,20 @@ clone, and say plainly which of the two it is acting on.
 Numbering is stable, so cross-references elsewhere keep pointing at the right
 item. Answered questions stay in place with their answer.
 
-1. ~~Exact maximum page size per endpoint.~~ **Answered 2026-08-20:** 250 for
-   `voucherlist` and `contacts` alike, enforced upstream with a clear message.
-   See section 5.
+1. ~~Exact maximum page size per endpoint.~~ **Answered 2026-08-20:** it is
+   per endpoint, not one number. `voucherlist` caps at 250, `contacts`
+   accepts 500 and refuses 1000. This project caps at 250 as the lowest
+   ceiling measured. See section 5.
 2. Whether the API offers an idempotency key for POST. This is the highest
    value unknown after question 8 — it decides whether a failed document
    creation can be retried at all, see section 10.2.
-3. File upload limits: maximum size, accepted MIME types, and whether
-   `type=voucher` is the only accepted form value.
-4. The correct app base URL for deeplinks per account region. Two independent
+3. ~~File upload limits: maximum size, accepted MIME types, and whether
+   `type=voucher` is the only accepted form value.~~ **Answered
+   2026-08-20:** 5 MiB inclusive, PDFs and images, and yes — `voucher` is
+   the only accepted value. See section 5.
+4. The correct app base URL for deeplinks per account region. The permalink
+   *shape* was confirmed against the documentation on 2026-08-20, the host
+   was not. Two independent
    third-party implementations default to `https://app.lexware.de` and make it
    configurable, which corroborates the choice without confirming it.
 5. Whether any endpoint returns a partner or OAuth-only field that a plain API
@@ -953,6 +998,6 @@ item. Answered questions stay in place with their answer.
    See section 11.1.
 
 **Still open and worth a probe while a test account exists:** 2 (idempotency
-key), 3 (upload limits), 6 (bucket capacity). Question 7 cannot be probed
+key) and 6 (bucket capacity). Question 7 cannot be probed
 deliberately — provoking 429s is exactly what the documentation warns leads to
 a permanent block.

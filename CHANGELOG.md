@@ -73,6 +73,30 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 - **`update_voucher`** — change a recorded voucher. As with `update_contact`,
   only the fields you name change and the rest is carried over, at the cost of
   a second API call. Requires `LXO_MCP_MODE=write`.
+- **`download_file`** — save a stored file, such as an uploaded receipt, to
+  the download directory. Returns the path it was written to, the content type
+  and the size. The file itself does not come back in the answer: a PDF in a
+  tool result is base64 that costs context and that nothing downstream can
+  open, while a path can. An existing file is never replaced — a second
+  download of the same document is saved beside the first with a counter in
+  its name. Costs one API call.
+- **`download_document`** — the same for the rendered PDF of an invoice,
+  quotation, credit note, order confirmation, delivery note, dunning or down
+  payment invoice. `xml` is available for an XRechnung. A document still in
+  draft has not been rendered and has nothing to download. Costs one API call.
+- **`get_deeplink`** — a link that opens a record in the Lexware Office web
+  app, for sales documents, contacts, vouchers and files. Costs **no** API
+  call, since the link is built from ids you already have.
+- **`upload_file`** — upload a receipt from a path on the machine the server
+  runs on. This does more than store a file: the API also creates the
+  bookkeeping voucher that goes with it, and that voucher cannot be deleted
+  afterwards. PDFs and images up to 5 MiB are accepted, and a file that is
+  missing, too large or of a type the API refuses is rejected before a request
+  is spent on it. Requires `LXO_MCP_MODE=write`, costs one API call that is
+  never retried.
+- **`LXO_MCP_DOWNLOAD_DIR` and `LXO_MCP_APP_BASE_URL` now do something.** Both
+  were read and validated before but no tool consumed them. Downloads go to
+  the download directory, deeplinks are built against the app base URL.
 - **The same page shape for every list.** A search result is
   `{records: [...], "page": {number, size, totalElements, totalPages, last}}`,
   so paging works the same way across tools as they are added. The API's
@@ -122,7 +146,8 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   into the message rather than dropped. An update rejected because somebody
   else changed the record first is reported as a conflict telling you to read
   it again, rather than as a validation error telling you to fix input that
-  was never wrong. The API key is redacted from every
+  was never wrong. A not-found names the path that was asked for instead of
+  guessing a record id out of it. The API key is redacted from every
   message, and monetary values are passed through exactly as the API reported
   them, always with their currency.
 - `README.md` and `LICENSE` (MIT).
