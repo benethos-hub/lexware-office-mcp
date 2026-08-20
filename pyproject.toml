@@ -1,0 +1,105 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "benethos-lexware-office-mcp"
+version = "0.1.0"
+description = "Unofficial MCP server for the Lexware Office accounting API, read-only by default."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Benedikt Oswald" }]
+keywords = [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "lexware",
+    "lexware-office",
+    "lexoffice",
+    "accounting",
+    "invoicing",
+    "bookkeeping",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business :: Financial :: Accounting",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # Plain `mcp`, not `mcp[cli]`. The extra only adds the `mcp` command and
+    # pulls typer, rich and pygments with it. This package defines its own
+    # entry point and never imports them, so the extra lives in `dev`.
+    "mcp>=2.0.0,<3",
+    "httpx>=0.28",
+    # Resolves the per-user config and cache directories, so nothing is read
+    # from or written to the working directory of the spawning client.
+    "platformdirs>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/benethos-hub/lexware-office-mcp"
+Repository = "https://github.com/benethos-hub/lexware-office-mcp"
+Issues = "https://github.com/benethos-hub/lexware-office-mcp/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.19",
+    "mypy>=2.1.0",
+    # Gives back the `mcp` command, whose `mcp dev` runs a server against the
+    # MCP Inspector. A development tool, so it belongs here.
+    "mcp[cli]>=2.0.0,<3",
+]
+
+[project.scripts]
+# One name only, identical to the distribution name, so every identifier
+# matches and `uvx benethos-lexware-office-mcp` works.
+benethos-lexware-office-mcp = "benethos_lexware_office_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/benethos_lexware_office_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["benethos_lexware_office_mcp"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "W",    # pycodestyle warnings
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true

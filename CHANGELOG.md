@@ -32,6 +32,19 @@ housekeeping are out of scope here — design decisions live in
   explanation and trademark notice.
 - `CLAUDE.md` — working guidelines: golden rules, environment, the recipe for
   adding a tool, verification gates, conventions and the branch workflow.
+- Installable package `benethos-lexware-office-mcp` with the console script of
+  the same name and `python -m benethos_lexware_office_mcp`. Speaks stdio.
+- Configuration from the environment, from a `.env` in the working directory,
+  or from a `.env` in the per-user config directory, in that order of
+  precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`, `LXO_MCP_BASE_URL`,
+  `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`, `LXO_MCP_TIMEOUT`,
+  `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE`, `LXO_MCP_LOG_LEVEL`.
+- Permission tiers `read`, `write` and `full`, selectable with `--mode` or
+  `LXO_MCP_MODE` and defaulting to `read`. Enforced twice: a tool above the
+  tier is never registered, and the tier is checked again when a call arrives.
+- Error hierarchy reported to the client, with the API key redacted from every
+  message. A write whose outcome is unknown says so explicitly instead of
+  looking like a clean failure.
 - `LICENSE` — MIT.
 - Repository scaffolding: `.gitignore` and `.gitattributes` (LF in the index,
   native on checkout).
