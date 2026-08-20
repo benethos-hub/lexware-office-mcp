@@ -19,7 +19,11 @@ htmlcov/
 # Secrets and real business data (see SPECS.md section 11)
 .env
 .env.*
+config/.env
 downloads/
+
+# ...but the committed sample stays visible.
+!config/.env.sample
 
 # IDE / OS
 .vscode/

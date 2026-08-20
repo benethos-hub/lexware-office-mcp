@@ -1,0 +1,78 @@
+"""The committed `config/.env.sample`, and where a `.env` is looked for.
+
+The sample is documentation that can go stale, so these tests treat it as
+code: it must parse, it must leave the safe defaults in place, and it must
+mention every setting the loader actually reads.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from benethos_lexware_office_mcp.config import (
+    _env_lookup,
+    _parse_env_file,
+    load_settings,
+)
+
+SAMPLE = Path(__file__).resolve().parents[1] / "config" / ".env.sample"
+
+# Every variable `load_settings` looks up. Adding one here without adding it to
+# the sample fails the drift test below.
+SETTINGS = {
+    "LXO_MCP_API_KEY",
+    "LXO_MCP_MODE",
+    "LXO_MCP_BASE_URL",
+    "LXO_MCP_APP_BASE_URL",
+    "LXO_MCP_DOWNLOAD_DIR",
+    "LXO_MCP_TIMEOUT",
+    "LXO_MCP_RATE",
+    "LXO_MCP_BURST",
+    "LXO_MCP_PAGE_SIZE",
+    "LXO_MCP_LOG_LEVEL",
+}
+
+
+def test_the_sample_is_committed() -> None:
+    assert SAMPLE.is_file()
+
+
+def test_only_the_api_key_is_active_everything_else_is_commented() -> None:
+    assert _parse_env_file(SAMPLE) == {"LXO_MCP_API_KEY": ""}
+
+
+def test_copying_the_sample_leaves_the_server_read_only() -> None:
+    """Someone who fills in only the key must not accidentally enable writes."""
+    settings = load_settings(_parse_env_file(SAMPLE))
+    assert settings.mode == "read"
+    assert settings.api_key is None
+
+
+def test_sample_documents_every_setting_the_loader_reads() -> None:
+    mentioned = set(re.findall(r"LXO_MCP_[A-Z_]+", SAMPLE.read_text(encoding="utf-8")))
+    assert SETTINGS <= mentioned, f"missing from the sample: {SETTINGS - mentioned}"
+
+
+def test_sample_holds_no_key() -> None:
+    """It is committed, so an accidental real key here would be published."""
+    assert _parse_env_file(SAMPLE)["LXO_MCP_API_KEY"] == ""
+
+
+def test_sample_warns_that_the_copy_holds_a_credential() -> None:
+    text = SAMPLE.read_text(encoding="utf-8")
+    assert "credential" in text
+    assert "version control" in text
+
+
+def test_config_directory_is_searched(tmp_path: Path) -> None:
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / ".env").write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
+    assert _env_lookup(cwd=tmp_path)["LXO_MCP_PAGE_SIZE"] == "7"
+
+
+def test_working_directory_env_beats_the_config_directory(tmp_path: Path) -> None:
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / ".env").write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("LXO_MCP_PAGE_SIZE=9\n", encoding="utf-8")
+    assert _env_lookup(cwd=tmp_path)["LXO_MCP_PAGE_SIZE"] == "9"

@@ -35,10 +35,13 @@ housekeeping are out of scope here — design decisions live in
 - Installable package `benethos-lexware-office-mcp` with the console script of
   the same name and `python -m benethos_lexware_office_mcp`. Speaks stdio.
 - Configuration from the environment, from a `.env` in the working directory,
-  or from a `.env` in the per-user config directory, in that order of
-  precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`, `LXO_MCP_BASE_URL`,
+  from `config/.env`, or from a `.env` in the per-user config directory, in
+  that order of precedence: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`, `LXO_MCP_BASE_URL`,
   `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`, `LXO_MCP_TIMEOUT`,
   `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE`, `LXO_MCP_LOG_LEVEL`.
+- `config/.env.sample` — a commented sample listing every setting with its
+  default. Copy it to `config/.env` and fill in the key. The copy is
+  gitignored, the sample is committed and holds no key.
 - Permission tiers `read`, `write` and `full`, selectable with `--mode` or
   `LXO_MCP_MODE` and defaulting to `read`. Enforced twice: a tool above the
   tier is never registered, and the tier is checked again when a call arrives.

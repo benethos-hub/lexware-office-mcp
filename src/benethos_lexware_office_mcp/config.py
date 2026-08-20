@@ -1,10 +1,10 @@
 """Settings resolution and credential lookup.
 
 Precedence, highest first: a real environment variable, a ``.env`` in the
-working directory (development only), a ``.env`` in the per-user config
-directory. Nothing is ever read from the directory a client happened to spawn
-the process in unless that file is explicitly present, and no secret is ever
-read from the repository.
+working directory, ``config/.env`` below the working directory, and a ``.env``
+in the per-user config directory. ``config/.env.sample`` in this repository
+documents every setting and is the file to copy. No secret is ever read from a
+versioned file.
 """
 
 from __future__ import annotations
@@ -84,10 +84,12 @@ def _parse_env_file(path: Path) -> dict[str, str]:
 
 
 def _env_lookup(cwd: Path | None = None) -> dict[str, str]:
-    """Merge the three sources into one mapping, highest precedence last."""
+    """Merge every source into one mapping, highest precedence last."""
+    here = cwd or Path.cwd()
     merged: dict[str, str] = {}
     merged.update(_parse_env_file(config_dir() / ".env"))
-    merged.update(_parse_env_file((cwd or Path.cwd()) / ".env"))
+    merged.update(_parse_env_file(here / "config" / ".env"))
+    merged.update(_parse_env_file(here / ".env"))
     merged.update(os.environ)
     return merged
 

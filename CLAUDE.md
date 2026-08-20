@@ -132,7 +132,12 @@ SPECS.md rather than stating them as fact.
   piece of work being done including the fixes found along the way, not one
   branch per file. Open the next branch when the *topic* changes, not when the
   file does.
-- **While the project has no remote**, merge the branch into `main` yourself as
-  soon as that work stream is complete, then delete it. Do not leave finished
-  branches lying around and do not stack them. Once a remote exists, the merge
-  goes through a pull request instead and `main` is no longer written directly.
+- **A branch carries as many commits as the work needs.** Commit whenever
+  something is worth recording, but do not treat every commit as the end of the
+  work stream. Corrections, review findings and follow-up fixes belong on the
+  same branch as the thing they correct.
+- **While the project has no remote**, merge into `main` yourself once the work
+  stream is genuinely finished — the feature works, the gates are green, and
+  nothing about it is still open. Then delete the branch. Merging after each
+  commit defeats the point of branching. Once a remote exists, the merge goes
+  through a pull request instead and `main` is no longer written directly.
