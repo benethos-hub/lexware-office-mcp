@@ -55,6 +55,7 @@ src/benethos_lexware_office_mcp/
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies
   storage.py      # where downloads land, filenames made safe first
+  resources.py    # downloads published as MCP resources for the client
   errors.py       # ToolError hierarchy
   tools/
     _base.py      # registration helper, tidies the docstring first

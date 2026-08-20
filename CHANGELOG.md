@@ -74,12 +74,21 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   only the fields you name change and the rest is carried over, at the cost of
   a second API call. Requires `LXO_MCP_MODE=write`.
 - **`download_file`** — save a stored file, such as an uploaded receipt, to
-  the download directory. Returns the path it was written to, the content type
-  and the size. The file itself does not come back in the answer: a PDF in a
-  tool result is base64 that costs context and that nothing downstream can
-  open, while a path can. An existing file is never replaced — a second
-  download of the same document is saved beside the first with a counter in
-  its name. Costs one API call.
+  the download directory on the machine the server runs on. Reports it two
+  ways: the **path** it was written to, which is what you want when the client
+  shares that machine, and a **resource URI**, which the client can read to
+  get the bytes wherever the server is. The file itself never travels inside
+  the tool result — base64 costs roughly 1.37 times the file size in context,
+  is spent whether or not anyone wanted the file, and no model can read a PDF
+  anyway. An existing file is never replaced: a second download of the same
+  document is saved beside the first with a counter in its name. Costs one API
+  call.
+- **Downloaded files are offered as MCP resources.** Every download this
+  server performs is registered under a `lexware://download/...` URI and
+  appears in the resource list, so a client that does not share a filesystem
+  with the server can still fetch the bytes. Registered per file, so each
+  carries its own content type and only what was actually downloaded is
+  reachable.
 - **`download_document`** — the same for the rendered PDF of an invoice,
   quotation, credit note, order confirmation, delivery note, dunning or down
   payment invoice. `xml` is available for an XRechnung. A document still in
@@ -90,9 +99,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 - **`upload_file`** — upload a receipt from a path on the machine the server
   runs on. This does more than store a file: the API also creates the
   bookkeeping voucher that goes with it, and that voucher cannot be deleted
-  afterwards. PDFs and images up to 5 MiB are accepted, and a file that is
-  missing, too large or of a type the API refuses is rejected before a request
-  is spent on it. Requires `LXO_MCP_MODE=write`, costs one API call that is
+  afterwards. PDF, JPEG, PNG and XML up to 5 MiB are accepted, which is
+  what the API takes, and an XML file is treated as an XRechnung and rejected
+  if it is not one. A file that is missing, too large or of any other type is
+  rejected before a request is spent on it. Requires `LXO_MCP_MODE=write`, costs one API call that is
   never retried.
 - **`LXO_MCP_DOWNLOAD_DIR` and `LXO_MCP_APP_BASE_URL` now do something.** Both
   were read and validated before but no tool consumed them. Downloads go to

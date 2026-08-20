@@ -1,9 +1,9 @@
 """Downloading documents and receipts, uploading receipts, and deeplinks.
 
-Downloads are written to the local download directory rather than returned as
-bytes. A PDF in a tool result would be base64 in the model's context window,
-which is expensive and useless: nothing downstream can read it. A path can be
-opened.
+A download is written to the server's download directory and handed to the
+client twice over: as a **path**, which is what a client sharing the machine
+wants, and as a **resource link**, which is what everyone else needs. See
+:mod:`..resources` for why the bytes are not simply put in the tool result.
 """
 
 from __future__ import annotations
@@ -12,9 +12,10 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
-from pydantic import Field
+from mcp.types import CallToolResult, TextContent
+from pydantic import BaseModel, Field
 
-from .. import storage
+from .. import resources, storage
 from ..client import ClientProvider
 from ..config import Settings
 from ..errors import ValidationError
@@ -67,6 +68,27 @@ LINK_RESOURCES: dict[str, str] = {
     "file": "files",
 }
 
+
+class Download(BaseModel):
+    """What a download reports back.
+
+    Declared as a model rather than a bare dict so the schema the client sees
+    says what the fields are. `path` and `uri` name the same file: the path is
+    usable when the client shares a machine with the server, the URI when it
+    does not.
+    """
+
+    path: str = Field(description="Where the file was written on the server.")
+    uri: str = Field(
+        description=(
+            "Resource URI for the same file. Read it to get the bytes, "
+            "wherever the server runs."
+        )
+    )
+    mimeType: str = Field(description="The file's content type.")
+    size: int = Field(description="Size in bytes.")
+
+
 Format = Literal["pdf", "xml"]
 
 MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
@@ -103,13 +125,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ],
         file_format: FormatField = "pdf",
-    ) -> dict[str, Any]:
-        """Save a stored file, such as an uploaded receipt, to the download folder.
+    ) -> Download:
+        """Save a stored file, such as an uploaded receipt, and hand it over.
 
-        Costs one API call. Returns the local path it was written to, the
-        content type and the size in bytes. The file itself is not returned:
-        a PDF in a tool result is unreadable base64 that only costs context,
-        while a path can be opened.
+        Costs one API call. The file is written to the server's download
+        directory and reported two ways: a `path`, which is usable when the
+        client runs on the same machine as this server, and a `uri` under
+        which the same bytes can be fetched with a resource read, which works
+        whatever machine the server is on. The bytes themselves are not put in
+        the result, because that is base64 nothing can read and everything
+        pays for.
 
         An existing file is never replaced. A second download of the same
         document is saved alongside the first with a counter in its name.
@@ -118,7 +143,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         which is rendered rather than stored.
         """
         response = await provider.get().file(file_id, MIME[file_format])
-        return _store(response, settings, fallback=f"{file_id}.{file_format}")
+        return _deliver(response, server, settings, fallback=f"{file_id}.{file_format}")
 
     @requires("read")
     async def download_document(
@@ -135,12 +160,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ],
         file_format: FormatField = "pdf",
-    ) -> dict[str, Any]:
+    ) -> Download:
         """Save the rendered PDF of an invoice or another sales document.
 
-        Costs one API call. Returns the local path, the content type and the
-        size. As with `download_file`, nothing is replaced and the bytes stay
-        out of the answer.
+        Costs one API call. Reports a `path` and a `uri` exactly as
+        `download_file` does, and as there, nothing is overwritten and the
+        bytes stay out of the answer.
 
         A document is only rendered once it leaves draft, so a draft has
         nothing to download and the API says so. An XRechnung is XML by
@@ -150,8 +175,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         response = await provider.get().document_file(
             RESOURCES[document_type], document_id, MIME[file_format]
         )
-        return _store(
-            response, settings, fallback=f"{document_type}-{document_id}.{file_format}"
+        return _deliver(
+            response,
+            server,
+            settings,
+            fallback=f"{document_type}-{document_id}.{file_format}",
         )
 
     @requires("read")
@@ -225,30 +253,62 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         register_tool(server, upload_file)
 
 
-def _store(response: Any, settings: Settings, *, fallback: str) -> dict[str, Any]:
-    """Write a downloaded response into the download directory."""
+def _deliver(
+    response: Any, server: MCPServer, settings: Settings, *, fallback: str
+) -> Any:
+    """Save a download and hand it to the client both ways.
+
+    The structured half is what a model reads, the resource link is what a
+    client acts on. Both name the same file, so neither has to be guessed at
+    from the other.
+
+    Returns a ``CallToolResult`` while the tools that call it declare
+    :class:`Download`. That is deliberate: the SDK derives the output schema
+    from the annotation and passes a ``CallToolResult`` through unchanged once
+    its structured content validates against that schema, so declaring the
+    payload buys a real schema without giving up the content blocks.
+    """
     directory = storage.directory_for(settings)
     name = storage.suggested_name(response, fallback)
     written = storage.save(response.content, name, directory)
-    return {
+    mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
+    link = resources.publish(server, written, mime)
+
+    payload = {
         "path": str(written),
-        "mimeType": response.headers.get("content-type", "application/octet-stream"),
+        "uri": link.uri,
+        "mimeType": link.mime_type,
         "size": len(response.content),
     }
+    return CallToolResult(
+        content=[
+            TextContent(
+                type="text",
+                text=(
+                    f"Saved {written.name} ({len(response.content)} bytes). "
+                    f"Readable as the resource {link.uri}."
+                ),
+            ),
+            link,
+        ],
+        structured_content=payload,
+    )
 
 
-# Guessed from the extension rather than sniffed. The API validates the
-# content anyway and rejects a mislabelled or damaged file, so a second
-# opinion here would only be a second way to be wrong.
+# Exactly what the API takes, measured on 2026-08-20 rather than assumed:
+# `.gif` is refused with `inacceptable_file_extension`, and `.xml` is accepted
+# and parsed as an XRechnung — a file that is not one comes back as
+# `invalid_xrechnung`. The web app states the same four types.
+#
+# The type is guessed from the extension rather than sniffed. The API
+# validates the content anyway and rejects a mislabelled or damaged file, so a
+# second opinion here would only be a second way to be wrong.
 CONTENT_TYPES: dict[str, str] = {
     ".pdf": "application/pdf",
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".tif": "image/tiff",
-    ".tiff": "image/tiff",
-    ".webp": "image/webp",
+    ".xml": "application/xml",
 }
 
 

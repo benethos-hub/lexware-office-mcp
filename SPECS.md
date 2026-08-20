@@ -85,6 +85,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | Permission tiers and their enforcement, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, and because an existing file is never overwritten. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
@@ -225,11 +226,14 @@ section 2.
 - **The ceiling is 5 MiB inclusive.** 5,242,880 bytes is accepted, one byte
   more is refused with `max_file_size_exceeded`. The tool checks this before
   spending a request.
-- **What may be uploaded.** PDFs and real images. `text/plain` is refused with
-  `inacceptable_file_extension`, a degenerate 1x1 PNG with
-  `image_conversion_error`, and a structurally broken PDF with
-  `voucher_upload_toxic_pdf` — the API inspects the content, so a correct
-  extension is not enough.
+- **What may be uploaded: PDF, JPEG, PNG and XML.** Measured by trying them,
+  and the same four the web app names. `.gif` is refused with
+  `inacceptable_file_extension`, so are `.tif` and `text/plain`. **`.xml` is
+  accepted and parsed as an XRechnung** — a file that is not one comes back as
+  `invalid_xrechnung`, which is how an e-invoice reaches the account. The API
+  inspects content, not just extensions: a degenerate 1x1 PNG is refused with
+  `image_conversion_error` and a structurally broken PDF with
+  `voucher_upload_toxic_pdf`.
 - **Downloading.** `GET /v1/files/{id}` returns the bytes with the file's own
   content type and `Content-Disposition: inline; filename={id}.{ext};`.
   Asking for `application/xml` when the file is a PDF is a **404**, not a 406.
@@ -376,7 +380,7 @@ exposed one tool per path.
 | `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
 | `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool. **(to verify)** against a live sales document. | 1 |
-| `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. The bytes stay out of the answer on purpose: a PDF in a tool result is base64 that costs context and that nothing downstream can read, while a path can be opened. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
+| `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts, vouchers and files, since the permalink shape is the same for all of them and the extra entries cost nothing. Built 2026-08-20. | 0 |
 
 ### Phase 2 — writes, behind `LXO_MCP_MODE=write`
@@ -392,7 +396,7 @@ exposed one tool per path.
 | `create_article` / `update_article` | same version rule |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
-| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Refuses a missing file, an extension the API does not take and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
+| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
 ### Phase 3 — irreversible, behind `LXO_MCP_MODE=full`
 
@@ -789,6 +793,22 @@ subclasses with concise, actionable messages.
   `numberOfElements` restates the row count, and `sort` describes the ordering
   with five fields per sort key and is identical on every response, so all
   three are dropped.
+- **A downloaded file is named, not embedded.** The bytes never go into a tool
+  result. Base64 costs roughly 1.37 times the file size in the client's context
+  window, is spent whether or not anybody wanted the file, and a model cannot
+  read a PDF anyway. Instead each download is reported twice: a `path`, which
+  is what a client sharing the machine with the server wants, and a `uri` under
+  which the client can read the bytes on demand. Both name the same file.
+- **The URI is an MCP resource, registered per download.** A path only means
+  something while client and server share a filesystem, which the stdio
+  transport happens to give and the HTTP transport of section 6 will not. What
+  holds either way is that the file is on the *server's* disk and the server is
+  the one reading it, which is the shape MCP resources already have. Registered
+  per file rather than behind one URI template, so each carries its own content
+  type — a PDF and an XRechnung are not the same thing to a client deciding
+  what to do with them — and so that only what this process downloaded is
+  reachable, rather than everything that has ever accumulated in the download
+  directory.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be

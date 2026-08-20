@@ -110,11 +110,18 @@ rather than booking it straight away. The same applies to `upload_file`:
 uploading a receipt also creates the voucher that goes with it, so it
 leaves a record behind even though its name only mentions the file.
 
-Downloads are written into the download directory and the path is returned,
-rather than the file coming back in the answer. A PDF in a tool result is
-base64 that costs context and that nothing can open. An existing file is
-never replaced: a second download is saved beside the first with a counter
-in its name.
+Downloads are written into the download directory on the machine the server
+runs on, and reported two ways: a **path**, which is what you want when the
+client and the server share that machine, and a **resource URI**, which the
+client can read to get the bytes wherever the server is. The file itself
+never travels inside the tool result, because base64 costs roughly 1.37
+times the file size in context and no model can read a PDF anyway. An
+existing file is never replaced: a second download is saved beside the
+first with a counter in its name.
+
+`upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
+is what the API takes. An XML file is treated as an XRechnung and is
+rejected if it is not one.
 
 ## Requirements
 

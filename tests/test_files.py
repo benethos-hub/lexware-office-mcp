@@ -181,7 +181,10 @@ async def test_the_bytes_do_not_come_back_in_the_answer(tmp_path: Path) -> None:
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
-    assert set(result.structured_content or {}) == {"path", "mimeType", "size"}
+    blocks = {b.type for b in result.content}
+    assert "resource_link" in blocks
+    assert not any(getattr(b, "data", None) for b in result.content)
+    assert "blob" not in str(result.structured_content)
     await provider.aclose()
 
 
@@ -374,6 +377,154 @@ async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(tmp_path)})
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
+# -- handing the file to the client ---------------------------------------
+
+
+async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
+    """A path serves a client on this machine, a URI serves every other one."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    payload = result.structured_content
+    assert payload is not None
+    assert set(payload) == {"path", "uri", "mimeType", "size"}
+    assert Path(payload["path"]).name in payload["uri"]
+    assert payload["uri"].startswith("lexware://download/")
+    await provider.aclose()
+
+
+async def test_a_resource_link_comes_back_with_the_result(tmp_path: Path) -> None:
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    links = [b for b in result.content if b.type == "resource_link"]
+    assert len(links) == 1
+    assert links[0].mime_type == "application/pdf"
+    assert links[0].size == len(PDF)
+    await provider.aclose()
+
+
+async def test_the_downloaded_file_can_be_read_back_as_a_resource(
+    tmp_path: Path,
+) -> None:
+    """The whole point: the client asks the server for the bytes, by URI."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+    uri = (result.structured_content or {})["uri"]
+
+    contents = list(await server.read_resource(uri))
+    assert len(contents) == 1
+    assert contents[0].content == PDF
+    assert contents[0].mime_type == "application/pdf"
+    await provider.aclose()
+
+
+async def test_nothing_is_published_before_a_download(tmp_path: Path) -> None:
+    """Only what this server actually fetched is reachable."""
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    assert await server.list_resources() == []
+
+    await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    listed = await server.list_resources()
+    assert [r.name for r in listed] == [f"{FILE_ID}.pdf"]
+    await provider.aclose()
+
+
+async def test_two_downloads_are_two_resources(tmp_path: Path) -> None:
+    """The second file is saved beside the first, so it needs its own URI."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    first = await server.call_tool("download_file", {"file_id": FILE_ID})
+    second = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    uris = {
+        (first.structured_content or {})["uri"],
+        (second.structured_content or {})["uri"],
+    }
+    assert len(uris) == 2
+    assert {str(r.uri) for r in await server.list_resources()} == uris
+    await provider.aclose()
+
+
+async def test_a_content_type_with_parameters_is_reduced_to_the_type(
+    tmp_path: Path,
+) -> None:
+    handler = Recorder(headers={"content-type": "application/pdf;charset=UTF-8"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert (result.structured_content or {})["mimeType"] == "application/pdf"
+    await provider.aclose()
+
+
+async def test_a_downloaded_xml_is_published_as_xml(tmp_path: Path) -> None:
+    """An XRechnung is not a PDF, and a client deciding what to do needs to know."""
+    handler = Recorder(
+        content=b"<Invoice/>", headers={"content-type": "application/xml"}
+    )
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool(
+        "download_file", {"file_id": FILE_ID, "file_format": "xml"}
+    )
+
+    listed = await server.list_resources()
+    assert listed[0].mime_type == "application/xml"
+    assert (result.structured_content or {})["mimeType"] == "application/xml"
+    await provider.aclose()
+
+
+async def test_the_download_tools_declare_what_they_return(tmp_path: Path) -> None:
+    """A generic object schema tells the model nothing about path versus uri."""
+    server = build_server(Settings(api_key=API_KEY))
+    tool = next(t for t in await server.list_tools() if t.name == "download_file")
+
+    assert tool.output_schema is not None
+    assert set(tool.output_schema["properties"]) == {"path", "uri", "mimeType", "size"}
+
+
+# -- what may be uploaded, measured against the API -----------------------
+
+
+async def test_an_xrechnung_may_be_uploaded(tmp_path: Path) -> None:
+    """Verified 2026-08-20: .xml is accepted and parsed as an XRechnung."""
+    invoice = tmp_path / "e-rechnung.xml"
+    invoice.write_bytes(b"<Invoice/>")
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = server_for(handler, tmp_path, mode="write")
+
+    await server.call_tool("upload_file", {"path": str(invoice)})
+
+    assert b'name="file"' in handler.last.content
+    assert b"application/xml" in handler.last.content
+    await provider.aclose()
+
+
+async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> None:
+    """Measured, not assumed: `inacceptable_file_extension`."""
+    image = tmp_path / "scan.gif"
+    image.write_bytes(b"GIF89a")
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = server_for(handler, tmp_path, mode="write")
+
+    with pytest.raises(ToolError):
+        await server.call_tool("upload_file", {"path": str(image)})
 
     assert handler.requests == []
     await provider.aclose()
