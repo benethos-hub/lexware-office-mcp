@@ -118,14 +118,6 @@ class Delivered(BaseModel):
     )
 
 
-# How many pages of a PDF are rendered when the caller does not say. A page
-# costs roughly its pixels divided by 750 in tokens whatever it weighs in
-# bytes, so ten pages is already a substantial answer, and a document longer
-# than that is rarely one somebody wants read out in full. Named here rather
-# than in `rendering`, which has no business holding a policy, and stated in
-# the tool description so the model knows what it is getting.
-DEFAULT_PAGES = 10
-
 # Base64 costs roughly 1.37 times the file size in the answer, so this is a
 # ceiling on damage rather than a working size. It is the same 5 MiB the API
 # accepts for an upload, so there is one number to remember.
@@ -143,6 +135,31 @@ MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
 # refused with `max_file_size_exceeded`. Checked here so a caller finds out
 # before spending a request on it.
 MAX_UPLOAD = 5 * 1024 * 1024
+
+
+def max_pages_field(default: int) -> Any:
+    """The `max_pages` annotation, carrying the default this process uses.
+
+    Built here rather than written into the signature because
+    ``from __future__ import annotations`` turns every annotation into its own
+    source text, which the MCP SDK later evaluates in **module** scope. An
+    f-string over the per-process settings would name a local that does not
+    exist there. Assigning the finished object to ``__annotations__`` after
+    the definition sidesteps that: the SDK evaluates strings and leaves real
+    objects alone.
+    """
+    return Annotated[
+        int | None,
+        Field(
+            description=(
+                "For a PDF, how many pages to render from the front. "
+                f"Defaults to {default}. Pass null for every page, and expect "
+                "roughly two thousand tokens per page."
+            ),
+            ge=1,
+        ),
+    ]
+
 
 FormatField = Annotated[
     Format,
@@ -273,17 +290,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ],
-        max_pages: Annotated[
-            int | None,
-            Field(
-                description=(
-                    "For a PDF, how many pages to render from the front. "
-                    f"Defaults to {DEFAULT_PAGES}. Pass null for every page, "
-                    "and expect roughly two thousand tokens per page."
-                ),
-                ge=1,
-            ),
-        ] = DEFAULT_PAGES,
+        max_pages: int | None = settings.pdf_pages,
     ) -> Delivered:
         """Put the contents of a downloaded file into this conversation.
 
@@ -299,7 +306,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         image. Anything else arrives as an embedded binary for the client to
         handle.
 
-        A PDF is rendered to its first 10 pages unless `max_pages` says
+        A PDF is rendered to its first {pages} pages unless `max_pages` says
         otherwise, and the result reports how many pages the document has
         alongside how many were rendered, so a partial read never looks
         complete. Raise `max_pages`, or pass null for all of them, when the
@@ -329,6 +336,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 "download reported."
             )
         return _inline(uri, payload, mime, max_pages)
+
+    # The page default is configurable, so both the schema and the description
+    # have to state the value this process actually uses rather than a number
+    # baked into the source. See `max_pages_field` for why the annotation is
+    # attached here instead of written into the signature. `replace` rather
+    # than `format`, which would choke on any brace added to the text later.
+    read_download.__annotations__["max_pages"] = max_pages_field(settings.pdf_pages)
+    read_download.__doc__ = (read_download.__doc__ or "").replace(
+        "{pages}", str(settings.pdf_pages)
+    )
 
     @requires("write")
     async def upload_file(

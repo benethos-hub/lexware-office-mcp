@@ -106,6 +106,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   pages by default, which `max_pages` raises, lowers, or lifts entirely by
   being set to null. The answer reports how many pages the document has beside
   how many were rendered, so a limited read never looks complete.
+- **`LXO_MCP_PDF_PAGES`** sets that default for an installation, for a machine
+  on a tighter context budget. It is named apart from `LXO_MCP_PAGE_SIZE` on
+  purpose: that one counts rows of a search result, this one counts sheets of
+  a document. The value in force is reported in the tool's schema and in its
+  description, so a client never plans around a number that is not the one
+  applied.
 - **New dependency: `pypdfium2`**, which renders those pages. PDFium under
   BSD-3-Clause and Apache-2.0, a 3.7 MiB wheel. The better known PyMuPDF is
   AGPL-3.0 or a commercial licence, which this MIT project cannot take. Costs **no** API call, since the file is already on the

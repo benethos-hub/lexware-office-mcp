@@ -215,6 +215,7 @@ window — so the tool list is reloaded.
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
+| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default | `10` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
 
 Every setting above is in use. `LXO_MCP_PAGE_SIZE` is capped at 250, which is

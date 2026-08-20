@@ -333,6 +333,7 @@ section 2.
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_MODE` | Permission tier, see section 9. | `read` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
+| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway. | `10` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. | `2` |

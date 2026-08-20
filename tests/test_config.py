@@ -138,3 +138,25 @@ def test_missing_env_file_is_not_an_error(tmp_path: Path) -> None:
 def test_page_size_may_go_up_to_the_upstream_maximum() -> None:
     """251 is rejected by the API itself, so 250 must still be accepted here."""
     assert load_settings({"LXO_MCP_PAGE_SIZE": "250"}).page_size == MAX_PAGE_SIZE
+
+
+def test_the_pdf_page_default_is_configurable() -> None:
+    assert load_settings({"LXO_MCP_PDF_PAGES": "3"}).pdf_pages == 3
+
+
+def test_the_pdf_page_default_is_not_the_list_page_size() -> None:
+    """Two settings about pages, and confusing them would be easy.
+
+    `LXO_MCP_PAGE_SIZE` is rows per page of a search result.
+    `LXO_MCP_PDF_PAGES` is how much of a document gets rendered. Neither may
+    quietly answer for the other.
+    """
+    settings = load_settings({"LXO_MCP_PAGE_SIZE": "50", "LXO_MCP_PDF_PAGES": "3"})
+    assert settings.page_size == 50
+    assert settings.pdf_pages == 3
+
+
+def test_a_nonsense_pdf_page_count_is_refused_at_startup() -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        load_settings({"LXO_MCP_PDF_PAGES": "nope"})
+    assert "LXO_MCP_PDF_PAGES" in str(excinfo.value)

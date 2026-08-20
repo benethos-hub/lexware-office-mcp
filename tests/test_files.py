@@ -20,10 +20,9 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import policy, rendering, storage
 from benethos_lexware_office_mcp.client import ClientProvider
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.config import DEFAULT_PDF_PAGES, Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
-from benethos_lexware_office_mcp.tools import files
 
 API_KEY = "test-key-0123456789"
 FILE_ID = "PLACEHOLDER-FILE-1"
@@ -676,8 +675,8 @@ async def test_a_longer_document_stops_at_the_default_and_says_so(
 
     payload = result.structured_content or {}
     assert payload["pages"] == 14
-    assert payload["pagesShown"] == files.DEFAULT_PAGES
-    assert f"first {files.DEFAULT_PAGES}" in result.content[0].text
+    assert payload["pagesShown"] == DEFAULT_PDF_PAGES
+    assert f"first {DEFAULT_PDF_PAGES}" in result.content[0].text
     await provider.aclose()
 
 
@@ -702,10 +701,10 @@ async def test_the_default_is_stated_where_the_model_reads_it() -> None:
     tool = next(t for t in await server.list_tools() if t.name == "read_download")
 
     field = tool.input_schema["properties"]["max_pages"]
-    assert field["default"] == files.DEFAULT_PAGES
-    assert str(files.DEFAULT_PAGES) in field["description"]
+    assert field["default"] == DEFAULT_PDF_PAGES
+    assert str(DEFAULT_PDF_PAGES) in field["description"]
     assert tool.description is not None
-    assert f"first {files.DEFAULT_PAGES} pages" in tool.description
+    assert f"first {DEFAULT_PDF_PAGES} pages" in tool.description
 
 
 async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> None:
@@ -935,4 +934,57 @@ async def test_a_uri_cannot_climb_out_of_the_download_directory(
         await server.call_tool(
             "read_download", {"uri": "lexware://download/../secret.pdf"}
         )
+    await provider.aclose()
+
+
+async def test_the_page_default_follows_the_configuration(tmp_path: Path) -> None:
+    """An operator with a tight context budget can lower it once, not per call."""
+    handler = Recorder(
+        content=make_pdf(pages=8), headers={"content-type": "application/pdf"}
+    )
+    settings = Settings(api_key=API_KEY, download_path=tmp_path, pdf_pages=2)
+    provider = ClientProvider(
+        settings,
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
+    server = build_server(settings, provider)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    assert (result.structured_content or {})["pagesShown"] == 2
+    await provider.aclose()
+
+
+async def test_a_configured_default_is_stated_in_the_schema_too() -> None:
+    """Otherwise the model would plan around a number that is not in force."""
+    server = build_server(Settings(api_key=API_KEY, pdf_pages=4))
+    tool = next(t for t in await server.list_tools() if t.name == "read_download")
+
+    field = tool.input_schema["properties"]["max_pages"]
+    assert field["default"] == 4
+    assert "Defaults to 4" in field["description"]
+    assert tool.description is not None
+    assert "first 4 pages" in tool.description
+
+
+async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> None:
+    handler = Recorder(
+        content=make_pdf(pages=8), headers={"content-type": "application/pdf"}
+    )
+    settings = Settings(api_key=API_KEY, download_path=tmp_path, pdf_pages=2)
+    provider = ClientProvider(
+        settings,
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
+    server = build_server(settings, provider)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
+
+    assert (result.structured_content or {})["pagesShown"] == 8
     await provider.aclose()

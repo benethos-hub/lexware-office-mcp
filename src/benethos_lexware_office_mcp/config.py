@@ -34,6 +34,7 @@ from platformdirs import user_cache_dir, user_config_dir
 from .errors import ConfigError, register_secret
 
 __all__ = [
+    "DEFAULT_PDF_PAGES",
     "MAX_PAGE_SIZE",
     "Mode",
     "Settings",
@@ -69,6 +70,16 @@ DEFAULT_PAGE_SIZE = 25
 # "parameter 'size' must be equal or lower than 250". The 25 the documentation
 # mentions is the upstream default, not the ceiling.
 MAX_PAGE_SIZE = 250
+
+# How many pages of a PDF `read_download` renders when the caller does not
+# say. Deliberately *not* called a page size: `LXO_MCP_PAGE_SIZE` above is
+# rows per page of a list, and confusing the two would be easy. A rendered
+# page costs roughly two thousand tokens whatever it weighs in bytes, so ten
+# is already a substantial answer. No ceiling is imposed, because unlike the
+# page size there is no upstream limit to derive one from, and a caller can
+# still override it per call.
+DEFAULT_PDF_PAGES = 10
+
 DEFAULT_LOG_LEVEL = "INFO"
 
 
@@ -181,6 +192,7 @@ class Settings:
     rate: float = DEFAULT_RATE
     burst: int = DEFAULT_BURST
     page_size: int = DEFAULT_PAGE_SIZE
+    pdf_pages: int = DEFAULT_PDF_PAGES
     log_level: str = DEFAULT_LOG_LEVEL
 
     def require_api_key(self) -> str:
@@ -242,6 +254,9 @@ def load_settings(
             DEFAULT_PAGE_SIZE,
             name="LXO_MCP_PAGE_SIZE",
             maximum=MAX_PAGE_SIZE,
+        ),
+        pdf_pages=_as_int(
+            get("PDF_PAGES"), DEFAULT_PDF_PAGES, name="LXO_MCP_PDF_PAGES"
         ),
         log_level=log_level,
     )
