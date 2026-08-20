@@ -13,11 +13,21 @@ from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
 
+# The shape confirmed against a live account on 2026-08-20, with placeholder
+# identifiers. `created` is present because the API returns it and the tool has
+# to be shown dropping it.
 PROFILE = {
     "organizationId": "PLACEHOLDER-ORG-ID",
+    "connectionId": "PLACEHOLDER-CONNECTION-ID",
     "companyName": "Example GmbH",
     "taxType": "net",
     "smallBusiness": False,
+    "businessFeatures": ["INVOICING", "BOOKKEEPING"],
+    "created": {
+        "date": "2026-01-01T00:00:00.000Z",
+        "userEmail": "someone@example.invalid",
+        "userName": "someone@example.invalid",
+    },
     "distanceSalesPrincipal": None,
 }
 
@@ -74,6 +84,8 @@ async def test_get_profile_returns_the_account(offline_api: None) -> None:
     assert payload["smallBusiness"] is False
     # Compacted away rather than reported as null.
     assert "distanceSalesPrincipal" not in payload
+    # The creating user's address never reaches the model.
+    assert "example.invalid" not in str(payload)
 
 
 async def test_get_profile_is_still_available_in_full_mode() -> None:

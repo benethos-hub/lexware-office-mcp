@@ -12,6 +12,7 @@ from benethos_lexware_office_mcp.config import (
     DEFAULT_BURST,
     DEFAULT_PAGE_SIZE,
     DEFAULT_RATE,
+    MAX_PAGE_SIZE,
     Settings,
     load_settings,
 )
@@ -69,6 +70,7 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
         {"LXO_MCP_RATE": "0"},
         {"LXO_MCP_BURST": "0"},
         {"LXO_MCP_TIMEOUT": "-1"},
+        {"LXO_MCP_PAGE_SIZE": "251"},
     ],
 )
 def test_invalid_values_are_rejected(env: dict[str, str]) -> None:
@@ -112,3 +114,8 @@ def test_missing_env_file_is_not_an_error(tmp_path: Path) -> None:
     from benethos_lexware_office_mcp.config import _parse_env_file
 
     assert _parse_env_file(tmp_path / "absent.env") == {}
+
+
+def test_page_size_may_go_up_to_the_upstream_maximum() -> None:
+    """251 is rejected by the API itself, so 250 must still be accepted here."""
+    assert load_settings({"LXO_MCP_PAGE_SIZE": "250"}).page_size == MAX_PAGE_SIZE

@@ -41,7 +41,10 @@ housekeeping are out of scope here — design decisions live in
   `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE`, `LXO_MCP_LOG_LEVEL`.
 - **`get_profile`**, the first tool. Shows which Lexware Office account the
   server is connected to and doubles as the connection check. Costs one API
-  call.
+  call. The creating user's email address, which the API returns alongside, is
+  dropped rather than passed on.
+- `LXO_MCP_PAGE_SIZE` is validated against the upstream maximum of 250, so a
+  value the API would reject fails at startup instead of mid-conversation.
 - HTTP client for the API, with the single shared token bucket every request
   passes, retries decided per method and failure mode, and upstream statuses
   mapped onto concise errors. A failed POST is reported with its outcome

@@ -40,12 +40,20 @@ def _is_empty(value: Any) -> bool:
     return False
 
 
+# `created` carries `userEmail` and `userName`, which are the address of the
+# person who set the account up. The tool answers *which organization* is
+# connected, so that person's identity is neither needed nor ours to hand to a
+# language model. Dropped rather than compacted. Confirmed against a live
+# account on 2026-08-20.
+PROFILE_DROP = ("created",)
+
+
 def profile(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize ``GET /v1/profile``.
 
-    The response is small and its exact field set is **(to verify)** against a
-    live account, so nothing is renamed or dropped by name here. Inventing a
-    mapping from documentation alone would silently discard fields the API
-    actually returns. Compacting is enough until the shape is confirmed.
+    Keeps every field the API returns except the ones in
+    :data:`PROFILE_DROP`, so a field added upstream shows up rather than being
+    silently discarded by an allow-list.
     """
-    return dict(compact(payload))
+    kept = {k: v for k, v in payload.items() if k not in PROFILE_DROP}
+    return dict(compact(kept))

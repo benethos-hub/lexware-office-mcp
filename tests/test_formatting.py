@@ -58,3 +58,25 @@ def test_profile_keeps_every_field_the_api_returned() -> None:
     assert result["unknownFutureField"] == "kept"
     assert result["smallBusiness"] is False
     assert "emptyOne" not in result
+
+
+def test_profile_drops_the_creating_user() -> None:
+    """userEmail and userName identify a person and are not the tool's job."""
+    payload = {
+        "organizationId": "PLACEHOLDER-ORG",
+        "companyName": "Example GmbH",
+        "created": {
+            "date": "2026-01-01T00:00:00.000Z",
+            "userEmail": "someone@example.invalid",
+            "userName": "someone@example.invalid",
+        },
+    }
+    result = profile(payload)
+    assert "created" not in result
+    assert "example.invalid" not in str(result)
+
+
+def test_profile_keeps_fields_the_api_adds_later() -> None:
+    """A drop-list, not an allow-list, so new fields surface instead of vanishing."""
+    result = profile({"companyName": "Example GmbH", "someNewField": "kept"})
+    assert result["someNewField"] == "kept"

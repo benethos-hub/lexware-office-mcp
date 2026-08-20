@@ -118,8 +118,14 @@ Facts taken from <https://developers.lexware.io/docs/>.
   See section 10.1 for what this means for the implementation.
 - **Pagination:** `page` (zero-indexed) and `size`, response carries
   `totalPages`, `totalElements`, `size`, `number`, `first`, `last`,
-  `numberOfElements`. Default page size is typically 25, the maximum varies per
-  endpoint **(to verify per endpoint)**.
+  `numberOfElements`. The documented 25 is the *default*, not the ceiling.
+  **Verified 2026-08-20:** `size` may go up to **250**, and 251 is refused with
+  "parameter 'size' must be equal or lower than 250". The same limit held for
+  `voucherlist` and `contacts`. `LXO_MCP_PAGE_SIZE` is validated against it, so
+  a misconfiguration fails at startup rather than as an API error later.
+- **Master data is not paginated.** `countries` and `payment-conditions` return
+  a bare JSON array, not a page object. Verified 2026-08-20. Anything reading
+  those endpoints must not assume the page envelope.
 - **Filtering:** `?filter_1=value_1&filter_n=value_n`, combined with AND.
   Pattern matching supports `_` (one character) and `%` (many), escaped with a
   backslash.
@@ -234,7 +240,7 @@ exposed one tool per path.
 
 | Tool | Inputs | Output | Calls |
 |---|---|---|---|
-| `get_profile` | — | `{organizationId, companyName, created, connectionId, taxType, smallBusiness, distanceSalesPrincipal}`. Doubles as the connection check. | 1 |
+| `get_profile` | — | `{organizationId, companyName, connectionId, taxType, smallBusiness, businessFeatures}`. Verified against a live account 2026-08-20. The `created` block the API also returns is **dropped**: it carries the setting-up user's email address, which the tool does not need and which has no business reaching a language model. Doubles as the connection check. | 1 |
 | `search_contacts` | `query`, `email`, `number`, `role` (customer/vendor/any), `page`, `size` | list of `{id, version, number, name, type, email, phone, roles}` plus page info | 1 |
 | `get_contact` | `contact_id` | full contact including addresses, roles, version | 1 |
 | `search_articles` | `query`, `article_number`, `gtin`, `type`, `page`, `size` | list of `{id, version, title, articleNumber, type, unitName, price, currency}` | 1 |
@@ -540,10 +546,11 @@ Three consequences follow, and they shape how this project is developed.
   vouchers to paginate. A freshly created test account has to be populated
   before it can measure anything.
 
-Whether an API key can be generated **inside** a test account is not stated in
-the documentation. It is likely, since the public API is an add-on in the web
-interface and test accounts carry the XL feature set, but it is an assumption
-until confirmed — see open question 8.
+**Confirmed on 2026-08-20:** an API key can be generated inside a test
+account, and it reaches the ordinary production endpoints. A key from a
+freshly created test account returned its profile, paged the voucher list and
+read master data. This was open question 8, and it was the one everything else
+depended on.
 
 ## 12. Error handling
 
@@ -624,9 +631,14 @@ subclasses with concise, actionable messages.
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
-### Open questions to resolve before coding
+### Open questions
 
-1. Exact maximum page size per endpoint, and whether `voucherlist` differs.
+Numbering is stable, so cross-references elsewhere keep pointing at the right
+item. Answered questions stay in place with their answer.
+
+1. ~~Exact maximum page size per endpoint.~~ **Answered 2026-08-20:** 250 for
+   `voucherlist` and `contacts` alike, enforced upstream with a clear message.
+   See section 5.
 2. Whether the API offers an idempotency key for POST. This is the highest
    value unknown after question 8 — it decides whether a failed document
    creation can be retried at all, see section 10.2.
@@ -643,6 +655,11 @@ subclasses with concise, actionable messages.
 7. Whether 429 responses carry a `Retry-After` header, and whether the block
    duration grows with repeated offences as the wording about permanent
    blocking suggests.
-8. Whether the public API add-on can be enabled and an API key generated inside
-   a 30-day test account. Everything in section 11.1 depends on this, so it is
-   the first question to settle.
+8. ~~Whether an API key can be generated inside a 30-day test account.~~
+   **Answered 2026-08-20:** yes, and it works against the production endpoints.
+   See section 11.1.
+
+**Still open and worth a probe while a test account exists:** 2 (idempotency
+key), 3 (upload limits), 6 (bucket capacity). Question 7 cannot be probed
+deliberately — provoking 429s is exactly what the documentation warns leads to
+a permanent block.

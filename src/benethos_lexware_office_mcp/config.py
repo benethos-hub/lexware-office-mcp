@@ -18,7 +18,14 @@ from platformdirs import user_cache_dir, user_config_dir
 
 from .errors import ConfigError, register_secret
 
-__all__ = ["Mode", "Settings", "config_dir", "download_dir", "load_settings"]
+__all__ = [
+    "MAX_PAGE_SIZE",
+    "Mode",
+    "Settings",
+    "config_dir",
+    "download_dir",
+    "load_settings",
+]
 
 APP_NAME = "benethos-lexware-office-mcp"
 
@@ -43,6 +50,10 @@ DEFAULT_RATE = 1.5
 DEFAULT_BURST = 2
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_PAGE_SIZE = 25
+# Verified against the live API on 2026-08-20: `size=251` is rejected with
+# "parameter 'size' must be equal or lower than 250". The 25 the documentation
+# mentions is the upstream default, not the ceiling.
+MAX_PAGE_SIZE = 250
 DEFAULT_LOG_LEVEL = "INFO"
 
 
@@ -106,7 +117,14 @@ def _as_float(raw: str | None, fallback: float, *, name: str) -> float:
     return value
 
 
-def _as_int(raw: str | None, fallback: int, *, name: str, minimum: int = 1) -> int:
+def _as_int(
+    raw: str | None,
+    fallback: int,
+    *,
+    name: str,
+    minimum: int = 1,
+    maximum: int | None = None,
+) -> int:
     if raw is None or raw.strip() == "":
         return fallback
     try:
@@ -115,6 +133,8 @@ def _as_int(raw: str | None, fallback: int, *, name: str, minimum: int = 1) -> i
         raise ConfigError(f"{name} must be a whole number, got {raw!r}.") from None
     if value < minimum:
         raise ConfigError(f"{name} must be at least {minimum}, got {value}.")
+    if maximum is not None and value > maximum:
+        raise ConfigError(f"{name} must be at most {maximum}, got {value}.")
     return value
 
 
@@ -188,7 +208,10 @@ def load_settings(
         rate=_as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),
         burst=_as_int(get("BURST"), DEFAULT_BURST, name="LXO_MCP_BURST"),
         page_size=_as_int(
-            get("PAGE_SIZE"), DEFAULT_PAGE_SIZE, name="LXO_MCP_PAGE_SIZE"
+            get("PAGE_SIZE"),
+            DEFAULT_PAGE_SIZE,
+            name="LXO_MCP_PAGE_SIZE",
+            maximum=MAX_PAGE_SIZE,
         ),
         log_level=log_level,
     )
