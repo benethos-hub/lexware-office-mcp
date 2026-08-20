@@ -836,10 +836,13 @@ subclasses with concise, actionable messages.
     against 48.9 KiB) but an image is charged by its dimensions rather than
     its weight, so the saving is in transfer only, and a red overdue stamp on
     an invoice is information.
-  - **At most five pages**, because the page count is the real budget: one
-    page costs roughly its pixels divided by 750 in tokens whatever it weighs.
-    The result reports how many pages the document has and how many were
-    shown.
+  - **Every page, with `max_pages` to ask for fewer.** A document cut off
+    silently is worse than a long answer, because the caller cannot tell which
+    half they are holding. The page count is nevertheless the real budget —
+    one page costs roughly its pixels divided by 750 in tokens whatever it
+    weighs in bytes — so a caller who only needs the front of a long document
+    can say so, and the result reports both the total and how many were
+    rendered either way.
 - **A client that cannot follow the link still gets the file.** Resource
   links are the cheap path, not a requirement: `read_download` takes the same
   URI and puts the content into the answer directly, because a tool call is

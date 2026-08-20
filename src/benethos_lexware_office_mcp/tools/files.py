@@ -265,6 +265,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ],
+        max_pages: Annotated[
+            int | None,
+            Field(
+                description=(
+                    "For a PDF, render only this many pages from the front. "
+                    "Left unset, every page is rendered."
+                ),
+                ge=1,
+            ),
+        ] = None,
     ) -> Delivered:
         """Put the contents of a downloaded file into this conversation.
 
@@ -280,9 +290,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         image. Anything else arrives as an embedded binary for the client to
         handle.
 
-        A long PDF is cut off after the first few pages, and the result says
-        how many pages it has and how many were shown. Prefer the `path` or
-        the resource `uri` when the client can use them directly.
+        Every page of a PDF is rendered unless `max_pages` says otherwise, and
+        the result reports both numbers. A page costs roughly two thousand
+        tokens whatever it weighs in bytes, so a long document is a long
+        answer: set `max_pages` when the front of it is all that is needed.
+        Prefer the `path` or the resource `uri` when the client can use them
+        directly.
         """
         if not uri.startswith(resources.SCHEME):
             raise ValidationError(
@@ -306,7 +319,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 "put in an answer. It is on disk already, so use the path the "
                 "download reported."
             )
-        return _inline(uri, payload, mime)
+        return _inline(uri, payload, mime, max_pages)
 
     @requires("write")
     async def upload_file(
@@ -347,7 +360,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         register_tool(server, upload_file)
 
 
-def _inline(uri: str, payload: bytes, mime: str) -> Any:
+def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -> Any:
     """Choose the content block that makes this file usable.
 
     Four shapes, because the same bytes are worth different things: text a
@@ -358,7 +371,7 @@ def _inline(uri: str, payload: bytes, mime: str) -> Any:
     summary = {"uri": uri, "mimeType": mime, "size": len(payload)}
 
     if mime == "application/pdf":
-        return _rendered(uri, payload, summary)
+        return _rendered(uri, payload, summary, max_pages)
 
     if mime.startswith("text/") or mime in TEXT_TYPES:
         text = payload.decode("utf-8", errors="replace")
@@ -385,10 +398,12 @@ def _inline(uri: str, payload: bytes, mime: str) -> Any:
     )
 
 
-def _rendered(uri: str, payload: bytes, summary: dict[str, Any]) -> Any:
+def _rendered(
+    uri: str, payload: bytes, summary: dict[str, Any], max_pages: int | None
+) -> Any:
     """A PDF as pictures of its pages."""
     try:
-        pages, total = rendering.pdf_pages_as_png(payload)
+        pages, total = rendering.pdf_pages_as_png(payload, max_pages=max_pages)
     except Exception as exc:  # pypdfium2 raises its own errors
         raise ValidationError(
             f"{uri} could not be rendered: {exc}. It may be encrypted or "
@@ -402,8 +417,9 @@ def _rendered(uri: str, payload: bytes, summary: dict[str, Any]) -> Any:
         TextContent(
             type="text",
             text=(
-                f"{total} page{'s' if total != 1 else ''}, showing "
-                f"{len(pages)} as images."
+                f"{total} page{'s' if total != 1 else ''}, all rendered."
+                if len(pages) == total
+                else f"{total} pages, showing the first {len(pages)}."
             ),
         )
     ]

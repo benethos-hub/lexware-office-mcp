@@ -31,16 +31,18 @@ from dataclasses import dataclass
 
 import pypdfium2
 
-__all__ = ["MAX_EDGE", "MAX_PAGES", "RenderedPage", "pdf_pages_as_png"]
+__all__ = ["MAX_EDGE", "RenderedPage", "pdf_pages_as_png"]
 
 # Claude resizes anything larger before it looks at it, so rendering past this
 # spends bytes on pixels that get thrown away. 1400 sits under that ceiling
 # and still resolves invoice text: an A4 page becomes 990x1400.
 MAX_EDGE = 1400
 
-# One page costs roughly (width * height) / 750 tokens whatever it weighs in
-# bytes, so the page count is the real budget, not the file size.
-MAX_PAGES = 5
+# No page limit by default: a document that is cut off silently is worse than
+# a long answer, because the caller cannot tell which half they are looking
+# at. A page costs roughly (width * height) / 750 tokens whatever it weighs in
+# bytes, so a long document is expensive — `max_pages` is there for a caller
+# who knows they only need the front of one.
 
 # Colour rather than grayscale. Grayscale would be a third of the bytes, but an
 # image is charged by its dimensions and not by its weight, so the saving is in
@@ -59,9 +61,12 @@ class RenderedPage:
 
 
 def pdf_pages_as_png(
-    data: bytes, *, max_edge: int = MAX_EDGE, max_pages: int = MAX_PAGES
+    data: bytes, *, max_edge: int = MAX_EDGE, max_pages: int | None = None
 ) -> tuple[list[RenderedPage], int]:
-    """Render the first pages of a PDF, and say how many it has in total.
+    """Render a PDF's pages, and say how many it has in total.
+
+    Every page unless ``max_pages`` says otherwise. The total is returned
+    either way, so a caller that did limit it can tell what it left behind.
 
     Raises ``pypdfium2`` errors for a document that cannot be opened, which
     the caller turns into something a person can act on.
@@ -69,8 +74,9 @@ def pdf_pages_as_png(
     document = pypdfium2.PdfDocument(data)
     try:
         total = len(document)
+        wanted = total if max_pages is None else min(total, max_pages)
         pages = []
-        for index in range(min(total, max_pages)):
+        for index in range(wanted):
             page = document[index]
             width_pt, height_pt = page.get_size()
             longest = max(width_pt, height_pt) or 1

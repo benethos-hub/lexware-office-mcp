@@ -642,8 +642,8 @@ async def test_a_rendered_page_is_sized_for_a_model_to_read(tmp_path: Path) -> N
     assert page.height > page.width
 
 
-async def test_a_long_document_is_cut_off_and_says_so(tmp_path: Path) -> None:
-    """Each page costs tokens by its dimensions, so the count is the budget."""
+async def test_every_page_is_rendered(tmp_path: Path) -> None:
+    """A document cut off silently is worse than a long answer."""
     handler = Recorder(
         content=make_pdf(pages=9), headers={"content-type": "application/pdf"}
     )
@@ -654,10 +654,34 @@ async def test_a_long_document_is_cut_off_and_says_so(tmp_path: Path) -> None:
 
     payload = result.structured_content or {}
     assert payload["pages"] == 9
-    assert payload["pagesShown"] == rendering.MAX_PAGES
-    assert len([b for b in result.content if b.type == "image"]) == rendering.MAX_PAGES
-    assert "9 pages" in result.content[0].text
+    assert payload["pagesShown"] == 9
+    assert len([b for b in result.content if b.type == "image"]) == 9
+    assert "all rendered" in result.content[0].text
     await provider.aclose()
+
+
+async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> None:
+    """And is told what was left behind, rather than being let believe it is all."""
+    handler = Recorder(
+        content=make_pdf(pages=9), headers={"content-type": "application/pdf"}
+    )
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri, "max_pages": 2})
+
+    payload = result.structured_content or {}
+    assert payload["pages"] == 9
+    assert payload["pagesShown"] == 2
+    assert len([b for b in result.content if b.type == "image"]) == 2
+    assert "first 2" in result.content[0].text
+    await provider.aclose()
+
+
+def test_asking_for_more_pages_than_there_are_is_not_an_error() -> None:
+    pages, total = rendering.pdf_pages_as_png(make_pdf(pages=2), max_pages=50)
+    assert total == 2
+    assert len(pages) == 2
 
 
 async def test_a_damaged_pdf_says_what_happened(tmp_path: Path) -> None:

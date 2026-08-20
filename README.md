@@ -127,7 +127,7 @@ instead. What arrives depends on the file:
 | File | Arrives as |
 |---|---|
 | XML | text, so an XRechnung can actually be read |
-| PDF | pictures of its pages, at most five |
+| PDF | pictures of every page, or the first `max_pages` of them |
 | Image | the image |
 | Anything else | an embedded binary for the client to handle |
 
