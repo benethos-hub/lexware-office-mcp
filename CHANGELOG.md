@@ -102,10 +102,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   arrives as text**, which makes an XRechnung readable and its amounts usable,
   **a PDF arrives as pictures of its pages** since no client will display an
   embedded PDF, images arrive as images, and anything else as an embedded
-  binary for the client to handle. Every page of a PDF is rendered, and
-  `max_pages` asks for only the front of a long one. The answer reports how
-  many pages the document has and how many were rendered, so a limited read
-  never looks complete.
+  binary for the client to handle. A PDF is rendered to its first ten
+  pages by default, which `max_pages` raises, lowers, or lifts entirely by
+  being set to null. The answer reports how many pages the document has beside
+  how many were rendered, so a limited read never looks complete.
 - **New dependency: `pypdfium2`**, which renders those pages. PDFium under
   BSD-3-Clause and Apache-2.0, a 3.7 MiB wheel. The better known PyMuPDF is
   AGPL-3.0 or a commercial licence, which this MIT project cannot take. Costs **no** API call, since the file is already on the

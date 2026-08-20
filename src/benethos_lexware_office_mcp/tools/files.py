@@ -118,6 +118,14 @@ class Delivered(BaseModel):
     )
 
 
+# How many pages of a PDF are rendered when the caller does not say. A page
+# costs roughly its pixels divided by 750 in tokens whatever it weighs in
+# bytes, so ten pages is already a substantial answer, and a document longer
+# than that is rarely one somebody wants read out in full. Named here rather
+# than in `rendering`, which has no business holding a policy, and stated in
+# the tool description so the model knows what it is getting.
+DEFAULT_PAGES = 10
+
 # Base64 costs roughly 1.37 times the file size in the answer, so this is a
 # ceiling on damage rather than a working size. It is the same 5 MiB the API
 # accepts for an upload, so there is one number to remember.
@@ -269,12 +277,13 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             int | None,
             Field(
                 description=(
-                    "For a PDF, render only this many pages from the front. "
-                    "Left unset, every page is rendered."
+                    "For a PDF, how many pages to render from the front. "
+                    f"Defaults to {DEFAULT_PAGES}. Pass null for every page, "
+                    "and expect roughly two thousand tokens per page."
                 ),
                 ge=1,
             ),
-        ] = None,
+        ] = DEFAULT_PAGES,
     ) -> Delivered:
         """Put the contents of a downloaded file into this conversation.
 
@@ -290,12 +299,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         image. Anything else arrives as an embedded binary for the client to
         handle.
 
-        Every page of a PDF is rendered unless `max_pages` says otherwise, and
-        the result reports both numbers. A page costs roughly two thousand
-        tokens whatever it weighs in bytes, so a long document is a long
-        answer: set `max_pages` when the front of it is all that is needed.
-        Prefer the `path` or the resource `uri` when the client can use them
-        directly.
+        A PDF is rendered to its first 10 pages unless `max_pages` says
+        otherwise, and the result reports how many pages the document has
+        alongside how many were rendered, so a partial read never looks
+        complete. Raise `max_pages`, or pass null for all of them, when the
+        rest matters — at roughly two thousand tokens a page. Prefer the
+        `path` or the resource `uri` when the client can use them directly.
         """
         if not uri.startswith(resources.SCHEME):
             raise ValidationError(

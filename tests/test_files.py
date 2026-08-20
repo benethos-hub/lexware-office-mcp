@@ -23,6 +23,7 @@ from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.tools import files
 
 API_KEY = "test-key-0123456789"
 FILE_ID = "PLACEHOLDER-FILE-1"
@@ -642,8 +643,9 @@ async def test_a_rendered_page_is_sized_for_a_model_to_read(tmp_path: Path) -> N
     assert page.height > page.width
 
 
-async def test_every_page_is_rendered(tmp_path: Path) -> None:
-    """A document cut off silently is worse than a long answer."""
+async def test_a_document_within_the_default_is_rendered_whole(
+    tmp_path: Path,
+) -> None:
     handler = Recorder(
         content=make_pdf(pages=9), headers={"content-type": "application/pdf"}
     )
@@ -658,6 +660,52 @@ async def test_every_page_is_rendered(tmp_path: Path) -> None:
     assert len([b for b in result.content if b.type == "image"]) == 9
     assert "all rendered" in result.content[0].text
     await provider.aclose()
+
+
+async def test_a_longer_document_stops_at_the_default_and_says_so(
+    tmp_path: Path,
+) -> None:
+    """A partial read must never look like a complete one."""
+    handler = Recorder(
+        content=make_pdf(pages=14), headers={"content-type": "application/pdf"}
+    )
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    payload = result.structured_content or {}
+    assert payload["pages"] == 14
+    assert payload["pagesShown"] == files.DEFAULT_PAGES
+    assert f"first {files.DEFAULT_PAGES}" in result.content[0].text
+    await provider.aclose()
+
+
+async def test_null_asks_for_all_of_them(tmp_path: Path) -> None:
+    handler = Recorder(
+        content=make_pdf(pages=14), headers={"content-type": "application/pdf"}
+    )
+    server, provider = server_for(handler, tmp_path)
+    uri = await _downloaded(server, handler)
+
+    result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
+
+    payload = result.structured_content or {}
+    assert payload["pagesShown"] == 14
+    assert len([b for b in result.content if b.type == "image"]) == 14
+    await provider.aclose()
+
+
+async def test_the_default_is_stated_where_the_model_reads_it() -> None:
+    """A silent cut-off is only acceptable if the schema admits to it."""
+    server = build_server(Settings(api_key=API_KEY))
+    tool = next(t for t in await server.list_tools() if t.name == "read_download")
+
+    field = tool.input_schema["properties"]["max_pages"]
+    assert field["default"] == files.DEFAULT_PAGES
+    assert str(files.DEFAULT_PAGES) in field["description"]
+    assert tool.description is not None
+    assert f"first {files.DEFAULT_PAGES} pages" in tool.description
 
 
 async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> None:
