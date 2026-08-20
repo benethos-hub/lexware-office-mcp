@@ -83,6 +83,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   anyway. An existing file is never replaced: a second download of the same
   document is saved beside the first with a counter in its name. Costs one API
   call.
+- **Every download reports a `deeplink`** that opens the document in the
+  Lexware Office web app. It costs no API call, and it is the one route that
+  works when a client can display neither the file itself nor a resource link:
+  hand it to a person and they open it in a browser.
 - **Downloaded files are offered as MCP resources.** Every download this
   server performs is registered under a `lexware://download/...` URI and
   appears in the resource list, so a client that does not share a filesystem

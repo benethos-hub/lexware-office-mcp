@@ -94,6 +94,13 @@ class Download(BaseModel):
     )
     mimeType: str = Field(description="The file's content type.")
     size: int = Field(description="Size in bytes.")
+    deeplink: str = Field(
+        description=(
+            "Opens this document in the Lexware Office web app. Worth handing "
+            "to a person, who can then look at it themselves whatever the "
+            "client is able to display."
+        )
+    )
 
 
 class Delivered(BaseModel):
@@ -202,11 +209,21 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         An existing file is never replaced. A second download of the same
         document is saved alongside the first with a counter in its name.
 
+        The result also carries a `deeplink` that opens the document in the
+        Lexware Office web app. Pass it on when a person should look at the
+        document themselves, which is often the shortest route.
+
         Use `download_document` for an invoice or another sales document,
         which is rendered rather than stored.
         """
         response = await provider.get().file(file_id, MIME[file_format])
-        return _deliver(response, server, settings, fallback=f"{file_id}.{file_format}")
+        return _deliver(
+            response,
+            server,
+            settings,
+            fallback=f"{file_id}.{file_format}",
+            deeplink=permalink(settings, "file", file_id),
+        )
 
     @requires("read")
     async def download_document(
@@ -230,6 +247,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         `download_file` does, and as there, nothing is overwritten and the
         bytes stay out of the answer.
 
+        The result also carries a `deeplink` into the Lexware Office web app,
+        which is worth passing on to a person.
+
         A document is only rendered once it leaves draft, so a draft has
         nothing to download and the API says so. An XRechnung is XML by
         nature and its PDF is a preview, not a valid e-invoice. A ZUGFeRD
@@ -243,6 +263,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             server,
             settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
+            deeplink=permalink(settings, document_type, document_id),
         )
 
     @requires("read")
@@ -272,11 +293,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         The link is not checked for existence. An id that does not exist opens
         the list of that record type instead of an error.
         """
-        base = settings.app_base_url.rstrip("/")
-        resource = LINK_RESOURCES[target]
-        if target == "file":
-            return {"url": f"{base}/permalink/{resource}/{target_id}"}
-        return {"url": f"{base}/permalink/{resource}/{action}/{target_id}"}
+        return {"url": permalink(settings, target, target_id, action)}
 
     @requires("read")
     async def read_download(
@@ -386,6 +403,22 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         register_tool(server, upload_file)
 
 
+def permalink(
+    settings: Settings, target: str, target_id: str, action: str = "view"
+) -> str:
+    """A link into the web app for one record.
+
+    Assembled from ids the caller already holds, so it costs no API call and
+    is worth attaching wherever a person might want to see the thing itself.
+    Files are the exception to the pattern: their permalink carries no action.
+    """
+    base = settings.app_base_url.rstrip("/")
+    resource = LINK_RESOURCES[target]
+    if target == "file":
+        return f"{base}/permalink/{resource}/{target_id}"
+    return f"{base}/permalink/{resource}/{action}/{target_id}"
+
+
 def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -> Any:
     """Choose the content block that makes this file usable.
 
@@ -469,7 +502,12 @@ def _rendered(
 
 
 def _deliver(
-    response: Any, server: MCPServer, settings: Settings, *, fallback: str
+    response: Any,
+    server: MCPServer,
+    settings: Settings,
+    *,
+    fallback: str,
+    deeplink: str,
 ) -> Any:
     """Save a download and hand it to the client both ways.
 
@@ -494,6 +532,7 @@ def _deliver(
         "uri": link.uri,
         "mimeType": link.mime_type,
         "size": len(response.content),
+        "deeplink": deeplink,
     }
     return CallToolResult(
         content=[
@@ -501,7 +540,8 @@ def _deliver(
                 type="text",
                 text=(
                     f"Saved {written.name} ({len(response.content)} bytes). "
-                    f"Readable as the resource {link.uri}."
+                    f"Readable as the resource {link.uri}, and viewable in the "
+                    f"web app at {deeplink}."
                 ),
             ),
             link,

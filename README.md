@@ -137,6 +137,11 @@ an embedded binary into an image block when it calls the API, and
 request is refused. Rendering costs no API call either, since the file is
 already on the server.
 
+Every download also reports a `deeplink` that opens the document in the
+Lexware Office web app. It costs nothing to build, and it is the route that
+still works when the client can display neither the file nor a resource link:
+somebody opens it in a browser.
+
 `upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
 is what the API takes. An XML file is treated as an XRechnung and is
 rejected if it is not one.

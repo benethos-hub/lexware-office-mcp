@@ -445,7 +445,7 @@ async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
 
     payload = result.structured_content
     assert payload is not None
-    assert set(payload) == {"path", "uri", "mimeType", "size"}
+    assert set(payload) == {"path", "uri", "mimeType", "size", "deeplink"}
     assert Path(payload["path"]).name in payload["uri"]
     assert payload["uri"].startswith("lexware://download/")
     await provider.aclose()
@@ -567,7 +567,13 @@ async def test_the_download_tools_declare_what_they_return(tmp_path: Path) -> No
     tool = next(t for t in await server.list_tools() if t.name == "download_file")
 
     assert tool.output_schema is not None
-    assert set(tool.output_schema["properties"]) == {"path", "uri", "mimeType", "size"}
+    assert set(tool.output_schema["properties"]) == {
+        "path",
+        "uri",
+        "mimeType",
+        "size",
+        "deeplink",
+    }
 
 
 # -- what may be uploaded, measured against the API -----------------------
@@ -987,4 +993,60 @@ async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> No
     result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
 
     assert (result.structured_content or {})["pagesShown"] == 8
+    await provider.aclose()
+
+
+async def test_a_download_hands_back_a_link_a_person_can_open(
+    tmp_path: Path,
+) -> None:
+    """Whatever the client can display, a browser can show the document."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    payload = result.structured_content or {}
+    assert payload["deeplink"] == (f"https://app.lexware.de/permalink/files/{FILE_ID}")
+    assert payload["deeplink"] in result.content[0].text
+    await provider.aclose()
+
+
+async def test_a_document_download_links_to_the_document_not_the_file(
+    tmp_path: Path,
+) -> None:
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool(
+        "download_document",
+        {"document_type": "credit-note", "document_id": "PLACEHOLDER-DOC-1"},
+    )
+
+    assert (result.structured_content or {})["deeplink"] == (
+        "https://app.lexware.de/permalink/credit-notes/view/PLACEHOLDER-DOC-1"
+    )
+    await provider.aclose()
+
+
+async def test_the_link_follows_the_configured_web_app(tmp_path: Path) -> None:
+    """The same setting get_deeplink uses, and one place builds both."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    settings = Settings(
+        api_key=API_KEY,
+        download_path=tmp_path,
+        app_base_url="https://example.invalid/",
+    )
+    provider = ClientProvider(
+        settings,
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
+    server = build_server(settings, provider)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert (result.structured_content or {})["deeplink"].startswith(
+        "https://example.invalid/permalink/"
+    )
     await provider.aclose()
