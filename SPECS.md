@@ -645,6 +645,56 @@ subclasses with concise, actionable messages.
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
+Section 16.1 holds one design decision that has to be settled before a release,
+independently of the tool roadmap above.
+
+### 16.1 Open: how a user configures the server
+
+**To do before publishing.** The way settings and the API key are stored works
+for a clone on the developer's machine and falls apart for anyone installing
+the package. This has to be reworked rather than patched.
+
+**What is wrong today**
+
+- A user installing from PyPI gets **no sample**. The wheel packs the package
+  directory only, and `config/.env.sample` sits beside it, so the ten settings
+  exist only in the README. Verified by building the wheel: 17 files, none of
+  them the sample.
+- There is **no way to create the file**. The only location that works for an
+  installed package is the per-user config directory, and neither the
+  directory nor the file is created by anything. A user would have to make
+  both by hand from a path they have to look up first.
+- **Nothing says which file is in effect.** Five sources are merged, and a
+  setting that appears not to work gives no hint whether it was overridden, or
+  read from a file the user has forgotten about.
+- The failure a user meets first is therefore a server that starts, lists its
+  tools, and answers every one of them with "no API key".
+
+**Directions, to decide rather than to assume**
+
+- **Ship the sample in the wheel** and name its target path in the error
+  message. The smallest change, and it fixes the discoverability half.
+- **A command that writes the file**, creating the directory and refusing to
+  overwrite an existing one. Considered once and dropped, because it wrote
+  into the per-user directory while development wanted the clone. Both cases
+  now exist, so it is worth reconsidering with that distinction built in.
+- **A small local configuration interface.** A page served on localhost that
+  shows which settings are active and where each one came from, lets the key
+  be entered without going through a text file, and names the storage paths
+  explicitly. It would also be the natural place to raise the permission tier
+  deliberately, which is a decision that deserves more friction than editing a
+  line in a file. Runs only when asked and never as part of the MCP server
+  itself, since that speaks stdio.
+- **A read-only diagnostic** as a smaller version of the same idea: report
+  every candidate path, whether it exists, and which value won, without ever
+  printing the key. Useful on its own, whatever else is chosen.
+
+**Constraints that hold regardless.** The key never enters a versioned file
+and never appears in output. A real environment variable keeps outranking
+every file, because that is what lets a client, a container or a test override
+the lot. Whatever is built must work for both an installed package and a
+clone, and say plainly which of the two it is acting on.
+
 ### Open questions
 
 Numbering is stable, so cross-references elsewhere keep pointing at the right
