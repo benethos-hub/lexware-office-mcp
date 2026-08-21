@@ -97,7 +97,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
 | `tools/sales_documents.py` | The seven sales document types, and the path segment each one lives behind. | built |
 | `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
-| `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | planned |
+| `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
 
 **Layer rule:** tool functions stay thin. Every HTTP call lives in
 `client.py`, never in a tool function.
@@ -284,6 +284,27 @@ section 2.
     as with an invented one. So a stored file has no deeplink, and
     `get_deeplink` does not offer it as a target.
 
+### Master data, verified 2026-08-21
+
+- **All four answer with a bare JSON list**, not with the page envelope the
+  rest of the API uses. There is nothing to page and no page parameter to
+  pass, so the whole list arrives on every call.
+- **Two of them are long.** A live account answered with 257 countries
+  (33,000 characters) and 231 posting categories (40,800). Handing either
+  straight on would spend a large part of an answer's budget on rows nobody
+  asked for, which is why `get_master_data` filters and caps rather than
+  echoing what it received.
+- **The path is the kind**, for all four. The tool still writes the mapping
+  out rather than interpolating the argument, so no part of a URL is ever
+  assembled from a string that has not been checked.
+- **A posting category carries `type`**, `income` or `outgo` — 62 and 169 of
+  the 231 — plus the group it belongs to, whether it may be split and whether
+  it requires a contact, which 12 of them do. `create_voucher` needs an id
+  from this list, and the type is what tells a caller which end of it to look
+  at.
+- The other two are as small as the account is: one payment condition and one
+  print layout, both flagged as the organization's default.
+
 ### Voucher semantics, verified 2026-08-20
 
 - **"Voucher" is three things.** `/v1/voucherlist` is a read-only **index**
@@ -428,7 +449,7 @@ exposed one tool per path.
 | `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
-| `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
+| `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts), `search`, `limit` | `{kind, total, matched?, shown, entries}`. Nothing is dropped from a row: every field of these four decides something, including a `contactRequired` of false. What is trimmed is the number of rows, because two of the lists run into the hundreds and none of them pages, so the whole list arrives whatever the caller wanted. `search` matches every text a row carries except its id, which is one parameter instead of one per field and narrows by name, group, country code or category type alike. `matched` appears only when a search was given, where it would otherwise restate `total`. Built and verified live 2026-08-21. | 1 |
 | `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. No deeplink: a download reports where the bytes are, and a link into the web app is `get_deeplink`'s answer to a different question. The two were joined until 2026-08-21, which is how a link to a route that does not exist rode along with a download that worked. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
 | `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
@@ -1079,15 +1100,15 @@ The consequences are the point of writing this down.
 
 Built, tested offline and exercised against a live test account:
 
-- every module in the table of section 4 except the two still marked
-  planned, which are the article and master data tools. The table is the
-  list, so that this does not become a second one to keep in step.
-- sixteen tools over the **stdio** transport, in five groups. Reading:
+- every module in the table of section 4 except the one still marked
+  planned, the article tools. The table is the list, so that this does not
+  become a second one to keep in step.
+- seventeen tools over the **stdio** transport, in six groups. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_vouchers`,
-  `get_voucher`, `get_payments`, `get_sales_document`, `download_file`,
-  `download_document`, `read_download` and `get_deeplink`. Writing:
-  `create_contact`, `update_contact`, `create_voucher`, `update_voucher` and
-  `upload_file`
+  `get_voucher`, `get_payments`, `get_sales_document`, `get_master_data`,
+  `download_file`, `download_document`, `read_download` and `get_deeplink`.
+  Writing: `create_contact`, `update_contact`, `create_voucher`,
+  `update_voucher` and `upload_file`
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
@@ -1123,11 +1144,12 @@ does not list them.
 **The immediate next step** is the articles: `search_articles` and
 `get_article`. They are the last read group with nothing behind it yet, and
 `create_sales_document` will need them, since a line item either quotes an
-article or spells itself out.
+article or spells itself out. `get_recurring_templates` is the one read tool
+outside a group, and still open too.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, master data and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles and CI are open. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations, which no tool carries yet, pursue chains, ZUGFeRD and XRechnung download variants | planned |

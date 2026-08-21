@@ -19,6 +19,7 @@ __all__ = [
     "compact",
     "contact",
     "contacts_page",
+    "master_data",
     "page",
     "page_info",
     "payments",
@@ -252,3 +253,50 @@ def sales_document(payload: dict[str, Any]) -> dict[str, Any]:
     """
     kept = {k: v for k, v in payload.items() if k not in SALES_DOCUMENT_DROP}
     return dict(compact(kept))
+
+
+def _row_text(row: dict[str, Any]) -> str:
+    """Every text a row carries, lowercased, except its id.
+
+    An id is a UUID: matching a search term against it would only ever fire by
+    accident, and a caller who has the id does not need to search for it.
+    """
+    return " ".join(
+        value.lower()
+        for key, value in row.items()
+        if key != "id" and isinstance(value, str)
+    )
+
+
+def master_data(
+    kind: str,
+    entries: list[Any],
+    *,
+    search: str | None = None,
+    limit: int,
+) -> dict[str, Any]:
+    """Trim one master data list to something an answer can carry.
+
+    These lists are long - 257 countries and 231 posting categories in a live
+    account - and they arrive whole, because the endpoints do not page. The
+    trimming therefore happens here rather than upstream, and the answer says
+    how much it left out: ``total`` is what the account holds, ``matched``
+    what the search found, and ``shown`` what is in the answer. When ``shown``
+    is smaller than the other two, a narrower search is the way on.
+
+    Nothing is dropped from a row. Every field of these four kinds carries a
+    decision - whether a category needs a contact, whether a layout is the
+    default one - so there is nothing here to leave out.
+    """
+    rows = [dict(compact(entry)) for entry in entries if isinstance(entry, dict)]
+    if search:
+        needle = search.lower()
+        matched = [row for row in rows if needle in _row_text(row)]
+    else:
+        matched = rows
+    result: dict[str, Any] = {"kind": kind, "total": len(rows)}
+    if search:
+        result["matched"] = len(matched)
+    result["shown"] = min(len(matched), limit)
+    result["entries"] = matched[:limit]
+    return result

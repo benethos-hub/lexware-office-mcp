@@ -138,6 +138,16 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **`get_master_data`** — read one of the four lists an account is configured
+  with: countries, payment conditions, posting categories or print layouts.
+  Costs one API call. Two of them are long — a live account holds 257
+  countries and 231 posting categories, and none of these endpoints pages, so
+  the whole list arrives however little of it was wanted. `search` narrows it,
+  matching every text a row carries except its id, so one term filters by
+  name, by group, by country code or by category type. `limit` caps what comes
+  back at 25 rows by default, and the answer reports `total` beside `shown`,
+  so a trimmed list never looks complete. A posting category id is what
+  `create_voucher` books against.
 - **`download_document`** — the same for the rendered PDF of an invoice,
   quotation, credit note, order confirmation, delivery note, dunning or down
   payment invoice. `xml` is available for an XRechnung. A document still in

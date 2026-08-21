@@ -82,6 +82,13 @@ def _expect_object(payload: Any, endpoint: str) -> dict[str, Any]:
     return payload
 
 
+def _expect_list(payload: Any, endpoint: str) -> list[Any]:
+    """Insist that an endpoint documented to return a bare list returned one."""
+    if not isinstance(payload, list):
+        raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+    return payload
+
+
 def _json_object(response: httpx.Response) -> dict[str, Any]:
     """The response body as a useful mapping, or an empty one.
 
@@ -453,6 +460,18 @@ class LexwareClient:
         """
         response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
         return _expect_object(response.json(), "vouchers")
+
+    # -- master data ------------------------------------------------------
+
+    async def master_data(self, kind: str) -> list[Any]:
+        """``GET /v1/{kind}``. One API call.
+
+        The four master data endpoints answer with a **bare JSON list** rather
+        than with the page envelope every other list endpoint uses, so there
+        is nothing to page and no page parameters to pass. Measured on
+        2026-08-21 for all four.
+        """
+        return _expect_list(await self.get_json(f"/v1/{kind}"), kind)
 
     # -- sales documents --------------------------------------------------
 

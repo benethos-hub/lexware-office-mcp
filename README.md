@@ -80,7 +80,7 @@ Read tools:
 | `get_voucher` | Read a bookkeeping voucher, by id or by its document number | **built** |
 | `get_payments` | Payment status and open amount of a voucher | **built** |
 | `get_recurring_templates` | Recurring invoice templates | planned |
-| `get_master_data` | Countries, payment conditions, posting categories, print layouts | planned |
+| `get_master_data` | Countries, payment conditions, posting categories and print layouts, with a search to narrow them | **built** |
 | `download_document` | Save the rendered PDF or XML of a sales document | **built** |
 | `download_file` | Save a stored file, such as an uploaded receipt | **built** |
 | `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link | **built** |
