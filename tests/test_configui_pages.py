@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,45 @@ def test_every_page_is_german_and_names_itself(inst: Installation) -> None:
         assert '<html lang="de">' in body
         assert "Lexware Office MCP</title>" in body
         assert "Übersicht" in body and "Rechte" in body
+
+
+class Balance(HTMLParser):
+    """Enough of a parser to notice a tag nobody closed."""
+
+    VOID = {"br", "hr", "img", "input", "link", "meta"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.open: list[str] = []
+        self.wrong: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: object) -> None:
+        if tag not in self.VOID:
+            self.open.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self.open or self.open[-1] != tag:
+            self.wrong.append(
+                f"</{tag}> closes <{self.open[-1] if self.open else None}>"
+            )
+        else:
+            self.open.pop()
+
+
+@pytest.mark.parametrize(
+    "render", [pages.overview, pages.credentials, pages.permissions, pages.transfer]
+)
+def test_the_markup_closes_what_it_opens(inst: Installation, render: object) -> None:
+    """These pages are built by string concatenation, so this is worth a test.
+
+    Not validation - just the failure that string building actually produces,
+    which is a tag left open by an edit three functions away.
+    """
+    balance = Balance()
+    balance.feed(text(render(inst)))  # type: ignore[operator]
+
+    assert balance.wrong == []
+    assert balance.open == []
 
 
 def test_the_page_carries_no_external_reference(inst: Installation) -> None:
