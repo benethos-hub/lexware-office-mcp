@@ -208,9 +208,14 @@ Facts taken from <https://developers.lexware.io/docs/>.
 | Posting categories | `/v1/posting-categories` | GET |
 | Print layouts | `/v1/print-layouts` | GET |
 | Countries | `/v1/countries` | GET |
-| Files | `/v1/files` | GET, POST |
-| Rendered document | `/v1/{resource}/{id}/document` | GET |
+| Files | `/v1/files` | POST, and GET by id |
+| Voucher attachments | `/v1/vouchers/{id}/files` | POST |
 | Document file | `/v1/{resource}/{id}/file` | GET |
+
+`/v1/{resource}/{id}/document` exists and is **not used**. It answers with the
+`documentFileId` of the same bytes `/file` serves directly, measured
+2026-08-21, so every call through it is one call more for the same result.
+The client method was written before that was measured and removed afterwards.
 
 Event subscriptions (`/v1/event-subscriptions`) are deliberately unused, see
 section 2.
@@ -283,6 +288,32 @@ section 2.
     rather than on anything to do with that file, with a real file id as much
     as with an invented one. So a stored file has no deeplink, and
     `get_deeplink` does not offer it as a target.
+
+### What the API does not have, measured 2026-08-21
+
+Negatives are worth writing down: without them the same paths get tried again
+in six months. Every line here is a request that was actually sent.
+
+- **No sales document type has a collection endpoint.** `GET /v1/invoices` is
+  a 404, with paging parameters and without, and so is `/v1/quotations`. Only
+  `/{id}` exists. The **documentation lists a filtered collection GET for
+  each of them**, and it is not there. This is what makes `voucherlist` the
+  single index over sales documents rather than merely the convenient one.
+- **The route for attaching a file to a voucher is `/v1/vouchers/{id}/files`,
+  plural, POST only.** The documentation writes it singular and gives it a
+  GET as well. Singular answers 404 for both methods, and so does GET on the
+  plural. An attached file is read back through the voucher, whose `files`
+  field holds the ids, and then `/v1/files/{id}`.
+- **`/v1/files` has no collection GET** either. A stored file is reachable
+  only by an id something else handed out.
+- **Nothing about banking.** `bank-accounts`, `transactions`, `users`,
+  `organizations`, `webhooks`, `taxes`, `settings` and `units` are all 404,
+  and there is no `/v2`. Reconciling an account against its bank is out of
+  reach through this API. What exists of payment is `/v1/payments/{voucherId}`,
+  the state of one document.
+- **`OPTIONS` is not answered**, so the API does not describe itself. Every
+  fact in this section had to be measured, and the two above show the
+  documentation is not a substitute for measuring.
 
 ### Articles, verified 2026-08-21
 

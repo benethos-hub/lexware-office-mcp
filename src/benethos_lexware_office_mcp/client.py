@@ -606,18 +606,6 @@ class LexwareClient:
         """
         return await self.download(f"/v1/{resource}/{document_id}/file", accept)
 
-    async def document_meta(self, resource: str, document_id: str) -> dict[str, Any]:
-        """``GET /v1/{resource}/{id}/document``. One API call.
-
-        Returns the ``documentFileId`` under which the rendered document is
-        filed. Verified 2026-08-21: that id through ``/v1/files/{id}`` yields
-        byte-identical content, so the round trip buys nothing. A draft is
-        refused with 406.
-        """
-        return _expect_object(
-            await self.get_json(f"/v1/{resource}/{document_id}/document"), "document"
-        )
-
     async def upload_file(
         self, content: bytes, filename: str, content_type: str
     ) -> dict[str, Any]:
