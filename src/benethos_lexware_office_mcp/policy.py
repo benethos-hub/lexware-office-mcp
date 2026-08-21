@@ -59,9 +59,14 @@ Access = Literal["read", "write"]
 # Write tools only. `delete`, `book` and `finalize` are irreversible in this
 # product rather than merely inconvenient: a finalized invoice carries a
 # consecutive number and can be corrected only by a further document.
-Effect = Literal["", "create", "update", "delete", "book", "finalize"]
+# `book` and `finalize` were here too, and both were removed on 2026-08-21
+# because the API cannot perform either on a record that exists: it has no
+# state transitions at all. A document is created in its final state or not
+# at all, and `finalize` is a query parameter on the creation rather than
+# an operation. See SPECS.md section 5.
+Effect = Literal["", "create", "update", "delete"]
 
-IRREVERSIBLE: tuple[Effect, ...] = ("delete", "book", "finalize")
+IRREVERSIBLE: tuple[Effect, ...] = ("delete",)
 
 
 @dataclass(frozen=True)

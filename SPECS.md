@@ -397,6 +397,39 @@ in six months. Every line here is a request that was actually sent.
   *produces* is visible, as an ordinary voucher in the voucher list, and
   nothing on that voucher says it came from one.
 
+### The API has no state transitions, verified 2026-08-21
+
+A record is created in the state it will keep, or it is not created. There is
+no call that moves an existing one from one state to another, which explains
+several things that otherwise look like separate quirks.
+
+Measured by sending each of these and reading the answer, with bodies empty so
+nothing could be created or changed:
+
+| Attempt | Answer |
+|---|---|
+| `PUT /v1/invoices/{id}` | 404 |
+| `POST /v1/invoices/{id}/finalize` | 404 |
+| `PUT /v1/invoices/{id}/finalize` | 404 |
+| `DELETE /v1/invoices/{id}` | 404 |
+| `POST /v1/vouchers/{id}/book` | 404 |
+| `PUT /v1/vouchers/{id}/status` | 404 |
+
+- **A sales document cannot be changed, finalized or deleted after creation.**
+  `?finalize=true` is a parameter on the creation, not an operation on a
+  draft. A draft is edited or removed in the web app or not at all.
+- **A bookkeeping voucher cannot be booked.** Its status is set when it is
+  created — `unchecked` or nothing — and a PUT that echoes `voucherStatus` is
+  refused outright, which is the same fact seen from the other side.
+- **Only an article can be deleted**, which makes `delete` the one
+  irreversible effect this API offers and the only member of the
+  `irreversible` preset there will be until the API grows.
+
+This is why `policy.Effect` lists `create`, `update` and `delete` and nothing
+else. `book` and `finalize` were in that vocabulary until this was measured,
+and a classification naming operations the API cannot perform invites a tool
+that cannot be written.
+
 ### Creating a sales document, verified 2026-08-21
 
 Measured by posting to each type in turn. Nothing was finalized, so what the
@@ -668,14 +701,20 @@ arguments cost three to four times what the simple ones do.
 
 `delete_article` is **built**, and is what the `confirm: true` convention was
 written for: the argument defaults to false, nothing is sent without it, and
-the refusal says what would have happened. `finalize` on
-`create_sales_document` and booking a voucher are still to come and take the
-same argument.
+the refusal says what would have happened. `create_sales_document` takes the
+same argument for `finalize`, which is the other irreversible thing that can
+be asked for here.
 
-It is also the first tool for which the `irreversible` preset differs from
-`write` at all. Until it existed the two wrote the same twenty-one flags, and
-the third step of the command line was a promise about tools that did not
-exist yet.
+**And that is all of them.** Booking a voucher was listed here as a third,
+and it is not possible: the API has no state transitions, measured 2026-08-21
+and written up in section 5. Nothing can be booked, finalized or voided after
+the fact, so `delete_article` is the whole of phase 3 rather than its first
+instalment.
+
+It is also the only tool for which the `irreversible` preset differs from
+`write`. Until it existed the two wrote the same twenty-one flags, and the
+third step of the command line was a promise about tools that did not exist
+yet.
 
 ### Parameter conventions
 
@@ -761,9 +800,9 @@ not permission**: nothing reads it when a call arrives. A script selects on
 `access`, an interface groups by `domain`, and both then write flags.
 
 **`write` does not mean undoable, and the preset names cannot say so.** The
-`irreversible` step covers the effects that destroy or freeze a record —
-`delete`, `book`, `finalize` — and no tool carries one yet. What it does not
-cover is a creation that cannot be taken back, and there are two: the API has
+`irreversible` step covers `delete`, the one effect this API offers that
+destroys a record, and `delete_article` is the one tool carrying it. What it
+does not cover is a creation that cannot be taken back, and there are two: the API has
 no way to delete a bookkeeping voucher, so `create_voucher` and `upload_file`
 both leave something behind that only the web app can correct. They stay
 under `write`, because the alternative is to put ordinary bookkeeping behind
@@ -818,12 +857,13 @@ already fetched stays until the client asks again, and most ask once.
 |---|---|
 | `access` | `read` or `write` |
 | `domain` | diagnostics, contacts, vouchers, files, and the groups still to be built |
-| `effect` | write tools only: `create`, `update`, `delete`, `book`, `finalize` |
+| `effect` | write tools only: `create`, `update`, `delete` |
 
-`ToolMeta.irreversible` is true for `delete`, `book` and `finalize`, which in
-this product is not a figure of speech: a finalized invoice carries a
-consecutive number and can be corrected only by a further document, the same
-reason section 10.2 refuses to retry a failed creation. Nothing acts on it
+`ToolMeta.irreversible` is true for `delete` alone, which in this product is
+not a figure of speech: what is deleted is gone, and what is created mostly
+cannot be deleted at all. `book` and `finalize` were in this vocabulary until
+2026-08-21, when the API turned out to have no state transitions to name them
+after, see section 5. Nothing acts on it
 yet. When something does it should be a separate confirmation rather than a
 red label, or the flag is decoration.
 
@@ -834,9 +874,8 @@ needs.
 **Interface.** Today the command line: `--tools show` reports, and
 `read-only`, `write` and `irreversible` overwrite the file with that preset,
 each containing the last. `--tools-file` says where to write it. The third
-step exists separately because `delete`, `book` and `finalize` are their own
-decision — reachable, but only by naming them rather than by choosing the
-largest option. Everything it prints goes to stderr,
+step exists separately because deleting is its own decision — reachable, but
+only by naming it rather than by choosing the largest option. Everything it prints goes to stderr,
 because it shares an entry point with the server and stdout carries the
 JSON-RPC stream. A graphical version belongs to the configuration interface of
 section 16.1: a table grouped by domain, one toggle per row, `read` and
@@ -1437,7 +1476,7 @@ the server at all, and CI, which does not exist.
 | 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. The configuration rework of section 16.1 and CI are open. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **done** — contacts, articles, bookkeeping vouchers, sales documents, receipt upload and voucher attachments are written, and the locking round trip works for the three resources the API lets you update |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
-| 0.4.0 | booking a voucher, the last irreversible operation not built — `delete_article` and finalizing a document are — ZUGFeRD and XRechnung download variants | planned |
+| 0.4.0 | nothing identified. What was listed here — booking a voucher, and the ZUGFeRD and XRechnung download variants — turned out on 2026-08-21 to be one operation the API cannot perform and one that `download_document` and `download_file` already do through `file_format`. The phase stays as a placeholder for what a future API version adds. | empty |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,

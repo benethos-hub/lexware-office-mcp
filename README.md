@@ -248,15 +248,18 @@ and prints what it did. Three presets, each containing the last:
 |---|---|
 | `--tools read-only` | queries only |
 | `--tools write` | and creating and updating |
-| `--tools irreversible` | and deleting, booking, finalizing |
+| `--tools irreversible` | and deleting an article |
 
 `--tools show` only reports. **`--tools-file PATH` says where to write**, and
 works with all three — `--tools write --tools-file ./tools.json` creates the
 file there.
 
-The third step is its own because it is its own decision: deleting a record or
-booking a voucher should be chosen by naming it, not by picking the largest
-option. Nothing ships with such an effect yet.
+The third step is its own because it is its own decision: what is deleted is
+gone, so it should be chosen by naming it rather than by picking the largest
+option. Exactly one tool carries such an effect, `delete_article`, and that is
+not a temporary state of affairs — an article is the only thing this API can
+delete, and there is no way to book, finalize or void anything after the fact
+either.
 
 Without `--tools-file`, the file is searched exactly like the `.env`, lowest
 precedence first:

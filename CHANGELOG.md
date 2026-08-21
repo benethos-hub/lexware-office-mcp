@@ -193,6 +193,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   rather than archived. It is also the first member of the `--tools
   irreversible` step: until now that preset wrote the same flags as
   `--tools write`.
+- **`--tools irreversible` says what it actually covers.** The help text
+  promised "deleting, booking and finalizing". Booking is not something this
+  API can do at all — it has no state transitions, so a voucher's status is
+  set when it is created or never — and finalizing is a parameter on creating
+  a document rather than an operation on one. Deleting an article is the only
+  irreversible thing there is, and the step now says so.
 - **A refused request now names the fields it refused.** The API answers a
   bad body with a `details` list of field and violation, a different shape
   from the `IssueList` it uses elsewhere, and only the second one was read.

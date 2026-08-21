@@ -52,13 +52,13 @@ def restore_policy() -> object:
 
 
 def test_the_decorator_records_what_a_tool_is() -> None:
-    @classify("write", "vouchers", "book")
-    def sample_booking_tool() -> str:
+    @classify("write", "articles", "delete")
+    def sample_deleting_tool() -> str:
         return "ran"
 
-    meta = known_tools()["sample_booking_tool"]
+    meta = known_tools()["sample_deleting_tool"]
 
-    assert meta == ToolMeta(access="write", domain="vouchers", effect="book")
+    assert meta == ToolMeta(access="write", domain="articles", effect="delete")
     assert meta.irreversible
 
 

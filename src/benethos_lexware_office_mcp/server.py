@@ -128,7 +128,8 @@ choosing the tools:
         the above, and creating and changing records
 
     benethos-lexware-office-mcp --tools irreversible
-        the above, and deleting, booking and finalizing
+        the above, and deleting an article, the one thing this
+        API can delete
 
     benethos-lexware-office-mcp --tools show
         change nothing, just list what is on
