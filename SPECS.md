@@ -871,9 +871,29 @@ red label, or the flag is decoration.
 action rather than five edits. `grouped_tools()` already returns what it
 needs.
 
-**Interface.** Today the command line: `--tools show` reports, and
-`read-only`, `write` and `irreversible` overwrite the file with that preset,
-each containing the last. `--tools-file` says where to write it. The third
+The graphical interface below is the intended home for all of this, and
+`sync` is what keeps a file fit for it: an interface renders one row per tool,
+which is only possible while the file names every tool there is.
+
+**Interface.** Today the command line: `--tools show` reports, `sync`
+completes the file without deciding anything, and `read-only`, `write` and
+`irreversible` overwrite it with that preset, each containing the last.
+`--tools-file` says where to write it.
+
+**Why `sync` is separate from the presets.** A preset overwrites, which is
+right for starting a file and wrong for keeping one: an installation whose
+owner has switched twelve tools off by hand loses all twelve. But a file
+written before an upgrade does not mention the tools the upgrade brought, and
+while those are correctly **off**, the file has stopped being a complete
+picture of what exists — which is exactly what somebody reading or editing it
+needs. `sync` writes the missing names in as `false` and every flag already
+there back unchanged. **It cannot switch anything on**, which is the property
+that makes it the one action safe to run unattended, from a post-install hook
+or an upgrade script, while granting a permission stays a deliberate act. A
+name in the file matching no tool is reported and not written back: it has no
+effect and no decision attached to it, so keeping it would only make the file
+harder to read, and dropping it in silence would leave somebody hunting for a
+setting. The third
 step exists separately because deleting is its own decision — reachable, but
 only by naming it rather than by choosing the largest option. Everything it prints goes to stderr,
 because it shares an entry point with the server and stdout carries the

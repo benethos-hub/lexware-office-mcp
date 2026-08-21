@@ -185,6 +185,26 @@ class ToolPolicy:
         stored = self._stored()
         return {name: stored.get(name, False) for name in sorted(_REGISTRY)}
 
+    def sync(self) -> tuple[list[str], list[str]]:
+        """Complete the file without changing a single decision in it.
+
+        Every tool the file does not mention is added as ``false``, and every
+        flag already there is written back exactly as it stood. **Nothing is
+        ever switched on**, which is what makes this the one `--tools` action
+        that can run unattended - after an upgrade, from a post-install hook -
+        while the presets stay a deliberate act.
+
+        Returns what was added and what was found that is no longer a tool.
+        The second kind is not kept: a name that matches nothing has no effect
+        and no decision attached to it, so writing it back would only make the
+        file harder to read. It is reported rather than dropped in silence.
+        """
+        stored = self._stored()
+        added = sorted(name for name in _REGISTRY if name not in stored)
+        stale = sorted(name for name in stored if name not in _REGISTRY)
+        self.save(stored)
+        return added, stale
+
     def save(self, flags: dict[str, bool]) -> None:
         """Write a flag for every known tool, ignoring names that are not one.
 

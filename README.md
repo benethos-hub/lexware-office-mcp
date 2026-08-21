@@ -249,10 +249,17 @@ and prints what it did. Three presets, each containing the last:
 | `--tools read-only` | queries only |
 | `--tools write` | and creating and updating |
 | `--tools irreversible` | and deleting an article |
+| `--tools sync` | changes no flag, only adds the tools the file has not heard of |
 
 `--tools show` only reports. **`--tools-file PATH` says where to write**, and
-works with all three — `--tools write --tools-file ./tools.json` creates the
+works with all of them — `--tools write --tools-file ./tools.json` creates the
 file there.
+
+**A preset overwrites the whole file**, so hand edits are lost. Use one to
+start a file, not to update one. After an upgrade brings new tools, run
+`--tools sync`: it writes them in as off, leaves every flag you set alone, and
+never switches anything on. That last part is why it is the only one of these
+safe to run from a script.
 
 The third step is its own because it is its own decision: what is deleted is
 gone, so it should be chosen by naming it rather than by picking the largest

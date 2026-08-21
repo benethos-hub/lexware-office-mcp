@@ -384,3 +384,113 @@ async def test_a_listing_reads_the_file_once(tmp_path: Path) -> None:
         Path.read_text = original  # type: ignore[method-assign]
 
     assert reads == 1
+
+
+# -- sync completes the file without deciding anything --------------------
+
+
+def test_sync_adds_what_is_missing_and_switches_nothing_on(tmp_path: Path) -> None:
+    policy = ToolPolicy(write(tmp_path / "tools.json", {"get_profile": True}))
+
+    added, stale = policy.sync()
+    written = json.loads((tmp_path / "tools.json").read_text(encoding="utf-8"))
+
+    assert written["get_profile"] is True, "the one decision in the file survived"
+    assert set(written) == set(known_tools()), "every tool is now named"
+    assert sum(written.values()) == 1, "sync switched nothing on"
+    assert "search_vouchers" in added
+    assert stale == []
+
+
+def test_sync_keeps_a_false_a_false(tmp_path: Path) -> None:
+    """Somebody switched it off on purpose. That is a decision, not a gap."""
+    policy = ToolPolicy(
+        write(tmp_path / "tools.json", {"get_profile": False, "get_contact": True})
+    )
+
+    policy.sync()
+    written = json.loads((tmp_path / "tools.json").read_text(encoding="utf-8"))
+
+    assert written["get_profile"] is False
+    assert written["get_contact"] is True
+
+
+def test_sync_reports_and_drops_a_name_that_is_not_a_tool(tmp_path: Path) -> None:
+    """A name matching nothing has no effect and no decision attached to it,
+    so writing it back would only make the file harder to read - but going
+    quiet about it would leave somebody looking for their setting."""
+    policy = ToolPolicy(
+        write(tmp_path / "tools.json", {"get_profile": True, "book_voucher": True})
+    )
+
+    _, stale = policy.sync()
+    written = json.loads((tmp_path / "tools.json").read_text(encoding="utf-8"))
+
+    assert stale == ["book_voucher"]
+    assert "book_voucher" not in written
+    assert written["get_profile"] is True
+
+
+def test_sync_without_a_file_writes_one_that_offers_nothing(tmp_path: Path) -> None:
+    target = tmp_path / "nested" / "tools.json"
+    policy = ToolPolicy(target)
+
+    added, stale = policy.sync()
+    written = json.loads(target.read_text(encoding="utf-8"))
+
+    assert set(added) == set(known_tools())
+    assert stale == []
+    assert not any(written.values()), "a new file grants nothing"
+
+
+def test_sync_twice_changes_nothing_the_second_time(tmp_path: Path) -> None:
+    policy = ToolPolicy(write(tmp_path / "tools.json", {"get_profile": True}))
+    policy.sync()
+    first = (tmp_path / "tools.json").read_text(encoding="utf-8")
+
+    added, stale = policy.sync()
+
+    assert (added, stale) == ([], [])
+    assert (tmp_path / "tools.json").read_text(encoding="utf-8") == first
+
+
+def test_sync_never_enables_whatever_the_file_said(tmp_path: Path) -> None:
+    """The property the whole action rests on: it is safe to run unattended
+    because it cannot grant anything."""
+    before = {name: False for name in known_tools()}
+    before["get_profile"] = True
+    del before["search_vouchers"]
+    policy = ToolPolicy(write(tmp_path / "tools.json", before))
+
+    policy.sync()
+    after = json.loads((tmp_path / "tools.json").read_text(encoding="utf-8"))
+
+    for name, was_on in before.items():
+        assert after[name] is was_on, name
+    assert after["search_vouchers"] is False
+
+
+def test_the_command_line_syncs_and_says_it_granted_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    policy = write(tmp_path / "tools.json", {"get_profile": True})
+
+    main(["--tools", "sync", "--tools-file", str(policy)])
+
+    written = json.loads(policy.read_text(encoding="utf-8"))
+    report = capsys.readouterr().err
+    assert set(written) == set(known_tools())
+    assert written["get_profile"] is True
+    assert "Nothing was switched on." in report
+    assert "search_vouchers" in report, "it names what appeared"
+
+
+def test_the_command_line_sync_does_not_serve(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """As with the presets: it writes, reports, and returns."""
+    policy = write(tmp_path / "tools.json", {})
+
+    main(["--tools", "sync", "--tools-file", str(policy)])
+
+    assert capsys.readouterr().out == "", "stdout carries the JSON-RPC stream"

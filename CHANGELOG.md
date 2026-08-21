@@ -199,6 +199,14 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   set when it is created or never — and finalizing is a parameter on creating
   a document rather than an operation on one. Deleting an article is the only
   irreversible thing there is, and the step now says so.
+- **`--tools sync`** — complete the policy file without deciding anything.
+  Every tool the file does not mention is added as `false`, every flag already
+  there is written back unchanged, and **nothing is ever switched on**. That
+  is what a preset cannot do: presets overwrite, so hand edits are lost, which
+  is right for starting a file and wrong for keeping one after an upgrade
+  brings tools it has never heard of. A name in the file that matches no tool
+  is reported and dropped, since it had no effect either way. Safe to run
+  unattended, unlike everything else under `--tools`.
 - **A refused request now names the fields it refused.** The API answers a
   bad body with a `details` list of field and violation, a different shape
   from the `IssueList` it uses elsewhere, and only the second one was read.

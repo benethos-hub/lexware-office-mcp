@@ -134,6 +134,10 @@ choosing the tools:
     benethos-lexware-office-mcp --tools show
         change nothing, just list what is on
 
+    benethos-lexware-office-mcp --tools sync
+        add the tools the file does not mention yet, all off,
+        and leave every flag already in it alone
+
   'write' does not mean undoable. Nothing in it deletes a record, but the
   API cannot delete a bookkeeping voucher at all, so a voucher created by
   create_voucher or by upload_file has to be corrected in the web app.
@@ -150,8 +154,10 @@ choosing the tools:
   ask for the list once, when they start, and go on showing what they were
   told then. Claude Desktop is quit from the tray to make it ask again.
 
-  Running --tools again overwrites the whole file, so edits made by hand are
-  lost. Use it to start a file, not to update one.
+  A preset overwrites the whole file, so edits made by hand are lost. Use one
+  to start a file, not to update one. That is what sync is for: after an
+  upgrade brings new tools, it writes them in as off and touches nothing else.
+  Sync never switches anything on.
 
 where the file goes:
 
@@ -214,11 +220,11 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--tools",
-        choices=("show", "read-only", "write", "irreversible"),
+        choices=("show", "sync", "read-only", "write", "irreversible"),
         metavar="WHICH",
         help=(
             "list or rewrite the policy file instead of starting the server: "
-            "show, read-only, write, irreversible (see below)"
+            "show, sync, read-only, write, irreversible (see below)"
         ),
     )
     parser.add_argument(
@@ -255,8 +261,12 @@ def _tools_command(action: str, settings: Settings) -> None:
     policy = active_policy()
 
     if action != "show":
+        existed = policy.exists()
         try:
-            policy.save(preset(cast(Preset, action)))
+            if action == "sync":
+                added, stale = policy.sync()
+            else:
+                policy.save(preset(cast(Preset, action)))
         except OSError as exc:
             # A path that is a directory, a read-only disk, a folder somebody
             # else owns. All of them are the caller's typo or the machine's
@@ -265,7 +275,10 @@ def _tools_command(action: str, settings: Settings) -> None:
                 f"Could not write {policy.path}: {exc.strerror or exc}", file=sys.stderr
             )
             raise SystemExit(2) from None
-        print(f"Wrote the '{action}' preset to {policy.path}", file=sys.stderr)
+        if action == "sync":
+            _report_sync(policy.path, existed, added, stale)
+        else:
+            print(f"Wrote the '{action}' preset to {policy.path}", file=sys.stderr)
 
     flags = policy.as_map()
     width = max(len(name) for name in flags)
@@ -275,6 +288,35 @@ def _tools_command(action: str, settings: Settings) -> None:
         f"{sum(flags.values())} of {len(flags)} tools on, per {policy.path}",
         file=sys.stderr,
     )
+
+
+def _report_sync(
+    path: Path | None, existed: bool, added: list[str], stale: list[str]
+) -> None:
+    """Say what a sync changed, in the terms somebody would ask about.
+
+    Which tools appeared matters, because each is a decision waiting to be
+    made. That nothing was switched on is worth saying out loud, since that is
+    the whole reason this action is safe to run unattended.
+    """
+    if not existed:
+        print(f"Wrote a new policy file at {path}, everything off.", file=sys.stderr)
+    elif added:
+        listed = ", ".join(added)
+        print(
+            f"Added {len(added)} tool{'s' if len(added) != 1 else ''} to {path}, "
+            f"off: {listed}",
+            file=sys.stderr,
+        )
+    else:
+        print(f"{path} already lists every tool. Nothing added.", file=sys.stderr)
+    if stale:
+        print(
+            f"Dropped {len(stale)} name{'s' if len(stale) != 1 else ''} that is no "
+            f"longer a tool: {', '.join(stale)}",
+            file=sys.stderr,
+        )
+    print("Nothing was switched on.", file=sys.stderr)
 
 
 def _named_env_file(argv: list[str] | None) -> Path | None:
