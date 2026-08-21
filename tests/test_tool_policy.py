@@ -261,3 +261,41 @@ def test_the_command_line_writes_a_file_even_where_none_existed(
     main(["--tools", "write"])
 
     assert set(json.loads(policy.read_text())) == set(known_tools())
+
+
+def test_a_target_that_is_not_a_file_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A directory where a file was meant is a typo, not a crash.
+
+    It used to reach `save` and come back as a PermissionError traceback,
+    which says nothing a person can act on.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--tools", "write", "--tools-file", str(tmp_path)])
+
+    assert excinfo.value.code == 2
+    assert "Not a file" in capsys.readouterr().err
+
+
+def test_a_missing_directory_is_created(tmp_path: Path) -> None:
+    """Naming somewhere new should not need a mkdir first."""
+    policy = tmp_path / "does" / "not" / "exist" / "tools.json"
+
+    main(["--tools", "read-only", "--tools-file", str(policy)])
+
+    assert policy.is_file()
+
+
+def test_writing_a_preset_replaces_what_was_edited_by_hand(tmp_path: Path) -> None:
+    """The presets overwrite. Worth a test, because it loses work.
+
+    Someone who has switched twelve tools off and then runs --tools write to
+    pick up a newly added one gets all twelve back.
+    """
+    policy = tmp_path / "tools.json"
+    policy.write_text('{"get_profile": true}', encoding="utf-8")
+
+    main(["--tools", "write", "--tools-file", str(policy)])
+
+    assert len(json.loads(policy.read_text())) == len(known_tools())

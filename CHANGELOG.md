@@ -226,7 +226,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   writes the file with the reading tools on and the rest off, `--tools write`
   turns the writing ones on as well, `--tools irreversible` adds deleting,
   booking and finalizing, and `--tools show` only reports. `--tools-file`
-  says where to write, and works with every preset. The file is read fresh
+  says where to write, and works with every preset - overwriting whatever is
+  there, so a preset starts a file rather than updating one. A target that
+  is a directory, or that cannot be written, is refused with a message
+  rather than a traceback. The file is read fresh
   on every request, so an edit takes effect without a restart — though a
   client that already fetched the tool list keeps showing it until it asks
   again. The file cannot grant anything the tier withholds. It is found the

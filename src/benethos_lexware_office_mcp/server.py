@@ -108,6 +108,9 @@ choosing the tools:
   from the client. Changes take effect on the next request, though a client
   usually asks for the tool list only once, when it starts.
 
+  Running --tools again overwrites the file, so edits made by hand are lost.
+  Use it to start a file, not to update one.
+
     {
      "search_contacts": true,
      "create_contact": false
@@ -215,7 +218,16 @@ def _tools_command(action: str, settings: Settings) -> None:
     policy = active_policy()
 
     if action != "show":
-        policy.save(preset(cast(Preset, action)))
+        try:
+            policy.save(preset(cast(Preset, action)))
+        except OSError as exc:
+            # A path that is a directory, a read-only disk, a folder somebody
+            # else owns. All of them are the caller's typo or the machine's
+            # business, and none of them deserve a traceback.
+            print(
+                f"Could not write {policy.path}: {exc.strerror or exc}", file=sys.stderr
+            )
+            raise SystemExit(2) from None
         print(f"Wrote the '{action}' preset to {policy.path}", file=sys.stderr)
 
     flags = policy.as_map()
@@ -258,7 +270,11 @@ def main(argv: list[str] | None = None) -> None:
     # Left unset it stays None, so the search decides - and no absolute path
     # from this machine has to appear in --help to explain that.
     if args.tools_file:
-        settings = dataclasses.replace(settings, tool_policy_path=Path(args.tools_file))
+        named = Path(args.tools_file).expanduser()
+        if named.exists() and not named.is_file():
+            print(f"Not a file: {named}", file=sys.stderr)
+            raise SystemExit(2)
+        settings = dataclasses.replace(settings, tool_policy_path=named)
 
     logging.basicConfig(
         stream=sys.stderr,
