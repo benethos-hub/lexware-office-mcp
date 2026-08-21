@@ -115,17 +115,24 @@ choosing the tools:
 
 where the file goes:
 
-  Add --tools-file to any of the commands above to write it somewhere
-  particular:
-
-    benethos-lexware-office-mcp --tools write --tools-file ./tools.json
-
-  Without it, tools.json is looked for in these places, and the last one
-  found is the one that counts:
+  Without --tools-file, tools.json is looked for in these places, and the
+  last one found is the one that counts:
 
     1. the per-user configuration directory
     2. config/ of the source checkout, if you are running from the sources
     3. ./config/tools.json, then ./tools.json
+
+  --tools-file overrides that, and works two ways. With --tools it says
+  where to write:
+
+    benethos-lexware-office-mcp --tools write --tools-file ./tools.json
+
+  On its own it says which file the running server obeys, so it belongs in
+  the client's configuration next to the command it starts:
+
+    "args": ["--tools-file", "/path/to/tools.json"]
+
+  One account per file, then, if you run this server more than once.
 
 first run:
 
@@ -167,7 +174,10 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     parser.add_argument(
         "--tools-file",
         metavar="PATH",
-        help="which policy file to use, instead of looking for one (see below)",
+        help=(
+            "which policy file to use instead of looking for one - both for "
+            "--tools and for the server itself (see below)"
+        ),
     )
     return parser.parse_args(argv)
 
