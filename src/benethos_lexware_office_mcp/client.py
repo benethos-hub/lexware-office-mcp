@@ -488,6 +488,66 @@ class LexwareClient:
         response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
         return _expect_object(response.json(), "vouchers")
 
+    # -- articles ---------------------------------------------------------
+
+    async def articles(
+        self,
+        *,
+        article_number: str | None = None,
+        gtin: str | None = None,
+        article_type: str | None = None,
+        page: int = 0,
+        size: int = DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        """``GET /v1/articles``. One API call, one page.
+
+        Only these three filter. Measured 2026-08-21: an unknown parameter is
+        ignored rather than refused, so a `query` or `title` that looks like a
+        text search silently returns the whole list.
+        """
+        params = _page_params(
+            page,
+            size,
+            articleNumber=article_number,
+            gtin=gtin,
+            type=article_type,
+        )
+        return _expect_object(
+            await self.get_json("/v1/articles", params=params), "articles"
+        )
+
+    async def article(self, article_id: str) -> dict[str, Any]:
+        """``GET /v1/articles/{id}``. One API call."""
+        return _expect_object(
+            await self.get_json(f"/v1/articles/{article_id}"), "articles"
+        )
+
+    async def create_article(self, body: dict[str, Any]) -> dict[str, Any]:
+        """``POST /v1/articles``. One API call, never retried."""
+        response = await self.request("POST", "/v1/articles", json=body)
+        return _expect_object(response.json(), "articles")
+
+    async def update_article(
+        self, article_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """``PUT /v1/articles/{id}``. One API call.
+
+        The body replaces the record and has to carry the ``version`` that was
+        read. Verified 2026-08-21: a stale one is refused with **409**, where
+        a contact answers 406.
+        """
+        response = await self.request("PUT", f"/v1/articles/{article_id}", json=body)
+        return _expect_object(response.json(), "articles")
+
+    async def delete_article(self, article_id: str) -> None:
+        """``DELETE /v1/articles/{id}``. One API call, and it cannot be undone.
+
+        Verified 2026-08-21: the answer is **204** with an empty body, the
+        record is gone rather than archived, and a second delete of the same
+        id is a 404.
+        """
+        await self.request("DELETE", f"/v1/articles/{article_id}")
+
     # -- master data ------------------------------------------------------
 
     async def master_data(self, kind: str) -> list[Any]:

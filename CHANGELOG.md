@@ -138,6 +138,25 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **The article catalogue, all five tools.** `search_articles` lists them,
+  `get_article` reads one in full, `create_article` adds one,
+  `update_article` changes one, and `delete_article` removes one for good.
+- **`search_articles` has no search by title**, deliberately. The endpoint
+  filters on article number, barcode and kind, matches both strings in full,
+  and **ignores** any other parameter instead of refusing it — so a `query`
+  parameter would have answered with the whole catalogue while looking like
+  it had searched. Finding an article by name means paging the list.
+- **A price is one number and a side.** `create_article` and `update_article`
+  take the price with `leading_price` saying whether it is net or gross, and
+  the API computes the other figure. An update replaces the side you name and
+  drops the other, so a new net price is never sent beside a stale gross one.
+  `update_article` costs two API calls and needs the `version`, like the
+  other updates.
+- **`delete_article` is the first tool that cannot be undone.** It takes
+  `confirm: true` and sends nothing without it, and the article is removed
+  rather than archived. It is also the first member of the `--tools
+  irreversible` step: until now that preset wrote the same flags as
+  `--tools write`.
 - **A refused request now names the fields it refused.** The API answers a
   bad body with a `details` list of field and violation, a different shape
   from the `IssueList` it uses elsewhere, and only the second one was read.

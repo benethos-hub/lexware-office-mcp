@@ -93,7 +93,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
-| `tools/articles.py` | Articles. | planned |
+| `tools/articles.py` | Articles, read, written and deleted. | built |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
 | `tools/sales_documents.py` | The seven sales document types, and the path segment each one lives behind. | built |
 | `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
@@ -284,6 +284,36 @@ section 2.
     as with an invented one. So a stored file has no deeplink, and
     `get_deeplink` does not offer it as a target.
 
+### Articles, verified 2026-08-21
+
+- **The list filters on three fields**, `articleNumber`, `gtin` and `type`,
+  and both string filters match **in full**: `MCP` finds nothing when
+  `MCP-A-0002` exists. There is **no text search**. `query` and `title` were
+  both tried and both answered with the whole list, which is also what an
+  invented parameter does — **an unknown query parameter is ignored rather
+  than refused**. That makes a filter that does not exist indistinguishable
+  from one that matches everything, and it is why `search_articles` offers
+  neither.
+- **Four fields are required to create one:** `title`, `type`, `unitName` and
+  `price`, and inside the price both `leadingPrice` and `taxRate`. Measured by
+  leaving each out and reading which violation came back.
+- **`type` is `PRODUCT` or `SERVICE`, in capitals.** Lowercase is refused, so
+  the tool passes the value through as the API spells it and a type read off
+  a result can be sent straight back.
+- **A price is one number and a side.** `leadingPrice` says whether the figure
+  given is net or gross, and the API computes the other: a gross price of
+  11.90 at 19% comes back with a net price of 10.00 beside it. Nothing here
+  derives an amount.
+- **A GTIN is thirteen digits**, checked upstream: `1234` and the eight-digit
+  `40123456` are both refused with `gtin: VALIDGTIN`.
+- **A stale version is a 409**, where a contact answers 406. Both are
+  conflicts, which is why the error mapping reads the body rather than the
+  status.
+- **A delete is a delete.** `DELETE /v1/articles/{id}` answers **204** with an
+  empty body, reading the id afterwards is a 404, and a second delete is a 404
+  as well. The record is gone, not archived — the one resource in this API
+  that can be removed at all, where a bookkeeping voucher cannot.
+
 ### Master data, verified 2026-08-21
 
 - **All four answer with a bare JSON list**, not with the page envelope the
@@ -443,33 +473,35 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21.** Serialized as the
-compact JSON a `tools/list` answer is, seventeen tools come to **34,847
-characters**, around 2,050 each. Roughly 9,000 to 11,000 tokens, estimated at
-3.2 to 3.8 characters per token rather than counted with a tokenizer.
+compact JSON a `tools/list` answer is, twenty-two tools come to **42,511
+characters**, around 1,930 each. Roughly 11,000 to 13,000 tokens, estimated
+at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 22,480 | 64% |
-| Tool descriptions, the part under a ceiling | 7,284 | 21% |
-| Output schemas | 3,678 | 11% |
-| Names, titles and the rest | ~1,400 | 4% |
+| Input schemas | 27,670 | 65% |
+| Tool descriptions, the part under a ceiling | 8,955 | 21% |
+| Output schemas | 4,076 | 10% |
+| Names, titles and the rest | ~1,810 | 4% |
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 22,480
-characters of input schema, 9,413 are prose from `Field(description=...)` and
-the remaining 13,067 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 27,670
+characters of input schema, 11,067 are prose from `Field(description=...)` and
+the remaining 16,603 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,744 characters on
 seventeen parameter descriptions, nearly four times its own description.
 
-**The five structured tools carry half of it.** `create_voucher` (4,278),
-`update_contact` (3,965), `create_contact` (3,907), `search_vouchers` (3,378)
-and `update_voucher` (3,359) come to 54% of the total between them. The
-policy file of section 9 is therefore also a context lever, not only a
-permission one: a `read-only` installation sends 18,541 characters, a little
-over half.
+**The six structured tools carry half of it.** `create_voucher` (4,278),
+`update_contact` (3,965), `create_contact` (3,907), `search_vouchers` (3,378),
+`update_voucher` (3,359) and `update_article` (2,435) come to 50% of the total
+between them. Every one of them takes a record's worth of arguments, and an
+update takes them twice over - once as a value and once as an explanation of
+what leaving it out means. The policy file of section 9 is therefore also a
+context lever, not only a permission one: a `read-only` installation sends
+20,849 characters, just under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -483,8 +515,8 @@ arguments cost three to four times what the simple ones do.
 | `get_profile` | — | `{organizationId, companyName, connectionId, taxType, smallBusiness, businessFeatures}`. Verified against a live account 2026-08-20. The `created` block the API also returns is **dropped**: it carries the setting-up user's email address, which the tool does not need and which has no business reaching a language model. Doubles as the connection check. | 1 |
 | `search_contacts` | `name`, `email`, `number`, `role` (customer/vendor/any), `page`, `size` | `{contacts: [{id, version, name, type, roles, customerNumber, vendorNumber, email, phone, archived?}], page: {number, size, totalElements, totalPages, last}}`. The filter is named `name` rather than `query`, because it matches names only and calling it a query would promise a full-text search the API does not offer. `name` and `email` carry the API's three-character minimum in the schema. The response's `sort` block is dropped, and `archived` appears only when true. Built and verified against live records 2026-08-20. | 1 |
 | `get_contact` | `contact_id` | the full contact including addresses, roles and `version`, with `organizationId` dropped: it is identical on every record and `get_profile` already answers it. A drop-list, not an allow-list, so a field added upstream still surfaces. Built and verified against live records 2026-08-20. | 1 |
-| `search_articles` | `query`, `article_number`, `gtin`, `type`, `page`, `size` | list of `{id, version, title, articleNumber, type, unitName, price, currency}` | 1 |
-| `get_article` | `article_id` | full article including version | 1 |
+| `search_articles` | `article_number`, `gtin`, `article_type`, `page`, `size` | `{articles: [{id, version, title, articleNumber, type, unitName, price, archived?}], page: {...}}`. **No `query`.** It was specified here and dropped on 2026-08-21 when the endpoint turned out to filter on three fields and to ignore every other parameter silently, so a text search would have answered with the whole catalogue while looking like it had searched. Both filters match in full. `description` and `note` are dropped from a row and kept by `get_article`. There is no `currency`: an article's price block carries none. Built and verified live 2026-08-21. | 1 |
+| `get_article` | `article_id` | the article in full, `organizationId` dropped, including the price block and `version`. The block carries a net and a gross figure with the tax rate between them and `leadingPrice` saying which of the two was entered - dropping either half would leave a number that cannot be checked. Built and verified live 2026-08-21. | 1 |
 | `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `only_open`, `only_overdue`, `archived`, `sort`, `page`, `size` | `{vouchers: [{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, openAmount, currency, archived?}], page: {...}}`. The central discovery tool, and the only way to find a document at all. `voucher_type` and `voucher_status` default to `any` because the API requires them, so the tool always sends both. `createdDate` and `updatedDate` are dropped from the rows: they say when somebody typed it in, not when the document is dated. Built and verified live 2026-08-20. | 1 |
 | `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
 | `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
@@ -506,16 +538,24 @@ arguments cost three to four times what the simple ones do.
 | Tool | Notes |
 |---|---|
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the phase 1 table above for what they cost. |
-| `create_article` / `update_article` | same version rule |
+| `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and drops the side that is no longer authoritative so a new net price is never sent beside a stale gross one. |
+| `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
 ### Phase 3 — irreversible
 
-`finalize` on `create_sales_document`, booking a voucher, `delete_article`.
-Each of these additionally takes an explicit `confirm: true` argument, so an
-accidental call fails with a clear message instead of an irreversible effect.
+`delete_article` is **built**, and is what the `confirm: true` convention was
+written for: the argument defaults to false, nothing is sent without it, and
+the refusal says what would have happened. `finalize` on
+`create_sales_document` and booking a voucher are still to come and take the
+same argument.
+
+It is also the first tool for which the `irreversible` preset differs from
+`write` at all. Until it existed the two wrote the same twenty-one flags, and
+the third step of the command line was a promise about tools that did not
+exist yet.
 
 ### Parameter conventions
 
@@ -1195,15 +1235,17 @@ The consequences are the point of writing this down.
 
 Built, tested offline and exercised against a live test account:
 
-- every module in the table of section 4 except the one still marked
-  planned, the article tools. The table is the list, so that this does not
-  become a second one to keep in step.
-- seventeen tools over the **stdio** transport, in six groups. Reading:
-  `get_profile`, `search_contacts`, `get_contact`, `search_vouchers`,
-  `get_voucher`, `get_payments`, `get_sales_document`, `get_master_data`,
-  `download_file`, `download_document`, `read_download` and `get_deeplink`.
-  Writing: `create_contact`, `update_contact`, `create_voucher`,
-  `update_voucher` and `upload_file`
+- **every module in the table of section 4.** None is marked planned any
+  more. The table is the list, so that this does not become a second one to
+  keep in step.
+- twenty-two tools over the **stdio** transport, in seven groups. Reading:
+  `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
+  `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
+  `get_sales_document`, `get_master_data`, `download_file`,
+  `download_document`, `read_download` and `get_deeplink`. Writing:
+  `create_contact`, `update_contact`, `create_article`, `update_article`,
+  `create_voucher`, `update_voucher` and `upload_file`. Irreversible:
+  `delete_article`, the only one so far
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
@@ -1236,18 +1278,20 @@ fixtures are the shapes the API actually returned, and the enum values in the
 voucher schemas were measured rather than taken from the documentation, which
 does not list them.
 
-**The immediate next step** is the articles: `search_articles` and
-`get_article`. They are the last read group with nothing behind it yet, and
-`create_sales_document` will need them, since a line item either quotes an
-article or spells itself out. `get_recurring_templates` is the one read tool
-outside a group, and still open too.
+**The immediate next step is no longer a tool.** Every resource group of
+section 4 exists, and what is left in phase 1 is `get_recurring_templates`,
+which is one endpoint without a group. The two things actually holding a
+release back are section 16.1, how a user configures the server at all, and
+CI, which does not exist. After those, `create_sales_document` is the piece
+that would make the write side complete — it can quote the articles this
+version added.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. `get_recurring_templates`, the configuration rework of section 16.1 and CI are open. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
-| 0.4.0 | irreversible operations, which no tool carries yet, pursue chains, ZUGFeRD and XRechnung download variants | planned |
+| 0.4.0 | the remaining irreversible operations — finalizing a document and booking a voucher, `delete_article` being built — pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,

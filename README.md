@@ -73,8 +73,8 @@ Read tools:
 | `get_profile` | Company profile and connection check | **built** |
 | `search_contacts` | Find customers and vendors by name, email, number or role | **built** |
 | `get_contact` | One contact with addresses, roles and version | **built** |
-| `search_articles` | Find articles by title, number or GTIN | planned |
-| `get_article` | One article | planned |
+| `search_articles` | List articles, filtered by number, barcode or kind. The API offers no search by title | **built** |
+| `get_article` | One article with its price block and version | **built** |
 | `search_vouchers` | The central query — filter the voucher list by type, status, contact, date range and what is still open | **built** |
 | `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice in full | **built** |
 | `get_voucher` | Read a bookkeeping voucher, by id or by its document number | **built** |
@@ -92,7 +92,8 @@ Write tools. These change real accounting records, so enable them one at a time 
 |---|---|---|
 | `create_contact` | Create a customer or vendor | **built** |
 | `update_contact` | Change one, without touching what you did not name | **built** |
-| `create_article`, `update_article` | Create and update articles | planned |
+| `create_article` | Add an article to the catalogue | **built** |
+| `update_article` | Change one, without touching what you did not name | **built** |
 | `create_voucher` | Record a bookkeeping voucher | **built** |
 | `update_voucher` | Change one that is already recorded | **built** |
 | `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested | planned |
@@ -105,9 +106,19 @@ address would empty out the addresses, the note and everything else. Both
 also need the `version` you last read: if the record changed in between, the
 update is refused and nothing is written.
 
-`--tools write` is not the same as undoable. Nothing it enables deletes a
-record, but two of the tools create one that cannot be removed afterwards,
-which is the next paragraph.
+One tool deletes, and it is the only one:
+
+| Tool | What it does | Status |
+|---|---|---|
+| `delete_article` | Remove an article for good. Takes `confirm: true`, and sends nothing without it | **built** |
+
+It is the only member of the `--tools irreversible` step so far, so that step
+is the only way to switch it on. An article is also the only thing this API
+lets you delete, which is the other half of the point:
+
+`--tools write` is not the same as undoable. Nothing that preset enables
+deletes a record, but two of its tools create one that cannot be removed
+afterwards.
 
 **A bookkeeping voucher cannot be deleted through the API.** There is no
 endpoint for it, so a wrong `create_voucher` has to be corrected in the

@@ -16,6 +16,9 @@ from collections.abc import Callable
 from typing import Any
 
 __all__ = [
+    "article",
+    "article_row",
+    "articles_page",
     "compact",
     "contact",
     "contacts_page",
@@ -300,3 +303,50 @@ def master_data(
     result["shown"] = min(len(matched), limit)
     result["entries"] = matched[:limit]
     return result
+
+
+# -- articles -------------------------------------------------------------
+
+# Identical on every record, and answered once by `get_profile`.
+ARTICLE_DROP = ("organizationId",)
+
+# A row is for choosing between articles, and these three are for reading one
+# that has been chosen. `description` and `note` are free text with no length
+# limit worth relying on, and the timestamps say when somebody typed it in.
+ARTICLE_ROW_DROP = (
+    *ARTICLE_DROP,
+    "description",
+    "note",
+    "createdDate",
+    "updatedDate",
+)
+
+
+def article_row(item: dict[str, Any]) -> dict[str, Any]:
+    """One line of an article search result.
+
+    A drop-list rather than an allow-list, as everywhere else, so a field
+    added upstream still surfaces. ``archived`` is kept only when true, as in
+    a contact or voucher row.
+    """
+    row = {key: value for key, value in item.items() if key not in ARTICLE_ROW_DROP}
+    if not row.get("archived"):
+        row.pop("archived", None)
+    return dict(compact(row))
+
+
+def articles_page(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a page of ``GET /v1/articles``."""
+    return page(payload, article_row, key="articles")
+
+
+def article(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one article.
+
+    The price block passes through whole. It carries both a net and a gross
+    figure with the tax rate between them, and which of the two is the one
+    somebody typed is `leadingPrice` - dropping either half would leave a
+    number that cannot be checked against anything.
+    """
+    kept = {k: v for k, v in payload.items() if k not in ARTICLE_DROP}
+    return dict(compact(kept))

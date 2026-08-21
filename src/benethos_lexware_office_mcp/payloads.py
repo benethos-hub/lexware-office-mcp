@@ -23,11 +23,13 @@ from pydantic import BaseModel, Field
 
 __all__ = [
     "Address",
+    "ArticleType",
     "ContactKind",
     "Role",
     "TaxType",
     "VoucherItem",
     "VoucherType",
+    "article_body",
     "contact_body",
     "voucher_body",
 ]
@@ -344,3 +346,70 @@ def _gross_total(lines: list[dict[str, Any]], tax_type: Any) -> float:
     if tax_type == "gross":
         return amounts
     return round(amounts + _sum(lines, "taxAmount"), 2)
+
+
+# -- articles -------------------------------------------------------------
+
+ArticleType = Literal["PRODUCT", "SERVICE"]
+LeadingPrice = Literal["NET", "GROSS"]
+
+# Computed by the API from the other half and the tax rate, and refused on
+# the way back in only if it contradicts them. Sending the read-back value
+# unchanged is what an update does, so it stays.
+_PRICE_KEYS = ("leadingPrice", "netPrice", "grossPrice", "taxRate")
+
+
+def article_body(
+    *,
+    base: dict[str, Any] | None = None,
+    title: str | None = None,
+    article_type: ArticleType | None = None,
+    unit_name: str | None = None,
+    price: float | None = None,
+    leading_price: LeadingPrice | None = None,
+    tax_rate: float | None = None,
+    article_number: str | None = None,
+    gtin: str | None = None,
+    description: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Build the body for creating or updating an article.
+
+    As with :func:`contact_body`, ``base`` turns this from a create into an
+    update, because a PUT replaces the record rather than patching it.
+
+    The price is one number and a side. The API stores both a net and a gross
+    price and computes the one that was not given, so ``leading_price`` says
+    which of the two the caller means and the other is left to the API rather
+    than worked out here - an amount this project derived and sent would be a
+    number nobody checked. Verified 2026-08-21: a gross price of 11.90 at 19%
+    comes back with a net price of 10.00 beside it.
+    """
+    body: dict[str, Any] = dict(base) if base else {}
+    for key in ("id", "organizationId", "createdDate", "updatedDate"):
+        body.pop(key, None)
+    if base is None:
+        body["version"] = 0
+
+    _set(body, "title", title)
+    _set(body, "type", article_type)
+    _set(body, "unitName", unit_name)
+    _set(body, "articleNumber", article_number)
+    _set(body, "gtin", gtin)
+    _set(body, "description", description)
+    _set(body, "note", note)
+
+    current = dict(body.get("price") or {})
+    side = leading_price or current.get("leadingPrice") or "NET"
+    if price is not None or leading_price is not None or tax_rate is not None:
+        if price is not None:
+            # The side that is no longer authoritative is dropped, so the API
+            # recomputes it instead of being handed a stale figure.
+            current.pop("netPrice", None)
+            current.pop("grossPrice", None)
+            current["netPrice" if side == "NET" else "grossPrice"] = price
+        current["leadingPrice"] = side
+        _set(current, "taxRate", tax_rate)
+    if current:
+        body["price"] = {k: v for k, v in current.items() if k in _PRICE_KEYS}
+    return body
