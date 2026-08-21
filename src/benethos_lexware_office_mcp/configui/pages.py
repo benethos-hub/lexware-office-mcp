@@ -19,7 +19,7 @@ from ..config import (
     DEFAULT_BASE_URL,
     download_dir,
 )
-from ..policy import ToolMeta, grouped_tools, known_tools
+from ..policy import ToolMeta, grouped_tools, known_tools, preset
 from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
 from .probe import Account, last_account
 from .profiles import Profile
@@ -152,6 +152,13 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
             "<strong>kein einziges Tool</strong> an. "
             "Das ist der richtige Zustand, solange niemand entschieden hat — "
             '<a href="/permissions">unter Rechte</a> wird die Datei angelegt.'
+        )
+    elif not on:
+        permissions_note = note(
+            "Die Rechtedatei ist da, schaltet aber <strong>kein einziges "
+            "Tool</strong> frei. Der Assistent sieht damit nichts von diesem "
+            'Konto — <a href="/permissions">unter Rechte</a> auswählen, was '
+            "er dürfen soll."
         )
     elif writers:
         permissions_note = note(
@@ -293,10 +300,29 @@ def permissions(
 
     ``flags`` overrides what the file says, which is how a loaded profile
     fills the form without anything being written yet.
+
+    With no policy file at all the boxes open on **read-only** rather than on
+    nothing. A blank form is a poor starting point for a decision, and this
+    is a suggestion in a form, not a permission: no file means no tools until
+    somebody presses save, exactly as before. The page says so at the top,
+    because ticks that do not describe the file have to be labelled.
     """
     meta = known_tools()
     costs = tool_costs(inst.settings)
-    state = flags if flags is not None else inst.policy.as_map()
+    fresh = not inst.policy.exists()
+    if flags is not None:
+        state = flags
+    elif fresh:
+        state = preset("read-only")
+    else:
+        state = inst.policy.as_map()
+
+    if fresh:
+        message += note(
+            "Es gibt noch keine Rechtedatei, <strong>aktiv ist also "
+            "nichts</strong>. Vorgeschlagen und angehakt sind die lesenden "
+            "Tools. Erst „Rechte speichern“ legt die Datei an."
+        )
 
     blocks = []
     for domain, names in grouped_tools().items():

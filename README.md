@@ -266,7 +266,11 @@ never shown back to you, never logged and never exported. If an environment
 variable is setting it, the page says so, because that would override
 whatever you save.
 
-**Rechte** — one checkbox per tool, grouped, with the presets as buttons.
+**Rechte** — one checkbox per tool, grouped, with the presets as buttons. On
+a fresh installation with no policy file yet, the reading tools come
+pre-ticked as a starting point — a proposal in a form, not a permission:
+there is still no file and therefore still no tool until you press save, and
+the page says so.
 Each row carries what that tool costs the assistant in context, and the total
 follows your ticks: every enabled tool is sent to the model on **every**
 request, so switching one on is a budget decision as well as a permission

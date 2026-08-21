@@ -129,6 +129,23 @@ def test_writing_tools_are_named_on_the_overview(inst: Installation) -> None:
     assert "echte" in body and "Buchhaltungsdaten" in body
 
 
+def test_a_file_that_enables_nothing_is_not_called_read_only(
+    inst: Installation,
+) -> None:
+    """Nothing enabled is not the same as nothing dangerous enabled.
+
+    The message used to fall through to "alle nur lesend", which reads as
+    reassurance about an installation that in fact offers the assistant no
+    tool at all.
+    """
+    ToolPolicy(inst.settings.policy_file()).save(dict.fromkeys(known_tools(), False))
+
+    body = text(pages.overview(inst))
+
+    assert "kein einziges Tool" in body
+    assert "nur lesend" not in body
+
+
 def test_a_read_only_installation_is_not_warned_about(inst: Installation) -> None:
     ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
 
@@ -233,6 +250,34 @@ def test_the_checkboxes_follow_the_file(inst: Installation) -> None:
 
     assert 'value="get_profile" id="get_profile" checked' in body
     assert 'value="create_voucher" id="create_voucher">' in body
+
+
+def test_without_a_file_the_boxes_open_on_read_only(inst: Installation) -> None:
+    """A blank form is a poor starting point for a decision.
+
+    A suggestion in a form, not a permission: there is still no file, so
+    there are still no tools until somebody saves.
+    """
+    assert not inst.policy.exists()
+
+    body = text(pages.permissions(inst))
+
+    assert 'value="get_profile" id="get_profile" checked' in body
+    assert 'value="create_voucher" id="create_voucher">' in body
+    assert "aktiv ist also nichts" in body
+    assert "angehakt sind die lesenden" in body
+
+
+def test_ticks_that_do_not_describe_the_file_are_labelled(
+    inst: Installation,
+) -> None:
+    """And once the file exists, the boxes describe it and say nothing."""
+    ToolPolicy(inst.settings.policy_file()).save(dict.fromkeys(known_tools(), False))
+
+    body = text(pages.permissions(inst))
+
+    assert 'value="get_profile" id="get_profile">' in body  # off, as the file says
+    assert "aktiv ist also nichts" not in body
 
 
 def test_a_loaded_profile_overrides_the_file_without_writing(

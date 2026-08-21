@@ -360,6 +360,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   from another page. German throughout, since Lexware Office is sold for
   German companies only. `--port` and `--no-browser` belong to it, and unlike
   everywhere else `--env-file` may name a file that does not exist yet.
+- **A fresh installation opens on a proposal rather than on a blank form.**
+  With no policy file yet, the permissions page comes with the reading tools
+  ticked and says plainly that nothing is active until you save. No file
+  still means no tools, exactly as before — what changed is the starting
+  point of the form, not what the server offers.
 - **What a tool costs the assistant is shown next to it.** Every enabled tool
   is sent to the model on every single request, so the permissions page puts
   the character count on each row and totals it live as boxes are ticked. The

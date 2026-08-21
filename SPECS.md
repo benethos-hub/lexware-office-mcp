@@ -729,6 +729,15 @@ environment variable, the command line for the one setting it can name, the
 the built-in default. The fourth exists because typing over such a value here
 would appear to work and change nothing.
 
+**With no policy file the boxes open on read-only.** A blank form is a poor
+starting point for a decision, and the alternative — every box empty — reads
+as an invitation to tick things at random rather than as a proposal. It
+changes nothing about section 9.2: no file still means no tools, and nothing
+is written until somebody saves. Ticks that do not describe the file are
+labelled as such at the top of the page, which is the condition under which
+showing them is honest. Once a file exists the boxes follow it, including a
+file that deliberately enables nothing.
+
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
 around 2,025 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
