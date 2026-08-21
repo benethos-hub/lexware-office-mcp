@@ -91,7 +91,7 @@ Items = Annotated[
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
-    """Register the voucher tools allowed at the active permission tier."""
+    """Register the voucher tools. The policy file decides the rest."""
 
     @classify("read", "vouchers")
     async def search_vouchers(

@@ -95,7 +95,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles. | planned |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
-| `tools/sales_documents.py` | The seven sales document types. | planned |
+| `tools/sales_documents.py` | The seven sales document types, and the path segment each one lives behind. | built |
 | `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | planned |
 
@@ -327,6 +327,18 @@ section 2.
   document following a finalized predecessor along the
   quotation → order confirmation → delivery note → invoice chain. A draft
   predecessor cannot be pursued and yields 406.
+- **A draft reads in full**, verified 2026-08-21. Only the download is
+  refused: `GET /v1/invoices/{id}` answers with every figure on the document
+  while it is still a draft. What it does not carry is `dueDate`,
+  `printLayoutId` and the `files` block, and that last absence is the reliable
+  way to tell whether there is anything to download — an `open` document
+  carries `files.documentFileId`, pointing at the same rendered file
+  `/file` serves.
+- **A document type that does not match the id is a 404**, measured on
+  2026-08-21 by reading a real invoice id through `/v1/quotations`,
+  `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one
+  an id that does not exist gives, so a tool cannot tell the caller which
+  mistake they made.
 - **PDF:** `GET /v1/{resource}/{id}/document` returns a `documentFileId` for
   the Files endpoint. Rendering is triggered when a document moves from draft
   to open. `GET /v1/{resource}/{id}/file` downloads the binary directly and
@@ -412,7 +424,7 @@ exposed one tool per path.
 | `search_articles` | `query`, `article_number`, `gtin`, `type`, `page`, `size` | list of `{id, version, title, articleNumber, type, unitName, price, currency}` | 1 |
 | `get_article` | `article_id` | full article including version | 1 |
 | `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `only_open`, `only_overdue`, `archived`, `sort`, `page`, `size` | `{vouchers: [{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, openAmount, currency, archived?}], page: {...}}`. The central discovery tool, and the only way to find a document at all. `voucher_type` and `voucher_status` default to `any` because the API requires them, so the tool always sends both. `createdDate` and `updatedDate` are dropped from the rows: they say when somebody typed it in, not when the document is dated. Built and verified live 2026-08-20. | 1 |
-| `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document, normalized to a common envelope with the type-specific fields kept intact | 1 |
+| `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
 | `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
@@ -1067,15 +1079,15 @@ The consequences are the point of writing this down.
 
 Built, tested offline and exercised against a live test account:
 
-- every module in the table of section 4 except the three still marked
-  planned, which are the article, sales document and master data tools. The
-  table is the list, so that this does not become a second one to keep in
-  step.
-- fifteen tools over the **stdio** transport, in four groups. Reading:
+- every module in the table of section 4 except the two still marked
+  planned, which are the article and master data tools. The table is the
+  list, so that this does not become a second one to keep in step.
+- sixteen tools over the **stdio** transport, in five groups. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_vouchers`,
-  `get_voucher`, `get_payments`, `download_file`, `download_document`,
-  `read_download` and `get_deeplink`. Writing: `create_contact`,
-  `update_contact`, `create_voucher`, `update_voucher` and `upload_file`
+  `get_voucher`, `get_payments`, `get_sales_document`, `download_file`,
+  `download_document`, `read_download` and `get_deeplink`. Writing:
+  `create_contact`, `update_contact`, `create_voucher`, `update_voucher` and
+  `upload_file`
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
@@ -1108,15 +1120,14 @@ fixtures are the shapes the API actually returned, and the enum values in the
 voucher schemas were measured rather than taken from the documentation, which
 does not list them.
 
-**The immediate next step** is the sales documents: reading an invoice, a
-quotation or a credit note in full. `search_vouchers` already returns their
-ids and `download_document` fetches their PDFs — verified live on 2026-08-21
-against the first real invoice in the test account, in both the rendered and
-the draft case — so reading the document itself is the piece that is missing.
+**The immediate next step** is the articles: `search_articles` and
+`get_article`. They are the last read group with nothing behind it yet, and
+`create_sales_document` will need them, since a line item either quotes an
+article or spells itself out.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, master data and CI are open. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations, which no tool carries yet, pursue chains, ZUGFeRD and XRechnung download variants | planned |

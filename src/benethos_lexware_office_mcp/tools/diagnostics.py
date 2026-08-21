@@ -16,7 +16,7 @@ __all__ = ["register"]
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
-    """Register the diagnostics tools allowed at the active permission tier."""
+    """Register the diagnostics tools. The policy file decides the rest."""
 
     @classify("read", "diagnostics")
     async def get_profile() -> dict[str, Any]:

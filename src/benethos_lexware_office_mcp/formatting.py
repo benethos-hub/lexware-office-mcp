@@ -23,6 +23,7 @@ __all__ = [
     "page_info",
     "payments",
     "profile",
+    "sales_document",
     "voucher",
     "vouchers_page",
 ]
@@ -230,3 +231,24 @@ def payments(payload: dict[str, Any]) -> dict[str, Any]:
     ``openAmount`` of ``0``, which :func:`compact` keeps on purpose.
     """
     return dict(compact(payload))
+
+
+# Identical on every document and answered once by `get_profile`, exactly as
+# on a bookkeeping voucher.
+SALES_DOCUMENT_DROP = ("organizationId",)
+
+
+def sales_document(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one sales document.
+
+    A drop-list rather than an allow-list: the seven types differ from each
+    other field by field, and an allow-list would silently swallow whatever
+    makes a dunning a dunning. Amounts and their currency pass through
+    exactly as the API reported them.
+
+    What survives is what the API sent. A `draft` carries no `files` block
+    and no `dueDate`, which is how the answer says there is nothing to
+    download yet.
+    """
+    kept = {k: v for k, v in payload.items() if k not in SALES_DOCUMENT_DROP}
+    return dict(compact(kept))

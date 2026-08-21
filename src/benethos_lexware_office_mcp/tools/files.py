@@ -28,31 +28,9 @@ from ..config import Settings
 from ..errors import NotFoundError, ValidationError
 from ..policy import classify
 from ._base import register_tool
+from .sales_documents import RESOURCES, DocumentType
 
 __all__ = ["register"]
-
-# The seven sales document types, and the path segment each one lives under.
-# The segments are plural and kebab-cased, which is also what the web app's
-# permalinks use.
-DocumentType = Literal[
-    "invoice",
-    "quotation",
-    "credit-note",
-    "order-confirmation",
-    "delivery-note",
-    "dunning",
-    "down-payment-invoice",
-]
-
-RESOURCES: dict[str, str] = {
-    "invoice": "invoices",
-    "quotation": "quotations",
-    "credit-note": "credit-notes",
-    "order-confirmation": "order-confirmations",
-    "delivery-note": "delivery-notes",
-    "dunning": "dunnings",
-    "down-payment-invoice": "down-payment-invoices",
-}
 
 # Deeplinks reach further than documents do, but not to a stored file:
 # the web app has no page for one. Verified 2026-08-21, see SPECS.md
@@ -178,7 +156,7 @@ FormatField = Annotated[
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
-    """Register the file tools allowed at the active permission tier."""
+    """Register the file tools. The policy file decides the rest."""
 
     @classify("read", "files")
     async def download_file(

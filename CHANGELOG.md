@@ -129,6 +129,15 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   AGPL-3.0 or a commercial licence, which this MIT project cannot take. Costs **no** API call, since the file is already on the
   server. Only files this server downloaded can be read, and nothing above
   5 MiB, because base64 of a large file would swallow the answer.
+- **`get_sales_document`** — read an invoice, quotation, credit note, order
+  confirmation, delivery note, dunning or down payment invoice in full: who it
+  is addressed to, every line with its unit price and discount, the totals,
+  the tax breakdown, the payment and shipping conditions, and the `version`.
+  Costs one API call. The type is part of the address rather than a filter, so
+  it has to match the id — a mismatch answers "not found", exactly as a wrong
+  id does. Take it from the `voucherType` that `search_vouchers` reported. A
+  draft reads in full even though it cannot be downloaded, and says so by
+  carrying no `files.documentFileId`.
 - **`download_document`** — the same for the rendered PDF of an invoice,
   quotation, credit note, order confirmation, delivery note, dunning or down
   payment invoice. `xml` is available for an XRechnung. A document still in

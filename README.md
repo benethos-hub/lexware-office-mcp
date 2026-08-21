@@ -66,7 +66,7 @@ The server points at a real accounting system, so the defaults are cautious.
 **Built** means it works today. The rest are specified in
 [SPECS.md](SPECS.md) and not implemented yet.
 
-Read tools, available in every mode:
+Read tools:
 
 | Tool | What it does | Status |
 |---|---|---|
@@ -76,7 +76,7 @@ Read tools, available in every mode:
 | `search_articles` | Find articles by title, number or GTIN | planned |
 | `get_article` | One article | planned |
 | `search_vouchers` | The central query — filter the voucher list by type, status, contact, date range and what is still open | **built** |
-| `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice | planned |
+| `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice in full | **built** |
 | `get_voucher` | Read a bookkeeping voucher, by id or by its document number | **built** |
 | `get_payments` | Payment status and open amount of a voucher | **built** |
 | `get_recurring_templates` | Recurring invoice templates | planned |

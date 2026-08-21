@@ -1,9 +1,9 @@
 """Tool registration.
 
 One module per resource group. Each module exposes ``register(server,
-settings)`` and registers only the tools the active permission tier allows, so
-a tool above the tier never reaches the client's tool list at all.
-
+settings, provider)`` and registers everything it has: what a client is
+offered and what it may call is decided by the policy file, not here. See
+:func:`._base.register_tool`.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 
 from ..client import ClientProvider
 from ..config import Settings
-from . import contacts, diagnostics, files, vouchers
+from . import contacts, diagnostics, files, sales_documents, vouchers
 from ._base import register_tool
 
 __all__ = ["register_tool", "register_tools"]
@@ -26,6 +26,7 @@ _MODULES: Sequence[Registrar] = (
     diagnostics.register,
     contacts.register,
     vouchers.register,
+    sales_documents.register,
     files.register,
 )
 
@@ -33,7 +34,7 @@ _MODULES: Sequence[Registrar] = (
 def register_tools(
     server: MCPServer, settings: Settings, provider: ClientProvider
 ) -> None:
-    """Register every tool the active permission tier allows.
+    """Register every tool there is.
 
     Every module gets the same ``provider``, so every tool ends up sharing one
     client and therefore one rate limiter.

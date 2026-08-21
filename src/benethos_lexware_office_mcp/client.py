@@ -454,6 +454,20 @@ class LexwareClient:
         response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
         return _expect_object(response.json(), "vouchers")
 
+    # -- sales documents --------------------------------------------------
+
+    async def sales_document(self, resource: str, document_id: str) -> dict[str, Any]:
+        """``GET /v1/{resource}/{id}``. One API call.
+
+        The document itself, whatever state it is in. Verified 2026-08-21
+        against a live invoice in both `draft` and `open`. A `resource` that
+        does not match the id is a 404, indistinguishable from an id that
+        does not exist.
+        """
+        return _expect_object(
+            await self.get_json(f"/v1/{resource}/{document_id}"), resource
+        )
+
     # -- files ------------------------------------------------------------
 
     async def download(self, path: str, accept: str | None = None) -> httpx.Response:
@@ -480,9 +494,9 @@ class LexwareClient:
     ) -> httpx.Response:
         """``GET /v1/{resource}/{id}/file``. One API call.
 
-        The rendered document itself. **(to verify)** against a live sales
-        document: the test account holds none, and a bookkeeping voucher
-        answers this path with 404.
+        The rendered document itself. Verified 2026-08-21: the body is the
+        PDF and ``Content-Disposition`` carries the document's own name. A
+        bookkeeping voucher answers this path with 404, and a draft with 409.
         """
         return await self.download(f"/v1/{resource}/{document_id}/file", accept)
 
@@ -490,7 +504,9 @@ class LexwareClient:
         """``GET /v1/{resource}/{id}/document``. One API call.
 
         Returns the ``documentFileId`` under which the rendered document is
-        filed. **(to verify)**, for the same reason as `document_file`.
+        filed. Verified 2026-08-21: that id through ``/v1/files/{id}`` yields
+        byte-identical content, so the round trip buys nothing. A draft is
+        refused with 406.
         """
         return _expect_object(
             await self.get_json(f"/v1/{resource}/{document_id}/document"), "document"

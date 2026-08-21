@@ -89,7 +89,7 @@ TaxNumber = Annotated[
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
-    """Register the contact tools allowed at the active permission tier."""
+    """Register the contact tools. The policy file decides the rest."""
 
     @classify("read", "contacts")
     async def search_contacts(
