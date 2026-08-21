@@ -436,6 +436,22 @@ the whole product that this server is in no position to make. "The API cannot
 take it back, correcting it is a job for the web app" is true, checkable, and
 tells the caller where to go. The descriptions say the second.
 
+**What makes a record permanent differs by record, and the reasons are worth
+keeping apart.** For a **contact** it is a missing route and nothing more: the
+app deletes one without ceremony, the API simply offers no call for it. For an
+**invoice or a bookkeeping voucher** it is the law — once a document is final
+festgeschrieben, GoBD and § 146 AO require it to stay, and the remedy is a
+Storno rather than a deletion. An **article** is neither: it can be deleted
+through both.
+
+The difference matters wherever a warning is written. "The API cannot take it
+back" is the same sentence in every case, but behind it stands a gap in one
+and a legal requirement in the other, and only the first could be closed by a
+future API version. An interface offering to switch these tools on has the
+same distinction to make: `create_contact` leaves a record somebody can tidy
+up, `create_sales_document` and `create_voucher` leave one that the account
+owner may be obliged to keep.
+
 **The classification is about destruction, not permanence, and they are not
 the same thing here.** `effect: delete` marks a tool that destroys an existing
 record, which is `delete_article` and nothing else. Permanence runs the other
