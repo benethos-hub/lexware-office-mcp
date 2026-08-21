@@ -258,7 +258,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             LinkTarget,
             Field(description="What the link should point at."),
         ],
-        target_id: Annotated[str, Field(description="The Lexware id of that record.")],
+        target_id: Annotated[
+            str,
+            Field(
+                description=(
+                    "The Lexware id of a record of that exact type. A file id "
+                    "is not the id of the voucher it hangs on, and the "
+                    "mismatch still builds a link — one that leads nowhere."
+                )
+            ),
+        ],
         action: Annotated[
             Literal["view", "edit"],
             Field(
