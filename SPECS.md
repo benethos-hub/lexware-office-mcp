@@ -968,6 +968,18 @@ therefore handed the caller a pointer to a list they were not given. Both are
 read, and the localized German sentence beside each violation is left out
 because it says no more than the violation name does.
 
+**A field that was left out is not a field with a bad value.** The
+stale-version answer keys off the field an issue names, and a request that
+sends no `version` at all names the same field. Violations that mean "absent"
+- `NOTNULL`, `NOTEMPTY`, `NOTBLANK` - are therefore left out of that signal,
+so a caller who forgot a field is told to send it rather than to re-read a
+record that was never the problem. Measured 2026-08-21 on `PUT /v1/articles`.
+
+**Which status a stale version arrives as depends on the resource.** A
+contact answers 406 naming `version`, an article answers **409**. Both end as
+`ConflictError`, which is why the mapping reads the body rather than the
+status alone.
+
 No raw traceback ever reaches the client. Expected failures are `ToolError`
 subclasses with concise, actionable messages.
 

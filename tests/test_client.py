@@ -165,6 +165,21 @@ async def test_a_stale_version_in_the_details_shape_is_still_a_conflict() -> Non
             await client.request("PUT", "/v1/articles/abc")
 
 
+async def test_a_version_that_was_never_sent_is_not_a_stale_one() -> None:
+    """Measured 2026-08-21 against `PUT /v1/articles/{id}` with a bare body.
+
+    The missing `version` comes back as a `NOTNULL` violation naming that
+    field. Reading the field name alone would call it a version mismatch and
+    send the caller to re-read a record that is not the problem.
+    """
+    body = {"details": [{"violation": "NOTNULL", "field": "version"}]}
+    async with make_client(httpx.Response(406, json=body)) as client:
+        with pytest.raises(ValidationError) as excinfo:
+            await client.request("PUT", "/v1/articles/abc", json={})
+    assert "version: NOTNULL" in str(excinfo.value)
+    assert "changed since" not in str(excinfo.value)
+
+
 async def test_a_stale_version_tells_the_caller_to_re_read() -> None:
     """Verified 2026-08-20: a stale version is a 406 naming `version`."""
     body = {"IssueList": [{"source": "version", "type": "validation_failure"}]}

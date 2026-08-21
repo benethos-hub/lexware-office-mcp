@@ -135,17 +135,30 @@ def _detail_text(body: dict[str, Any]) -> str:
     return f" {text}" if text else ""
 
 
+# A field that was simply left out. Naming it is not the same as saying
+# something is wrong with the value that was sent, and the difference decides
+# whether `version` means "you did not send one" or "yours is out of date".
+_ABSENT = ("NOTNULL", "NOTEMPTY", "NOTBLANK")
+
+
 def _issue_sources(body: dict[str, Any]) -> set[str]:
-    """Which fields an error blamed.
+    """Which fields an error blamed for a value it did not like.
 
     The status alone does not say what went wrong: contacts answer a missing
     role, a second billing address and a stale version all with 406. The field
     an issue names is what tells those apart.
+
+    A field the request never sent is left out of the answer. Measured
+    2026-08-21: a `PUT /v1/articles/{id}` without a body reports `version` as
+    `NOTNULL`, and reading that as a version mismatch would send the caller
+    off to re-read a record that is not the problem.
     """
     return {
         str(issue.get("source") or issue.get("field"))
         for issue in _issues(body)
-        if isinstance(issue, dict) and (issue.get("source") or issue.get("field"))
+        if isinstance(issue, dict)
+        and (issue.get("source") or issue.get("field"))
+        and str(issue.get("violation") or "").upper() not in _ABSENT
     }
 
 
