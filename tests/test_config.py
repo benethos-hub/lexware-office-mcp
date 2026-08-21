@@ -106,7 +106,7 @@ def test_env_file_is_read_but_real_environment_wins(
         "# a comment\nLXO_MCP_API_KEY='from-file-123456'\nexport LXO_MCP_MODE=write\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(C, "_project_config", lambda: None)
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
 
     monkeypatch.setattr(C.os, "environ", {})

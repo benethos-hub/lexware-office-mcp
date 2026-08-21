@@ -22,6 +22,10 @@ htmlcov/
 config/.env
 downloads/
 
+# What this machine is allowed to do is not a property of the code.
+tools.json
+config/tools.json
+
 # ...but the committed sample stays visible.
 !config/.env.sample
 

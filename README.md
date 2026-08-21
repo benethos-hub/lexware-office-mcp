@@ -225,9 +225,17 @@ both are `write`. That is what the policy file is for: one flag per tool.
 benethos-lexware-office-mcp --tools read-only
 ```
 
-writes every tool into `tools.json` in the configuration directory, reading
-ones on and the rest off, and prints what it did. `--tools all` turns
-everything on, `--tools show` only reports. After that, edit the file:
+writes every tool into `tools.json`, reading ones on and the rest off, and
+prints what it did. `--tools all` turns everything on, `--tools show` only
+reports. The file is searched exactly like the `.env`, lowest precedence
+first:
+
+1. the per-user configuration directory
+2. `config/` of a checkout, when you are running from the sources
+3. `config/` and then the root of the working directory
+
+The last one found wins, and a file nobody has created yet resolves to the
+first. After that, edit it:
 
 ```json
 {

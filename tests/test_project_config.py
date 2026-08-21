@@ -1,4 +1,4 @@
-"""`config/.env` of the source checkout, and the guard that limits it there.
+"""The source checkout's own `config/`, and the guard that limits it there.
 
 A client such as Claude Desktop spawns the server with a working directory of
 its own, so a clone had to be startable from anywhere. Resolving the file from
@@ -26,7 +26,7 @@ def make_checkout(tmp_path: Path, contents: str) -> Path:
 
 
 def pretend_module_lives_at(root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make `_project_config` believe the package sits under ``root``.
+    """Make `_project_config_dir` believe the package sits under ``root``.
 
     It derives the root from its own ``__file__``, two levels up, so moving
     that is what exercises the real arithmetic instead of restating it.
@@ -43,7 +43,7 @@ def test_a_checkout_is_recognised(
     expected = make_checkout(tmp_path, "LXO_MCP_PAGE_SIZE=11\n")
     pretend_module_lives_at(tmp_path, monkeypatch)
 
-    assert C._project_config() == expected
+    assert C._project_config_dir() == expected.parent
 
 
 def test_an_install_directory_is_not(
@@ -58,16 +58,16 @@ def test_an_install_directory_is_not(
     (tmp_path / "config" / ".env").write_text("LXO_MCP_MODE=full\n", encoding="utf-8")
     pretend_module_lives_at(tmp_path, monkeypatch)
 
-    assert C._project_config() is None
+    assert C._project_config_dir() is None
 
 
 def test_the_real_package_resolves_to_this_repository() -> None:
     """The arithmetic must survive a refactor of the package layout."""
-    found = C._project_config()
+    found = C._project_config_dir()
     assert found is not None
-    assert found.parent.name == "config"
-    assert (found.parent.parent / "pyproject.toml").is_file()
-    assert (found.parent / ".env.sample").is_file()
+    assert found.name == "config"
+    assert (found.parent / "pyproject.toml").is_file()
+    assert (found / ".env.sample").is_file()
 
 
 def test_the_checkout_is_read_when_the_working_directory_is_elsewhere(
@@ -75,7 +75,7 @@ def test_the_checkout_is_read_when_the_working_directory_is_elsewhere(
 ) -> None:
     """The whole point: started from anywhere, the clone still configures itself."""
     env = make_checkout(tmp_path, "LXO_MCP_PAGE_SIZE=11\n")
-    monkeypatch.setattr(C, "_project_config", lambda: env)
+    monkeypatch.setattr(C, "_project_config_dir", lambda: env.parent)
     monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
     monkeypatch.setattr(C.os, "environ", {})
 
@@ -87,7 +87,7 @@ def test_the_checkout_is_read_when_the_working_directory_is_elsewhere(
 def test_nothing_is_read_when_it_is_not_a_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(C, "_project_config", lambda: None)
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
     monkeypatch.setattr(C.os, "environ", {})
 
@@ -99,7 +99,7 @@ def test_the_working_directory_outranks_the_checkout(
 ) -> None:
     """The invocation beats the installation."""
     env = make_checkout(tmp_path, "LXO_MCP_PAGE_SIZE=11\n")
-    monkeypatch.setattr(C, "_project_config", lambda: env)
+    monkeypatch.setattr(C, "_project_config_dir", lambda: env.parent)
     monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
     monkeypatch.setattr(C.os, "environ", {})
 
@@ -115,9 +115,65 @@ def test_a_real_environment_variable_outranks_the_checkout(
 ) -> None:
     """What the stdio test relies on to keep a real key out of a subprocess."""
     env = make_checkout(tmp_path, "LXO_MCP_API_KEY=would-be-the-real-key\n")
-    monkeypatch.setattr(C, "_project_config", lambda: env)
+    monkeypatch.setattr(C, "_project_config_dir", lambda: env.parent)
     monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
     monkeypatch.setattr(C.os, "environ", {"LXO_MCP_API_KEY": ""})
 
     assert C._env_lookup(cwd=tmp_path)["LXO_MCP_API_KEY"] == ""
     assert C.load_settings(C._env_lookup(cwd=tmp_path)).api_key is None
+
+
+# -- one order, every configuration file ----------------------------------
+
+
+def test_both_files_are_searched_in_the_same_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sequence is the part a person has to keep in their head.
+
+    Two files searched two ways would be two rules to remember, and the one
+    remembered wrongly is the one holding the permissions.
+    """
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "installed")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: tmp_path / "checkout")
+    here = tmp_path / "cwd"
+
+    env = [p.parent for p in C.config_candidates(".env", cwd=here)]
+    policy = [p.parent for p in C.config_candidates("tools.json", cwd=here)]
+
+    assert env == policy
+    assert env == [
+        tmp_path / "installed",
+        tmp_path / "checkout",
+        here / "config",
+        here,
+    ]
+
+
+def test_the_checkout_beats_the_installed_policy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Working on the code overrides the installed configuration."""
+    installed = tmp_path / "installed"
+    checkout = tmp_path / "checkout" / "config"
+    for directory in (installed, checkout):
+        directory.mkdir(parents=True)
+        (directory / "tools.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(C, "config_dir", lambda: installed)
+    monkeypatch.setattr(C, "_project_config_dir", lambda: checkout)
+
+    found = C.resolve_config_file("tools.json", cwd=tmp_path / "nowhere")
+
+    assert found == checkout / "tools.json"
+
+
+def test_a_file_nobody_created_resolves_to_where_it_should_be_created(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing file still has to name a path, and it must be a writable one."""
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "installed")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+
+    found = C.resolve_config_file("tools.json", cwd=tmp_path / "nowhere")
+
+    assert found == tmp_path / "installed" / "tools.json"

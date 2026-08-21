@@ -367,7 +367,7 @@ section 2.
 | `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_MODE` | Permission tier, see section 9. | `read` |
-| `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. | `tools.json` in the config dir |
+| `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway. | `10` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
@@ -500,14 +500,20 @@ so the model may draft a quotation also hands it every other write tool in the
 server. What is wanted is a decision per tool, with groups as a convenience
 rather than as the unit of truth.
 
-**The file is the truth.** `tools.json` in the configuration directory, one
-flag per tool, never in the repository:
+**The file is the truth.** `tools.json`, one flag per tool, never in the
+repository:
 
 ```json
 { "get_profile": true, "search_vouchers": true, "create_voucher": false }
 ```
 
-`LXO_MCP_TOOL_POLICY` moves it. A tool the file does not mention is **on**:
+It is found by `config.resolve_config_file`, the same search the `.env`
+goes through: the per-user directory, then `config/` of a checkout, then the
+working directory, last one found winning. One order for every configuration
+file there is, because two files searched two ways would be two rules to
+remember and the one remembered wrongly would be the one holding the
+permissions. `LXO_MCP_TOOL_POLICY` overrides the search entirely. A tool the
+file does not mention is **on**:
 the file exists to take something away, and a tool that arrives with an
 upgrade is already held back by the tier it declares. Writing a flag for every
 known tool rather than only for the exceptions is what makes the file readable

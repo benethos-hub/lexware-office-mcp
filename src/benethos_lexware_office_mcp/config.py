@@ -11,7 +11,7 @@ Precedence, highest first:
 Rule 4 is what makes a clone usable no matter where it is started from, which
 matters because a client such as Claude Desktop spawns the server with a
 working directory of its own. It applies **only to a source checkout**, and
-:func:`_project_config` decides that by looking for a ``pyproject.toml``. A
+:func:`_project_config_dir` decides that by looking for a ``pyproject.toml``. A
 package installed from a wheel sits in ``site-packages``, which has no
 ``pyproject.toml``, so nothing is read from there — reading configuration out
 of a shared install directory is not a property this server should have.
@@ -94,8 +94,12 @@ def config_dir() -> Path:
 
 
 def tool_policy_file() -> Path:
-    """Default location of the per-tool policy file."""
-    return config_dir() / TOOL_POLICY_NAME
+    """The per-tool policy file this installation uses.
+
+    The same search as the ``.env``, so the two are found the same way and a
+    checkout can override an installed configuration for both.
+    """
+    return resolve_config_file(TOOL_POLICY_NAME)
 
 
 def download_dir() -> Path:
@@ -130,8 +134,8 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
-def _project_config() -> Path | None:
-    """``config/.env`` of the source checkout, or ``None`` when installed.
+def _project_config_dir() -> Path | None:
+    """``config/`` of the source checkout, or ``None`` when installed.
 
     The package lives at ``<root>/src/<package>/``, so the root is two levels
     up. A ``pyproject.toml`` there is what distinguishes a checkout from a
@@ -139,19 +143,55 @@ def _project_config() -> Path | None:
     directory shared with every other installed package.
     """
     root = Path(__file__).resolve().parents[2]
-    return root / "config" / ".env" if (root / "pyproject.toml").is_file() else None
+    return root / "config" if (root / "pyproject.toml").is_file() else None
+
+
+def config_candidates(name: str, cwd: Path | None = None) -> list[Path]:
+    """Every place a configuration file called ``name`` may live.
+
+    Ordered by precedence, **lowest first**, so a later entry wins:
+
+    1. the per-user configuration directory, which is what an installed copy
+       uses and the only one that exists on a machine without the sources
+    2. ``config/`` of the checkout, so working on the code overrides the
+       installed configuration rather than fighting it
+    3. ``config/`` and then the root of the current working directory, for
+       running against a different account without editing anything
+
+    One order for every configuration file there is. The ``.env`` merges its
+    candidates key by key, the policy file takes the last one that exists, but
+    both look in the same places in the same sequence — which is the part a
+    person has to keep in their head.
+    """
+    here = cwd or Path.cwd()
+    found = [config_dir() / name]
+    project = _project_config_dir()
+    if project is not None:
+        found.append(project / name)
+    found.append(here / "config" / name)
+    found.append(here / name)
+    return found
+
+
+def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
+    """The configuration file called ``name`` that actually applies.
+
+    The highest-precedence candidate that exists. When none does, the
+    per-user directory — the place to create one, and the answer a message
+    should name when a file is missing.
+    """
+    candidates = config_candidates(name, cwd)
+    for path in reversed(candidates):
+        if path.is_file():
+            return path
+    return candidates[0]
 
 
 def _env_lookup(cwd: Path | None = None) -> dict[str, str]:
     """Merge every source into one mapping, highest precedence last."""
-    here = cwd or Path.cwd()
     merged: dict[str, str] = {}
-    merged.update(_parse_env_file(config_dir() / ".env"))
-    project = _project_config()
-    if project is not None:
-        merged.update(_parse_env_file(project))
-    merged.update(_parse_env_file(here / "config" / ".env"))
-    merged.update(_parse_env_file(here / ".env"))
+    for path in config_candidates(".env", cwd):
+        merged.update(_parse_env_file(path))
     merged.update(os.environ)
     return merged
 

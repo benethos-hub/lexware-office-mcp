@@ -216,8 +216,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   turns everything on, and `--tools show` only reports. The file is read fresh
   on every request, so an edit takes effect without a restart — though a
   client that already fetched the tool list keeps showing it until it asks
-  again. The file cannot grant anything the tier withholds. Its location is
-  `LXO_MCP_TOOL_POLICY`.
+  again. The file cannot grant anything the tier withholds. It is found the
+  same way the `.env` is — per-user configuration directory, then `config/` of
+  a checkout, then the working directory, last one found winning — so a
+  `config/tools.json` in a clone overrides an installed one.
+  `LXO_MCP_TOOL_POLICY` overrides the search.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet
