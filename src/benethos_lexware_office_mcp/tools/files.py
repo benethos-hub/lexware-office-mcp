@@ -319,9 +319,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 f"{uri!r} is not a download from this server. Pass the `uri` "
                 f"a download reported, which starts with {resources.SCHEME}."
             )
-        # Resolved from disk rather than from the resource registry, which
-        # only knows what this process downloaded. The file outlives the
-        # process, so a link handed out before a restart still works.
+        # Resolved from disk at call time, which is what kept this tool
+        # working while `resources/read` was still answering from a registry
+        # that only knew the running process. The registry follows the disk
+        # now too, and this stays the direct route: no list to consult, no
+        # client feature to depend on.
         found = storage.resolve(
             uri[len(resources.SCHEME) :], storage.directory_for(settings)
         )
