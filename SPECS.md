@@ -413,11 +413,25 @@ written through it stays, because there is no call that removes it.
 | `update_contact`, `update_voucher`, `update_article` | a changed record | no undo, but the record can be changed again |
 
 **The web app is the other half of this, and this project cannot measure it.**
-The account owner reports that most records can be deleted there, the
-exceptions being anything already **festgeschrieben** for bookkeeping and an
-invoice that has been **sent**. That is not a measurement and is recorded as
-what it is — the statement of somebody who uses the product — but it decides
-how a tool should word its warning. "This cannot be undone" is a claim about
+What it can do is read the vendor's own help pages, which is what the
+following rests on — documentation rather than measurement, and about a
+product this server never touches. Per
+[Rechnungen und Entwürfe löschen](https://help.lexware.de/de-form/articles/548200-rechnungen-und-entwurfe-in-lexware-office-loschen),
+a document is deletable in the app unless one of these stands in the way:
+
+- it is **final festgeschrieben**, which is the one that cannot be worked
+  around: GoBD and § 146 AO require that a booked document stay unchanged, and
+  the answer there is a **Storno**, a counter entry, rather than a deletion,
+- it has **payments assigned** — the assignment is dissolved first,
+- it has **follow-on documents** hanging off it, a credit note or a
+  cancellation invoice — those go or are unlinked first,
+- it has been **exported**.
+
+**Being sent does not block a deletion**, and neither does being finalized on
+its own: a finalized document can be reset to a draft in the app and then
+deleted, as long as it is not final festgeschrieben. That is one detail
+stricter in recollection than in the documentation, and worth having right,
+because it decides how a tool should word its warning. "This cannot be undone" is a claim about
 the whole product that this server is in no position to make. "The API cannot
 take it back, correcting it is a job for the web app" is true, checkable, and
 tells the caller where to go. The descriptions say the second.
