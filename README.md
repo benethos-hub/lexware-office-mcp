@@ -79,7 +79,7 @@ Read tools:
 | `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice in full | **built** |
 | `get_voucher` | Read a bookkeeping voucher, by id or by its document number | **built** |
 | `get_payments` | Payment status and open amount of a voucher | **built** |
-| `get_recurring_templates` | Recurring invoice templates | planned |
+| `get_recurring_templates` | Templates that issue invoices on a schedule, one or a page of them | **built** |
 | `get_master_data` | Countries, payment conditions, posting categories and print layouts, with a search to narrow them | **built** |
 | `download_document` | Save the rendered PDF or XML of a sales document | **built** |
 | `download_file` | Save a stored file, such as an uploaded receipt | **built** |

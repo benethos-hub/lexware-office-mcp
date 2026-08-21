@@ -1,4 +1,4 @@
-"""The seven sales document types.
+"""The seven sales document types, and the templates that repeat them.
 
 An invoice, a quotation, a credit note, an order confirmation, a delivery
 note, a dunning and a down payment invoice are one shape with different
@@ -22,7 +22,7 @@ from .. import formatting
 from ..client import ClientProvider
 from ..config import Settings
 from ..policy import classify
-from ._base import register_tool
+from ._base import PageNumber, PageSize, register_tool
 
 __all__ = [
     "RESOURCES",
@@ -67,6 +67,18 @@ DocumentTypeField = Annotated[
     ),
 ]
 
+# Measured 2026-08-21 by sending `title`: the API names the four it takes.
+RecurringSort = Literal[
+    "createdDate,DESC",
+    "createdDate,ASC",
+    "updatedDate,DESC",
+    "updatedDate,ASC",
+    "nextExecutionDate,DESC",
+    "nextExecutionDate,ASC",
+    "lastExecutionDate,DESC",
+    "lastExecutionDate,ASC",
+]
+
 DocumentIdField = Annotated[
     str,
     Field(description="The document's Lexware id, as returned by search_vouchers."),
@@ -99,4 +111,46 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return formatting.sales_document(payload)
 
+    @classify("read", "sales_documents")
+    async def get_recurring_templates(
+        template_id: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Read one template by id. Left unset, a page of them "
+                    "comes back instead."
+                )
+            ),
+        ] = None,
+        sort: Annotated[
+            RecurringSort | None,
+            Field(
+                description=(
+                    "Which date to order by, newest first unless ',ASC' is "
+                    "added. The API sorts on these four and nothing else."
+                )
+            ),
+        ] = None,
+        page: PageNumber = 0,
+        size: PageSize = 25,
+    ) -> dict[str, Any]:
+        """Read the templates that issue invoices on a schedule.
+
+        One API call. With `template_id` it answers with that one template,
+        without it with a page of them.
+
+        There is nothing to filter by: the API offers no search here, only
+        paging and the sort. Reading a template is the whole of what the API
+        allows - one cannot be created, changed or run from here.
+        """
+        client = provider.get()
+        if template_id is not None:
+            return formatting.recurring_template(
+                await client.recurring_template(template_id)
+            )
+        return formatting.recurring_templates_page(
+            await client.recurring_templates(page=page, size=size, sort=sort)
+        )
+
     register_tool(server, get_sales_document)
+    register_tool(server, get_recurring_templates)

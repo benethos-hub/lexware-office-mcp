@@ -95,7 +95,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles, read, written and deleted. | built |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
-| `tools/sales_documents.py` | The seven sales document types, and the path segment each one lives behind. | built |
+| `tools/sales_documents.py` | The seven sales document types, the path segment each one lives behind, and the templates that repeat them. | built |
 | `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
 
@@ -202,7 +202,7 @@ Facts taken from <https://developers.lexware.io/docs/>.
 | Delivery notes | `/v1/delivery-notes` | GET, POST |
 | Dunnings | `/v1/dunnings` | GET, POST |
 | Down payment invoices | `/v1/down-payment-invoices` | GET |
-| Recurring templates | `/v1/recurring-templates` | GET |
+| Recurring templates | `/v1/recurring-templates` | GET, and GET by id |
 | Payments | `/v1/payments/{id}` | GET |
 | Payment conditions | `/v1/payment-conditions` | GET |
 | Posting categories | `/v1/posting-categories` | GET |
@@ -552,7 +552,7 @@ arguments cost three to four times what the simple ones do.
 | `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
 | `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
-| `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
+| `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. The record shape is **(to verify)**: the test account holds no template and the API offers no way to create one, which is also why nothing but `organizationId` is dropped from it. Built 2026-08-21, the envelope and the sort measured live. | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts), `search`, `limit` | `{kind, total, matched?, shown, entries}`. Nothing is dropped from a row: every field of these four decides something, including a `contactRequired` of false. What is trimmed is the number of rows, because two of the lists run into the hundreds and none of them pages, so the whole list arrives whatever the caller wanted. `search` matches every text a row carries except its id, which is one parameter instead of one per field and narrows by name, group, country code or category type alike. `matched` appears only when a search was given, where it would otherwise restate `total`. Built and verified live 2026-08-21. | 1 |
 | `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. No deeplink: a download reports where the bytes are, and a link into the web app is `get_deeplink`'s answer to a different question. The two were joined until 2026-08-21, which is how a link to a route that does not exist rode along with a download that worked. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
@@ -1269,11 +1269,12 @@ Built, tested offline and exercised against a live test account:
 - **every module in the table of section 4.** None is marked planned any
   more. The table is the list, so that this does not become a second one to
   keep in step.
-- twenty-two tools over the **stdio** transport, in seven groups. Reading:
+- twenty-three tools over the **stdio** transport, in seven groups. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
   `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
-  `get_sales_document`, `get_master_data`, `download_file`,
-  `download_document`, `read_download` and `get_deeplink`. Writing:
+  `get_sales_document`, `get_recurring_templates`, `get_master_data`,
+  `download_file`, `download_document`, `read_download` and `get_deeplink`.
+  Writing:
   `create_contact`, `update_contact`, `create_article`, `update_article`,
   `create_voucher`, `update_voucher` and `upload_file`. Irreversible:
   `delete_article`, the only one so far
@@ -1309,17 +1310,15 @@ fixtures are the shapes the API actually returned, and the enum values in the
 voucher schemas were measured rather than taken from the documentation, which
 does not list them.
 
-**The immediate next step is no longer a tool.** Every resource group of
-section 4 exists, and what is left in phase 1 is `get_recurring_templates`,
-which is one endpoint without a group. The two things actually holding a
-release back are section 16.1, how a user configures the server at all, and
-CI, which does not exist. After those, `create_sales_document` is the piece
-that would make the write side complete — it can quote the articles this
-version added.
+**Phase 1 is complete.** Every read tool of section 8 exists and every
+resource group of section 4 is built. What holds a release back is section
+16.1, how a user configures the server at all, and CI, which does not exist.
+On the tool side `create_sales_document` is the piece that would make the
+write half complete — it can quote the articles this version added.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. `get_recurring_templates`, the configuration rework of section 16.1 and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. The configuration rework of section 16.1 and CI are open. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | the remaining irreversible operations — finalizing a document and booking a voucher, `delete_article` being built — pursue chains, ZUGFeRD and XRechnung download variants | planned |

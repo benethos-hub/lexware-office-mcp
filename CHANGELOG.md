@@ -138,6 +138,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **`get_recurring_templates`** — read the templates that issue invoices on a
+  schedule. Costs one API call. With a `template_id` it answers with that one
+  template, without one with a page of them, because the endpoint offers
+  nothing to search by and two tools would have cost two descriptions for the
+  same call. `sort` takes the four dates the API accepts. Reading is all
+  there is: a template cannot be created, changed or run through the API.
 - **The article catalogue, all five tools.** `search_articles` lists them,
   `get_article` reads one in full, `create_article` adds one,
   `update_article` changes one, and `delete_article` removes one for good.

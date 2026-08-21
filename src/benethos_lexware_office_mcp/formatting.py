@@ -17,6 +17,8 @@ from typing import Any
 
 __all__ = [
     "article",
+    "recurring_template",
+    "recurring_templates_page",
     "article_row",
     "articles_page",
     "compact",
@@ -350,3 +352,22 @@ def article(payload: dict[str, Any]) -> dict[str, Any]:
     """
     kept = {k: v for k, v in payload.items() if k not in ARTICLE_DROP}
     return dict(compact(kept))
+
+
+# -- recurring templates --------------------------------------------------
+
+# Identical on every record, and answered once by `get_profile`. Nothing else
+# is dropped, here least of all: this project has never seen a live recurring
+# template, so an allow-list would be a guess about fields it cannot see.
+RECURRING_DROP = ("organizationId",)
+
+
+def recurring_template(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one recurring template. **(to verify)** against a live one."""
+    kept = {k: v for k, v in payload.items() if k not in RECURRING_DROP}
+    return dict(compact(kept))
+
+
+def recurring_templates_page(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a page of ``GET /v1/recurring-templates``."""
+    return page(payload, recurring_template, key="templates")

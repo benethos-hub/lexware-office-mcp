@@ -548,6 +548,34 @@ class LexwareClient:
         """
         await self.request("DELETE", f"/v1/articles/{article_id}")
 
+    # -- recurring templates ----------------------------------------------
+
+    async def recurring_templates(
+        self,
+        *,
+        page: int = 0,
+        size: int = DEFAULT_PAGE_SIZE,
+        sort: str | None = None,
+    ) -> dict[str, Any]:
+        """``GET /v1/recurring-templates``. One API call, one page.
+
+        There is nothing to filter by. Measured 2026-08-21: the endpoint takes
+        paging and a ``sort``, which is checked against four date fields and
+        refuses anything else, and it ignores every other parameter.
+        """
+        params = _page_params(page, size, sort=sort)
+        return _expect_object(
+            await self.get_json("/v1/recurring-templates", params=params),
+            "recurring-templates",
+        )
+
+    async def recurring_template(self, template_id: str) -> dict[str, Any]:
+        """``GET /v1/recurring-templates/{id}``. One API call."""
+        return _expect_object(
+            await self.get_json(f"/v1/recurring-templates/{template_id}"),
+            "recurring-templates",
+        )
+
     # -- master data ------------------------------------------------------
 
     async def master_data(self, kind: str) -> list[Any]:
