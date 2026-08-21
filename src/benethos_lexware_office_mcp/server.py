@@ -76,42 +76,98 @@ def build_server(
 mcp = build_server(load_settings())
 
 
+# Written for someone reading it in a terminal for the first time. The
+# options say what they are in one line each, and everything that needs a
+# paragraph is a worked example underneath, where argparse will not reflow it.
+_DESCRIPTION = """\
+Gives an AI assistant access to a Lexware Office account.
+
+It speaks MCP over stdio, so you do not run it yourself: a client such as
+Claude Desktop starts it. What you do run is --tools, to say which of its
+tools that client may use."""
+
+_EPILOG = """\
+choosing the tools:
+
+  The server offers only what its policy file allows, and nothing at all
+  when there is no file. Write a starting point, then edit it by hand.
+
+    benethos-lexware-office-mcp --tools read-only
+        reading only: search, look up, download
+
+    benethos-lexware-office-mcp --tools write
+        the above, and creating and changing records
+
+    benethos-lexware-office-mcp --tools irreversible
+        the above, and deleting, booking and finalizing
+
+    benethos-lexware-office-mcp --tools show
+        change nothing, just list what is on
+
+  The file is JSON, one line per tool. Set one to false and it disappears
+  from the client. Changes take effect on the next request, though a client
+  usually asks for the tool list only once, when it starts.
+
+    {
+     "search_contacts": true,
+     "create_contact": false
+    }
+
+where the file goes:
+
+  Add --tools-file to any of the commands above to write it somewhere
+  particular:
+
+    benethos-lexware-office-mcp --tools write --tools-file ./tools.json
+
+  Without it, tools.json is looked for in these places, and the last one
+  found is the one that counts:
+
+    1. the per-user configuration directory
+    2. config/ of the source checkout, if you are running from the sources
+    3. ./config/tools.json, then ./tools.json
+
+first run:
+
+  Put your API key in LXO_MCP_API_KEY or in a .env file beside the policy
+  file. Create one in Lexware Office under Extensions, Public API.
+  config/.env.sample lists every setting there is."""
+
+
 def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="benethos-lexware-office-mcp",
-        description=(
-            "MCP server for the Lexware Office API. Speaks stdio. "
-            "Offers the tools the policy file enables, and no others."
-        ),
+        description=_DESCRIPTION,
+        epilog=_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument(
+        "--version", action="version", version=__version__, help="print the version"
+    )
     parser.add_argument(
         "--log-level",
         choices=LOG_LEVELS,
         default=defaults.log_level,
-        help="Log level on stderr. Env: LXO_MCP_LOG_LEVEL. Default: %(default)s.",
+        metavar="LEVEL",
+        help=(
+            "how much to report on stderr: "
+            + ", ".join(LOG_LEVELS).lower()
+            + " (default: %(default)s)"
+        ),
     )
     parser.add_argument(
         "--tools",
         choices=("show", "read-only", "write", "irreversible"),
+        metavar="WHICH",
         help=(
-            "Work on the tool policy file instead of serving, writing it with "
-            "--tools-file or wherever the search finds it. 'show' prints "
-            "which tools are on. The other three overwrite the file: "
-            "'read-only' queries only, 'write' adds creating and updating, "
-            "'irreversible' adds deleting, booking and finalizing."
+            "list or rewrite the policy file instead of starting the server: "
+            "show, read-only, write, irreversible (see below)"
         ),
     )
     parser.add_argument(
         "--tools-file",
         metavar="PATH",
-        help=(
-            "Where to write the policy file, and which one the server runs "
-            "under. Without it the file is searched for: the per-user config "
-            "directory, then config/ of a checkout, then the working "
-            "directory, last one found winning. Wins over "
-            "LXO_MCP_TOOL_POLICY. --tools show prints the file in force."
-        ),
+        help="which policy file to use, instead of looking for one (see below)",
     )
     return parser.parse_args(argv)
 
