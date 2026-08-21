@@ -104,17 +104,19 @@ choosing the tools:
     benethos-lexware-office-mcp --tools show
         change nothing, just list what is on
 
-  The file is JSON, one line per tool. Set one to false and it disappears
-  from the client. Changes take effect on the next request, though a client
-  usually asks for the tool list only once, when it starts.
-
-  Running --tools again overwrites the file, so edits made by hand are lost.
-  Use it to start a file, not to update one.
+  The file is JSON, one line per tool:
 
     {
      "search_contacts": true,
      "create_contact": false
     }
+
+  Set one to false and it disappears from the client. Changes take effect on
+  the next request, though a client usually asks for the tool list only once,
+  when it starts.
+
+  Running --tools again overwrites the whole file, so edits made by hand are
+  lost. Use it to start a file, not to update one.
 
 where the file goes:
 
