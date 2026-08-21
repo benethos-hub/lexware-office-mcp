@@ -122,6 +122,49 @@ async def test_a_client_error_carries_the_api_s_own_wording() -> None:
     assert "voucherDate must not be null" in str(excinfo.value)
 
 
+async def test_a_refused_body_names_the_fields_it_refused() -> None:
+    """Measured 2026-08-21 against `POST /v1/articles` with fields missing.
+
+    A refused body carries `details`, not an `IssueList`, and the two share no
+    field names. The API's own message points at that list - "please see
+    details list for specific causes" - so dropping it hands the caller a
+    pointer to something they were never given.
+    """
+    body = {
+        "status": 406,
+        "message": "Validation failed for request. Please see details list.",
+        "details": [
+            {
+                "violation": "NOTNULL",
+                "field": "price",
+                "message": "darf nicht null sein",
+            },
+            {
+                "violation": "NOTEMPTY",
+                "field": "unitName",
+                "message": "darf nicht leer sein",
+            },
+        ],
+    }
+    async with make_client(httpx.Response(406, json=body)) as client:
+        with pytest.raises(ValidationError) as excinfo:
+            await client.request("POST", "/v1/articles", json={})
+    message = str(excinfo.value)
+    assert "price: NOTNULL" in message
+    assert "unitName: NOTEMPTY" in message
+    assert "darf nicht" not in message, (
+        "the localized half says no more than the violation"
+    )
+
+
+async def test_a_stale_version_in_the_details_shape_is_still_a_conflict() -> None:
+    """The shape changes, the meaning does not."""
+    body = {"details": [{"violation": "STALE", "field": "version"}]}
+    async with make_client(httpx.Response(406, json=body)) as client:
+        with pytest.raises(ConflictError):
+            await client.request("PUT", "/v1/articles/abc")
+
+
 async def test_a_stale_version_tells_the_caller_to_re_read() -> None:
     """Verified 2026-08-20: a stale version is a 406 naming `version`."""
     body = {"IssueList": [{"source": "version", "type": "validation_failure"}]}

@@ -106,18 +106,31 @@ def _json_object(response: httpx.Response) -> dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
-def _detail_text(body: dict[str, Any]) -> str:
-    """The API's own wording for a failure, without ever echoing the key.
+def _issues(body: dict[str, Any]) -> list[Any]:
+    """Every issue the body carries, in whichever shape it used.
 
-    Three shapes are in use upstream and all three carry the only information
-    there is: ``errorCode``/``message``, an ``IssueList``, and a single issue
-    flattened onto the top level, which is how the files endpoint reports a
-    missing form field.
+    Two lists are in use upstream and they share no field names.
+    ``IssueList`` holds ``source``/``i18nKey``, which is what a rejected query
+    parameter or a stale version comes back as. ``details`` holds
+    ``field``/``violation``, which is what a refused body comes back as, and
+    its own message says "please see details list for specific causes" — so
+    dropping it leaves the caller reading a pointer to something they were
+    not given. Measured against articles on 2026-08-21.
+
+    A third shape is one issue flattened onto the top level, which is how the
+    files endpoint reports a missing form field.
     """
+    for key in ("IssueList", "details"):
+        value = body.get(key)
+        if isinstance(value, list):
+            return value
+    return [body] if body.get("source") or body.get("field") else []
+
+
+def _detail_text(body: dict[str, Any]) -> str:
+    """The API's own wording for a failure, without ever echoing the key."""
     parts = [str(body[key]) for key in ("errorCode", "message") if body.get(key)]
-    parts.extend(_issue_texts(body.get("IssueList")))
-    if "IssueList" not in body:
-        parts.extend(_issue_texts([body]))
+    parts.extend(_issue_texts(_issues(body)))
     text = " ".join(dict.fromkeys(part for part in parts if part)).strip()
     return f" {text}" if text else ""
 
@@ -126,16 +139,13 @@ def _issue_sources(body: dict[str, Any]) -> set[str]:
     """Which fields an error blamed.
 
     The status alone does not say what went wrong: contacts answer a missing
-    role, a second billing address and a stale version all with 406. The
-    ``source`` is what tells those apart.
+    role, a second billing address and a stale version all with 406. The field
+    an issue names is what tells those apart.
     """
-    issues = body.get("IssueList")
-    if not isinstance(issues, list):
-        issues = [body] if body.get("source") else []
     return {
-        str(issue["source"])
-        for issue in issues
-        if isinstance(issue, dict) and issue.get("source")
+        str(issue.get("source") or issue.get("field"))
+        for issue in _issues(body)
+        if isinstance(issue, dict) and (issue.get("source") or issue.get("field"))
     }
 
 
@@ -145,7 +155,9 @@ def _issue_texts(issues: Any) -> list[str]:
     A rejected query parameter comes back as
     ``{"source": "number", "i18nKey": "invalid_value"}`` and nothing else, so
     dropping either half leaves the caller guessing which field was wrong or
-    what was wrong with it.
+    what was wrong with it. A refused body names the same two things as
+    ``field`` and ``violation``, plus a localized sentence that says no more
+    than the violation does and is therefore left out.
     """
     if not isinstance(issues, list):
         return []
@@ -153,8 +165,10 @@ def _issue_texts(issues: Any) -> list[str]:
     for issue in issues:
         if not isinstance(issue, dict):
             continue
-        source = str(issue.get("source") or "")
-        kind = str(issue.get("i18nKey") or issue.get("type") or "")
+        source = str(issue.get("source") or issue.get("field") or "")
+        kind = str(
+            issue.get("i18nKey") or issue.get("type") or issue.get("violation") or ""
+        )
         if source and kind:
             texts.append(f"{source}: {kind}")
         elif source or kind:

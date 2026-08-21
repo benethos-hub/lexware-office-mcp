@@ -951,11 +951,23 @@ depended on.
 | Upstream | Error class | Message shape |
 |---|---|---|
 | 400, 406 | `ValidationError` | the API `errorCode` and `message`, plus the offending field path when the response names one |
+
 | 401 | `AuthError` | "API key rejected", with a pointer to the add-on page, never the key |
 | 404 | `NotFoundError` | resource type and the ID that was asked for |
 | 409 | `ConflictError` | version mismatch or locked state, naming the current version so the caller can re-read and retry |
 | 429 | `RateLimitError` | after retries are exhausted, with the wait hint |
 | 5xx, network | `UpstreamError` | short, no traceback |
+
+**Two lists of issues are in use upstream, and they share no field names.**
+`IssueList` carries `source` and `i18nKey`, which is what a rejected query
+parameter or a stale version comes back as. `details` carries `field` and
+`violation`, which is what a refused request body comes back as - measured
+2026-08-21 against `POST /v1/articles`, where a missing `price` answers 406
+with `{"violation": "NOTNULL", "field": "price"}` and a message that reads
+"please see details list for specific causes". Reading only the first shape
+therefore handed the caller a pointer to a list they were not given. Both are
+read, and the localized German sentence beside each violation is left out
+because it says no more than the violation name does.
 
 No raw traceback ever reaches the client. Expected failures are `ToolError`
 subclasses with concise, actionable messages.

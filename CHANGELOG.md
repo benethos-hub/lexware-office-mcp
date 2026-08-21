@@ -138,6 +138,13 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **A refused request now names the fields it refused.** The API answers a
+  bad body with a `details` list of field and violation, a different shape
+  from the `IssueList` it uses elsewhere, and only the second one was read.
+  A refusal that said "validation failed, please see details list" and then
+  showed no details now reads `price: NOTNULL type: NOTNULL unitName:
+  NOTEMPTY`. A stale `version` reported in that shape is recognized as a
+  conflict too.
 - **`--tools write` now says what it does not promise.** Nothing that preset
   enables deletes a record, but `create_voucher` and `upload_file` leave a
   bookkeeping voucher behind that the API cannot remove, and only the web app
