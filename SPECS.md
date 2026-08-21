@@ -361,6 +361,34 @@ in six months. Every line here is a request that was actually sent.
   as well. The record is gone, not archived — the one resource in this API
   that can be removed at all, where a bookkeeping voucher cannot.
 
+### Recurring templates, verified 2026-08-21
+
+- **The API trims the list itself**, which no other endpoint here does. A row
+  carries nine fields — id, title, the two timestamps, `address`,
+  `totalPrice`, `paymentConditions` and `recurringTemplateSettings` — and the
+  record behind it carries twenty-one, adding `lineItems`, `version`,
+  `taxConditions`, `voucherStatus`, `taxAmounts` and the texts. What a
+  template will actually invoice is therefore only visible by id, and the
+  tool's description says so.
+- **`recurringTemplateSettings` is the whole of what makes it a template**:
+  `startDate`, `executionInterval` (`MONTHLY` measured), `nextExecutionDate`,
+  `lastExecutionDate`, `lastExecutionFailed`, `executionStatus` (`ACTIVE`
+  measured), `retroactiveInvoice`, `shippingType` and `finalize`. Its dates
+  are plain `2026-09-21`, not the timestamps the rest of the sales documents
+  use.
+- **`finalize` decides how dangerous the thing is.** False means each run
+  leaves a **draft**, true means it issues the invoice and mails it. Nothing
+  here can change that setting — the API is read-only for templates — but a
+  caller reading a template can tell which of the two it is looking at.
+- **A "Dauerbeleg" is not this**, and has no endpoint at all. The web app has
+  two features that both recur: a *Serienrechnung* on the sales side, which is
+  what `/v1/recurring-templates` returns, and a *Dauerbeleg* on the expense
+  side, which is invisible to the API. Confirmed 2026-08-21 with an active
+  monthly Dauerbeleg in the account while the endpoint answered zero, and by
+  probing five plausible paths for it, all 404. Only what a Dauerbeleg
+  *produces* is visible, as an ordinary voucher in the voucher list, and
+  nothing on that voucher says it came from one.
+
 ### Creating a sales document, verified 2026-08-21
 
 Measured by posting to each type in turn. Nothing was finalized, so what the
@@ -604,7 +632,7 @@ arguments cost three to four times what the simple ones do.
 | `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
 | `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
-| `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. The record shape is **(to verify)**: the test account holds no template and the API offers no way to create one, which is also why nothing but `organizationId` is dropped from it. Built 2026-08-21, the envelope and the sort measured live. | 1 |
+| `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. Nothing but `organizationId` is dropped, because the API already sends a shorter row in a list than it sends for one record — see section 5, which is also why the tool says to read by id for the lines. Built and verified live 2026-08-21. | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts), `search`, `limit` | `{kind, total, matched?, shown, entries}`. Nothing is dropped from a row: every field of these four decides something, including a `contactRequired` of false. What is trimmed is the number of rows, because two of the lists run into the hundreds and none of them pages, so the whole list arrives whatever the caller wanted. `search` matches every text a row carries except its id, which is one parameter instead of one per field and narrows by name, group, country code or category type alike. `matched` appears only when a search was given, where it would otherwise restate `total`. Built and verified live 2026-08-21. | 1 |
 | `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. No deeplink: a download reports where the bytes are, and a link into the web app is `get_deeplink`'s answer to a different question. The two were joined until 2026-08-21, which is how a link to a route that does not exist rode along with a download that worked. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |

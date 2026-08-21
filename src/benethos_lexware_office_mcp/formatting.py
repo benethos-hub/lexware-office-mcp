@@ -357,13 +357,18 @@ def article(payload: dict[str, Any]) -> dict[str, Any]:
 # -- recurring templates --------------------------------------------------
 
 # Identical on every record, and answered once by `get_profile`. Nothing else
-# is dropped, here least of all: this project has never seen a live recurring
-# template, so an allow-list would be a guess about fields it cannot see.
+# is dropped: the API already sends a shorter row in a list than it sends for
+# one record, so trimming further would take away a field it chose to include.
 RECURRING_DROP = ("organizationId",)
 
 
 def recurring_template(payload: dict[str, Any]) -> dict[str, Any]:
-    """Normalize one recurring template. **(to verify)** against a live one."""
+    """Normalize one recurring template.
+
+    Verified 2026-08-21 against a live one. The same function serves a list
+    row and a full record, which differ by twelve fields upstream - see
+    SPECS.md section 5.
+    """
     kept = {k: v for k, v in payload.items() if k not in RECURRING_DROP}
     return dict(compact(kept))
 

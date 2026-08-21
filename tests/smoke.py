@@ -270,7 +270,11 @@ async def _checks(server: Any) -> int:
         ]
         if not rows:
             return None
-        sales_row = rows[0]
+        # An issued invoice first, because only that one has been rendered and
+        # the download check below reads the same row. Which invoice happens
+        # to be newest is not something a live check should depend on.
+        issued = [row for row in rows if row.get("voucherStatus") != "draft"]
+        sales_row = (issued or rows)[0]
         full = await call(
             "get_sales_document", document_type="invoice", document_id=sales_row["id"]
         )
@@ -327,12 +331,23 @@ async def _checks(server: Any) -> int:
         page = await call("get_recurring_templates", size=5)
         expect("page" in page, "the recurring templates lost their envelope")
         found = page["page"]["totalElements"]
-        if found:
-            first = page["templates"][0]
-            full = await call("get_recurring_templates", template_id=first["id"])
-            expect("id" in full, "a template read by id came back empty")
-            return f"{found} templates, one read by id"
-        return f"{found} templates, so the record shape stays unverified"
+        if not found:
+            return f"{found} templates, so the schedule shape is not checked"
+        row = page["templates"][0]
+        expect(
+            "lineItems" not in row,
+            "a list row now carries the lines it never used to",
+        )
+        full = await call("get_recurring_templates", template_id=row["id"])
+        expect("lineItems" in full, "the record lost the lines it will invoice")
+        settings = full.get("recurringTemplateSettings") or {}
+        for field in ("executionInterval", "nextExecutionDate", "executionStatus"):
+            expect(field in settings, f"the schedule lost {field}")
+        return (
+            f"{found} templates, next run {settings['nextExecutionDate']}, "
+            f"{settings['executionInterval'].lower()}, {settings['executionStatus']}, "
+            f"{'issues' if settings.get('finalize') else 'drafts'} each run"
+        )
 
     await check(report, "recurring templates", recurring)
 

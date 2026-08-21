@@ -158,9 +158,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         One API call. With `template_id` it answers with that one template,
         without it with a page of them.
 
-        There is nothing to filter by: the API offers no search here, only
-        paging and the sort. Reading a template is the whole of what the API
-        allows - one cannot be created, changed or run from here.
+        A row is shorter than the record behind it: what a template will
+        actually invoice, its lines and tax, is only in the record, so read by
+        id to see that.
+
+        `recurringTemplateSettings` carries the schedule. `executionStatus`
+        says whether it still runs, and `finalize` false means each run leaves
+        a draft rather than issuing an invoice.
+
+        There is nothing to filter by, and reading is all the API allows.
         """
         client = provider.get()
         if template_id is not None:

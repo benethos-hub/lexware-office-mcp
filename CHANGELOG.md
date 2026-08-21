@@ -168,7 +168,8 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   the new file id, which `download_file` reads back. Costs one API call that
   is never retried, and an attachment cannot be removed either.
 - **`get_recurring_templates`** — read the templates that issue invoices on a
-  schedule. Costs one API call. With a `template_id` it answers with that one
+  schedule. A row is shorter than the record behind it, so what a template
+  will actually invoice is only visible when you read it by id. Costs one API call. With a `template_id` it answers with that one
   template, without one with a page of them, because the endpoint offers
   nothing to search by and two tools would have cost two descriptions for the
   same call. `sort` takes the four dates the API accepts. Reading is all

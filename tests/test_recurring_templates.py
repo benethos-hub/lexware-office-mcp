@@ -1,12 +1,16 @@
 """Templates that issue invoices on a schedule.
 
-The one group in this server whose record shape has never been seen: the test
-account holds no template and the API offers no way to create one, so the
-fixture below is a shape taken from the documentation rather than from a
-response. That is exactly why the formatting is a drop-list of one field -
-anything narrower would be a guess - and why SPECS marks the shape
-**(to verify)**. What *is* measured here is the envelope, the paging, and
-which sort values the API accepts, all of which were sent on 2026-08-21.
+Both fixtures are what the live API returned on 2026-08-21, once a
+Serienrechnung existed in the test account, with the ids replaced. The
+difference between them is the point: **the API trims the list itself.** A row
+carries nine fields, the record behind it twenty-one, and `lineItems`,
+`version`, `taxConditions` and `voucherStatus` are only in the second. A
+caller who needs to know what a template will invoice has to read it by id.
+
+This is also where the drop-list approach earned itself: the shape guessed
+before a live one existed had a `version` in the row, which the row does not
+carry, and no `paymentConditions`, which it does. Passing everything but
+`organizationId` through meant the tool was right anyway.
 """
 
 from __future__ import annotations
@@ -26,27 +30,82 @@ from benethos_lexware_office_mcp.server import build_server
 
 API_KEY = "test-key-0123456789"
 
-TEMPLATE: dict[str, Any] = {
+# The schedule. `finalize` false is the setting that makes each run leave a
+# draft rather than issuing and mailing an invoice, and `executionStatus`
+# says whether it is still running at all.
+SETTINGS: dict[str, Any] = {
+    "id": "PLACEHOLDER-SETTINGS-1",
+    "startDate": "2026-08-21",
+    "finalize": False,
+    "shippingType": "delivery",
+    "retroactiveInvoice": False,
+    "executionInterval": "MONTHLY",
+    "nextExecutionDate": "2026-09-21",
+    "lastExecutionDate": "2026-08-21",
+    "lastExecutionFailed": False,
+    "executionStatus": "ACTIVE",
+}
+
+# What a row of the list carries. Nine fields, and the API decides that, not
+# this project.
+ROW: dict[str, Any] = {
     "id": "PLACEHOLDER-TEMPLATE-1",
     "organizationId": "PLACEHOLDER-ORG-ID",
-    "createdDate": "2026-08-01T10:00:00.000+02:00",
-    "updatedDate": "2026-08-01T10:00:00.000+02:00",
-    "version": 1,
+    "title": "Rechnung",
+    "createdDate": "2026-08-21T20:28:07.442+02:00",
+    "updatedDate": "2026-08-21T20:28:07.442+02:00",
     "address": {"contactId": "PLACEHOLDER-CONTACT-1", "name": "Testa Musterperson"},
-    "lineItems": [],
-    "totalPrice": {"currency": "EUR", "totalNetAmount": 100.0},
-    "recurringTemplateSettings": {
-        "id": "PLACEHOLDER-SETTINGS-1",
-        "startDate": "2026-09-01",
-        "nextExecutionDate": "2026-09-01",
-        "lastExecutionFinishDate": None,
-        "executionInterval": "MONTHLY",
-        "finalize": True,
+    "totalPrice": {
+        "currency": "EUR",
+        "totalNetAmount": 123.0,
+        "totalGrossAmount": 146.37,
     },
+    "paymentConditions": {
+        "paymentTermLabel": "Zahlbar sofort, rein netto",
+        "paymentTermLabelTemplate": "Zahlbar sofort, rein netto",
+        "paymentTermDuration": 0,
+    },
+    "recurringTemplateSettings": SETTINGS,
+}
+
+# And what reading one by id adds: the lines it will invoice, the version, the
+# tax conditions, and the status of the document it produces.
+TEMPLATE: dict[str, Any] = {
+    **ROW,
+    "version": 1,
+    "voucherStatus": "draft",
+    "language": "de",
+    "archived": False,
+    "electronicDocumentProfile": "NONE",
+    "printLayoutId": "PLACEHOLDER-LAYOUT-1",
+    "lineItems": [
+        {
+            "id": "PLACEHOLDER-ARTICLE-1",
+            "type": "material",
+            "name": "Ein Artikel",
+            "quantity": 1,
+            "unitName": "Stueck",
+            "unitPrice": {
+                "currency": "EUR",
+                "netAmount": 123,
+                "grossAmount": 146.37,
+                "taxRatePercentage": 19,
+            },
+            "discountPercentage": 0,
+            "lineItemAmount": 123.0,
+        }
+    ],
+    "taxAmounts": [{"taxRatePercentage": 19.0, "taxAmount": 23.37, "netAmount": 123.0}],
+    "taxConditions": {"taxType": "net"},
+    "relatedVouchers": [],
+    "introduction": (
+        "Unsere Lieferungen/Leistungen stellen wir Ihnen wie folgt in Rechnung."
+    ),
+    "remark": "Vielen Dank fuer die gute Zusammenarbeit.",
 }
 
 PAGE: dict[str, Any] = {
-    "content": [TEMPLATE],
+    "content": [ROW],
     "first": True,
     "last": True,
     "number": 0,
@@ -134,12 +193,35 @@ async def test_one_template_is_read_from_its_own_path() -> None:
 
 
 def test_only_the_organization_is_dropped() -> None:
-    """A record this project has never seen keeps everything else it sends."""
+    """Everything else the API sends is passed through, row or record alike."""
     formatted = formatting.recurring_template(TEMPLATE)
 
     assert "organizationId" not in formatted
     assert formatted["recurringTemplateSettings"]["executionInterval"] == "MONTHLY"
     assert formatted["version"] == 1
+
+
+def test_the_schedule_survives_whole() -> None:
+    """It is the only part of the record that is not an ordinary invoice, so
+    losing a field of it would lose the point of the template."""
+    settings = formatting.recurring_template(TEMPLATE)["recurringTemplateSettings"]
+
+    assert settings["nextExecutionDate"] == "2026-09-21"
+    assert settings["executionStatus"] == "ACTIVE"
+    assert settings["finalize"] is False, "false means each run leaves a draft"
+    assert settings["lastExecutionFailed"] is False, "a false that carries meaning"
+
+
+def test_the_list_is_shorter_than_the_record_and_stays_that_way() -> None:
+    """The API trims the row, not this project. Measured 2026-08-21: nine
+    fields in a row against twenty-one in the record behind it."""
+    row = formatting.recurring_templates_page(PAGE)["templates"][0]
+    record = formatting.recurring_template(TEMPLATE)
+
+    for absent in ("lineItems", "version", "taxConditions", "voucherStatus"):
+        assert absent not in row, f"a row never carried {absent}"
+        assert absent in record
+    assert row["recurringTemplateSettings"]["executionStatus"] == "ACTIVE"
 
 
 def test_an_unseen_field_survives() -> None:
@@ -153,6 +235,16 @@ def test_the_page_uses_the_shared_envelope() -> None:
 
     assert formatted["page"]["totalElements"] == 1
     assert formatted["templates"][0]["id"] == "PLACEHOLDER-TEMPLATE-1"
+
+
+def test_a_row_keeps_what_a_caller_chooses_by() -> None:
+    """Nine fields is little enough that every one of them has to survive."""
+    row = formatting.recurring_templates_page(PAGE)["templates"][0]
+
+    assert row["title"] == "Rechnung"
+    assert row["address"]["name"] == "Testa Musterperson"
+    assert row["totalPrice"]["totalGrossAmount"] == 146.37
+    assert row["paymentConditions"]["paymentTermDuration"] == 0
 
 
 # -- the tool -------------------------------------------------------------
