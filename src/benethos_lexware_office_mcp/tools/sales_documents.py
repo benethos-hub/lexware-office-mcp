@@ -24,7 +24,13 @@ from ..config import Settings
 from ..policy import classify
 from ._base import register_tool
 
-__all__ = ["RESOURCES", "DocumentType", "register"]
+__all__ = [
+    "RESOURCES",
+    "DocumentIdField",
+    "DocumentType",
+    "DocumentTypeField",
+    "register",
+]
 
 # The seven types, and the path segment each one lives under. The segments
 # are plural and kebab-cased, which is also what the web app's permalinks use.
@@ -48,6 +54,9 @@ RESOURCES: dict[str, str] = {
     "down-payment-invoice": "down-payment-invoices",
 }
 
+# Both fields are shared with `download_document` in :mod:`.files`, which
+# addresses the same seven documents. One wording, sent to the model once per
+# tool that uses it, rather than two that can drift apart.
 DocumentTypeField = Annotated[
     DocumentType,
     Field(

@@ -559,6 +559,14 @@ table maintained by hand somewhere else eventually would. It is **metadata,
 not permission**: nothing reads it when a call arrives. A script selects on
 `access`, an interface groups by `domain`, and both then write flags.
 
+**The domain is the module the tool lives in**, for every tool without
+exception: `contacts`, `diagnostics`, `files`, `master_data`,
+`sales_documents`, `vouchers`. A tool that points at a sales document while
+doing something else — `download_document` fetches its PDF, `get_deeplink`
+builds a link to it — is grouped by what it does rather than by what it names,
+because that is where a reader looks for it and where the code keeps it.
+Anything else would need a second rule about which of the two wins.
+
 **Enforcement happens twice, as defence in depth.** A disabled tool is left
 out of the list, so it never reaches the model and costs no tokens, and a call
 to one is refused by name with the file that would enable it. The listing

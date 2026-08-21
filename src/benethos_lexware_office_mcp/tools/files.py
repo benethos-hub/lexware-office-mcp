@@ -28,7 +28,7 @@ from ..config import Settings
 from ..errors import NotFoundError, ValidationError
 from ..policy import classify
 from ._base import register_tool
-from .sales_documents import RESOURCES, DocumentType
+from .sales_documents import RESOURCES, DocumentIdField, DocumentTypeField
 
 __all__ = ["register"]
 
@@ -196,18 +196,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
     @classify("read", "files")
     async def download_document(
-        document_type: Annotated[
-            DocumentType,
-            Field(description="Which kind of sales document this is."),
-        ],
-        document_id: Annotated[
-            str,
-            Field(
-                description=(
-                    "The document's Lexware id, as returned by search_vouchers."
-                )
-            ),
-        ],
+        document_type: DocumentTypeField,
+        document_id: DocumentIdField,
         file_format: FormatField = "pdf",
     ) -> Download:
         """Save the rendered PDF of an invoice or another sales document.
