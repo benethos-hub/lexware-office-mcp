@@ -111,8 +111,9 @@ Facts taken from <https://developers.lexware.io/docs/>.
   `https://app.lexware.de/addons/public-api`, sent as
   `Authorization: Bearer <key>`. The documentation uses "API key" and "access
   token" interchangeably and describes no refresh flow, so the key is treated
-  as a long-lived static secret. Any OAuth2 partner flow is **(to verify)** and
-  out of scope for the first releases.
+  as a long-lived static secret. **There is no second way in**: the
+  documentation describes no OAuth2 flow, no partner access and no scopes,
+  checked 2026-08-21, see open question 5.
 - **Rate limit:** up to 2 requests per second, enforced with the
   [token bucket algorithm](https://en.wikipedia.org/wiki/Token_bucket). The
   limit is **global across the whole API**, not per endpoint — the
@@ -1520,8 +1521,19 @@ item. Answered questions stay in place with their answer.
    so the old host keeps working and neither is region-specific as far as can
    be seen from here. It stays configurable. The permalink shapes were
    measured the same day, see section 5.
-5. Whether any endpoint returns a partner or OAuth-only field that a plain API
-   key cannot reach.
+5. ~~Whether any endpoint returns a partner or OAuth-only field that a plain
+   API key cannot reach.~~ **Closed 2026-08-21.** The question assumed a
+   second way in - a partner integration authorized by OAuth2, of the kind
+   many vendors run beside an account key, which can see fields a plain key
+   cannot. The documentation describes exactly one way in: the account
+   owner's private key from `app.lexware.de/addons/public-api`, sent as a
+   bearer token. No OAuth2 flow, no partner access, no scopes, no endpoint or
+   field level restrictions appear anywhere in it. Nothing read against a live
+   account has hinted at a truncated view either: every record carried what
+   the web app shows for it. An **undocumented** partner programme cannot be
+   ruled out from here, but it would be a question for Lexware rather than a
+   measurement, and it would be moot for this server, which serves one account
+   deliberately and is not a customer-facing integration.
 6. ~~The upstream token bucket capacity, which is not documented.~~
    **Answered 2026-08-21: it is 4.** Measured after a 15 second idle stretch,
    which at the documented 2 per second would have accumulated 30 tokens if
@@ -1537,7 +1549,9 @@ item. Answered questions stay in place with their answer.
    **Answered 2026-08-20:** yes, and it works against the production endpoints.
    See section 11.1.
 
-**Still open and worth a probe while a test account exists:** 2 (idempotency
-key) and 6 (bucket capacity). Question 7 cannot be probed
-deliberately — provoking 429s is exactly what the documentation warns leads to
-a permanent block.
+**Nothing is left that a test account could answer.** Questions 2 and 6 were
+measured on 2026-08-21 and 5 was closed against the documentation the same
+day. Question 7 stays open on purpose: provoking 429s repeatedly is exactly
+what the documentation warns leads to a permanent block, and the one 429 that
+did occur while measuring question 6 came back without a `Retry-After` worth
+reading, which is not enough to answer it.
