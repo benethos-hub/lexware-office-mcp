@@ -229,6 +229,13 @@ section 2.
 - **The form.** The part must be named `file`, and `type` is a required form
   field whose only accepted value is `voucher` — `receipt` is refused with
   "Invalid or missing upload type." That settles open question 3.
+- **Attaching to a voucher that already exists is a different call**, and a
+  different form. `POST /v1/vouchers/{id}/files` takes the same part named
+  `file` and **no `type` field**, answers **202** with `{id}` alone, and the
+  voucher lists that id in its `files` afterwards. Measured 2026-08-21. No
+  voucher is created, which is the whole difference from `/v1/files` — and
+  since a voucher cannot be deleted, choosing the wrong one of the two leaves
+  a record behind for good. There is no way to detach a file either.
 - **The ceiling is 5 MiB inclusive.** 5,242,880 bytes is accepted, one byte
   more is refused with `max_file_size_exceeded`. The tool checks this before
   spending a request.
@@ -573,6 +580,7 @@ arguments cost three to four times what the simple ones do.
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
+| `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
 ### Phase 3 — irreversible
@@ -1269,15 +1277,16 @@ Built, tested offline and exercised against a live test account:
 - **every module in the table of section 4.** None is marked planned any
   more. The table is the list, so that this does not become a second one to
   keep in step.
-- twenty-three tools over the **stdio** transport, in seven groups. Reading:
+- twenty-four tools over the **stdio** transport, in seven groups. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
   `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
   `get_sales_document`, `get_recurring_templates`, `get_master_data`,
   `download_file`, `download_document`, `read_download` and `get_deeplink`.
   Writing:
   `create_contact`, `update_contact`, `create_article`, `update_article`,
-  `create_voucher`, `update_voucher` and `upload_file`. Irreversible:
-  `delete_article`, the only one so far
+  `create_voucher`, `update_voucher`, `upload_file` and
+  `attach_file_to_voucher`. Irreversible: `delete_article`, the only one so
+  far
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the

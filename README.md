@@ -98,6 +98,7 @@ Write tools. These change real accounting records, so enable them one at a time 
 | `update_voucher` | Change one that is already recorded | **built** |
 | `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested | planned |
 | `upload_file` | Upload a receipt, which also creates its voucher | **built** |
+| `attach_file_to_voucher` | Hang a file on a voucher that already exists | **built** |
 
 `update_contact` and `update_voucher` cost two API calls rather than one.
 The API replaces a record instead of patching it, so the current one is read

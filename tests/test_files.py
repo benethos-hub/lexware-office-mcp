@@ -375,6 +375,85 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
     await provider.aclose()
 
 
+async def test_an_attachment_hangs_on_a_voucher_that_already_exists(
+    tmp_path: Path,
+) -> None:
+    """Measured 2026-08-21: the part is `file` and there is no `type` field,
+    which is where this differs from `/v1/files` - and the answer is the file
+    id alone, because no voucher was created for it."""
+    receipt = tmp_path / "receipt.pdf"
+    receipt.write_bytes(PDF)
+    handler = Recorder(status=202, json_body={"id": "PLACEHOLDER-FILE-9"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool(
+        "attach_file_to_voucher",
+        {"voucher_id": "PLACEHOLDER-VOUCHER-1", "path": str(receipt)},
+    )
+
+    sent = handler.last.content
+    assert handler.last.url.path == "/v1/vouchers/PLACEHOLDER-VOUCHER-1/files"
+    assert b'name="file"' in sent
+    assert b'filename="receipt.pdf"' in sent
+    assert b'name="type"' not in sent, (
+        "the collection endpoint wants it, this one does not"
+    )
+    assert result.structured_content == {"id": "PLACEHOLDER-FILE-9"}
+    await provider.aclose()
+
+
+async def test_an_attachment_is_never_retried(tmp_path: Path) -> None:
+    """A repeat would hang a second copy on the same voucher, and there is no
+    way to take either off again."""
+    receipt = tmp_path / "receipt.pdf"
+    receipt.write_bytes(PDF)
+    handler = Recorder(status=500, json_body={})
+    server, provider = server_for(handler, tmp_path)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "attach_file_to_voucher",
+            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "path": str(receipt)},
+        )
+
+    assert len(handler.requests) == 1
+    await provider.aclose()
+
+
+async def test_an_attachment_refuses_the_same_files_an_upload_does(
+    tmp_path: Path,
+) -> None:
+    """Both go through the same check, so neither spends a request on a file
+    the API would reject."""
+    wrong = tmp_path / "notes.txt"
+    wrong.write_text("hello", encoding="utf-8")
+    handler = Recorder(status=202, json_body={"id": "PLACEHOLDER-FILE-9"})
+    server, provider = server_for(handler, tmp_path)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "attach_file_to_voucher",
+            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "path": str(wrong)},
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_the_two_upload_tools_say_which_is_which() -> None:
+    """The difference is one voucher too many, and it cannot be undone, so it
+    belongs in the description rather than in a document nobody reads."""
+    server = build_server(Settings())
+    tools = {tool.name: tool for tool in await server.list_tools()}
+
+    attach = tools["attach_file_to_voucher"].description or ""
+    upload = tools["upload_file"].description or ""
+
+    assert "upload_file" in attach, "it names the neighbour it is not"
+    assert "creates a bookkeeping voucher" in upload
+    assert len(attach) < 700, "the description budget, see CLAUDE.md"
+
+
 async def test_an_upload_is_never_retried(tmp_path: Path) -> None:
     """A repeated upload is a second voucher for the same receipt."""
     receipt = tmp_path / "receipt.pdf"

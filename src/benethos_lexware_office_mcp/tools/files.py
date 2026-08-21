@@ -343,11 +343,52 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = _read_upload(path)
         return dict(await provider.get().upload_file(content, name, content_type))
 
+    @classify("write", "files", "create")
+    async def attach_file_to_voucher(
+        voucher_id: Annotated[
+            str,
+            Field(
+                description=(
+                    "The voucher to hang the file on, by id from "
+                    "search_vouchers. It has to exist already."
+                )
+            ),
+        ],
+        path: Annotated[
+            str,
+            Field(
+                description=(
+                    "Path to the file on this machine, for example a scanned "
+                    "receipt. PDFs and images are accepted, at most 5 MiB."
+                )
+            ),
+        ],
+    ) -> dict[str, Any]:
+        """Attach a file to a voucher that already exists.
+
+        Use this rather than `upload_file` when the voucher is there: that one
+        creates a **new** voucher for every file, and a voucher cannot be
+        deleted through the API, so the wrong choice leaves one behind for
+        good.
+
+        Writes to the account and cannot be undone - an attachment has no
+        delete either. Confirm the organization with `get_profile` first. One
+        API call, never retried.
+
+        Takes PDF, JPEG, PNG or XML, at most 5 MiB. The answer is the new file
+        id, which `download_file` reads back.
+        """
+        content, name, content_type = _read_upload(path)
+        return dict(
+            await provider.get().attach_file(voucher_id, content, name, content_type)
+        )
+
     register_tool(server, download_file)
     register_tool(server, download_document)
     register_tool(server, get_deeplink)
     register_tool(server, read_download)
     register_tool(server, upload_file)
+    register_tool(server, attach_file_to_voucher)
 
 
 def permalink(

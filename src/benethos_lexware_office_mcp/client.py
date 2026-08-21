@@ -653,6 +653,25 @@ class LexwareClient:
         )
         return _expect_object(response.json(), "files")
 
+    async def attach_file(
+        self, voucher_id: str, content: bytes, filename: str, content_type: str
+    ) -> dict[str, Any]:
+        """``POST /v1/vouchers/{id}/files``. One API call, never retried.
+
+        Verified 2026-08-21: the part is named ``file`` and **no ``type``
+        field is wanted** here, unlike ``/v1/files``. The answer is **202**
+        with ``{id}`` alone, and the voucher carries that id in its ``files``
+        list afterwards. The route is plural and POST only — the
+        documentation writes it singular and gives it a GET, and neither
+        exists.
+        """
+        response = await self.request(
+            "POST",
+            f"/v1/vouchers/{voucher_id}/files",
+            files={"file": (filename, content, content_type)},
+        )
+        return _expect_object(response.json(), "voucher files")
+
     # -- internals --------------------------------------------------------
 
     async def _backoff(self, attempt: int, retry_after: str | None = None) -> None:

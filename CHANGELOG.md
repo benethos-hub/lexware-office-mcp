@@ -138,6 +138,13 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **`attach_file_to_voucher`** — hang a scan on a voucher that is already
+  there. `upload_file` cannot do this: it creates a **new** voucher for every
+  file, and a voucher cannot be deleted through the API, so picking the wrong
+  one of the two leaves a record behind for good. Same four file types and
+  the same 5 MiB ceiling, checked before a request is spent. The answer is
+  the new file id, which `download_file` reads back. Costs one API call that
+  is never retried, and an attachment cannot be removed either.
 - **`get_recurring_templates`** — read the templates that issue invoices on a
   schedule. Costs one API call. With a `template_id` it answers with that one
   template, without one with a page of them, because the endpoint offers
