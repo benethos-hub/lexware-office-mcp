@@ -12,7 +12,7 @@ from ..client import ClientProvider
 from ..config import Settings
 from ..errors import ConflictError
 from ..payloads import Address, ContactKind, Role, contact_body
-from ..policy import requires, should_register
+from ..policy import classify
 from ._base import PageNumber, PageSize, register_tool
 
 __all__ = ["register"]
@@ -91,7 +91,7 @@ TaxNumber = Annotated[
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the contact tools allowed at the active permission tier."""
 
-    @requires("read")
+    @classify("read", "contacts")
     async def search_contacts(
         name: Annotated[
             str | None,
@@ -161,7 +161,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return formatting.contacts_page(payload)
 
-    @requires("read")
+    @classify("read", "contacts")
     async def get_contact(contact_id: ContactId) -> dict[str, Any]:
         """Read one contact in full, by id.
 
@@ -175,7 +175,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         return formatting.contact(await provider.get().contact(contact_id))
 
-    @requires("write")
+    @classify("write", "contacts", "create")
     async def create_contact(
         kind: Annotated[
             ContactKind,
@@ -239,7 +239,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return dict(formatting.compact(await provider.get().create_contact(body)))
 
-    @requires("write")
+    @classify("write", "contacts", "update")
     async def update_contact(
         contact_id: ContactId,
         version: Annotated[
@@ -323,9 +323,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return dict(formatting.compact(await client.update_contact(contact_id, body)))
 
-    if should_register("read", settings.mode):
-        register_tool(server, search_contacts)
-        register_tool(server, get_contact)
-    if should_register("write", settings.mode):
-        register_tool(server, create_contact)
-        register_tool(server, update_contact)
+    register_tool(server, search_contacts)
+    register_tool(server, get_contact)
+    register_tool(server, create_contact)
+    register_tool(server, update_contact)

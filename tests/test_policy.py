@@ -1,116 +1,156 @@
-"""Permission tiers: the ordering, the registration gate, the call-time gate."""
+"""Classification is metadata. The file is the gate.
+
+The two used to be one thing: a tier both described a tool and decided whether
+it could be called. Splitting them is what these tests are about — that
+`classify` still records what a tool is, that nothing consults it when a call
+arrives, and that the policy alone answers "may this run".
+"""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 
-from benethos_lexware_office_mcp import policy
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import PermissionDeniedError
 from benethos_lexware_office_mcp.policy import (
-    active_mode,
-    allows,
-    required_tier,
-    requires,
-    set_active_mode,
-    should_register,
+    ToolMeta,
+    ToolPolicy,
+    active_policy,
+    classify,
+    grouped_tools,
+    known_tools,
+    set_active_policy,
 )
 
+pytestmark = pytest.mark.anyio
 
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = active_mode()
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+class Everything(ToolPolicy):
+    """A policy that says yes, for testing what the classification does not do."""
+
+    def enabled(self, name: str) -> bool:
+        return True
+
+
+class Nothing(ToolPolicy):
+    def enabled(self, name: str) -> bool:
+        return False
+
+
+@pytest.fixture
+def restore_policy() -> object:
+    previous = active_policy()
     yield
-    set_active_mode(previous)
+    set_active_policy(previous)
 
 
-def test_default_tier_is_the_safest_one() -> None:
-    """A server that forgets to configure itself must only be able to read.
+# -- what the classification records --------------------------------------
 
-    Asserted against the declared defaults rather than against ``_ACTIVE``,
-    which is process-wide state that any earlier import or test can have
-    moved. Reading it here would make this gate depend on what ran before it,
-    and on whichever tier the developer happens to have in their own
-    ``config/.env``.
+
+def test_the_decorator_records_what_a_tool_is() -> None:
+    @classify("write", "vouchers", "book")
+    def sample_booking_tool() -> str:
+        return "ran"
+
+    meta = known_tools()["sample_booking_tool"]
+
+    assert meta == ToolMeta(access="write", domain="vouchers", effect="book")
+    assert meta.irreversible
+
+
+def test_a_reading_tool_is_not_irreversible() -> None:
+    assert not ToolMeta(access="read", domain="contacts").irreversible
+
+
+def test_an_update_is_reversible_a_deletion_is_not() -> None:
+    """Only the effects that cannot be taken back are marked."""
+    assert not ToolMeta("write", "contacts", "update").irreversible
+    assert ToolMeta("write", "contacts", "delete").irreversible
+
+
+def test_every_shipped_tool_is_classified() -> None:
+    """A tool without metadata cannot be grouped or selected by a script."""
+    for name, meta in known_tools().items():
+        assert meta.access in ("read", "write"), name
+        assert meta.domain, name
+
+
+def test_the_shipped_tools_are_grouped_by_domain() -> None:
+    groups = grouped_tools()
+
+    assert "get_profile" in groups["diagnostics"]
+    assert "create_voucher" in groups["vouchers"]
+    assert "upload_file" in groups["files"]
+    assert groups["contacts"] == sorted(groups["contacts"])
+
+
+# -- what it deliberately does not do -------------------------------------
+
+
+async def test_a_write_tool_runs_when_the_file_allows_it(
+    restore_policy: object,
+) -> None:
+    """The classification is not a permission. Only the file is.
+
+    A `write` tool used to be refused by the tier whatever any file said.
+    Now the file is the whole answer, and saying `write` about a tool tells a
+    script how to group it and nothing more.
     """
-    assert policy.DEFAULT_MODE == "read"
-    assert Settings().mode == "read"
+
+    @classify("write", "contacts", "create")
+    async def sample_creating_tool() -> str:
+        return "ran"
+
+    set_active_policy(Everything())
+
+    assert await sample_creating_tool() == "ran"
 
 
-@pytest.mark.parametrize(
-    ("active", "needed", "expected"),
-    [
-        ("read", "read", True),
-        ("read", "write", False),
-        ("read", "full", False),
-        ("write", "read", True),
-        ("write", "write", True),
-        ("write", "full", False),
-        ("full", "read", True),
-        ("full", "write", True),
-        ("full", "full", True),
-    ],
-)
-def test_tier_ordering(active: str, needed: str, expected: bool) -> None:
-    assert allows(active, needed) is expected  # type: ignore[arg-type]
+async def test_a_read_tool_is_refused_when_the_file_says_so(
+    restore_policy: object,
+) -> None:
+    @classify("read", "contacts")
+    async def sample_reading_tool() -> str:
+        return "ran"
 
+    set_active_policy(Nothing())
 
-def test_registration_gate_hides_tools_above_the_tier() -> None:
-    set_active_mode("read")
-    assert should_register("read") is True
-    assert should_register("write") is False
-    assert should_register("full") is False
-
-
-def test_call_gate_blocks_even_when_registration_was_bypassed() -> None:
-    """A stale tool list on the client must not get a call through."""
-
-    @requires("write")
-    def create_something() -> str:
-        return "created"
-
-    set_active_mode("write")
-    assert create_something() == "created"
-
-    set_active_mode("read")
     with pytest.raises(PermissionDeniedError) as excinfo:
-        create_something()
-    assert "LXO_MCP_MODE=write" in str(excinfo.value)
+        await sample_reading_tool()
+
+    assert "not enabled" in str(excinfo.value)
 
 
-async def test_call_gate_works_on_async_tools() -> None:
-    @requires("full")
-    async def delete_something() -> str:
-        return "deleted"
+def test_the_gate_works_on_a_plain_function_too(restore_policy: object) -> None:
+    """Not every tool has to be a coroutine, so both wrappers are checked."""
 
-    set_active_mode("full")
-    assert await delete_something() == "deleted"
+    @classify("read", "diagnostics")
+    def sample_sync_tool() -> str:
+        return "ran"
 
-    set_active_mode("write")
+    set_active_policy(Everything())
+    assert sample_sync_tool() == "ran"
+
+    set_active_policy(Nothing())
     with pytest.raises(PermissionDeniedError):
-        await delete_something()
+        sample_sync_tool()
 
 
-def test_decorator_records_the_tier_in_the_registry() -> None:
-    @requires("full")
-    def finalize_something() -> None:
-        return None
+def test_the_refusal_names_the_file_to_change(restore_policy: object) -> None:
+    """A refusal that does not say where to fix it is an unhelpful one."""
 
-    assert required_tier("finalize_something") == "full"
-    assert finalize_something.required_tier == "full"  # type: ignore[attr-defined]
+    @classify("read", "diagnostics")
+    def sample_named_tool() -> str:
+        return "ran"
 
+    set_active_policy(ToolPolicy(__import__("pathlib").Path("nowhere/tools.json")))
 
-def test_unknown_tier_is_rejected_at_definition_time() -> None:
-    with pytest.raises(ValueError):
-        requires("superuser")  # type: ignore[arg-type]
+    with pytest.raises(PermissionDeniedError) as excinfo:
+        sample_named_tool()
 
-
-def test_unknown_mode_cannot_be_activated() -> None:
-    with pytest.raises(ValueError):
-        set_active_mode("superuser")  # type: ignore[arg-type]
-
-
-def test_unregistered_tool_has_no_tier() -> None:
-    assert required_tier("no_such_tool") is None
+    assert "tools.json" in str(excinfo.value)
+    assert "sample_named_tool" in str(excinfo.value)

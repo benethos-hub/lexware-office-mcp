@@ -1,21 +1,15 @@
-"""The server builds, identifies itself, and honours the permission tier."""
+"""The server builds, identifies itself, and offers what the file allows."""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import json
+from pathlib import Path
 
 import pytest
 
 from benethos_lexware_office_mcp import __version__, policy
-from benethos_lexware_office_mcp.config import Settings, load_settings
-from benethos_lexware_office_mcp.server import build_server, main, replace_mode
-
-
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = policy.active_mode()
-    yield
-    policy.set_active_mode(previous)
+from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.server import build_server, main
 
 
 def test_server_identifies_itself() -> None:
@@ -24,47 +18,89 @@ def test_server_identifies_itself() -> None:
     assert server.version == __version__
 
 
-def test_building_a_server_sets_the_active_tier() -> None:
-    build_server(Settings(mode="write"))
-    assert policy.active_mode() == "write"
+def test_building_a_server_activates_its_policy(tmp_path: Path) -> None:
+    target = tmp_path / "tools.json"
+
+    build_server(Settings(tool_policy_path=target))
+
+    assert policy.active_policy().path == target
 
 
-async def test_a_default_server_lists_no_write_tools() -> None:
-    """Whatever is registered, nothing above 'read' may be listed by default."""
-    server = build_server(Settings())
-    for tool in await server.list_tools():
-        assert policy.required_tier(tool.name) in (None, "read")
-
-
-def test_command_line_mode_beats_the_environment(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_a_server_without_a_policy_file_offers_nothing(
+    tmp_path: Path,
 ) -> None:
+    """The state to be in when nobody has said what this server may touch.
+
+    An empty tool list is a strange thing to ship, and it is the point: the
+    file is the only gate now, so its absence has to mean no, not yes.
+    """
+    server = build_server(Settings(tool_policy_path=tmp_path / "absent.json"))
+
+    assert await server.list_tools() == []
+
+
+async def test_a_server_offers_exactly_what_the_file_names(tmp_path: Path) -> None:
+    target = tmp_path / "tools.json"
+    target.write_text(
+        json.dumps({"get_profile": True, "search_contacts": False}), encoding="utf-8"
+    )
+
+    server = build_server(Settings(tool_policy_path=target))
+
+    assert [t.name for t in await server.list_tools()] == ["get_profile"]
+
+
+def test_starting_the_server_reports_what_is_enabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A client shows an empty tool list without explaining why. stderr does."""
     monkeypatch.setattr(
         "benethos_lexware_office_mcp.server.load_settings",
-        lambda: load_settings({"LXO_MCP_MODE": "read"}),
+        lambda: Settings(tool_policy_path=tmp_path / "absent.json"),
     )
-    started: list[str] = []
+    started: list[bool] = []
     monkeypatch.setattr(
         "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: _FakeServer(started, settings.mode),
+        lambda settings: _FakeServer(started),
     )
-    main(["--mode", "write", "--log-level", "ERROR"])
-    assert started == ["write"]
+
+    with caplog.at_level("WARNING"):
+        main(["--log-level", "WARNING"])
+
+    assert started == [True]
+    assert "no tools are offered" in caplog.text
+    assert "--tools read-only" in caplog.text
 
 
-def test_replace_mode_leaves_the_original_untouched() -> None:
-    original = Settings(mode="read")
-    changed = replace_mode(original, "full")
-    assert original.mode == "read"
-    assert changed.mode == "full"
+def test_starting_with_write_tools_on_says_which_ones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Naming them is the point: this server can change real records."""
+    target = tmp_path / "tools.json"
+    target.write_text(
+        json.dumps({"get_profile": True, "upload_file": True}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.server.load_settings",
+        lambda: Settings(tool_policy_path=target),
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.server.build_server",
+        lambda settings: _FakeServer([]),
+    )
+
+    with caplog.at_level("WARNING"):
+        main(["--log-level", "WARNING"])
+
+    assert "upload_file" in caplog.text
+    assert "change real accounting records" in caplog.text
 
 
 class _FakeServer:
     """Stands in for MCPServer so the test never opens stdio."""
 
-    def __init__(self, started: list[str], mode: str) -> None:
+    def __init__(self, started: list[bool]) -> None:
         self._started = started
-        self._mode = mode
 
     def run(self) -> None:
-        self._started.append(self._mode)
+        self._started.append(True)

@@ -10,7 +10,6 @@ ceiling is 5 MiB exactly.
 from __future__ import annotations
 
 import base64
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +17,7 @@ import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import policy, rendering, storage
+from benethos_lexware_office_mcp import rendering, storage
 from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import DEFAULT_PDF_PAGES, Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
@@ -81,13 +80,6 @@ PDF = make_pdf()
 UPLOADED = {"id": "PLACEHOLDER-FILE-2", "voucherId": "PLACEHOLDER-VOUCHER-9"}
 
 
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = policy.active_mode()
-    yield
-    policy.set_active_mode(previous)
-
-
 async def _no_sleep(_seconds: float) -> None:
     return None
 
@@ -124,7 +116,7 @@ class Recorder:
 def server_for(
     handler: Recorder, tmp_path: Path, mode: str = "read"
 ) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, mode=mode, download_path=tmp_path)  # type: ignore[arg-type]
+    settings = Settings(api_key=API_KEY, download_path=tmp_path)
     provider = ClientProvider(
         settings,
         transport=httpx.MockTransport(handler),
@@ -348,10 +340,19 @@ async def test_a_stored_file_is_not_a_link_target(tmp_path: Path) -> None:
 # -- uploading ------------------------------------------------------------
 
 
-async def test_upload_is_absent_in_read_mode() -> None:
-    names = [tool.name for tool in await build_server(Settings()).list_tools()]
-    assert "upload_file" not in names
-    assert "download_file" in names
+async def test_the_file_tools_are_offered_when_the_policy_names_them(
+    tmp_path: Path,
+) -> None:
+    """The group is complete, and nothing else decides which half appears."""
+    flags = tmp_path / "tools.json"
+    flags.write_text('{"download_file": true, "upload_file": true}', encoding="utf-8")
+
+    names = [
+        tool.name
+        for tool in await build_server(Settings(tool_policy_path=flags)).list_tools()
+    ]
+
+    assert set(names) == {"download_file", "upload_file"}
 
 
 async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
@@ -360,7 +361,7 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     result = await server.call_tool("upload_file", {"path": str(receipt)})
 
@@ -379,7 +380,7 @@ async def test_an_upload_is_never_retried(tmp_path: Path) -> None:
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
     handler = Recorder(status=500, json_body={})
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(receipt)})
@@ -394,7 +395,7 @@ async def test_a_file_that_is_too_large_is_refused_before_the_request(
     big = tmp_path / "big.pdf"
     big.write_bytes(b"%PDF-1.4\n" + b"x" * (5 * 1024 * 1024 + 1))
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("upload_file", {"path": str(big)})
@@ -409,7 +410,7 @@ async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
     edge = tmp_path / "edge.pdf"
     edge.write_bytes(b"x" * (5 * 1024 * 1024))
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     await server.call_tool("upload_file", {"path": str(edge)})
 
@@ -421,7 +422,7 @@ async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
     note = tmp_path / "note.txt"
     note.write_text("not a receipt", encoding="utf-8")
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("upload_file", {"path": str(note)})
@@ -433,7 +434,7 @@ async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
 
 async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("upload_file", {"path": str(tmp_path / "nope.pdf")})
@@ -444,7 +445,7 @@ async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
 
 async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(tmp_path)})
@@ -603,7 +604,7 @@ async def test_an_xrechnung_may_be_uploaded(tmp_path: Path) -> None:
     invoice = tmp_path / "e-rechnung.xml"
     invoice.write_bytes(b"<Invoice/>")
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     await server.call_tool("upload_file", {"path": str(invoice)})
 
@@ -617,7 +618,7 @@ async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> No
     image = tmp_path / "scan.gif"
     image.write_bytes(b"GIF89a")
     handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path, mode="write")
+    server, provider = server_for(handler, tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(image)})

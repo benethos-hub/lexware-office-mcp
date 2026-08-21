@@ -1,4 +1,4 @@
-"""The per-tool policy file: what it turns off, and what it cannot turn on."""
+"""The policy file: the only thing that decides what this server offers."""
 
 from __future__ import annotations
 
@@ -9,13 +9,7 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp.config import Settings
-from benethos_lexware_office_mcp.errors import PermissionDeniedError
-from benethos_lexware_office_mcp.policy import (
-    ToolPolicy,
-    known_tools,
-    preset,
-    set_active_policy,
-)
+from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import build_server, main
 
 pytestmark = pytest.mark.anyio
@@ -33,57 +27,35 @@ def write(path: Path, flags: dict[str, bool]) -> Path:
     return path
 
 
-# -- the default ----------------------------------------------------------
+# -- silence is a refusal -------------------------------------------------
 
 
-# Named rather than read back from the registry, which the decorator also
-# fills with the sample tools other test modules define.
-SHIPPED = {
-    "get_profile",
-    "search_contacts",
-    "get_contact",
-    "create_contact",
-    "update_contact",
-    "search_vouchers",
-    "get_voucher",
-    "get_payments",
-    "create_voucher",
-    "update_voucher",
-    "download_file",
-    "download_document",
-    "get_deeplink",
-    "read_download",
-    "upload_file",
-}
+async def test_without_a_file_nothing_is_offered(tmp_path: Path) -> None:
+    """The file is the only gate, so its absence has to mean no."""
+    settings = Settings(api_key=API_KEY, tool_policy_path=tmp_path / "absent.json")
+
+    assert await build_server(settings).list_tools() == []
 
 
-async def test_without_a_file_every_tool_is_listed(tmp_path: Path) -> None:
-    """An installation nobody configured behaves as it did before the file."""
-    settings = Settings(
-        api_key=API_KEY, mode="full", tool_policy_path=tmp_path / "absent.json"
-    )
+async def test_a_tool_the_file_does_not_mention_is_off(tmp_path: Path) -> None:
+    """Anything the file fails to say is a no, including by omission.
+
+    A file listing what to *disable* would quietly enable every tool added
+    later. This one lists what to allow, so a tool nobody has decided about
+    stays out.
+    """
+    policy = write(tmp_path / "tools.json", {"get_contact": True})
+    settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
     names = {t.name for t in await build_server(settings).list_tools()}
 
-    assert names == SHIPPED
-
-
-async def test_a_tool_the_file_does_not_mention_stays_on(tmp_path: Path) -> None:
-    """The file takes something away. Silence is not a refusal."""
-    policy = write(tmp_path / "tools.json", {"search_contacts": False})
-    settings = Settings(api_key=API_KEY, mode="full", tool_policy_path=policy)
-
-    names = {t.name for t in await build_server(settings).list_tools()}
-
-    assert "search_contacts" not in names
-    assert "get_contact" in names
-
-
-# -- both gates -----------------------------------------------------------
+    assert names == {"get_contact"}
 
 
 async def test_a_disabled_tool_is_not_listed(tmp_path: Path) -> None:
-    policy = write(tmp_path / "tools.json", {"download_file": False})
+    policy = write(
+        tmp_path / "tools.json", {"download_file": False, "download_document": True}
+    )
     settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
     names = {t.name for t in await build_server(settings).list_tools()}
@@ -92,60 +64,40 @@ async def test_a_disabled_tool_is_not_listed(tmp_path: Path) -> None:
     assert "download_document" in names
 
 
-async def test_a_disabled_tool_is_refused_even_when_called_anyway() -> None:
-    """A client holding a list from before the change must not get through."""
-    set_active_policy(ToolPolicy())
-    from benethos_lexware_office_mcp.policy import requires
+async def test_a_write_tool_is_offered_when_the_file_says_so(tmp_path: Path) -> None:
+    """There is no second gate above this one any more.
 
-    @requires("read")
-    async def sample_tool() -> str:
-        return "ran"
-
-    assert await sample_tool() == "ran"
-
-    class Off(ToolPolicy):
-        def enabled(self, name: str) -> bool:
-            return False
-
-    set_active_policy(Off())
-    try:
-        with pytest.raises(PermissionDeniedError) as excinfo:
-            await sample_tool()
-    finally:
-        set_active_policy(ToolPolicy())
-
-    assert "switched off" in str(excinfo.value)
-
-
-async def test_the_file_cannot_grant_what_the_tier_withholds(tmp_path: Path) -> None:
-    """Two gates, and a tool has to pass both.
-
-    Enabling a write tool in the file while the server runs read-only would
-    otherwise turn a configuration file into a way around `LXO_MCP_MODE`.
+    The tier used to refuse a write tool whatever the file said. That is gone
+    on purpose: one place decides, and this is it.
     """
-    policy = write(tmp_path / "tools.json", dict.fromkeys(SHIPPED, True))
-    settings = Settings(api_key=API_KEY, mode="read", tool_policy_path=policy)
+    policy = write(tmp_path / "tools.json", {"upload_file": True})
+    settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
     names = {t.name for t in await build_server(settings).list_tools()}
 
-    assert "create_contact" not in names
+    assert names == {"upload_file"}
 
 
-# -- a file written by hand -----------------------------------------------
+# -- a file written by hand and by other programs -------------------------
 
 
-async def test_a_broken_file_does_not_stop_the_server(
+async def test_a_broken_file_enables_nothing_and_says_so(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """It is edited by hand, so it will be broken eventually."""
+    """It is edited by hand, so it will be broken eventually.
+
+    A parse error must not start a server that offers everything, and must not
+    stop it starting either - the warning on stderr is what makes the empty
+    tool list explicable.
+    """
     policy = tmp_path / "tools.json"
     policy.write_text("{not json at all", encoding="utf-8")
     settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
     with caplog.at_level(logging.WARNING):
-        names = {t.name for t in await build_server(settings).list_tools()}
+        tools = await build_server(settings).list_tools()
 
-    assert "get_profile" in names
+    assert tools == []
     assert "unreadable tool policy" in caplog.text.lower()
 
 
@@ -155,7 +107,7 @@ async def test_a_file_holding_something_other_than_an_object_is_ignored(
     policy = tmp_path / "tools.json"
     policy.write_text('["get_profile"]', encoding="utf-8")
 
-    assert ToolPolicy(policy).enabled("get_profile") is True
+    assert ToolPolicy(policy).enabled("get_profile") is False
 
 
 async def test_the_file_is_re_read_rather_than_remembered(tmp_path: Path) -> None:
@@ -169,6 +121,12 @@ async def test_the_file_is_re_read_rather_than_remembered(tmp_path: Path) -> Non
     assert store.enabled("get_profile") is False
 
 
+def test_a_policy_knows_whether_it_has_a_file_at_all(tmp_path: Path) -> None:
+    """Told apart from a file that exists and enables nothing."""
+    assert ToolPolicy(tmp_path / "absent.json").exists() is False
+    assert ToolPolicy(write(tmp_path / "there.json", {})).exists() is True
+
+
 # -- presets write files, they are not consulted --------------------------
 
 
@@ -176,12 +134,16 @@ def test_the_read_only_preset_keeps_exactly_the_reading_tools() -> None:
     flags = preset("read-only")
 
     assert set(flags) == set(known_tools())
-    for name, tier in known_tools().items():
-        assert flags[name] is (tier == "read"), name
+    for name, meta in known_tools().items():
+        assert flags[name] is (meta.access == "read"), name
 
 
 def test_the_all_preset_turns_everything_on() -> None:
     assert set(preset("all").values()) == {True}
+
+
+def test_the_none_preset_turns_everything_off() -> None:
+    assert set(preset("none").values()) == {False}
 
 
 def test_an_unknown_preset_is_refused() -> None:
@@ -189,16 +151,16 @@ def test_an_unknown_preset_is_refused() -> None:
         preset("everything-plus")  # type: ignore[arg-type]
 
 
-def test_saving_writes_every_tool_not_only_the_exceptions(tmp_path: Path) -> None:
-    """The file is an inventory. A reader should not have to know the default."""
+def test_saving_writes_every_tool_not_only_the_enabled_ones(tmp_path: Path) -> None:
+    """The file is an inventory. A reader should not have to guess at gaps."""
     policy = ToolPolicy(tmp_path / "nested" / "tools.json")
 
-    policy.save({"get_profile": False})
+    policy.save({"get_profile": True})
 
     stored = json.loads((tmp_path / "nested" / "tools.json").read_text())
     assert set(stored) == set(known_tools())
-    assert stored["get_profile"] is False
-    assert stored["search_contacts"] is False, "an unnamed tool is off, not defaulted"
+    assert stored["get_profile"] is True
+    assert stored["search_contacts"] is False
 
 
 def test_a_policy_without_a_file_refuses_to_save() -> None:
@@ -225,3 +187,32 @@ def test_the_command_line_writes_the_preset_and_does_not_serve(
     captured = capsys.readouterr()
     assert captured.out == "", "stdout carries the JSON-RPC stream"
     assert "read-only" in captured.err
+
+
+def test_the_command_line_can_write_a_file_that_allows_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Turning everything off has to be one command, not fifteen edits."""
+    policy = tmp_path / "tools.json"
+    monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(policy))
+
+    main(["--tools", "none"])
+
+    assert set(json.loads(policy.read_text()).values()) == {False}
+
+
+def test_the_command_line_writes_a_file_even_where_none_existed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The registry is filled as tools are defined, not as they are registered.
+
+    With no file, nothing is registered at all - so a command that had to read
+    the registered tools would write an empty file and lock the installation
+    out of its own configuration.
+    """
+    policy = tmp_path / "fresh" / "tools.json"
+    monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(policy))
+
+    main(["--tools", "all"])
+
+    assert set(json.loads(policy.read_text())) == set(known_tools())

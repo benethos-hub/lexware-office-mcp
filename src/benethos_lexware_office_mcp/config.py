@@ -27,7 +27,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, get_args
 
 from platformdirs import user_cache_dir, user_config_dir
 
@@ -36,7 +35,6 @@ from .errors import ConfigError, register_secret
 __all__ = [
     "DEFAULT_PDF_PAGES",
     "MAX_PAGE_SIZE",
-    "Mode",
     "Settings",
     "config_dir",
     "download_dir",
@@ -44,9 +42,6 @@ __all__ = [
 ]
 
 APP_NAME = "benethos-lexware-office-mcp"
-
-Mode = Literal["read", "write", "full"]
-MODES: tuple[str, ...] = get_args(Mode)
 
 LOG_LEVELS: tuple[str, ...] = (
     "DEBUG",
@@ -236,7 +231,6 @@ class Settings:
     api_key: str | None = None
     base_url: str = DEFAULT_BASE_URL
     app_base_url: str = DEFAULT_APP_BASE_URL
-    mode: Mode = "read"
     download_path: Path | None = None
     timeout: float = DEFAULT_TIMEOUT
     rate: float = DEFAULT_RATE
@@ -283,12 +277,6 @@ def load_settings(
     api_key = get("API_KEY") or None
     register_secret(api_key)
 
-    mode_raw = (get("MODE") or "read").lower()
-    if mode_raw not in MODES:
-        raise ConfigError(
-            f"LXO_MCP_MODE must be one of {', '.join(MODES)}, got {mode_raw!r}."
-        )
-
     log_level = (get("LOG_LEVEL") or DEFAULT_LOG_LEVEL).upper()
     if log_level not in LOG_LEVELS:
         log_level = DEFAULT_LOG_LEVEL
@@ -299,7 +287,6 @@ def load_settings(
         api_key=api_key,
         base_url=(get("BASE_URL") or DEFAULT_BASE_URL).rstrip("/"),
         app_base_url=(get("APP_BASE_URL") or DEFAULT_APP_BASE_URL).rstrip("/"),
-        mode=mode_raw,  # type: ignore[arg-type]
         download_path=Path(raw_download) if raw_download else None,
         timeout=_as_float(get("TIMEOUT"), DEFAULT_TIMEOUT, name="LXO_MCP_TIMEOUT"),
         rate=_as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),

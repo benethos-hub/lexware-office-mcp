@@ -5,9 +5,12 @@ How to work in this repository. Read this before making changes. See
 
 ## Golden rules
 
-1. **Read-only by default.** This server talks to a live accounting system
-   holding real business records. `LXO_MCP_MODE` defaults to `read`, and
-   nothing may weaken that default. Never call a write tool against an account
+1. **Nothing is enabled by default.** This server talks to a live accounting
+   system holding real business records. The `tools.json` policy file is the
+   only thing that decides which tools exist, a tool it does not name is off,
+   and an installation without the file offers none at all. Nothing may weaken
+   that: no tool may register itself past the file, and no default may stand
+   in for a decision nobody made. Never call a write tool against an account
    that has not been explicitly confirmed as a test account — call
    `get_profile` first and check the organization.
 2. **Virtual environment only.** Never the global Python or pip. A
@@ -51,7 +54,7 @@ src/benethos_lexware_office_mcp/
   config.py       # settings resolution, credential lookup
   client.py       # ALL HTTP access: auth, retries, error mapping
   ratelimit.py    # the one token bucket, clock injectable for tests
-  policy.py       # permission tiers and enforcement
+  policy.py       # the tool policy file, and what a tool declares itself to be
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies
   storage.py      # where downloads land, filenames made safe first
@@ -84,11 +87,11 @@ new HTTP call goes in `client.py`, never in a tool function.
    rule below.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds.
-5. Classify it in `policy.py` (`read`, `write` or `full`) with `@requires`.
-   A write tool must not be reachable in `read` mode, at registration or at
-   call time. The per-tool policy file needs no entry: a tool it does not
-   mention is on, and it appears in the file the next time `--tools` writes
-   one.
+5. Classify it with `@classify(access, domain)` — `read` or `write`, plus
+   the group it belongs to, and `effect` for a write tool. That is metadata
+   for whoever writes the policy file, never a permission: the file alone
+   decides. A new tool is **off** until the file names it, so run `--tools`
+   after adding one, or it will not appear.
 6. Record its API call cost in the tool table in SPECS.md section 8.
 7. Add offline tests. Never hit the network in the suite.
 

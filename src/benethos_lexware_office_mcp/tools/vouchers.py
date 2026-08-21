@@ -26,7 +26,7 @@ from ..client import ClientProvider
 from ..config import Settings
 from ..errors import ConflictError, NotFoundError, ValidationError
 from ..payloads import TaxType, VoucherItem, VoucherType, voucher_body
-from ..policy import requires, should_register
+from ..policy import classify
 from ._base import PageNumber, PageSize, register_tool
 
 __all__ = ["register"]
@@ -93,7 +93,7 @@ Items = Annotated[
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the voucher tools allowed at the active permission tier."""
 
-    @requires("read")
+    @classify("read", "vouchers")
     async def search_vouchers(
         voucher_type: Annotated[
             SearchType,
@@ -193,7 +193,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return formatting.vouchers_page(payload)
 
-    @requires("read")
+    @classify("read", "vouchers")
     async def get_voucher(
         voucher_id: Annotated[
             str | None,
@@ -247,7 +247,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             )
         return formatting.voucher(matches[0])
 
-    @requires("read")
+    @classify("read", "vouchers")
     async def get_payments(voucher_id: VoucherId) -> dict[str, Any]:
         """Show whether a voucher has been paid, and what is still open.
 
@@ -260,7 +260,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         return formatting.payments(await provider.get().payments(voucher_id))
 
-    @requires("write")
+    @classify("write", "vouchers", "create")
     async def create_voucher(
         voucher_type: Annotated[
             VoucherType,
@@ -369,7 +369,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return dict(formatting.compact(await provider.get().create_voucher(body)))
 
-    @requires("write")
+    @classify("write", "vouchers", "update")
     async def update_voucher(
         voucher_id: VoucherId,
         version: Annotated[
@@ -445,10 +445,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return dict(formatting.compact(await client.update_voucher(voucher_id, body)))
 
-    if should_register("read", settings.mode):
-        register_tool(server, search_vouchers)
-        register_tool(server, get_voucher)
-        register_tool(server, get_payments)
-    if should_register("write", settings.mode):
-        register_tool(server, create_voucher)
-        register_tool(server, update_voucher)
+    register_tool(server, search_vouchers)
+    register_tool(server, get_voucher)
+    register_tool(server, get_payments)
+    register_tool(server, create_voucher)
+    register_tool(server, update_voucher)

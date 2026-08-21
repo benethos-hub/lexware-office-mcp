@@ -13,20 +13,21 @@ the JSON-RPC stream.
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import logging
 import sys
+from typing import cast
 
 from mcp.server.mcpserver import MCPServer
 
 from . import __version__, resources
 from .client import ClientProvider
-from .config import LOG_LEVELS, MODES, Mode, Settings, download_dir, load_settings
+from .config import LOG_LEVELS, Settings, download_dir, load_settings
 from .policy import (
+    Preset,
     ToolPolicy,
     active_policy,
+    known_tools,
     preset,
-    set_active_mode,
     set_active_policy,
 )
 from .tools import register_tools
@@ -34,8 +35,9 @@ from .tools import register_tools
 logger = logging.getLogger(__name__)
 
 _INSTRUCTIONS = """\
-Access to a Lexware Office account through its public API. Read-only unless
-the account owner enabled writing.
+Access to a Lexware Office account through its public API. The account owner
+decides which of these tools exist, so the list is the whole of what is
+permitted - a tool that is missing was withheld deliberately, not forgotten.
 
 Identifiers are Lexware UUIDs and are never invented. To act on a document or
 a contact, find it first with search_vouchers or search_contacts and use the
@@ -55,7 +57,6 @@ def build_server(
     client it is allowed to have, and every tool shares it — and with it the
     one rate limiter.
     """
-    set_active_mode(settings.mode)
     set_active_policy(ToolPolicy(settings.policy_file()))
     server = MCPServer(
         name="benethos-lexware-office-mcp",
@@ -78,20 +79,10 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         prog="benethos-lexware-office-mcp",
         description=(
             "MCP server for the Lexware Office API. Speaks stdio. "
-            "Read-only unless --mode says otherwise."
+            "Offers the tools the policy file enables, and no others."
         ),
     )
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument(
-        "--mode",
-        choices=MODES,
-        default=defaults.mode,
-        help=(
-            "Permission tier. 'read' allows queries only. 'write' adds "
-            "creating and updating. 'full' adds irreversible operations. "
-            "Env: LXO_MCP_MODE. Default: %(default)s."
-        ),
-    )
     parser.add_argument(
         "--log-level",
         choices=LOG_LEVELS,
@@ -100,10 +91,10 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--tools",
-        choices=("show", "all", "read-only"),
+        choices=("show", "all", "read-only", "none"),
         help=(
-            "Work on the per-tool policy file instead of serving. 'show' "
-            "prints which tools are on. 'all' and 'read-only' write the file "
+            "Work on the tool policy file instead of serving. 'show' prints "
+            "which tools are on. 'all', 'read-only' and 'none' write the file "
             "from that preset, overwriting what is there. Env: "
             "LXO_MCP_TOOL_POLICY sets the file's location."
         ),
@@ -119,13 +110,14 @@ def _tools_command(action: str, settings: Settings) -> None:
     learning a different habit.
     """
     # Building a server imports the tool modules, which is what fills the
-    # registry the policy is written against. At tier `full` so every tool is
-    # known, whatever tier the server will actually run at.
-    build_server(replace_mode(settings, "full"))
+    # registry the policy is written against. The registry is filled as the
+    # tools are *defined*, so it is complete even when the file enables none
+    # of them - which is the state this command exists to get out of.
+    build_server(settings)
     policy = active_policy()
 
     if action != "show":
-        policy.save(preset("all" if action == "all" else "read-only"))
+        policy.save(preset(cast(Preset, action)))
         print(f"Wrote the '{action}' preset to {policy.path}", file=sys.stderr)
 
     flags = policy.as_map()
@@ -143,10 +135,6 @@ def main(argv: list[str] | None = None) -> None:
     settings = load_settings()
     args = _parse_args(argv, settings)
 
-    # The command line wins over the environment.
-    mode: Mode = args.mode
-    settings = replace_mode(settings, mode)
-
     logging.basicConfig(
         stream=sys.stderr,
         level=getattr(logging, args.log_level),
@@ -158,16 +146,41 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     server = build_server(settings)
-    if settings.mode != "read":
-        logger.warning(
-            "Running at permission tier '%s'. This server can change real "
-            "accounting records.",
-            settings.mode,
-        )
-    logger.info("Starting on stdio, tier '%s'.", settings.mode)
+    _report_what_is_enabled(settings)
     server.run()
 
 
-def replace_mode(settings: Settings, mode: Mode) -> Settings:
-    """Return a copy of ``settings`` running at a different permission tier."""
-    return dataclasses.replace(settings, mode=mode)
+def _report_what_is_enabled(settings: Settings) -> None:
+    """Say on stderr what this process may do, and how to change it.
+
+    A server offering nothing looks broken from the client, where the tool
+    list is simply empty. Naming the file and the command turns that into
+    something a person can act on.
+    """
+    policy = ToolPolicy(settings.policy_file())
+    enabled = [name for name, on in policy.as_map().items() if on]
+    if not policy.exists():
+        logger.warning(
+            "No tool policy at %s, so no tools are offered. Create one with "
+            "--tools read-only, then enable what this account may be used for.",
+            policy.path,
+        )
+        return
+    writers = [name for name in enabled if known_tools()[name].access == "write"]
+    if writers:
+        logger.warning(
+            "%d of %d tools enabled, %d of them able to change real accounting "
+            "records: %s. Per %s.",
+            len(enabled),
+            len(known_tools()),
+            len(writers),
+            ", ".join(sorted(writers)),
+            policy.path,
+        )
+    else:
+        logger.info(
+            "%d of %d tools enabled, all read-only. Per %s.",
+            len(enabled),
+            len(known_tools()),
+            policy.path,
+        )

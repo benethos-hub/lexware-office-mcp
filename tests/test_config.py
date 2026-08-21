@@ -21,8 +21,8 @@ from benethos_lexware_office_mcp.errors import ConfigError
 
 def test_defaults_are_safe() -> None:
     settings = load_settings({})
-    assert settings.mode == "read"
     assert settings.api_key is None
+    assert settings.tool_policy_path is None
     assert settings.base_url == DEFAULT_BASE_URL
     assert settings.app_base_url == DEFAULT_APP_BASE_URL
     assert settings.page_size == DEFAULT_PAGE_SIZE
@@ -40,7 +40,7 @@ def test_environment_overrides_defaults() -> None:
     settings = load_settings(
         {
             "LXO_MCP_API_KEY": "key-0123456789",
-            "LXO_MCP_MODE": "write",
+            "LXO_MCP_TOOL_POLICY": "/somewhere/tools.json",
             "LXO_MCP_BASE_URL": "https://example.invalid/",
             "LXO_MCP_RATE": "0.5",
             "LXO_MCP_BURST": "4",
@@ -49,7 +49,7 @@ def test_environment_overrides_defaults() -> None:
         }
     )
     assert settings.api_key == "key-0123456789"
-    assert settings.mode == "write"
+    assert settings.tool_policy_path == Path("/somewhere/tools.json")
     assert settings.rate == 0.5
     assert settings.burst == 4
     assert settings.page_size == 10
@@ -65,7 +65,6 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
 @pytest.mark.parametrize(
     "env",
     [
-        {"LXO_MCP_MODE": "admin"},
         {"LXO_MCP_RATE": "not-a-number"},
         {"LXO_MCP_RATE": "0"},
         {"LXO_MCP_BURST": "0"},

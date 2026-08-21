@@ -37,7 +37,7 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   roles, and optionally an email address, a phone number, a billing and a
   shipping address, tax details and a note. Returns the new id and version.
   The customer and vendor numbers are assigned by Lexware, so read the contact
-  back if you need them. Requires `LXO_MCP_MODE=write`, and costs one API call
+  back if you need them. Costs one API call
   that is never retried: a repeated create is a second contact nobody asked
   for.
 - **`update_contact`** — change an existing contact. Only the fields you name
@@ -47,7 +47,7 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   that, an update naming only a new email address would empty out the
   addresses, the note and everything else. It needs the `version` from your
   last read, and if the record changed in between the update is refused before
-  anything is sent. Requires `LXO_MCP_MODE=write`.
+  anything is sent. Enable it in `tools.json` first.
 - **`search_vouchers`** — the way into the books. Filter invoices, credit
   notes, quotations, delivery notes and bookkeeping vouchers by type, status,
   contact, date range, and by whether anything is still open or overdue.
@@ -68,11 +68,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   tax type and lines, each line naming the posting category it books to. The
   totals are added up from the lines unless you state them. Pass `unchecked`
   to record an entry that still needs review instead of booking it straight
-  away. Requires `LXO_MCP_MODE=write`, costs one API call that is never
+  away. Costs one API call that is never
   retried, and **cannot be undone**: the API has no way to delete a voucher.
 - **`update_voucher`** — change a recorded voucher. As with `update_contact`,
   only the fields you name change and the rest is carried over, at the cost of
-  a second API call. Requires `LXO_MCP_MODE=write`.
+  a second API call. Enable it in `tools.json` first.
 - **`download_file`** — save a stored file, such as an uploaded receipt, to
   the download directory on the machine the server runs on. Reports it two
   ways: the **path** it was written to, which is what you want when the client
@@ -143,7 +143,7 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   afterwards. PDF, JPEG, PNG and XML up to 5 MiB are accepted, which is
   what the API takes, and an XML file is treated as an XRechnung and rejected
   if it is not one. A file that is missing, too large or of any other type is
-  rejected before a request is spent on it. Requires `LXO_MCP_MODE=write`, costs one API call that is
+  rejected before a request is spent on it. Costs one API call that is
   never retried.
 - **`LXO_MCP_DOWNLOAD_DIR` and `LXO_MCP_APP_BASE_URL` now do something.** Both
   were read and validated before but no tool consumed them. Downloads go to
@@ -156,19 +156,24 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 - **The server itself** — installable as `benethos-lexware-office-mcp`, started
   through the console script of the same name or
   `python -m benethos_lexware_office_mcp`. Speaks **stdio**, which is what
-  Claude Desktop and comparable local clients use. `--mode`, `--log-level` and
-  `--version` on the command line, each winning over its environment variable.
-- **Read-only by default.** Three permission tiers, `read`, `write` and `full`,
-  selected with `--mode` or `LXO_MCP_MODE`. Enforced twice: a tool above the
-  active tier is never registered, so it does not appear in the tool list at
-  all, and the tier is checked again when a call arrives, so a client holding a
-  stale list cannot get one through.
+  Claude Desktop and comparable local clients use. `--log-level` and `--version` on the
+  command line, plus `--tools` to write and inspect the policy file instead
+  of serving.
+- **Nothing is enabled by default.** Which tools this server offers is one
+  flag per tool in `tools.json`, and a tool the file does not name is off — so
+  an installation without the file offers nothing at all, and what a server
+  may do is always something somebody decided. Enforced twice: a disabled tool
+  is never registered, so it does not appear in the tool list, and the file is
+  checked again when a call arrives, so a client holding a stale list cannot
+  get one through. Each tool also declares what it is (reading or writing, and
+  its group), which is what `--tools read-only` selects on. That
+  classification never decides a call.
 - **Configuration** from a real environment variable, a `.env` in the working
   directory, `config/.env` in the working directory, `config/.env` of the clone
   the server runs from, or a `.env` in the per-user config directory, in that
   order of precedence. The fourth rule means a clone configures itself no
   matter which directory it is started from, which is what a client such as
-  Claude Desktop needs. Settings: `LXO_MCP_API_KEY`, `LXO_MCP_MODE`,
+  Claude Desktop needs. Settings: `LXO_MCP_API_KEY`, `LXO_MCP_TOOL_POLICY`,
   `LXO_MCP_BASE_URL`, `LXO_MCP_APP_BASE_URL`, `LXO_MCP_DOWNLOAD_DIR`,
   `LXO_MCP_TIMEOUT`, `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE` and
   `LXO_MCP_LOG_LEVEL`. Values are validated when they are read, so a page size

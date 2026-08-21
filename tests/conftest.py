@@ -13,19 +13,30 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp import config
+from benethos_lexware_office_mcp import server as _server  # noqa: F401
+from benethos_lexware_office_mcp.policy import ToolPolicy, preset
 
 
 @pytest.fixture(autouse=True)
 def policy_file_off_this_machine(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Path:
-    """Point the default policy file at a path no test has written to.
+    """Give every test its own policy file, with every tool enabled.
 
-    A test that wants a policy file makes one and names it through
-    ``Settings(tool_policy_path=...)``. Every other test gets a file that does
-    not exist, which means every tool enabled - the behaviour of an
-    installation nobody has configured.
+    Two things at once, and both are deliberate. The file is **not** the one
+    this machine uses, so the suite reports on the code rather than on a
+    laptop. And it enables everything, because a test about `search_vouchers`
+    is not also a test about whether somebody switched it on - the tests that
+    are about that make their own file and name it through
+    `Settings(tool_policy_path=...)`.
+
+    Importing the server package first is what fills the tool registry, since
+    `classify` records a tool as it is defined.
     """
-    target = tmp_path / "tools-default.json"
+    # Beside `tmp_path`, not inside it: many tests use `tmp_path` as the
+    # download directory and count what is in it, so a policy file - or a
+    # directory holding one - would show up as a download.
+    target = tmp_path.parent / f"{tmp_path.name}-policy" / "tools.json"
+    ToolPolicy(target).save(preset("all"))
     monkeypatch.setattr(config, "tool_policy_file", lambda: target)
     return target

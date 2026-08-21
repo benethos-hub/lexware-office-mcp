@@ -1,31 +1,25 @@
-"""Permission tiers, the per-tool policy, and their enforcement.
+"""What this installation may do: one flag per tool, in one file.
 
-Two independent gates, and a tool has to pass **both**.
+**The file decides, and nothing else does.** A tool set to ``true`` is listed
+and callable, a tool set to ``false`` is neither, and a tool the file does not
+mention is **off**. An installation without a policy file therefore offers
+nothing at all - which is the state to be in when nobody has said yet what
+this server is allowed to touch.
 
-**The tier** is coarse and comes from ``LXO_MCP_MODE``. Three of them,
-ordered: ``read`` is the default and allows GET only, ``write`` adds creating
-and updating drafts and master records, ``full`` adds the irreversible
-operations - finalizing a document, booking a voucher, deleting an article.
-
-**The policy file** is fine and names one flag per tool. It answers the
-question the tier cannot: raising the tier so a quotation may be drafted also
-hands over every other write tool in the server. A tool the file disables is
-not listed and cannot be called, whatever the tier says.
-
-The file is the truth. The tier and the classification are only used to
-*compute* a file - :func:`preset` turns "everything" or "reading only" into a
-complete set of flags, and what lands on disk then says exactly what is
-allowed, tool by tool. A group is a convenience for writing the file, never a
-thing consulted afterwards.
+**The classification is metadata, not a gate.** Every tool declares what kind
+of access it needs and which group it belongs to, recorded by :func:`classify`
+where the tool is defined so it cannot drift away from the code. Nothing
+consults it when a call arrives. It exists so that a person, an interface or a
+script can *write* a sensible file - "the reading tools", "the voucher group"
+- and what lands on disk is then the whole truth, tool by tool.
 
 Enforcement happens at two levels, deliberately (SPECS.md section 9):
 
-1. **Registration.** A tool above the active tier, or switched off by the
-   file, is never registered: it does not appear in ``list_tools`` and costs
-   no tokens.
-2. **Call.** :func:`requires` wraps the function so both are checked again
-   when a call arrives. A client holding a stale tool list cannot smuggle one
-   through.
+1. **Registration.** A tool the file does not enable is never registered: it
+   does not appear in ``list_tools`` and costs no tokens.
+2. **Call.** The wrapper :func:`classify` puts around the function checks
+   again when a call arrives, so a client holding a stale tool list cannot
+   smuggle one through.
 """
 
 from __future__ import annotations
@@ -35,112 +29,101 @@ import inspect
 import json
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
-from .config import Mode
 from .errors import PermissionDeniedError
 
 __all__ = [
-    "DEFAULT_MODE",
+    "Access",
     "Preset",
+    "ToolMeta",
     "ToolPolicy",
-    "active_mode",
     "active_policy",
-    "allows",
+    "classify",
+    "grouped_tools",
     "known_tools",
     "preset",
-    "required_tier",
-    "requires",
-    "set_active_mode",
     "set_active_policy",
-    "should_register",
 ]
 
 logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Higher number means more dangerous. Comparing the numbers is the whole
-# permission check.
-_ORDER: dict[str, int] = {"read": 0, "write": 1, "full": 2}
+Access = Literal["read", "write"]
 
-# Tool name -> tier it needs. Populated by the `requires` decorator, so the
-# registry cannot drift away from the code it describes.
-_REGISTRY: dict[str, Mode] = {}
+# Write tools only. `delete`, `book` and `finalize` are irreversible in this
+# product rather than merely inconvenient: a finalized invoice carries a
+# consecutive number and can be corrected only by a further document.
+Effect = Literal["", "create", "update", "delete", "book", "finalize"]
 
-# The tier this process runs at. Deliberately starts at the safest value, so a
-# server that forgets to configure itself can only read.
-DEFAULT_MODE: Mode = "read"
-_ACTIVE: Mode = DEFAULT_MODE
+IRREVERSIBLE: tuple[Effect, ...] = ("delete", "book", "finalize")
 
 
-def set_active_mode(mode: Mode) -> None:
-    """Set the tier this process runs at. Called once during startup."""
-    global _ACTIVE
-    if mode not in _ORDER:
-        raise ValueError(f"Unknown mode: {mode!r}")
-    _ACTIVE = mode
+@dataclass(frozen=True)
+class ToolMeta:
+    """What a tool is, for whoever writes the policy file.
 
-
-def active_mode() -> Mode:
-    """The tier this process is currently running at."""
-    return _ACTIVE
-
-
-def allows(active: Mode, needed: Mode) -> bool:
-    """Whether a process running at ``active`` may perform a ``needed`` action."""
-    return _ORDER[active] >= _ORDER[needed]
-
-
-def should_register(needed: Mode, active: Mode | None = None) -> bool:
-    """Whether a tool needing ``needed`` should be registered at all."""
-    return allows(active if active is not None else _ACTIVE, needed)
-
-
-def required_tier(name: str) -> Mode | None:
-    """The tier a registered tool needs, or ``None`` if it is unknown."""
-    return _REGISTRY.get(name)
-
-
-def known_tools() -> dict[str, Mode]:
-    """Every tool that has been defined, and the tier it needs.
-
-    Filled by :func:`requires` as the tool modules are imported, so it cannot
-    drift away from the code it describes - which a table maintained by hand
-    somewhere else eventually would.
+    Never consulted to decide a call. An interface groups by ``domain``, a
+    script selects by ``access``, and both then write flags.
     """
+
+    access: Access
+    domain: str
+    effect: Effect = ""
+
+    @property
+    def irreversible(self) -> bool:
+        """Whether undoing this needs a further document rather than an undo."""
+        return self.effect in IRREVERSIBLE
+
+
+# Tool name -> what it is. Filled by `classify` as the tool modules are
+# imported, so the classification cannot drift away from the code it
+# describes, which a table maintained by hand somewhere else eventually would.
+_REGISTRY: dict[str, ToolMeta] = {}
+
+
+def known_tools() -> dict[str, ToolMeta]:
+    """Every tool that has been defined, and what it is."""
     return dict(_REGISTRY)
 
 
-Preset = Literal["all", "read-only"]
+def grouped_tools() -> dict[str, list[str]]:
+    """Tool names by domain, both sorted. For an interface to lay out."""
+    groups: dict[str, list[str]] = {}
+    for name, meta in _REGISTRY.items():
+        groups.setdefault(meta.domain, []).append(name)
+    return {domain: sorted(groups[domain]) for domain in sorted(groups)}
+
+
+Preset = Literal["all", "read-only", "none"]
 
 
 def preset(kind: Preset) -> dict[str, bool]:
-    """A complete set of flags, computed from the tiers.
+    """A complete set of flags, computed from the classification.
 
-    The classification exists to write a file, not to be consulted instead of
-    one. ``read-only`` leaves the reading tools on and turns everything else
-    off. ``all`` turns everything on and leaves the tier to do its own work.
+    This is the only thing the classification is for. The result is written to
+    the file and the file is what is read afterwards, so a preset is a way of
+    setting many flags at once and never a rule applied later.
     """
     if kind == "all":
         return dict.fromkeys(_REGISTRY, True)
+    if kind == "none":
+        return dict.fromkeys(_REGISTRY, False)
     if kind == "read-only":
-        return {name: tier == "read" for name, tier in _REGISTRY.items()}
+        return {name: meta.access == "read" for name, meta in _REGISTRY.items()}
     raise ValueError(f"Unknown preset: {kind!r}")
 
 
 class ToolPolicy:
-    """Which tools this installation lists, one flag per tool.
+    """The flags this installation runs under.
 
     Read from disk on every question rather than cached, so a file edited
     while the server runs takes effect on the next request. It is a few
     hundred bytes, and a copy held in memory is a copy that can be wrong.
-
-    A tool the file does not mention is **enabled**. The file exists to take
-    something away, and a tool arriving with an upgrade is already covered by
-    the tier it declares, which is the gate that holds back the dangerous
-    ones.
     """
 
     def __init__(self, path: Path | None = None) -> None:
@@ -151,16 +134,21 @@ class ToolPolicy:
         """The file this policy reads, or ``None`` when there is none."""
         return self._path
 
+    def exists(self) -> bool:
+        """Whether there is a file at all. Nothing is enabled without one."""
+        return self._path is not None and self._path.is_file()
+
     def _stored(self) -> dict[str, bool]:
-        if self._path is None or not self._path.is_file():
+        if not self.exists():
             return {}
+        assert self._path is not None
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            # The file is edited by hand, so a broken one must not stop the
-            # server. It must not silently grant anything either: the tier
-            # still applies, and the warning goes to stderr.
-            logger.warning("Ignoring unreadable tool policy %s: %s", self._path, exc)
+            # The file is edited by hand and by other programs, so a broken one
+            # must not stop the server. It must not grant anything either: an
+            # unreadable policy enables nothing, and says so on stderr.
+            logger.warning("Unreadable tool policy %s: %s", self._path, exc)
             return {}
         if not isinstance(data, dict):
             logger.warning("Tool policy %s is not an object, ignoring it.", self._path)
@@ -168,20 +156,25 @@ class ToolPolicy:
         return {str(key): bool(value) for key, value in data.items()}
 
     def enabled(self, name: str) -> bool:
-        """Whether ``name`` may be listed and called."""
-        return self._stored().get(name, True)
+        """Whether ``name`` may be listed and called.
+
+        A tool the file does not name is off. Silence is a refusal here: the
+        file is the only thing standing between a model and a live accounting
+        system, so anything it fails to say has to be a no.
+        """
+        return self._stored().get(name, False)
 
     def as_map(self) -> dict[str, bool]:
         """The effective flag for every known tool."""
         stored = self._stored()
-        return {name: stored.get(name, True) for name in sorted(_REGISTRY)}
+        return {name: stored.get(name, False) for name in sorted(_REGISTRY)}
 
     def save(self, flags: dict[str, bool]) -> None:
         """Write a flag for every known tool, ignoring names that are not one.
 
-        Every tool is written even when it is on, so the file reads as a
-        complete inventory rather than as a list of exceptions to a rule the
-        reader has to know already.
+        Every tool is written, including the ones that are off, so the file
+        reads as a complete inventory rather than as a list that leaves the
+        reader guessing what is missing and why.
         """
         if self._path is None:
             raise ValueError("This policy has no file to write to.")
@@ -192,9 +185,8 @@ class ToolPolicy:
         )
 
 
-# The policy this process enforces. Without a file every tool is enabled and
-# the tier is the only gate, which is what an installation that has never been
-# configured should get.
+# The policy this process enforces. Without a file nothing is enabled, which
+# is what an installation nobody has configured should offer.
 _POLICY = ToolPolicy()
 
 
@@ -209,31 +201,24 @@ def active_policy() -> ToolPolicy:
     return _POLICY
 
 
-def requires(tier: Mode) -> Callable[[F], F]:
-    """Mark a tool with the tier it needs and enforce it on every call.
+def classify(access: Access, domain: str, effect: Effect = "") -> Callable[[F], F]:
+    """Record what a tool is, and enforce the policy on every call.
 
-    The check reads the active tier at call time rather than at import time,
-    so it reflects how the process was actually configured.
+    The metadata is for whoever writes the file. The wrapper is the second of
+    the two gates: registration already leaves a disabled tool out, and this
+    catches a call from a client whose tool list predates the change.
     """
-    if tier not in _ORDER:
-        raise ValueError(f"Unknown tier: {tier!r}")
 
     def decorate(func: F) -> F:
         name = func.__name__
-        _REGISTRY[name] = tier
+        _REGISTRY[name] = ToolMeta(access=access, domain=domain, effect=effect)
 
         def guard() -> None:
-            if not allows(_ACTIVE, tier):
-                raise PermissionDeniedError(
-                    f"{name} needs permission tier '{tier}', but this server "
-                    f"runs at '{_ACTIVE}'. Set LXO_MCP_MODE={tier} to enable "
-                    f"it. Only do that against an account you are willing to "
-                    f"have changed."
-                )
             if not _POLICY.enabled(name):
+                where = _POLICY.path or "the tool policy file"
                 raise PermissionDeniedError(
-                    f"{name} is switched off for this installation. Set it to "
-                    f"true in {_POLICY.path} to enable it."
+                    f"{name} is not enabled for this installation. Set it to "
+                    f"true in {where}."
                 )
 
         if inspect.iscoroutinefunction(func):
@@ -253,7 +238,7 @@ def requires(tier: Mode) -> Callable[[F], F]:
 
             wrapper = sync_wrapper
 
-        wrapper.required_tier = tier
+        wrapper.tool_meta = _REGISTRY[name]
         return wrapper
 
     return decorate

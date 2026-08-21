@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import httpx
 import pytest
 
 from benethos_lexware_office_mcp import client as client_module
-from benethos_lexware_office_mcp import policy
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
@@ -30,13 +27,6 @@ PROFILE = {
     },
     "distanceSalesPrincipal": None,
 }
-
-
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = policy.active_mode()
-    yield
-    policy.set_active_mode(previous)
 
 
 async def _no_sleep(_seconds: float) -> None:
@@ -88,7 +78,7 @@ async def test_get_profile_returns_the_account(
 
 async def test_get_profile_is_still_available_in_full_mode() -> None:
     """A read tool must not disappear when the tier is raised."""
-    server = build_server(Settings(mode="full"))
+    server = build_server(Settings())
     names = [tool.name for tool in await server.list_tools()]
     assert "get_profile" in names
 

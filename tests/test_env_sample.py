@@ -22,7 +22,7 @@ SAMPLE = Path(__file__).resolve().parents[1] / "config" / ".env.sample"
 # the sample fails the drift test below.
 SETTINGS = {
     "LXO_MCP_API_KEY",
-    "LXO_MCP_MODE",
+    "LXO_MCP_TOOL_POLICY",
     "LXO_MCP_BASE_URL",
     "LXO_MCP_APP_BASE_URL",
     "LXO_MCP_DOWNLOAD_DIR",
@@ -42,11 +42,15 @@ def test_only_the_api_key_is_active_everything_else_is_commented() -> None:
     assert _parse_env_file(SAMPLE) == {"LXO_MCP_API_KEY": ""}
 
 
-def test_copying_the_sample_leaves_the_server_read_only() -> None:
-    """Someone who fills in only the key must not accidentally enable writes."""
+def test_copying_the_sample_enables_nothing_by_itself() -> None:
+    """Someone who fills in only the key must not accidentally enable writes.
+
+    The sample cannot enable a tool at all any more - that is the policy
+    file's business - so what it must not do is name one.
+    """
     settings = load_settings(_parse_env_file(SAMPLE))
-    assert settings.mode == "read"
     assert settings.api_key is None
+    assert settings.tool_policy_path is None
 
 
 def test_sample_documents_every_setting_the_loader_reads() -> None:

@@ -9,25 +9,14 @@ tests exist so that cannot come back.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import httpx
-import pytest
 
-from benethos_lexware_office_mcp import policy
 from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
 
 PROFILE = {"organizationId": "PLACEHOLDER", "companyName": "Example GmbH"}
-
-
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = policy.active_mode()
-    yield
-    policy.set_active_mode(previous)
 
 
 async def _no_sleep(_seconds: float) -> None:

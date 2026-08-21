@@ -9,7 +9,7 @@ from mcp.server.mcpserver import MCPServer
 from .. import formatting
 from ..client import ClientProvider
 from ..config import Settings
-from ..policy import requires, should_register
+from ..policy import classify
 from ._base import register_tool
 
 __all__ = ["register"]
@@ -18,7 +18,7 @@ __all__ = ["register"]
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the diagnostics tools allowed at the active permission tier."""
 
-    @requires("read")
+    @classify("read", "diagnostics")
     async def get_profile() -> dict[str, Any]:
         """Show which Lexware Office account this server is connected to.
 
@@ -31,5 +31,4 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         return formatting.profile(await provider.get().profile())
 
-    if should_register("read", settings.mode):
-        register_tool(server, get_profile)
+    register_tool(server, get_profile)

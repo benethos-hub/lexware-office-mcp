@@ -366,7 +366,6 @@ section 2.
 | `LXO_MCP_API_KEY` | Lexware Office API key. Required. | — |
 | `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
-| `LXO_MCP_MODE` | Permission tier, see section 9. | `read` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway. | `10` |
@@ -422,7 +421,7 @@ exposed one tool per path.
 | `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts and vouchers, since the permalink shape is the same for them and the extra entries cost nothing. A stored file is **not** a target and a contact ignores `edit`, both because the app answers those with a 404, see section 5. Built 2026-08-20, corrected against the live app 2026-08-21. | 0 |
 
-### Phase 2 — writes, behind `LXO_MCP_MODE=write`
+### Phase 2 — writes
 
 | Tool | Inputs | Calls | Notes |
 |---|---|---|---|
@@ -437,7 +436,7 @@ exposed one tool per path.
 | `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
-### Phase 3 — irreversible, behind `LXO_MCP_MODE=full`
+### Phase 3 — irreversible
 
 `finalize` on `create_sales_document`, booking a voucher, `delete_article`.
 Each of these additionally takes an explicit `confirm: true` argument, so an
@@ -464,41 +463,34 @@ accidental call fails with a clear message instead of an irreversible effect.
 
 ## 9. Permission model
 
-Two gates, and a call needs both. The **tier** is the coarse ceiling an
-operator sets. The **per-tool policy** refines what is allowed inside it.
-Enabling a tool in the policy can never lift it above the tier, so a deployment
-pinned to `read` stays read-only whatever any file says.
+**One file decides, tool by tool.** There is no level above it and no group
+beside it. A tool is enabled or it is not, and the answer is in the same place
+for all of them.
 
-### 9.1 Tier — the ceiling (implemented)
+### 9.1 Why the tier was removed
 
-| Mode | Allows |
-|---|---|
-| `read` (default) | queries only |
-| `write` | additionally create and update of drafts and master records |
-| `full` | additionally the irreversible operations: finalizing a document, booking a voucher, deleting an article |
+The first design had a coarse `LXO_MCP_MODE` of `read`, `write` and `full`
+above the file, as a ceiling an operator could pin. It was dropped on
+2026-08-21, and the reasoning is worth keeping because the trade is real.
 
-Set with `--mode` or `LXO_MCP_MODE`, so a container, a CI job or a client
-configuration can pin it without touching a file. Deliberately coarse and
-deliberately not changeable at runtime: it states what this process may at
-most do.
+**What it cost.** A level is a bundle, and a bundle is always wrong for
+somebody: raising it to `write` so a quotation could be drafted also handed
+over receipt upload and voucher creation. Two gates also meant two places to
+look when a tool was missing, and the answer "it is in the file but the tier
+withholds it" is a confusing one to arrive at.
 
-Checked at two levels (defence in depth):
+**What was given up.** A deployment can no longer be pinned read-only
+independently of any file. Whoever can write the policy file can enable
+anything in it. Where that matters — a container, a shared machine — the file
+is the thing to protect, with the permissions of the filesystem rather than
+with a second mechanism inside this server.
 
-1. **Registration:** a tool above the active tier is not registered, so it
-   never appears in `list_tools` and costs no tokens.
-2. **Call:** the tier is checked again when a call arrives, so a client holding
-   a stale tool list cannot smuggle one through.
+**What replaced the safety.** The default moved from "read-only" to
+**nothing**: a tool the file does not name is off, and an installation without
+a file offers no tools at all. The old default let a fresh installation read a
+live accounting system without anybody having decided that. This one does not.
 
-The default is `read` because this server points at a real accounting system
-holding real business records. Nothing that writes is reachable without a
-deliberate change by the account owner.
-
-### 9.2 Per-tool policy — the refinement
-
-**A single read/write/full switch is too blunt.** Raising the tier to `write`
-so the model may draft a quotation also hands it every other write tool in the
-server. What is wanted is a decision per tool, with groups as a convenience
-rather than as the unit of truth.
+### 9.2 The policy
 
 **The file is the truth.** `tools.json`, one flag per tool, never in the
 repository:
@@ -525,22 +517,22 @@ without knowing that rule.
 read afterwards, so the file always says exactly what is allowed, tool by
 tool. A group action is a way of writing many flags at once and nothing more.
 
-**Where the classification comes from.** The `@requires` decorator records the
-tier as the tool is defined, so `policy.known_tools()` cannot drift away from
-the code it describes — which a table maintained by hand somewhere else
-eventually would.
+**Where the classification comes from.** The `@classify` decorator records
+`access`, `domain` and `effect` as the tool is defined, so
+`policy.known_tools()` cannot drift away from the code it describes — which a
+table maintained by hand somewhere else eventually would. It is **metadata,
+not permission**: nothing reads it when a call arrives. A script selects on
+`access`, an interface groups by `domain`, and both then write flags.
 
-**Enforcement mirrors 9.1 and adds the policy to both gates.** A disabled tool
-is not registered, so it is not listed and costs no tokens, and a call to one
-is refused by name with the file that switched it off. `register_tool` does
-the registration check for every tool there is, rather than each module doing
-it for its own, so a tool added later cannot quietly escape it.
+**Enforcement happens twice, as defence in depth.** A disabled tool is not
+registered, so it is not listed and costs no tokens, and a call to one is
+refused by name with the file that would enable it. `register_tool` does the
+registration check for every tool there is, rather than each module doing it
+for its own, so a tool added later cannot quietly escape it.
 
-**The two gates are independent, and a tool has to pass both.** The file
-cannot grant what the tier withholds: a write tool set to `true` while the
-server runs at `read` stays hidden. Otherwise a configuration file would be a
-way around `LXO_MCP_MODE`, which is the one thing that must stay hard to
-weaken.
+**A server that offers nothing says so on stderr**, naming the file and the
+command that writes one. From the client an empty tool list is
+indistinguishable from a broken server, and the difference matters.
 
 **Changing it while the server runs.** The file is read fresh on every
 question rather than cached, so an edit takes effect on the next request — a
@@ -552,20 +544,24 @@ because the SDK derives `tools.listChanged` from notification options
 `MCPServer` does not expose — the same limitation that section 13 records for
 resources.
 
-**Still planned.** Two refinements the file does not carry yet:
+**What a tool declares:**
 
 | Field | Values |
 |---|---|
-| `domain` | diagnostics, contacts, articles, vouchers, sales documents, payments, files, master data |
+| `access` | `read` or `write` |
+| `domain` | diagnostics, contacts, vouchers, files, and the groups still to be built |
 | `effect` | write tools only: `create`, `update`, `delete`, `book`, `finalize` |
 
-`domain` would give the presets a middle size — "all contact tools off" —
-and group the interface below. `effect` would mark `delete`, `book` and
-`finalize` **irreversible**, which in this product is not a figure of speech:
-a finalized invoice carries a consecutive number and can be corrected only by
-a further document, the same reason section 10.2 refuses to retry a failed
-creation. If `effect` is added it should do something rather than decorate: a
-separate confirmation, not merely a red label.
+`ToolMeta.irreversible` is true for `delete`, `book` and `finalize`, which in
+this product is not a figure of speech: a finalized invoice carries a
+consecutive number and can be corrected only by a further document, the same
+reason section 10.2 refuses to retry a failed creation. Nothing acts on it
+yet. When something does it should be a separate confirmation rather than a
+red label, or the flag is decoration.
+
+**Still planned:** a preset per domain, so "the voucher group off" is one
+action rather than five edits. `grouped_tools()` already returns what it
+needs.
 
 **Interface.** Today the command line: `--tools show` reports, `--tools all`
 and `--tools read-only` write a preset. Everything it prints goes to stderr,
@@ -1042,12 +1038,13 @@ Built, tested offline and exercised against a live test account:
   planned, which are the article, sales document and master data tools. The
   table is the list, so that this does not become a second one to keep in
   step.
-- fifteen tools over the **stdio** transport. At tier `read`: `get_profile`,
-  `search_contacts`, `get_contact`, `search_vouchers`, `get_voucher`,
-  `get_payments`, `download_file`, `download_document`, `read_download` and
-  `get_deeplink`. At tier `write`: `create_contact`, `update_contact`,
-  `create_voucher`, `update_voucher` and `upload_file`
-- permission tier `read` by default, enforced at registration and at call
+- fifteen tools over the **stdio** transport, in four groups. Reading:
+  `get_profile`, `search_contacts`, `get_contact`, `search_vouchers`,
+  `get_voucher`, `get_payments`, `download_file`, `download_document`,
+  `read_download` and `get_deeplink`. Writing: `create_contact`,
+  `update_contact`, `create_voucher`, `update_voucher` and `upload_file`
+- one flag per tool in a JSON file, enforced at registration and at call, with
+  nothing enabled until that file says so
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
@@ -1085,7 +1082,7 @@ needs to be verified against.
 | Phase | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, the per-tool policy of section 9.2, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
-| 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
+| 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |

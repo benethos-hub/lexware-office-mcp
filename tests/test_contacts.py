@@ -10,7 +10,7 @@ behaviour asserted here comes from. See SPECS.md section 5.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -18,7 +18,7 @@ import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting, policy
+from benethos_lexware_office_mcp import formatting
 from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import (
@@ -112,13 +112,6 @@ PAGE = {
     "totalElements": 2,
     "totalPages": 1,
 }
-
-
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = policy.active_mode()
-    yield
-    policy.set_active_mode(previous)
 
 
 async def _no_sleep(_seconds: float) -> None:
@@ -504,7 +497,7 @@ CREATED = {
 
 
 def write_server(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, mode="write")
+    settings = Settings(api_key=API_KEY)
     provider = ClientProvider(
         settings,
         transport=httpx.MockTransport(handler),
@@ -514,19 +507,23 @@ def write_server(handler: Scripted) -> tuple[Any, ClientProvider]:
     return build_server(settings, provider), provider
 
 
-async def test_the_write_tools_are_absent_in_read_mode() -> None:
-    """A tool above the tier never reaches the client's list at all."""
-    names = [tool.name for tool in await build_server(Settings()).list_tools()]
-    assert "create_contact" not in names
-    assert "update_contact" not in names
+async def test_the_contact_group_is_offered_as_the_file_names_it(
+    tmp_path: Path,
+) -> None:
+    """Reading and writing tools are chosen one by one, not in blocks."""
+    flags = tmp_path / "tools.json"
+    flags.write_text(
+        '{"search_contacts": true, "get_contact": true, "create_contact": true,'
+        ' "update_contact": false}',
+        encoding="utf-8",
+    )
 
+    names = {
+        tool.name
+        for tool in await build_server(Settings(tool_policy_path=flags)).list_tools()
+    }
 
-async def test_the_write_tools_appear_in_write_mode() -> None:
-    names = [
-        tool.name for tool in await build_server(Settings(mode="write")).list_tools()
-    ]
-    assert "create_contact" in names
-    assert "update_contact" in names
+    assert names == {"search_contacts", "get_contact", "create_contact"}
 
 
 async def test_create_contact_sends_what_the_api_requires() -> None:

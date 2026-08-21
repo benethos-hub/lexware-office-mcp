@@ -10,7 +10,7 @@ voucher that has not been booked.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -18,7 +18,7 @@ import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting, policy
+from benethos_lexware_office_mcp import formatting
 from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.payloads import VoucherItem, voucher_body
@@ -108,13 +108,6 @@ LINE = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _restore_mode() -> Iterator[None]:
-    previous = policy.active_mode()
-    yield
-    policy.set_active_mode(previous)
-
-
 async def _no_sleep(_seconds: float) -> None:
     return None
 
@@ -157,7 +150,7 @@ def make_client(handler: Scripted) -> LexwareClient:
 
 
 def server_for(handler: Scripted, mode: str = "read") -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, mode=mode)  # type: ignore[arg-type]
+    settings = Settings(api_key=API_KEY)
     provider = ClientProvider(
         settings,
         transport=httpx.MockTransport(handler),
@@ -356,19 +349,26 @@ def test_an_update_keeps_the_lines_and_the_version() -> None:
 # -- tools ----------------------------------------------------------------
 
 
-async def test_the_read_tools_are_listed_and_the_write_ones_are_not() -> None:
-    names = [tool.name for tool in await build_server(Settings()).list_tools()]
-    assert {"search_vouchers", "get_voucher", "get_payments"} <= set(names)
-    assert "create_voucher" not in names
-    assert "update_voucher" not in names
+async def test_the_voucher_group_is_complete(tmp_path: Path) -> None:
+    """All five, and each one appears exactly when the file names it."""
+    flags = tmp_path / "tools.json"
+    flags.write_text(
+        '{"search_vouchers": true, "get_voucher": true, "get_payments": true,'
+        ' "create_voucher": true, "update_voucher": false}',
+        encoding="utf-8",
+    )
 
+    names = {
+        tool.name
+        for tool in await build_server(Settings(tool_policy_path=flags)).list_tools()
+    }
 
-async def test_the_write_tools_appear_in_write_mode() -> None:
-    names = [
-        tool.name for tool in await build_server(Settings(mode="write")).list_tools()
-    ]
-    assert "create_voucher" in names
-    assert "update_voucher" in names
+    assert names == {
+        "search_vouchers",
+        "get_voucher",
+        "get_payments",
+        "create_voucher",
+    }
 
 
 async def test_the_search_description_says_it_is_the_way_in() -> None:
@@ -484,7 +484,7 @@ async def test_an_ambiguous_number_names_the_candidates() -> None:
 
 async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
     handler = Scripted((201, WRITTEN))
-    server, provider = server_for(handler, mode="write")
+    server, provider = server_for(handler)
 
     await server.call_tool(
         "create_voucher",
@@ -508,7 +508,7 @@ async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
 
 async def test_unchecked_records_it_for_review_instead_of_booking_it() -> None:
     handler = Scripted((201, WRITTEN))
-    server, provider = server_for(handler, mode="write")
+    server, provider = server_for(handler)
 
     await server.call_tool(
         "create_voucher",
@@ -528,7 +528,7 @@ async def test_unchecked_records_it_for_review_instead_of_booking_it() -> None:
 async def test_a_create_is_never_retried() -> None:
     """A repeated create is a second booking of the same amount."""
     handler = Scripted((500, {}), (201, WRITTEN))
-    server, provider = server_for(handler, mode="write")
+    server, provider = server_for(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -547,7 +547,7 @@ async def test_a_create_is_never_retried() -> None:
 
 async def test_update_voucher_reads_before_it_replaces() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
-    server, provider = server_for(handler, mode="write")
+    server, provider = server_for(handler)
 
     await server.call_tool(
         "update_voucher",
@@ -564,7 +564,7 @@ async def test_update_voucher_reads_before_it_replaces() -> None:
 
 async def test_a_stale_version_stops_before_the_write() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
-    server, provider = server_for(handler, mode="write")
+    server, provider = server_for(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(

@@ -49,14 +49,15 @@ owner generates and can revoke.
 
 The server points at a real accounting system, so the defaults are cautious.
 
-- **Read-only by default.** Out of the box the server registers read tools
-  only. Nothing can be created, changed or deleted.
-- Write tools appear only when the account owner sets `LXO_MCP_MODE=write`,
-  and the irreversible operations — finalizing a document, booking a voucher,
-  deleting an article — need `full` on top of an explicit `confirm` argument.
-- The permission tier is checked twice, once when tools are registered and
-  again when a call arrives, so a stale tool list on the client cannot slip
-  past it.
+- **Nothing is enabled until you say so.** A fresh installation has no
+  policy file, and a server without one offers no tools at all. What this
+  server may do is a decision somebody made, never a default that happened.
+- **One flag per tool**, in a JSON file you write with `--tools` and edit by
+  hand. Not a level, not a group: `create_contact` on and `upload_file` off is
+  an ordinary thing to want, and there is no combination the file cannot
+  express.
+- The file is checked twice, once when tools are registered and again when a
+  call arrives, so a stale tool list on the client cannot slip past it.
 - The API key is never logged, never returned in a tool result, and redacted
   from error messages.
 
@@ -85,7 +86,7 @@ Read tools, available in every mode:
 | `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link | **built** |
 | `get_deeplink` | Build a permalink to a sales document, contact or voucher in the web app, without an API call | **built** |
 
-Write tools, only with `LXO_MCP_MODE=write` or higher:
+Write tools. These change real accounting records, so enable them one at a time and against an account you are willing to have changed:
 
 | Tool | What it does | Status |
 |---|---|---|
@@ -217,18 +218,17 @@ window — so the tool list is reloaded.
 
 ## Switching individual tools off
 
-`LXO_MCP_MODE` decides in three steps what the server may do at all. It cannot
-say that drafting a quotation is fine but uploading receipts is not, because
-both are `write`. That is what the policy file is for: one flag per tool.
+One JSON file decides what this server offers, and nothing else does. Start
+it with
 
 ```
 benethos-lexware-office-mcp --tools read-only
 ```
 
-writes every tool into `tools.json`, reading ones on and the rest off, and
-prints what it did. `--tools all` turns everything on, `--tools show` only
-reports. The file is searched exactly like the `.env`, lowest precedence
-first:
+which writes every tool into `tools.json`, reading ones on and the rest off,
+and prints what it did. `--tools all` turns everything on, `--tools none`
+turns everything off, `--tools show` only reports. The file is searched
+exactly like the `.env`, lowest precedence first:
 
 1. the per-user configuration directory
 2. `config/` of a checkout, when you are running from the sources
@@ -245,22 +245,26 @@ first. After that, edit it:
 }
 ```
 
-A tool set to `false` is not listed and cannot be called. A tool the file does
-not mention is on, so an installation without the file behaves exactly as it
-did before. The file is read fresh on every request, so an edit takes effect
-without restarting the server — though a client that has already fetched the
-tool list will keep showing the old one until it asks again.
+A tool set to `false` is not listed and cannot be called. **A tool the file
+does not mention is also off** — silence is a refusal, so a tool that arrives
+with an upgrade waits for you rather than appearing on its own. No file at all
+means no tools at all, which is why `--tools` is part of setting the server up.
 
-The file cannot grant anything. A write tool set to `true` while
-`LXO_MCP_MODE=read` stays hidden: both gates have to agree, and the tier is
-the one that answers first.
+The file is read fresh on every request, so an edit takes effect without
+restarting the server — though a client that has already fetched the tool list
+keeps showing the old one until it asks again. Claude Desktop asks once, at
+startup.
+
+Each tool also declares what it is — reading or writing, and which group it
+belongs to. That classification is what `--tools read-only` selects on, and
+what an interface would group by. It never decides a call: only the file
+does.
 
 ## Configuration
 
 | Variable | Meaning | Default |
 |---|---|---|
 | `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |
-| `LXO_MCP_MODE` | `read`, `write` or `full` | `read` |
 | `LXO_MCP_TOOL_POLICY` | Per-tool on/off file, see below | `tools.json` in the config directory |
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |

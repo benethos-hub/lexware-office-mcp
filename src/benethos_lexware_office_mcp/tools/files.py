@@ -26,7 +26,7 @@ from .. import rendering, resources, storage
 from ..client import ClientProvider
 from ..config import Settings
 from ..errors import NotFoundError, ValidationError
-from ..policy import requires, should_register
+from ..policy import classify
 from ._base import register_tool
 
 __all__ = ["register"]
@@ -180,7 +180,7 @@ FormatField = Annotated[
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the file tools allowed at the active permission tier."""
 
-    @requires("read")
+    @classify("read", "files")
     async def download_file(
         file_id: Annotated[
             str,
@@ -216,7 +216,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             fallback=f"{file_id}.{file_format}",
         )
 
-    @requires("read")
+    @classify("read", "files")
     async def download_document(
         document_type: Annotated[
             DocumentType,
@@ -252,7 +252,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             fallback=f"{document_type}-{document_id}.{file_format}",
         )
 
-    @requires("read")
+    @classify("read", "files")
     async def get_deeplink(
         target: Annotated[
             LinkTarget,
@@ -289,7 +289,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         return {"url": permalink(settings, target, target_id, action)}
 
-    @requires("read")
+    @classify("read", "files")
     async def read_download(
         uri: Annotated[
             str,
@@ -350,7 +350,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         "{pages}", str(settings.pdf_pages)
     )
 
-    @requires("write")
+    @classify("write", "files", "create")
     async def upload_file(
         path: Annotated[
             str,
@@ -375,13 +375,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = _read_upload(path)
         return dict(await provider.get().upload_file(content, name, content_type))
 
-    if should_register("read", settings.mode):
-        register_tool(server, download_file)
-        register_tool(server, download_document)
-        register_tool(server, get_deeplink)
-        register_tool(server, read_download)
-    if should_register("write", settings.mode):
-        register_tool(server, upload_file)
+    register_tool(server, download_file)
+    register_tool(server, download_document)
+    register_tool(server, get_deeplink)
+    register_tool(server, read_download)
+    register_tool(server, upload_file)
 
 
 def permalink(
