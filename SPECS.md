@@ -1029,7 +1029,10 @@ upstream tells us the outcome with certainty.
 **Why a failed POST is never retried.** A 5xx or a timeout says nothing about
 whether the document was created. The request may have been executed and only
 the response lost. Retrying then risks a second invoice, and the client cannot
-tell the two cases apart. Instead the failure surfaces as an `UpstreamError`
+tell the two cases apart. **There is no idempotency key to lean on**, measured
+2026-08-21 under three header names: the same POST sent twice creates two
+documents every time, see open question 2. So this is not a rule waiting for
+a better mechanism, it is the only correct behaviour the API allows. Instead the failure surfaces as an `UpstreamError`
 whose message says explicitly that the outcome is unknown and that the caller
 must check whether the document exists before trying again. Losing a request is
 recoverable, silently issuing two invoices is not.
@@ -1481,9 +1484,14 @@ item. Answered questions stay in place with their answer.
    ceiling measured. **Extended 2026-08-21:** there are floors as well.
    `/v1/articles` refuses anything below 25 with `size: MIN`, which no other
    list does. See section 5.
-2. Whether the API offers an idempotency key for POST. This is the highest
-   value unknown after question 8 — it decides whether a failed document
-   creation can be retried at all, see section 10.2.
+2. ~~Whether the API offers an idempotency key for POST.~~ **Answered
+   2026-08-21: it does not.** Measured by posting the same credit note twice
+   under one key, three times over with `Idempotency-Key`, `X-Idempotency-Key`
+   and `Idempotency-Id`. Every pair produced **two** documents with different
+   ids and a 201 each — an unknown header is ignored here exactly as an
+   unknown query parameter is. The rule in section 10.2 that a failed POST is
+   never retried therefore rests on a measurement rather than on caution, and
+   there is no way to make one safe to repeat.
 3. ~~File upload limits: maximum size, accepted MIME types, and whether
    `type=voucher` is the only accepted form value.~~ **Answered
    2026-08-20:** 5 MiB inclusive, PDF, JPEG, PNG and XML, and yes —
