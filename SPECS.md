@@ -397,6 +397,39 @@ in six months. Every line here is a request that was actually sent.
   *produces* is visible, as an ordinary voucher in the voucher list, and
   nothing on that voucher says it came from one.
 
+### What a write leaves behind, verified 2026-08-21
+
+Every deletion this API offers, in one line: **an article.** Everything else
+written through it stays, because there is no call that removes it.
+
+| Tool | Leaves behind | Removable through the API |
+|---|---|---|
+| `create_article` | an article | **yes**, `delete_article` |
+| `create_contact` | a contact | no — `DELETE /v1/contacts/{id}` is 404 on a record that exists |
+| `create_voucher` | a bookkeeping voucher | no — `DELETE /v1/vouchers/{id}` is 404 |
+| `create_sales_document` | an invoice, quotation, credit note … | no — there is no `DELETE` and no `PUT` |
+| `upload_file` | a file **and a voucher** | no |
+| `attach_file_to_voucher` | an attachment | no — nothing detaches a file |
+| `update_contact`, `update_voucher`, `update_article` | a changed record | no undo, but the record can be changed again |
+
+**The web app is the other half of this, and this project cannot measure it.**
+The account owner reports that most records can be deleted there, the
+exceptions being anything already **festgeschrieben** for bookkeeping and an
+invoice that has been **sent**. That is not a measurement and is recorded as
+what it is — the statement of somebody who uses the product — but it decides
+how a tool should word its warning. "This cannot be undone" is a claim about
+the whole product that this server is in no position to make. "The API cannot
+take it back, correcting it is a job for the web app" is true, checkable, and
+tells the caller where to go. The descriptions say the second.
+
+**The classification is about destruction, not permanence, and they are not
+the same thing here.** `effect: delete` marks a tool that destroys an existing
+record, which is `delete_article` and nothing else. Permanence runs the other
+way round: `delete_article` is the one write whose result could be recreated
+exactly, while the tools sitting quietly under `--tools write` are the ones
+that leave marks in someone's bookkeeping. Section 9 says so where the presets
+are described, because a preset name cannot carry that distinction.
+
 ### The API has no state transitions, verified 2026-08-21
 
 A record is created in the state it will keep, or it is not created. There is
@@ -801,8 +834,10 @@ not permission**: nothing reads it when a call arrives. A script selects on
 
 **`write` does not mean undoable, and the preset names cannot say so.** The
 `irreversible` step covers `delete`, the one effect this API offers that
-destroys a record, and `delete_article` is the one tool carrying it. What it
-does not cover is a creation that cannot be taken back, and there are two: the API has
+destroys a record, and `delete_article` is the one tool carrying it. Section 5
+has the full inventory of what each write leaves behind, and it runs the other
+way round from the preset names: the tool marked irreversible is the only one
+whose result could be recreated exactly. What the step does not cover is a creation that cannot be taken back, and there are two: the API has
 no way to delete a bookkeeping voucher, so `create_voucher` and `upload_file`
 both leave something behind that only the web app can correct. They stay
 under `write`, because the alternative is to put ordinary bookkeeping behind

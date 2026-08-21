@@ -199,6 +199,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   set when it is created or never — and finalizing is a parameter on creating
   a document rather than an operation on one. Deleting an article is the only
   irreversible thing there is, and the step now says so.
+- **The write tools no longer say "cannot be undone".** They say the API
+  cannot take it back and that correcting it is a job for the web app, which
+  is what is actually true: this server can only speak for the interface it
+  uses, and most records can still be deleted in the web application unless
+  they are locked for bookkeeping or the invoice has been sent. The old
+  wording claimed something about the whole product.
 - **`--tools sync`** — complete the policy file without deciding anything.
   Every tool the file does not mention is added as `false`, every flag already
   there is written back unchanged, and **nothing is ever switched on**. That

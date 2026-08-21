@@ -343,9 +343,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Record a bookkeeping voucher in the account.
 
-        Writes real accounting data and **cannot be undone**: the API has no
-        way to delete a voucher. Confirm the organization with `get_profile`
-        first. One API call, never retried.
+        Writes real accounting data, and **the API cannot take it back**:
+        there is no way to delete a voucher here. Correcting one is a job for
+        the web app. Confirm the organization with `get_profile` first. One
+        API call, never retried.
 
         Every line needs a posting category **id**, from `get_master_data`
         with kind 'posting-categories'. Totals are added up from the lines

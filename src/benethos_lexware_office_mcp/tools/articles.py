@@ -290,11 +290,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ] = False,
     ) -> dict[str, Any]:
-        """Delete an article. This cannot be undone.
+        """Delete an article. The API has no way back.
 
         The record is removed, not archived: reading it afterwards is a "not
-        found", and there is no way back through the API. One API call, and
-        only once `confirm` is true.
+        found". One API call, and only once `confirm` is true.
 
         Documents that already quote this article keep their line items, which
         hold their own copy of the text and the price.

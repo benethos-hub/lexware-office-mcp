@@ -431,13 +431,17 @@ async def test_the_search_offers_no_parameter_that_looks_like_a_text_search() ->
     await provider.aclose()
 
 
-async def test_the_deleting_tool_says_it_cannot_be_undone() -> None:
+async def test_the_deleting_tool_says_the_api_has_no_way_back() -> None:
+    """It says that rather than "cannot be undone": this server speaks for the
+    interface it uses, and the web app is a different question. See SPECS
+    section 5."""
     handler = Scripted()
     server, provider = server_for(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["delete_article"].description or ""
 
-    assert "cannot be undone" in description.lower()
+    assert "no way back" in description.lower()
+    assert "confirm" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
     await provider.aclose()

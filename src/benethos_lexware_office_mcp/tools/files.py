@@ -332,10 +332,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Upload a receipt, which also creates a bookkeeping voucher for it.
 
-        Writes real accounting data and **cannot be undone**: the answer
-        carries a `voucherId` as well as a file id, and that voucher cannot be
-        deleted through the API. Confirm the organization with `get_profile`
-        first. One API call, never retried.
+        Writes real accounting data, and **the API cannot take it back**:
+        the answer carries a `voucherId` as well as a file id, and no call
+        here deletes a voucher. Correcting one is a job for the web app.
+        Confirm the organization with `get_profile` first. One API call,
+        never retried.
 
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. An XML file is treated as
         an XRechnung.
@@ -371,9 +372,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         deleted through the API, so the wrong choice leaves one behind for
         good.
 
-        Writes to the account and cannot be undone - an attachment has no
-        delete either. Confirm the organization with `get_profile` first. One
-        API call, never retried.
+        Writes to the account, and **the API cannot take it back**: there
+        is no call that detaches a file. Confirm the organization with
+        `get_profile` first. One API call, never retried.
 
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. The answer is the new file
         id, which `download_file` reads back.
