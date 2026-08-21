@@ -539,11 +539,18 @@ indistinguishable from a broken server, and the difference matters.
 question rather than cached, so an edit takes effect on the next request — a
 few hundred bytes of JSON is cheaper than a copy that can be wrong.
 Enforcement is therefore always current. What is *shown* is not: a client that
-has already fetched the tool list keeps it until it asks again. Sending
-`notifications/tools/list_changed` would fix that and is **not built**,
-because the SDK derives `tools.listChanged` from notification options
-`MCPServer` does not expose — the same limitation that section 13 records for
-resources.
+has already fetched the tool list keeps it until it asks again, and
+`tools.listChanged` is advertised as `false` — see section 13, which measures
+why and finds it is a matter of protocol version rather than of design.
+
+**Adding a tool needs a restart, removing one does not** (measured
+2026-08-21). Registration happens once, so a tool switched on in the file was
+never registered and cannot be called until the process starts again. A tool
+switched off is refused at the call gate immediately, though it stays in a
+list the client has already fetched. The asymmetry is the right way round —
+taking permission away is instant, granting it is deliberate — but it is an
+asymmetry, and anything that describes the file as taking effect "on the next
+request" has to say which half it means.
 
 **What a tool declares:**
 
@@ -953,14 +960,28 @@ subclasses with concise, actionable messages.
   read from disk in the same breath. The same files were reachable either way,
   so restricting the registration protected nothing and cost every URI its
   life at restart.
-- **A client is never told the list changed.** The SDK derives
-  `resources.listChanged` from notification options `MCPServer` does not
-  expose, so the capability is advertised as `false` and
-  `notifications/resources/list_changed` is never sent. A client that lists
-  once at startup sees what was on disk then and nothing fetched since. This
-  is a limitation of the server, not of the client, and it is the second
-  reason `read_download` exists — the first being that Claude Desktop does not
-  follow a resource link at all.
+- **A client is never told the list changed, and that is a protocol version
+  rather than a design.** Measured against mcp 2.0.0 on 2026-08-21:
+  - Under the handshake protocols, capabilities come from `NotificationOptions`,
+    whose three flags all default to `False`. `MCPServer` has no parameter for
+    them and calls `create_initialization_options()` with no arguments, so
+    `prompts`, `resources` and `tools` all report `listChanged: false`. Every
+    server on this wrapper reports the same, which is worth knowing before
+    concluding that a client is at fault.
+  - Under `2026-07-28` the same capabilities derive instead from whether
+    `subscriptions/listen` is served — and `MCPServer` always serves it, with
+    an in-memory bus unless one is passed to the constructor. The flags would
+    be `true` without this project doing anything.
+  - That version is never reached here. `initialize` negotiates down to
+    `2025-11-25`, the newest handshake version, whatever the client asks for,
+    and the modern `server/discover` is not reachable over stdio at all.
+
+  So the practical effect stands - a client that lists once at startup sees
+  what was on disk then, and this is the second reason `read_download` exists,
+  the first being that Claude Desktop does not follow a resource link. What
+  does **not** stand is treating it as something to work around: it is wiring
+  that switches itself on with a protocol update, and a hand-built watcher
+  sending notifications nobody asked for would be waste at best.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be

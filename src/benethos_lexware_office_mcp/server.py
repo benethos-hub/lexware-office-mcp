@@ -111,9 +111,10 @@ choosing the tools:
      "create_contact": false
     }
 
-  Set one to false and it disappears from the client. Changes take effect on
-  the next request, though a client usually asks for the tool list only once,
-  when it starts.
+  Setting one to false takes effect at once: the tool is refused from the
+  next request on, though a client that has already fetched the list goes on
+  showing it. Setting one to true needs the server restarted, because tools
+  are registered when it starts. Claude Desktop is quit from the tray.
 
   Running --tools again overwrites the whole file, so edits made by hand are
   lost. Use it to start a file, not to update one.

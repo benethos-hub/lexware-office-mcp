@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
@@ -299,3 +300,38 @@ def test_writing_a_preset_replaces_what_was_edited_by_hand(tmp_path: Path) -> No
     main(["--tools", "write", "--tools-file", str(policy)])
 
     assert len(json.loads(policy.read_text())) == len(known_tools())
+
+
+async def test_switching_a_tool_off_takes_effect_without_a_restart(
+    tmp_path: Path,
+) -> None:
+    """Measured 2026-08-21, and the half of the story that is instant.
+
+    The call gate reads the file every time, so a tool that has just been
+    switched off is refused - even though it stays in a list the client
+    already holds.
+    """
+    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+
+    assert [t.name for t in await server.list_tools()] == ["get_profile"]
+    write(policy, {"get_profile": False})
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool("get_profile", {})
+
+    assert "not enabled" in str(excinfo.value)
+
+
+async def test_switching_a_tool_on_does_not(tmp_path: Path) -> None:
+    """The other half. Registration happens once, when the server is built.
+
+    Documented rather than fixed: taking permission away should be instant and
+    granting it should be deliberate.
+    """
+    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+
+    write(policy, {"get_profile": True, "search_contacts": True})
+
+    assert [t.name for t in await server.list_tools()] == ["get_profile"]
