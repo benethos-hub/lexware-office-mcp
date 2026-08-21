@@ -140,7 +140,15 @@ uv run python -c "import asyncio;from benethos_lexware_office_mcp.server import 
 It lists what the policy file enables, so run it with a file that has
 everything on or a tool you just touched will be missing from the answer.
 
-Section 8 of SPECS.md records the same rule.
+The whole cost of the tool list, which is what a description is spent
+against - schemas included, and they are the larger half:
+
+```
+uv run python -c "import asyncio,json;from benethos_lexware_office_mcp.server import mcp;print(sum(len(json.dumps(t.model_dump(exclude_none=True,by_alias=True),separators=(',',':'),default=str)) for t in asyncio.run(mcp.list_tools())))"
+```
+
+Section 8 of SPECS.md records the same rule, and carries the last
+measurement of what the whole list costs.
 
 ## Verifying
 

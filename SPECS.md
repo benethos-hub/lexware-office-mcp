@@ -437,12 +437,44 @@ No secret is ever read from a versioned file. `config/.env` is gitignored and
 
 ## 8. Tools
 
-Tool count is kept deliberately low. Descriptions and schemas are sent on every
-request, so a wide surface is paid for continuously. Measured on a comparable
-MCP server, 22 tools came to roughly 23,000 characters of descriptions and
-schemas on every single request. Related endpoints
+Tool count is kept deliberately low. Descriptions and schemas are sent on
+every request, so a wide surface is paid for continuously. Related endpoints
 are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
+
+**What the tool list actually costs, measured 2026-08-21.** Serialized as the
+compact JSON a `tools/list` answer is, seventeen tools come to **34,847
+characters**, around 2,050 each. Roughly 9,000 to 11,000 tokens, estimated at
+3.2 to 3.8 characters per token rather than counted with a tokenizer.
+
+| Part | Characters | Share |
+|---|---|---|
+| Input schemas | 22,480 | 64% |
+| Tool descriptions, the part under a ceiling | 7,284 | 21% |
+| Output schemas | 3,678 | 11% |
+| Names, titles and the rest | ~1,400 | 4% |
+
+Two things follow, and neither was obvious before the measurement.
+
+**The 700-character ceiling governs a fifth of the cost.** Of the 22,480
+characters of input schema, 9,413 are prose from `Field(description=...)` and
+the remaining 13,067 are structure the schema generator emits: types,
+defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
+under no ceiling at all and is not visible while writing a docstring, which is
+where it should be watched: `create_voucher` spends 1,744 characters on
+seventeen parameter descriptions, nearly four times its own description.
+
+**The five structured tools carry half of it.** `create_voucher` (4,278),
+`update_contact` (3,965), `create_contact` (3,907), `search_vouchers` (3,378)
+and `update_voucher` (3,359) come to 54% of the total between them. The
+policy file of section 9 is therefore also a context lever, not only a
+permission one: a `read-only` installation sends 18,541 characters, a little
+over half.
+
+The numbers move whenever a description does, so they are a measurement with
+a date on it rather than a budget. What is stable is the shape: schemas cost
+three times what descriptions cost, and the tools that take structured
+arguments cost three to four times what the simple ones do.
 
 ### Phase 1 — read only
 
@@ -651,6 +683,18 @@ section 16.1: a table grouped by domain, one toggle per row, `read` and
 `write` marked, irreversible effects flagged, and the connected organization
 shown at the top from `get_profile` — so it is never in doubt which account
 the permissions being granted apply to.
+
+**To do there as well: show what each tool costs in context.** A tool that is
+on is sent to the model on every single request, description and schemas
+alike, and section 8 measures that at around 2,050 characters per tool with
+`create_voucher` at more than double. Nothing in the server reports this
+today, so the cost of switching a tool on is invisible at the moment of
+switching it on. The interface is the place to put it: a per-row figure and a
+running total for everything currently enabled, so a policy can be chosen
+against a budget rather than against a guess. Characters are what can be
+counted honestly — a token count would need a tokenizer for a model this
+server does not know it is talking to, so if tokens are shown at all they are
+shown as an estimate and labelled as one.
 
 ## 10. Client behaviour (`client.py`)
 
