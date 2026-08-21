@@ -316,7 +316,7 @@ search.
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
-| `LXO_MCP_BURST` | Token bucket capacity | `2` |
+| `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default | `10` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
@@ -368,6 +368,12 @@ Two things worth knowing:
 - Lexware warns that a client which keeps hammering after a 429 can stay
   blocked permanently. The server therefore backs off exponentially and gives
   up after a few attempts rather than retrying harder.
+
+The account's bucket was measured on 2026-08-21 and holds **four**: five
+requests fired at once got four through and one refused. The default of `2`
+leaves half of that for everything else drawing on the same account — the web
+app, another integration, a second instance of this server. Raise it to `4`
+only if you know this server is the only consumer.
 
 Both limiter values are configurable via `LXO_MCP_RATE` and `LXO_MCP_BURST` if
 your account behaves differently.

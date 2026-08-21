@@ -556,7 +556,7 @@ account gained is drafts, which the web app can still delete.
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway. | `10` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
-| `LXO_MCP_BURST` | Token bucket capacity. | `2` |
+| `LXO_MCP_BURST` | Token bucket capacity. Upstream holds 4, measured. | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr. | `INFO` |
 
@@ -944,15 +944,26 @@ limit without a buffer commonly produces 429s anyway once network jitter shifts
 the arrival times. A shaper that aims exactly at the policer's threshold loses
 every race the network decides.
 
-The capacity is the more dangerous of the two. Upstream *b* is not documented,
-only *r*, so how long an idle stretch may be cashed in at once is unknown. A
-generous local *b* would let the server open with a burst that our own limiter
-considers conformant and theirs does not — it would move the failure from our
-queue to their 429 without any warning that it had happened. `2` is therefore
-the deliberate floor: enough that the two calls of `get_document_pdf` are not
-artificially separated, small enough that a wrong guess about upstream capacity
-costs little. Both values are configurable, so an account that behaves
-differently can be tuned without a code change, and open question 6 in
+The capacity is the more dangerous of the two. A generous local *b* would let
+the server open with a burst that our own limiter considers conformant and
+theirs does not — it would move the failure from our queue to their 429
+without any warning that it had happened.
+
+**Upstream *b* is 4**, measured 2026-08-21 and no longer a guess: five
+concurrent requests after an idle stretch got four through and one refused,
+four got four through. The idle stretch does not buy more, so the bucket is
+shallow and fixed rather than a credit for quiet time.
+
+**The default stays at `2` regardless**, and the measurement is the reason it
+can stay there honestly rather than out of ignorance. The upstream limit is
+**global across the account**: the web app, another integration, or a second
+instance of this server all draw on the same four. A local *b* of 4 would be
+conformant only while nothing else is running, which is not a property an
+accounting integration should depend on. An operator who knows this server is
+the only consumer can raise it to `4` and be exactly at the ceiling. `2` also
+keeps the two calls of an update from being artificially separated, which was
+the original reason for it. Both values are configurable, so an account that
+behaves differently can be tuned without a code change, and open question 6 in
 section 16 is what would let the default be raised with evidence.
 
 **What the budget comes to in practice.** The documented ceiling is a rate, not
@@ -1504,9 +1515,14 @@ item. Answered questions stay in place with their answer.
    measured the same day, see section 5.
 5. Whether any endpoint returns a partner or OAuth-only field that a plain API
    key cannot reach.
-6. The upstream token bucket capacity, which is not documented. Only the refill
-   rate of 2 per second is stated, so how large a burst is tolerated after an
-   idle period has to be measured. Until then `LXO_MCP_BURST` stays at `2`.
+6. ~~The upstream token bucket capacity, which is not documented.~~
+   **Answered 2026-08-21: it is 4.** Measured after a 15 second idle stretch,
+   which at the documented 2 per second would have accumulated 30 tokens if
+   the bucket were deep. Five requests fired at once: four went through in
+   1.33 seconds, the fifth was refused. Four fired at once went through
+   cleanly. So the capacity is small and fixed, not a function of how long the
+   key has been quiet. `LXO_MCP_BURST` stays at `2` anyway — see section 10.1
+   for why the measurement does not simply become the default.
 7. Whether 429 responses carry a `Retry-After` header, and whether the block
    duration grows with repeated offences as the wording about permanent
    blocking suggests.
