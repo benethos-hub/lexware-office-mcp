@@ -106,9 +106,10 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         help=(
             "Which policy file --tools reads or writes, and which one the "
             "server runs under. Wins over LXO_MCP_TOOL_POLICY and over the "
-            "usual search. Default: %(default)s."
+            "search: the per-user config directory, then config/ of a "
+            "checkout, then the working directory. --tools show prints the "
+            "file actually in force."
         ),
-        default=defaults.policy_file(),
     )
     return parser.parse_args(argv)
 
@@ -147,7 +148,10 @@ def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv, settings)
 
     # The command line wins over the environment, which wins over the search.
-    settings = dataclasses.replace(settings, tool_policy_path=Path(args.tools_file))
+    # Left unset it stays None, so the search decides - and no absolute path
+    # from this machine has to appear in --help to explain that.
+    if args.tools_file:
+        settings = dataclasses.replace(settings, tool_policy_path=Path(args.tools_file))
 
     logging.basicConfig(
         stream=sys.stderr,
