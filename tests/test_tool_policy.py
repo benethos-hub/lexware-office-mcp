@@ -356,3 +356,31 @@ async def test_a_tool_enabled_while_running_can_be_called(tmp_path: Path) -> Non
     )
 
     assert (result.structured_content or {})["url"].endswith("PLACEHOLDER-1")
+
+
+async def test_a_listing_reads_the_file_once(tmp_path: Path) -> None:
+    """Not once per tool, which is what asking `enabled` in a loop did.
+
+    Fifteen reads for one answer is waste, and worse than waste: a file
+    edited halfway through the loop would produce a list that never existed
+    on disk in that combination.
+    """
+    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+
+    reads = 0
+    original = Path.read_text
+
+    def counting(self: Path, *args: object, **kwargs: object) -> str:
+        nonlocal reads
+        if self == policy:
+            reads += 1
+        return original(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    Path.read_text = counting  # type: ignore[method-assign]
+    try:
+        await server.list_tools()
+    finally:
+        Path.read_text = original  # type: ignore[method-assign]
+
+    assert reads == 1

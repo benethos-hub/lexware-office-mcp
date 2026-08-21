@@ -68,8 +68,13 @@ class PolicyServer(MCPServer):
         self._policy = policy
 
     async def list_tools(self) -> list[Any]:
+        # One reading of the file for the whole list. Asking `enabled` per
+        # tool would open and parse it once per tool, which is fifteen times
+        # for an answer that has to be consistent anyway - a file edited
+        # halfway through would otherwise produce a list that never existed.
+        allowed = self._policy.as_map()
         tools = await super().list_tools()
-        return [tool for tool in tools if self._policy.enabled(tool.name)]
+        return [tool for tool in tools if allowed.get(tool.name, False)]
 
 
 def build_server(
