@@ -96,7 +96,7 @@ Write tools. These change real accounting records, so enable them one at a time 
 | `update_article` | Change one, without touching what you did not name | **built** |
 | `create_voucher` | Record a bookkeeping voucher | **built** |
 | `update_voucher` | Change one that is already recorded | **built** |
-| `create_sales_document` | Create a document, as a draft unless finalization is explicitly requested | planned |
+| `create_sales_document` | Create an invoice, quotation, credit note, order confirmation, delivery note or dunning — a draft unless finalization is confirmed | **built** |
 | `upload_file` | Upload a receipt, which also creates its voucher | **built** |
 | `attach_file_to_voucher` | Hang a file on a voucher that already exists | **built** |
 

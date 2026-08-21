@@ -138,6 +138,24 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **`create_sales_document`** — write an invoice, quotation, credit note,
+  order confirmation, delivery note or dunning. A down payment invoice cannot
+  be created through the API at all, so it is not offered. Costs one API call
+  that is never retried. Line items carry the price on the side the
+  document's tax type names, may quote an article by id, and a `text` line
+  carries no price. The totals are left to the API, which adds the document
+  up from its lines.
+- **A draft unless you say otherwise.** `finalize` issues the document
+  instead, which assigns its number for good and cannot be undone, so it
+  needs `confirm: true` beside it. `preceding_sales_voucher_id` follows an
+  existing document along the quotation to invoice chain.
+- **What each kind needs is checked before a request is spent**, and the
+  message names the field: `shipping_date` for an invoice, order
+  confirmation and delivery note, `expiration_date` for a quotation,
+  `preceding_sales_voucher_id` for a dunning.
+- **A date is given as YYYY-MM-DD**, as everywhere else in this server. These
+  endpoints demand a full timestamp with milliseconds and an offset, unlike
+  the voucher endpoint, and the conversion happens here.
 - **`attach_file_to_voucher`** — hang a scan on a voucher that is already
   there. `upload_file` cannot do this: it creates a **new** voucher for every
   file, and a voucher cannot be deleted through the API, so picking the wrong

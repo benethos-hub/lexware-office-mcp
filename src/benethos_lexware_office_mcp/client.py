@@ -590,6 +590,32 @@ class LexwareClient:
 
     # -- sales documents --------------------------------------------------
 
+    async def create_sales_document(
+        self,
+        resource: str,
+        body: dict[str, Any],
+        *,
+        finalize: bool = False,
+        preceding_sales_voucher_id: str | None = None,
+    ) -> dict[str, Any]:
+        """``POST /v1/{resource}``. One API call, never retried.
+
+        Both modifiers are query parameters, measured 2026-08-21.
+        ``finalize=true`` creates the document as `open` rather than as a
+        draft, which the API cannot undo. ``precedingSalesVoucherId`` follows
+        an existing document, and a dunning is refused without it before its
+        body is even looked at.
+        """
+        params: dict[str, Any] = {}
+        if finalize:
+            params["finalize"] = "true"
+        if preceding_sales_voucher_id is not None:
+            params["precedingSalesVoucherId"] = preceding_sales_voucher_id
+        response = await self.request(
+            "POST", f"/v1/{resource}", json=body, params=params or None
+        )
+        return _expect_object(response.json(), resource)
+
     async def sales_document(self, resource: str, document_id: str) -> dict[str, Any]:
         """``GET /v1/{resource}/{id}``. One API call.
 

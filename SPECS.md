@@ -342,6 +342,10 @@ in six months. Every line here is a request that was actually sent.
   given is net or gross, and the API computes the other: a gross price of
   11.90 at 19% comes back with a net price of 10.00 beside it. Nothing here
   derives an amount.
+- **An article number has to be unique.** A second article carrying one
+  already in use is refused with `materialNumber:
+  MATERIAL_NUMBER_ALREADY_EXISTS`, which is a field name that appears nowhere
+  in the request — reading the `details` list is what makes it legible at all.
 - **A GTIN is thirteen digits**, checked upstream: `1234` and the eight-digit
   `40123456` are both refused with `gtin: VALIDGTIN`.
 - **A stale version is a 409**, where a contact answers 406. Both are
@@ -351,6 +355,43 @@ in six months. Every line here is a request that was actually sent.
   empty body, reading the id afterwards is a 404, and a second delete is a 404
   as well. The record is gone, not archived — the one resource in this API
   that can be removed at all, where a bookkeeping voucher cannot.
+
+### Creating a sales document, verified 2026-08-21
+
+Measured by posting to each type in turn. Nothing was finalized, so what the
+account gained is drafts, which the web app can still delete.
+
+- **Each kind insists on one thing of its own**, beyond the common body of
+  `voucherDate`, `address`, `lineItems`, `totalPrice` and `taxConditions`:
+  - `invoice`, `order-confirmation` and `delivery-note` want
+    `shippingConditions`, and answer "The shipping conditions must not be
+    null" without it.
+  - `quotation` wants `expirationDate`.
+  - `credit-note` wants nothing extra — a minimal body created GS0001.
+  - `dunning` wants `precedingSalesVoucherId`, and it is a **query
+    parameter**, refused before the body is looked at at all.
+  `paymentConditions` is documented as required and is **not**: every one of
+  the five went through without it, taking the account's default.
+- **The date format is exact**, and stricter than `/v1/vouchers`.
+  `yyyy-MM-dd'T'HH:mm:ss.SSSXXX` and nothing else: `2026-08-21`,
+  `2026-08-21T00:00:00`, `2026-08-21T00:00:00.000` and
+  `2026-08-21T00:00:00Z` are all refused as unparseable, while
+  `2026-08-21T00:00:00.000Z` and an explicit offset both parse. The
+  milliseconds are not optional. A plain date from a caller is therefore sent
+  as midnight **UTC**, an instant this server can construct without knowing
+  the account's timezone. Read back from a German account it reads
+  `2026-08-21T02:00:00.000+02:00` — the right calendar day, which is what a
+  document date means, and the voucher list normalizes it to `00:00` anyway.
+- **`totalPrice` carries the currency and nothing else.** The API adds the
+  document up from its lines. Stating a total here would be a figure this
+  project invented, and the voucher endpoint already shows what happens when
+  one disagrees.
+- **A line item is one of four types.** `custom` is typed out, `material` and
+  `service` quote an article by `id`, and `text` carries a name and no price
+  at all — verified in one document holding a `service` line quoting a live
+  article and a `text` line beside it.
+- **A down payment invoice cannot be created.** It has no POST, so the tool
+  does not offer the type.
 
 ### Master data, verified 2026-08-21
 
@@ -511,35 +552,34 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-two tools come to **42,511
-characters**, around 1,930 each. Roughly 11,000 to 13,000 tokens, estimated
+compact JSON a `tools/list` answer is, twenty-five tools come to **50,424
+characters**, around 2,020 each. Roughly 13,000 to 15,000 tokens, estimated
 at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 27,670 | 65% |
-| Tool descriptions, the part under a ceiling | 8,955 | 21% |
-| Output schemas | 4,076 | 10% |
-| Names, titles and the rest | ~1,810 | 4% |
+| Input schemas | 33,549 | 67% |
+| Tool descriptions, the part under a ceiling | 10,450 | 21% |
+| Output schemas | 4,340 | 9% |
+| Names, titles and the rest | ~2,085 | 4% |
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 27,670
-characters of input schema, 11,067 are prose from `Field(description=...)` and
-the remaining 16,603 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 33,549
+characters of input schema, 13,345 are prose from `Field(description=...)` and
+the remaining 20,204 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,744 characters on
 seventeen parameter descriptions, nearly four times its own description.
 
-**The six structured tools carry half of it.** `create_voucher` (4,278),
-`update_contact` (3,965), `create_contact` (3,907), `search_vouchers` (3,378),
-`update_voucher` (3,359) and `update_article` (2,435) come to 50% of the total
-between them. Every one of them takes a record's worth of arguments, and an
-update takes them twice over - once as a value and once as an explanation of
-what leaving it out means. The policy file of section 9 is therefore also a
-context lever, not only a permission one: a `read-only` installation sends
-20,849 characters, just under half.
+**The six structured tools carry half of it.** `create_sales_document`
+(5,139), `create_voucher` (4,278), `update_contact` (3,965), `create_contact`
+(3,907), `search_vouchers` (3,378) and `update_voucher` (3,359) come to 48% of
+the total between them. Every one of them takes a record's worth of arguments,
+and the largest takes a nested model of line items on top. The policy file of
+section 9 is therefore also a context lever, not only a permission one: a
+`read-only` installation sends 22,485 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -579,7 +619,7 @@ arguments cost three to four times what the simple ones do.
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and drops the side that is no longer authoritative so a new net price is never sent beside a stale gross one. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
-| `create_sales_document` | `document_type` limited to the types the API allows creating, structured line items, optional `preceding_sales_voucher_id` for pursue |
+| `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
@@ -1277,16 +1317,16 @@ Built, tested offline and exercised against a live test account:
 - **every module in the table of section 4.** None is marked planned any
   more. The table is the list, so that this does not become a second one to
   keep in step.
-- twenty-four tools over the **stdio** transport, in seven groups. Reading:
+- twenty-five tools over the **stdio** transport, in seven groups. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
   `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
   `get_sales_document`, `get_recurring_templates`, `get_master_data`,
   `download_file`, `download_document`, `read_download` and `get_deeplink`.
   Writing:
   `create_contact`, `update_contact`, `create_article`, `update_article`,
-  `create_voucher`, `update_voucher`, `upload_file` and
-  `attach_file_to_voucher`. Irreversible: `delete_article`, the only one so
-  far
+  `create_voucher`, `update_voucher`, `create_sales_document`, `upload_file`
+  and `attach_file_to_voucher`. Irreversible: `delete_article`, and
+  `create_sales_document` when it is asked to finalize
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
@@ -1319,18 +1359,18 @@ fixtures are the shapes the API actually returned, and the enum values in the
 voucher schemas were measured rather than taken from the documentation, which
 does not list them.
 
-**Phase 1 is complete.** Every read tool of section 8 exists and every
-resource group of section 4 is built. What holds a release back is section
-16.1, how a user configures the server at all, and CI, which does not exist.
-On the tool side `create_sales_document` is the piece that would make the
-write half complete — it can quote the articles this version added.
+**Phase 1 and phase 2 are complete.** Every read tool of section 8 exists,
+every resource group of section 4 is built, and every documented call is
+covered except the event subscriptions, which section 2 rules out. What holds
+a release back is no longer a tool: it is section 16.1, how a user configures
+the server at all, and CI, which does not exist.
 
 | Phase | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. The configuration rework of section 16.1 and CI are open. |
-| 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
+| 0.2.0 | write tools, file upload, optimistic locking round trip | **done** — contacts, articles, bookkeeping vouchers, sales documents, receipt upload and voucher attachments are written, and the locking round trip works for the three resources the API lets you update |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
-| 0.4.0 | the remaining irreversible operations — finalizing a document and booking a voucher, `delete_article` being built — pursue chains, ZUGFeRD and XRechnung download variants | planned |
+| 0.4.0 | booking a voucher, the last irreversible operation not built — `delete_article` and finalizing a document are — ZUGFeRD and XRechnung download variants | planned |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,

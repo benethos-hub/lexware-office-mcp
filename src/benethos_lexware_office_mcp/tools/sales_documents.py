@@ -21,6 +21,13 @@ from pydantic import Field
 from .. import formatting
 from ..client import ClientProvider
 from ..config import Settings
+from ..errors import ValidationError
+from ..payloads import (
+    SHIPPING_REQUIRED,
+    SalesLineItem,
+    SalesTaxType,
+    sales_document_body,
+)
 from ..policy import classify
 from ._base import PageNumber, PageSize, register_tool
 
@@ -57,6 +64,18 @@ RESOURCES: dict[str, str] = {
 # Both fields are shared with `download_document` in :mod:`.files`, which
 # addresses the same seven documents. One wording, sent to the model once per
 # tool that uses it, rather than two that can drift apart.
+# A down payment invoice has no POST at all - it is raised by the app when a
+# quotation is part-invoiced. Measured against the documented endpoint list
+# and confirmed by the six that do accept one, 2026-08-21.
+CreatableType = Literal[
+    "invoice",
+    "quotation",
+    "credit-note",
+    "order-confirmation",
+    "delivery-note",
+    "dunning",
+]
+
 DocumentTypeField = Annotated[
     DocumentType,
     Field(
@@ -152,5 +171,153 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             await client.recurring_templates(page=page, size=size, sort=sort)
         )
 
+    @classify("write", "sales_documents", "create")
+    async def create_sales_document(
+        document_type: Annotated[
+            CreatableType,
+            Field(
+                description=(
+                    "What to create. A down payment invoice cannot be created "
+                    "through the API at all."
+                )
+            ),
+        ],
+        contact_id: Annotated[
+            str,
+            Field(
+                description=(
+                    "Who the document is for, by id from search_contacts. A "
+                    "one-time address is not supported: create the contact."
+                )
+            ),
+        ],
+        voucher_date: Annotated[
+            str, Field(description="The date on the document, as YYYY-MM-DD.")
+        ],
+        items: Annotated[
+            list[SalesLineItem],
+            Field(description="The lines of the document.", min_length=1),
+        ],
+        tax_type: Annotated[
+            SalesTaxType,
+            Field(
+                description=(
+                    "Whether the line prices are before or after tax. "
+                    "'vatfree' is for a document that carries none."
+                )
+            ),
+        ] = "net",
+        currency: Annotated[
+            str, Field(description="ISO currency code.", min_length=3, max_length=3)
+        ] = "EUR",
+        shipping_date: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "When it was delivered or performed, as YYYY-MM-DD. "
+                    "Required for an invoice, order confirmation and delivery "
+                    "note."
+                )
+            ),
+        ] = None,
+        expiration_date: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "How long a quotation stands, as YYYY-MM-DD. Required for one."
+                )
+            ),
+        ] = None,
+        preceding_sales_voucher_id: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "The finalized document this one follows, for example the "
+                    "quotation an invoice comes from. Required for a dunning."
+                )
+            ),
+        ] = None,
+        title: Annotated[
+            str | None,
+            Field(description="Heading. The account's default is used if unset."),
+        ] = None,
+        introduction: Annotated[
+            str | None, Field(description="Text above the lines.")
+        ] = None,
+        remark: Annotated[
+            str | None, Field(description="Text below the lines.")
+        ] = None,
+        finalize: Annotated[
+            bool,
+            Field(
+                description=(
+                    "Issue it instead of drafting it. Needs confirm, and "
+                    "cannot be reversed."
+                )
+            ),
+        ] = False,
+        confirm: Annotated[
+            bool,
+            Field(description="Required only for finalize. Ignored otherwise."),
+        ] = False,
+    ) -> dict[str, Any]:
+        """Create an invoice, quotation, credit note or one of their relatives.
+
+        Writes to the account. One API call, never retried, so a failure that
+        might have gone through has to be checked with `search_vouchers`.
+
+        A draft can still be edited or deleted in the web app. `finalize`
+        issues it instead, assigning the number for good.
+        That **cannot be undone**, so it needs `confirm` as well.
+
+        Each kind wants one thing of its own: `shipping_date` for an invoice,
+        order confirmation and delivery note, `expiration_date` for a
+        quotation, `preceding_sales_voucher_id` for a dunning.
+
+        Totals are added up by the API from the lines.
+        """
+        if finalize and not confirm:
+            raise ValidationError(
+                "finalize issues the document for good, and the API cannot "
+                "take it back. Pass confirm=true as well, or leave finalize "
+                "unset to create a draft that can still be changed."
+            )
+        if document_type in SHIPPING_REQUIRED and shipping_date is None:
+            raise ValidationError(
+                f"shipping_date is required for a document of type "
+                f"'{document_type}': the day it was delivered or performed. "
+                "The API refuses it otherwise."
+            )
+        if document_type == "quotation" and expiration_date is None:
+            raise ValidationError(
+                "A quotation needs expiration_date, the day it stops standing."
+            )
+        if document_type == "dunning" and preceding_sales_voucher_id is None:
+            raise ValidationError(
+                "A dunning follows an invoice. Pass its id as "
+                "preceding_sales_voucher_id."
+            )
+
+        body = sales_document_body(
+            contact_id=contact_id,
+            voucher_date=voucher_date,
+            items=items,
+            tax_type=tax_type,
+            currency=currency,
+            shipping_date=shipping_date,
+            expiration_date=expiration_date,
+            title=title,
+            introduction=introduction,
+            remark=remark,
+        )
+        written = await provider.get().create_sales_document(
+            RESOURCES[document_type],
+            body,
+            finalize=finalize,
+            preceding_sales_voucher_id=preceding_sales_voucher_id,
+        )
+        return dict(formatting.compact(written))
+
     register_tool(server, get_sales_document)
+    register_tool(server, create_sales_document)
     register_tool(server, get_recurring_templates)

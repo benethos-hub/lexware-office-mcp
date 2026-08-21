@@ -11,8 +11,9 @@ tells a caller whether there is anything to download.
 
 from __future__ import annotations
 
+import json
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
@@ -110,6 +111,10 @@ class Scripted:
     @property
     def path(self) -> str:
         return urlparse(str(self.requests[-1].url)).path
+
+    @property
+    def query(self) -> dict[str, list[str]]:
+        return parse_qs(urlparse(str(self.requests[-1].url)).query)
 
 
 def make_client(handler: Scripted) -> LexwareClient:
@@ -286,6 +291,246 @@ async def test_the_description_says_what_it_costs_and_what_a_draft_lacks() -> No
     description = tools["get_sales_document"].description or ""
 
     assert "one api call" in description.lower()
+    assert "draft" in description.lower()
+    assert len(description) < 700, "the description budget, see CLAUDE.md"
+    await provider.aclose()
+
+
+# -- creating one ---------------------------------------------------------
+
+LINE = {
+    "name": "Beratung",
+    "quantity": 2,
+    "unit_name": "Stunde",
+    "unit_price": 90.0,
+    "tax_rate_percent": 19,
+}
+
+CREATED = {
+    "id": "PLACEHOLDER-INVOICE-3",
+    "resourceUri": "https://api.lexware.io/v1/invoices/PLACEHOLDER-INVOICE-3",
+    "createdDate": "2026-08-21T18:00:00.000+02:00",
+    "updatedDate": "2026-08-21T18:00:00.000+02:00",
+    "version": 1,
+}
+
+
+def _create_args(**extra: Any) -> dict[str, Any]:
+    args: dict[str, Any] = {
+        "document_type": "invoice",
+        "contact_id": "PLACEHOLDER-CONTACT-1",
+        "voucher_date": "2026-08-21",
+        "shipping_date": "2026-08-21",
+        "items": [LINE],
+    }
+    args.update(extra)
+    return args
+
+
+async def test_a_draft_carries_the_lines_and_leaves_the_totals_to_the_api() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    result = await server.call_tool("create_sales_document", _create_args())
+
+    body = json.loads(handler.requests[0].content)
+    assert handler.requests[0].method == "POST"
+    assert handler.path == "/v1/invoices"
+    assert body["address"] == {"contactId": "PLACEHOLDER-CONTACT-1"}
+    assert body["totalPrice"] == {"currency": "EUR"}, "the API adds it up itself"
+    assert body["lineItems"][0]["unitPrice"] == {
+        "currency": "EUR",
+        "netAmount": 90.0,
+        "taxRatePercentage": 19,
+    }
+    assert result.structured_content is not None
+    assert result.structured_content["id"] == "PLACEHOLDER-INVOICE-3"
+    await provider.aclose()
+
+
+async def test_a_plain_date_becomes_the_timestamp_the_api_insists_on() -> None:
+    """Measured 2026-08-21: milliseconds and an offset are both mandatory here,
+    where `/v1/vouchers` takes a bare date."""
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool("create_sales_document", _create_args())
+
+    body = json.loads(handler.requests[0].content)
+    assert body["voucherDate"] == "2026-08-21T00:00:00.000Z"
+    assert body["shippingConditions"]["shippingDate"] == "2026-08-21T00:00:00.000Z"
+    await provider.aclose()
+
+
+async def test_a_full_timestamp_is_left_alone() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool(
+        "create_sales_document",
+        _create_args(voucher_date="2026-08-21T09:30:00.000+02:00"),
+    )
+
+    body = json.loads(handler.requests[0].content)
+    assert body["voucherDate"] == "2026-08-21T09:30:00.000+02:00"
+    await provider.aclose()
+
+
+async def test_a_gross_document_puts_the_price_on_the_gross_side() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool("create_sales_document", _create_args(tax_type="gross"))
+
+    body = json.loads(handler.requests[0].content)
+    assert body["taxConditions"] == {"taxType": "gross"}
+    assert "grossAmount" in body["lineItems"][0]["unitPrice"]
+    assert "netAmount" not in body["lineItems"][0]["unitPrice"]
+    await provider.aclose()
+
+
+async def test_a_line_may_quote_an_article_or_carry_no_price_at_all() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool(
+        "create_sales_document",
+        _create_args(
+            items=[
+                {**LINE, "item_type": "service", "article_id": "PLACEHOLDER-ARTICLE-1"},
+                {**LINE, "item_type": "text", "name": "A note"},
+            ]
+        ),
+    )
+
+    lines = json.loads(handler.requests[0].content)["lineItems"]
+    assert lines[0]["type"] == "service"
+    assert lines[0]["id"] == "PLACEHOLDER-ARTICLE-1"
+    assert lines[1] == {"type": "text", "name": "A note"}, "a text line has no price"
+    await provider.aclose()
+
+
+@pytest.mark.parametrize(
+    ("document_type", "missing"),
+    [
+        ("invoice", "shipping_date"),
+        ("order-confirmation", "shipping_date"),
+        ("delivery-note", "shipping_date"),
+        ("quotation", "expiration_date"),
+        ("dunning", "preceding_sales_voucher_id"),
+    ],
+)
+async def test_what_each_kind_insists_on_is_refused_before_the_request(
+    document_type: str, missing: str
+) -> None:
+    """Measured 2026-08-21 by posting a minimal body to each of them."""
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+    args = _create_args(document_type=document_type)
+    args.pop("shipping_date")
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool("create_sales_document", args)
+
+    assert missing in str(excinfo.value)
+    assert handler.requests == [], "a request went out anyway"
+    await provider.aclose()
+
+
+async def test_a_credit_note_needs_nothing_of_its_own() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+    args = _create_args(document_type="credit-note")
+    args.pop("shipping_date")
+
+    await server.call_tool("create_sales_document", args)
+
+    assert handler.path == "/v1/credit-notes"
+    await provider.aclose()
+
+
+async def test_finalizing_without_a_confirmation_never_reaches_the_api() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool("create_sales_document", _create_args(finalize=True))
+
+    assert "confirm" in str(excinfo.value)
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_a_confirmed_finalize_becomes_a_query_parameter() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool(
+        "create_sales_document", _create_args(finalize=True, confirm=True)
+    )
+
+    assert handler.query["finalize"] == ["true"]
+    await provider.aclose()
+
+
+async def test_a_draft_sends_no_finalize_at_all() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool("create_sales_document", _create_args(confirm=True))
+
+    assert handler.query == {}
+    await provider.aclose()
+
+
+async def test_pursuing_a_document_names_it_in_the_query() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    await server.call_tool(
+        "create_sales_document",
+        _create_args(preceding_sales_voucher_id="PLACEHOLDER-QUOTATION-1"),
+    )
+
+    assert handler.query["precedingSalesVoucherId"] == ["PLACEHOLDER-QUOTATION-1"]
+    await provider.aclose()
+
+
+async def test_a_creation_is_never_retried() -> None:
+    """A repeat is a second document, and the API cannot delete either."""
+    handler = Scripted((500, {}))
+    server, provider = server_for(handler)
+
+    with pytest.raises(ToolError):
+        await server.call_tool("create_sales_document", _create_args())
+
+    assert len(handler.requests) == 1
+    await provider.aclose()
+
+
+async def test_a_down_payment_invoice_cannot_be_created() -> None:
+    """It has no POST at all - the app raises one from a part-invoiced
+    quotation - so the schema does not offer it."""
+    handler = Scripted((201, CREATED))
+    server, provider = server_for(handler)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "create_sales_document", _create_args(document_type="down-payment-invoice")
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_the_creating_description_names_what_cannot_be_undone() -> None:
+    handler = Scripted()
+    server, provider = server_for(handler)
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    description = tools["create_sales_document"].description or ""
+
+    assert "cannot be undone" in description.lower()
     assert "draft" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
     await provider.aclose()

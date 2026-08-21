@@ -28,9 +28,11 @@ __all__ = [
     "Role",
     "TaxType",
     "VoucherItem",
+    "SalesLineItem",
     "VoucherType",
     "article_body",
     "contact_body",
+    "sales_document_body",
     "voucher_body",
 ]
 
@@ -412,4 +414,146 @@ def article_body(
         _set(current, "taxRate", tax_rate)
     if current:
         body["price"] = {k: v for k, v in current.items() if k in _PRICE_KEYS}
+    return body
+
+
+# -- sales documents ------------------------------------------------------
+
+SalesTaxType = Literal["net", "gross", "vatfree"]
+LineItemType = Literal["custom", "material", "service", "text"]
+
+# Which extra field each type insists on, measured 2026-08-21 by posting a
+# minimal body to each of them and reading what came back. A credit note
+# wants nothing beyond the common fields.
+SHIPPING_REQUIRED = ("invoice", "order-confirmation", "delivery-note")
+
+
+class SalesLineItem(BaseModel):
+    """One line of a sales document.
+
+    The price is one number, and which side it is comes from the document's
+    tax type rather than from the line: a `net` document carries net line
+    prices throughout. The API adds the totals up itself, so nothing here is
+    summed.
+    """
+
+    name: str = Field(description="What the line is called on the document.")
+    quantity: float = Field(description="How many units.", ge=0)
+    unit_name: str = Field(description="What one unit is, for example 'Stueck'.")
+    unit_price: float = Field(
+        description=(
+            "The price of one unit, before tax on a 'net' document and after "
+            "tax on a 'gross' one."
+        ),
+        ge=0,
+    )
+    tax_rate_percent: float = Field(
+        description="The tax rate for this line, for example 19.", ge=0
+    )
+    description: str | None = Field(
+        None, description="Longer text under the line's name."
+    )
+    discount_percentage: float | None = Field(
+        None, description="Discount on this line, as a percentage.", ge=0, le=100
+    )
+    item_type: LineItemType = Field(
+        "custom",
+        description=(
+            "'custom' is a line typed out here. 'material' or 'service' quote "
+            "an article and need article_id. 'text' is a note with no price."
+        ),
+    )
+    article_id: str | None = Field(
+        None,
+        description=(
+            "The article this line quotes, from search_articles. Only for "
+            "'material' and 'service'."
+        ),
+    )
+
+
+def _line_item_body(
+    item: SalesLineItem, tax_type: str, currency: str
+) -> dict[str, Any]:
+    """One line, with the price on the side the document's tax type names."""
+    if item.item_type == "text":
+        body: dict[str, Any] = {"type": "text", "name": item.name}
+        _set(body, "description", item.description)
+        return body
+
+    amount_key = "grossAmount" if tax_type == "gross" else "netAmount"
+    body = {
+        "type": item.item_type,
+        "name": item.name,
+        "quantity": item.quantity,
+        "unitName": item.unit_name,
+        "unitPrice": {
+            "currency": currency,
+            amount_key: item.unit_price,
+            "taxRatePercentage": item.tax_rate_percent,
+        },
+    }
+    _set(body, "id", item.article_id)
+    _set(body, "description", item.description)
+    _set(body, "discountPercentage", item.discount_percentage)
+    return body
+
+
+def _at_midnight(value: str) -> str:
+    """A plain date as the timestamp these endpoints insist on.
+
+    Measured 2026-08-21: `/v1/invoices` accepts only
+    ``yyyy-MM-dd'T'HH:mm:ss.SSSXXX``. The milliseconds are not optional and
+    neither is the offset - ``2026-08-21``, ``...T00:00:00`` and
+    ``...T00:00:00Z`` are all refused as unparseable, where ``/v1/vouchers``
+    takes a bare date happily.
+
+    Midnight **UTC** is used rather than a local offset this server cannot
+    know. For an account in Germany that is 01:00 or 02:00 on the same
+    calendar day, which is the day that matters. A caller who needs another
+    zone passes a full timestamp, which goes through untouched.
+    """
+    return value if "T" in value else f"{value}T00:00:00.000Z"
+
+
+def sales_document_body(
+    *,
+    contact_id: str,
+    voucher_date: str,
+    items: list[SalesLineItem],
+    tax_type: SalesTaxType = "net",
+    currency: str = "EUR",
+    shipping_date: str | None = None,
+    shipping_type: str | None = None,
+    expiration_date: str | None = None,
+    title: str | None = None,
+    introduction: str | None = None,
+    remark: str | None = None,
+) -> dict[str, Any]:
+    """Build the body for creating a sales document.
+
+    There is no ``base`` here, unlike the other builders: the API offers no
+    PUT for these, so a document is written once and afterwards only read.
+
+    ``totalPrice`` carries the currency and nothing else. The API adds the
+    document up from its lines and refuses a total that disagrees, so stating
+    one here would be a figure this project invented.
+    """
+    body: dict[str, Any] = {
+        "voucherDate": _at_midnight(voucher_date),
+        "address": {"contactId": contact_id},
+        "lineItems": [_line_item_body(item, tax_type, currency) for item in items],
+        "totalPrice": {"currency": currency},
+        "taxConditions": {"taxType": tax_type},
+    }
+    if shipping_date is not None:
+        body["shippingConditions"] = {
+            "shippingDate": _at_midnight(shipping_date),
+            "shippingType": shipping_type or "delivery",
+        }
+    if expiration_date is not None:
+        body["expirationDate"] = _at_midnight(expiration_date)
+    _set(body, "title", title)
+    _set(body, "introduction", introduction)
+    _set(body, "remark", remark)
     return body
