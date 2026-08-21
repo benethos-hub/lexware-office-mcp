@@ -54,7 +54,9 @@ RESOURCES: dict[str, str] = {
     "down-payment-invoice": "down-payment-invoices",
 }
 
-# Deeplinks reach further than documents do.
+# Deeplinks reach further than documents do, but not to a stored file:
+# the web app has no page for one. Verified 2026-08-21, see SPECS.md
+# section 5.
 LinkTarget = Literal[
     "invoice",
     "quotation",
@@ -65,14 +67,12 @@ LinkTarget = Literal[
     "down-payment-invoice",
     "contact",
     "voucher",
-    "file",
 ]
 
 LINK_RESOURCES: dict[str, str] = {
     **RESOURCES,
     "contact": "contacts",
     "voucher": "vouchers",
-    "file": "files",
 }
 
 
@@ -94,12 +94,14 @@ class Download(BaseModel):
     )
     mimeType: str = Field(description="The file's content type.")
     size: int = Field(description="Size in bytes.")
-    deeplink: str = Field(
+    deeplink: str | None = Field(
+        None,
         description=(
             "Opens this document in the Lexware Office web app. Worth handing "
             "to a person, who can then look at it themselves whatever the "
-            "client is able to display."
-        )
+            "client is able to display. Absent for a stored file, which has "
+            "no page of its own there."
+        ),
     )
 
 
@@ -198,14 +200,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> Download:
         """Save a stored file, such as an uploaded receipt. One API call.
 
-        The bytes are not in this answer. Three ways to reach them:
+        The bytes are not in this answer. Two ways to reach them:
 
         - `path` — the file on the server's disk. Works if the client runs on
           that machine.
         - `uri` — pass it to `read_download` to put the content in the
           conversation, or read it as a resource.
-        - `deeplink` — give this to a person. Opens the document in the web
-          app and needs neither of the above.
+
+        There is no `deeplink`: the web app has no page for a stored file. To
+        send a person somewhere, call `get_deeplink` for the voucher that
+        lists this file.
 
         Use `download_document` for a sales document, which is rendered
         rather than stored.
@@ -216,7 +220,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             server,
             settings,
             fallback=f"{file_id}.{file_format}",
-            deeplink=permalink(settings, "file", file_id),
         )
 
     @requires("read")
@@ -267,8 +270,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             Field(
                 description=(
                     "Whether to open the record or open it for editing. A "
-                    "record that cannot be edited opens for viewing instead. "
-                    "Ignored for a file, which has only one link."
+                    "contact has a single page and always opens on it."
                 )
             ),
         ] = "view",
@@ -384,12 +386,16 @@ def permalink(
 
     Assembled from ids the caller already holds, so it costs no API call and
     is worth attaching wherever a person might want to see the thing itself.
-    Files are the exception to the pattern: their permalink carries no action.
+
+    Every shape here was requested against the live app on 2026-08-21 rather
+    than taken from the documentation, which is where the two known corners
+    come from: a contact answers only to ``view``, and a stored file has no
+    permalink at all and so is not a target.
     """
     base = settings.app_base_url.rstrip("/")
     resource = LINK_RESOURCES[target]
-    if target == "file":
-        return f"{base}/permalink/{resource}/{target_id}"
+    if target == "contact":
+        action = "view"
     return f"{base}/permalink/{resource}/{action}/{target_id}"
 
 
@@ -481,7 +487,7 @@ def _deliver(
     settings: Settings,
     *,
     fallback: str,
-    deeplink: str,
+    deeplink: str | None = None,
 ) -> Any:
     """Save a download and hand it to the client both ways.
 
@@ -508,18 +514,14 @@ def _deliver(
         "size": len(response.content),
         "deeplink": deeplink,
     }
+    summary = (
+        f"Saved {written.name} ({len(response.content)} bytes). "
+        f"Readable as the resource {link.uri}."
+    )
+    if deeplink:
+        summary += f" Viewable in the web app at {deeplink}."
     return CallToolResult(
-        content=[
-            TextContent(
-                type="text",
-                text=(
-                    f"Saved {written.name} ({len(response.content)} bytes). "
-                    f"Readable as the resource {link.uri}, and viewable in the "
-                    f"web app at {deeplink}."
-                ),
-            ),
-            link,
-        ],
+        content=[TextContent(type="text", text=summary), link],
         structured_content=payload,
     )
 

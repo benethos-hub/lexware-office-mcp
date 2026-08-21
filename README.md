@@ -83,7 +83,7 @@ Read tools, available in every mode:
 | `download_document` | Save the rendered PDF or XML of a sales document | **built** |
 | `download_file` | Save a stored file, such as an uploaded receipt | **built** |
 | `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link | **built** |
-| `get_deeplink` | Build a permalink into the Lexware Office web app, without an API call | **built** |
+| `get_deeplink` | Build a permalink to a sales document, contact or voucher in the web app, without an API call | **built** |
 
 Write tools, only with `LXO_MCP_MODE=write` or higher:
 
@@ -137,10 +137,11 @@ an embedded binary into an image block when it calls the API, and
 request is refused. Rendering costs no API call either, since the file is
 already on the server.
 
-Every download also reports a `deeplink` that opens the document in the
+A downloaded sales document also reports a `deeplink` that opens it in the
 Lexware Office web app. It costs nothing to build, and it is the route that
 still works when the client can display neither the file nor a resource link:
-somebody opens it in a browser.
+somebody opens it in a browser. A stored file has no such link, because the
+web app has no page for one — link the voucher that lists the file instead.
 
 `upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
 is what the API takes. An XML file is treated as an XRechnung and is

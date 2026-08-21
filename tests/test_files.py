@@ -304,25 +304,45 @@ async def test_the_edit_action_and_the_configured_base_are_used(
 
     result = await server.call_tool(
         "get_deeplink",
-        {"target": "contact", "target_id": "PLACEHOLDER-CONTACT-1", "action": "edit"},
+        {"target": "invoice", "target_id": "PLACEHOLDER-DOC-1", "action": "edit"},
     )
 
     assert result.structured_content is not None
     assert result.structured_content["url"] == (
-        "https://example.invalid/permalink/contacts/edit/PLACEHOLDER-CONTACT-1"
+        "https://example.invalid/permalink/invoices/edit/PLACEHOLDER-DOC-1"
     )
 
 
-async def test_a_file_link_carries_no_action(tmp_path: Path) -> None:
-    """The one target whose permalink has a different shape."""
+async def test_a_contact_always_opens_on_its_one_page(tmp_path: Path) -> None:
+    """Verified 2026-08-21: the app answers `contacts/edit/{id}` with a 404.
+
+    A contact is edited on the page it is viewed on, so asking to edit one
+    has to produce the link that works rather than the link that was asked
+    for.
+    """
     server = build_server(Settings(api_key=API_KEY))
 
     result = await server.call_tool(
-        "get_deeplink", {"target": "file", "target_id": FILE_ID, "action": "edit"}
+        "get_deeplink",
+        {"target": "contact", "target_id": "PLACEHOLDER-CONTACT-1", "action": "edit"},
     )
 
     assert result.structured_content is not None
-    assert result.structured_content["url"].endswith(f"/permalink/files/{FILE_ID}")
+    assert result.structured_content["url"].endswith(
+        "/permalink/contacts/view/PLACEHOLDER-CONTACT-1"
+    )
+
+
+async def test_a_stored_file_is_not_a_link_target(tmp_path: Path) -> None:
+    """Verified 2026-08-21: `permalink/files/{id}` is a 404 in the web app.
+
+    There is no page for a stored file, so offering one as a target would
+    only produce links that go nowhere.
+    """
+    server = build_server(Settings(api_key=API_KEY))
+
+    with pytest.raises(ToolError):
+        await server.call_tool("get_deeplink", {"target": "file", "target_id": FILE_ID})
 
 
 # -- uploading ------------------------------------------------------------
@@ -1012,11 +1032,30 @@ async def test_a_download_hands_back_a_link_a_person_can_open(
     handler = Recorder(headers={"content-type": "application/pdf"})
     server, provider = server_for(handler, tmp_path)
 
-    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+    result = await server.call_tool(
+        "download_document",
+        {"document_type": "invoice", "document_id": "PLACEHOLDER-DOC-1"},
+    )
 
     payload = result.structured_content or {}
-    assert payload["deeplink"] == (f"https://app.lexware.de/permalink/files/{FILE_ID}")
+    assert payload["deeplink"] == (
+        "https://app.lexware.de/permalink/invoices/view/PLACEHOLDER-DOC-1"
+    )
     assert payload["deeplink"] in result.content[0].text
+    await provider.aclose()
+
+
+async def test_a_stored_file_comes_back_without_a_dead_link(
+    tmp_path: Path,
+) -> None:
+    """A link that 404s is worse than none: it is tried before it is doubted."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert (result.structured_content or {})["deeplink"] is None
+    assert "web app" not in result.content[0].text
     await provider.aclose()
 
 
@@ -1053,7 +1092,10 @@ async def test_the_link_follows_the_configured_web_app(tmp_path: Path) -> None:
     )
     server = build_server(settings, provider)
 
-    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+    result = await server.call_tool(
+        "download_document",
+        {"document_type": "invoice", "document_id": "PLACEHOLDER-DOC-1"},
+    )
 
     assert (result.structured_content or {})["deeplink"].startswith(
         "https://example.invalid/permalink/"
@@ -1061,16 +1103,18 @@ async def test_the_link_follows_the_configured_web_app(tmp_path: Path) -> None:
     await provider.aclose()
 
 
-async def test_the_description_tells_the_model_all_three_routes() -> None:
+async def test_the_description_tells_the_model_which_routes_it_has() -> None:
     """The routes only help if the description names them and says when.
 
-    A tool result carrying `path`, `uri` and `deeplink` is useless if the
-    model has to guess which one its client can act on.
+    A result carrying `path` and `uri` is useless if the model has to guess
+    which one its client can act on, and a stored file has to say that the
+    third route is missing rather than leave it to be inferred.
     """
     server = build_server(Settings(api_key=API_KEY))
-    tool = next(t for t in await server.list_tools() if t.name == "download_file")
+    tools = {t.name: t for t in await server.list_tools()}
 
-    assert tool.description is not None
-    for route in ("`path`", "`uri`", "`deeplink`"):
-        assert route in tool.description, route
-    assert "read_download" in tool.description
+    stored = tools["download_file"].description or ""
+    for route in ("`path`", "`uri`", "read_download"):
+        assert route in stored, route
+    assert "no `deeplink`" in stored
+    assert "`deeplink`" in (tools["download_document"].description or "")

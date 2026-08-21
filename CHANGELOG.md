@@ -83,10 +83,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   anyway. An existing file is never replaced: a second download of the same
   document is saved beside the first with a counter in its name. Costs one API
   call.
-- **Every download reports a `deeplink`** that opens the document in the
+- **A downloaded sales document reports a `deeplink`** that opens it in the
   Lexware Office web app. It costs no API call, and it is the one route that
   works when a client can display neither the file itself nor a resource link:
-  hand it to a person and they open it in a browser.
+  hand it to a person and they open it in a browser. A stored file reports no
+  deeplink, because the web app has no page for one.
 - **Downloaded files are offered as MCP resources.** Every download this
   server performs is registered under a `lexware://download/...` URI and
   appears in the resource list, so a client that does not share a filesystem
@@ -126,8 +127,9 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   payment invoice. `xml` is available for an XRechnung. A document still in
   draft has not been rendered and has nothing to download. Costs one API call.
 - **`get_deeplink`** — a link that opens a record in the Lexware Office web
-  app, for sales documents, contacts, vouchers and files. Costs **no** API
-  call, since the link is built from ids you already have.
+  app, for sales documents, contacts and vouchers. Costs **no** API call,
+  since the link is built from ids you already have. A contact opens on its
+  one page whichever action is asked for.
 - **`upload_file`** — upload a receipt from a path on the machine the server
   runs on. This does more than store a file: the API also creates the
   bookkeeping voucher that goes with it, and that voucher cannot be deleted
