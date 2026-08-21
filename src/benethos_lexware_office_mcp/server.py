@@ -134,11 +134,21 @@ where the file goes:
 
   One account per file, then, if you run this server more than once.
 
-first run:
+settings and the API key:
 
-  Put your API key in LXO_MCP_API_KEY or in a .env file beside the policy
-  file. Create one in Lexware Office under Extensions, Public API.
-  config/.env.sample lists every setting there is."""
+  Everything else is configuration, read from a .env file found the same way
+  the policy file is, or from real environment variables, which win.
+  config/.env.sample lists every setting and what it does.
+
+  --env-file names one instead of searching, and pairs with --tools-file so
+  that one client entry has its own account and its own permissions:
+
+    "args": ["--env-file", "/path/to/test.env",
+             "--tools-file", "/path/to/test-tools.json"]
+
+  Put your API key in it as LXO_MCP_API_KEY. Create one in Lexware Office
+  under Extensions, Public API. A real environment variable still overrides
+  the file, so a client can change one value without editing anything."""
 
 
 def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespace:
@@ -169,6 +179,14 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         help=(
             "list or rewrite the policy file instead of starting the server: "
             "show, read-only, write, irreversible (see below)"
+        ),
+    )
+    parser.add_argument(
+        "--env-file",
+        metavar="PATH",
+        help=(
+            "which .env to read instead of looking for one - the settings, "
+            "including the API key (see below)"
         ),
     )
     parser.add_argument(
@@ -210,9 +228,30 @@ def _tools_command(action: str, settings: Settings) -> None:
     )
 
 
+def _named_env_file(argv: list[str] | None) -> Path | None:
+    """``--env-file`` before anything else reads configuration.
+
+    Its own miniature parse, because the real one takes its defaults from the
+    settings, and the settings are what this argument decides.
+    """
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--env-file")
+    known, _ = pre.parse_known_args(argv)
+    if not known.env_file:
+        return None
+    named = Path(known.env_file).expanduser()
+    if not named.is_file():
+        # Falling back to the search here would be the worst of both: the
+        # server would start, read something else, and behave in a way the
+        # command line appears to rule out.
+        print(f"No .env file at {named}", file=sys.stderr)
+        raise SystemExit(2)
+    return named
+
+
 def main(argv: list[str] | None = None) -> None:
     """Console script entry point."""
-    settings = load_settings()
+    settings = load_settings(env_file=_named_env_file(argv))
     args = _parse_args(argv, settings)
 
     # The command line wins over the environment, which wins over the search.

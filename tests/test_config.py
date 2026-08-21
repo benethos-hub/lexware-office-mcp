@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from benethos_lexware_office_mcp import config as C
 from benethos_lexware_office_mcp.config import (
     DEFAULT_APP_BASE_URL,
     DEFAULT_BASE_URL,
@@ -99,8 +100,6 @@ def test_env_file_is_read_but_real_environment_wins(
     precedence rule. The second half was missing entirely: the name promised
     that the environment wins and only the file was ever checked.
     """
-    from benethos_lexware_office_mcp import config as C
-
     (tmp_path / ".env").write_text(
         "# a comment\nLXO_MCP_API_KEY='from-file-123456'\nexport LXO_MCP_MODE=write\n",
         encoding="utf-8",
@@ -159,3 +158,52 @@ def test_a_nonsense_pdf_page_count_is_refused_at_startup() -> None:
     with pytest.raises(ConfigError) as excinfo:
         load_settings({"LXO_MCP_PDF_PAGES": "nope"})
     assert "LXO_MCP_PDF_PAGES" in str(excinfo.value)
+
+
+# -- a .env named on the command line --------------------------------------
+
+
+def test_a_named_env_file_is_read(tmp_path: Path) -> None:
+    named = tmp_path / "test.env"
+    named.write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
+
+    settings = C.load_settings(env=None, cwd=tmp_path, env_file=named)
+
+    assert settings.page_size == 7
+
+
+def test_a_named_env_file_beats_every_file_that_was_merely_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Naming one is more deliberate than leaving one lying around."""
+    found = tmp_path / "config"
+    found.mkdir()
+    (found / ".env").write_text("LXO_MCP_PAGE_SIZE=11\n", encoding="utf-8")
+    named = tmp_path / "named.env"
+    named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(C.os, "environ", {})
+
+    settings = C.load_settings(cwd=tmp_path, env_file=named)
+
+    assert settings.page_size == 22
+
+
+def test_a_real_environment_variable_still_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The order Docker and uvicorn use for the same flag.
+
+    A client can then override one value in the entry that starts the server,
+    without editing the file the entry points at.
+    """
+    named = tmp_path / "named.env"
+    named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(C.os, "environ", {"LXO_MCP_PAGE_SIZE": "33"})
+
+    settings = C.load_settings(cwd=tmp_path, env_file=named)
+
+    assert settings.page_size == 33

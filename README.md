@@ -277,6 +277,19 @@ does.
 
 ## Configuration
 
+Settings come from a `.env` file, found the same way the policy file is, or
+from real environment variables, which win over it. `--env-file PATH` names
+one instead of searching, and pairs with `--tools-file` so that one entry in a
+client's configuration carries its own account and its own permissions:
+
+```json
+"args": ["--env-file", "/path/to/test.env",
+         "--tools-file", "/path/to/test-tools.json"]
+```
+
+A path that does not exist is refused rather than quietly falling back to the
+search.
+
 | Variable | Meaning | Default |
 |---|---|---|
 | `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |

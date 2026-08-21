@@ -182,11 +182,21 @@ def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
     return candidates[0]
 
 
-def _env_lookup(cwd: Path | None = None) -> dict[str, str]:
-    """Merge every source into one mapping, highest precedence last."""
+def _env_lookup(
+    cwd: Path | None = None, env_file: Path | None = None
+) -> dict[str, str]:
+    """Merge every source into one mapping, highest precedence last.
+
+    ``env_file`` is a file somebody named rather than one that was found, so
+    it outranks all of them - but not the real environment, which stays the
+    last word. That is the order Docker and uvicorn use for the same flag, and
+    it keeps a client able to override one value without rewriting a file.
+    """
     merged: dict[str, str] = {}
     for path in config_candidates(".env", cwd):
         merged.update(_parse_env_file(path))
+    if env_file is not None:
+        merged.update(_parse_env_file(env_file))
     merged.update(os.environ)
     return merged
 
@@ -261,14 +271,18 @@ class Settings:
 
 
 def load_settings(
-    env: dict[str, str] | None = None, *, cwd: Path | None = None
+    env: dict[str, str] | None = None,
+    *,
+    cwd: Path | None = None,
+    env_file: Path | None = None,
 ) -> Settings:
     """Resolve settings from the environment.
 
     ``env`` is injectable so the test suite never touches the real
-    environment or the user's config directory.
+    environment or the user's config directory. ``env_file`` is a file named
+    on the command line, read after the search and before the environment.
     """
-    source = env if env is not None else _env_lookup(cwd)
+    source = env if env is not None else _env_lookup(cwd, env_file)
 
     def get(name: str) -> str | None:
         value = source.get(f"LXO_MCP_{name}")

@@ -168,6 +168,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   get one through. Each tool also declares what it is (reading or writing, and
   its group), which is what `--tools read-only` selects on. That
   classification never decides a call.
+- **`--env-file PATH`** names the `.env` to read instead of searching for
+  one, and is refused rather than ignored when the path does not exist.
+  Together with `--tools-file` it lets one entry in a client's configuration
+  carry its own account and its own permissions. A real environment variable
+  still wins over the named file, which is what lets a client override a
+  single value without editing anything.
 - **Configuration** from a real environment variable, a `.env` in the working
   directory, `config/.env` in the working directory, `config/.env` of the clone
   the server runs from, or a `.env` in the per-user config directory, in that

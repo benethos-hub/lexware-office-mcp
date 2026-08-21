@@ -364,6 +364,7 @@ section 2.
 | Env var | Meaning | Default |
 |---|---|---|
 | `LXO_MCP_API_KEY` | Lexware Office API key. Required. | — |
+| — | `--env-file` names the `.env` rather than searching for one. Read after every found file and before the real environment, the order Docker and uvicorn use, so a client can still override one value without editing the file. A path that does not exist ends the process rather than falling back to the search: starting anyway would mean behaving in a way the command line appears to rule out. | search |
 | `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
