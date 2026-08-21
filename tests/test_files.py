@@ -920,15 +920,22 @@ async def test_the_description_says_which_form_to_expect() -> None:
 async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> None:
     """The registry lives in a process, the file does not.
 
-    A URI handed out yesterday used to stop resolving today even though the
-    file was sitting in the download directory, because only the in-memory
-    registration knew about it.
+    Measured over stdio on 2026-08-21: a freshly started server answered
+    `resources/list` with an empty list and `resources/read` with "Unknown
+    resource" for a file in its own download directory, while `read_download`
+    read the same file without trouble. Every URI a previous run handed out
+    died with that run.
     """
     (tmp_path / "invoice.pdf").write_bytes(PDF)
     handler = Recorder()
     fresh, provider = server_for(handler, tmp_path)
 
-    assert await fresh.list_resources() == [], "nothing was downloaded by this process"
+    listed = await fresh.list_resources()
+    assert [r.name for r in listed] == ["invoice.pdf"]
+    assert listed[0].mime_type == "application/pdf"
+
+    contents = list(await fresh.read_resource("lexware://download/invoice.pdf"))
+    assert contents[0].content == PDF
 
     result = await fresh.call_tool(
         "read_download", {"uri": "lexware://download/invoice.pdf"}
@@ -937,6 +944,16 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
     assert (result.structured_content or {})["deliveredAs"] == "pages"
     assert any(b.type == "image" for b in result.content)
     await provider.aclose()
+
+
+async def test_building_a_server_does_not_create_a_download_directory(
+    tmp_path: Path,
+) -> None:
+    """Listing the tool surface should leave nothing behind."""
+    empty = tmp_path / "never-used"
+    build_server(Settings(api_key=API_KEY, download_path=empty))
+
+    assert not empty.exists()
 
 
 async def test_the_content_type_comes_from_the_name_on_disk(tmp_path: Path) -> None:

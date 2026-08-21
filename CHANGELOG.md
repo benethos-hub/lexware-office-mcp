@@ -94,6 +94,13 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   with the server can still fetch the bytes. Registered per file, so each
   carries its own content type and only what was actually downloaded is
   reachable.
+- **A download URI keeps working after the server restarts.** The resource
+  list is filled from the download directory as the server starts, so a URI
+  from an earlier session still resolves. Previously only the running process
+  knew about its own downloads, and every other URI answered "Unknown
+  resource" even with the file sitting on disk. Note that a download made
+  *during* a session still cannot be announced: the server has no way to tell
+  a client its resource list changed, which is what `read_download` is for.
 - **The same file is never downloaded twice into two copies.** Saving still
   refuses to overwrite a file whose contents differ, but a file whose contents
   are identical is reused instead of being written again beside the first.

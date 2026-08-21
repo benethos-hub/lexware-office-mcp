@@ -19,9 +19,9 @@ import sys
 
 from mcp.server.mcpserver import MCPServer
 
-from . import __version__
+from . import __version__, resources
 from .client import ClientProvider
-from .config import LOG_LEVELS, MODES, Mode, Settings, load_settings
+from .config import LOG_LEVELS, MODES, Mode, Settings, download_dir, load_settings
 from .policy import set_active_mode
 from .tools import register_tools
 
@@ -57,6 +57,7 @@ def build_server(
         instructions=_INSTRUCTIONS,
     )
     register_tools(server, settings, provider or ClientProvider(settings))
+    resources.publish_existing(server, settings.download_path or download_dir())
     return server
 
 

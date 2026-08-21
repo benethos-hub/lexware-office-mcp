@@ -912,16 +912,30 @@ subclasses with concise, actionable messages.
   the result checked to be inside the directory, since it arrives from the
   caller. Its content type comes from the extension, which is the name the API
   itself chose in its `Content-Disposition`.
-- **The URI is an MCP resource, registered per download.** A path only means
+- **The URI is an MCP resource, registered per file.** A path only means
   something while client and server share a filesystem, which the stdio
   transport happens to give and the HTTP transport of section 6 will not. What
   holds either way is that the file is on the *server's* disk and the server is
   the one reading it, which is the shape MCP resources already have. Registered
   per file rather than behind one URI template, so each carries its own content
   type — a PDF and an XRechnung are not the same thing to a client deciding
-  what to do with them — and so that only what this process downloaded is
-  reachable, rather than everything that has ever accumulated in the download
-  directory.
+  what to do with them.
+- **The registry is filled from the download directory as the server starts**,
+  not only by what the running process fetched. Measured over stdio on
+  2026-08-21, the narrower version was a defect: a fresh process answered
+  `resources/list` with an empty list and `resources/read` with "Unknown
+  resource" for a file in its own download directory, which `read_download`
+  read from disk in the same breath. The same files were reachable either way,
+  so restricting the registration protected nothing and cost every URI its
+  life at restart.
+- **A client is never told the list changed.** The SDK derives
+  `resources.listChanged` from notification options `MCPServer` does not
+  expose, so the capability is advertised as `false` and
+  `notifications/resources/list_changed` is never sent. A client that lists
+  once at startup sees what was on disk then and nothing fetched since. This
+  is a limitation of the server, not of the client, and it is the second
+  reason `read_download` exists — the first being that Claude Desktop does not
+  follow a resource link at all.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be
