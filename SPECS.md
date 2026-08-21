@@ -563,8 +563,12 @@ red label, or the flag is decoration.
 action rather than five edits. `grouped_tools()` already returns what it
 needs.
 
-**Interface.** Today the command line: `--tools show` reports, `--tools all`
-and `--tools read-only` write a preset. Everything it prints goes to stderr,
+**Interface.** Today the command line: `--tools show` reports,
+`--tools read-only` and `--tools write` overwrite the file with that preset,
+and `--tools-file` says which file. **Neither preset enables an irreversible
+tool**, whatever its access — a preset is for not deciding fifteen times, and
+`delete`, `book` and `finalize` are the decisions that must not be made by
+omission. Everything it prints goes to stderr,
 because it shares an entry point with the server and stdout carries the
 JSON-RPC stream. A graphical version belongs to the configuration interface of
 section 16.1: a table grouped by domain, one toggle per row, `read` and

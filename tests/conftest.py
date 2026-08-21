@@ -14,7 +14,7 @@ import pytest
 
 from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp import server as _server  # noqa: F401
-from benethos_lexware_office_mcp.policy import ToolPolicy, preset
+from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +37,6 @@ def policy_file_off_this_machine(
     # download directory and count what is in it, so a policy file - or a
     # directory holding one - would show up as a download.
     target = tmp_path.parent / f"{tmp_path.name}-policy" / "tools.json"
-    ToolPolicy(target).save(preset("all"))
+    ToolPolicy(target).save(dict.fromkeys(known_tools(), True))
     monkeypatch.setattr(config, "tool_policy_file", lambda: target)
     return target

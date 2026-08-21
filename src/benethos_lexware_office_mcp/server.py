@@ -13,8 +13,10 @@ the JSON-RPC stream.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import logging
 import sys
+from pathlib import Path
 from typing import cast
 
 from mcp.server.mcpserver import MCPServer
@@ -91,13 +93,22 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--tools",
-        choices=("show", "all", "read-only", "none"),
+        choices=("show", "read-only", "write"),
         help=(
             "Work on the tool policy file instead of serving. 'show' prints "
-            "which tools are on. 'all', 'read-only' and 'none' write the file "
-            "from that preset, overwriting what is there. Env: "
-            "LXO_MCP_TOOL_POLICY sets the file's location."
+            "which tools are on. 'read-only' and 'write' overwrite the file "
+            "with that preset. Neither enables an irreversible tool."
         ),
+    )
+    parser.add_argument(
+        "--tools-file",
+        metavar="PATH",
+        help=(
+            "Which policy file --tools reads or writes, and which one the "
+            "server runs under. Wins over LXO_MCP_TOOL_POLICY and over the "
+            "usual search. Default: %(default)s."
+        ),
+        default=defaults.policy_file(),
     )
     return parser.parse_args(argv)
 
@@ -134,6 +145,9 @@ def main(argv: list[str] | None = None) -> None:
     """Console script entry point."""
     settings = load_settings()
     args = _parse_args(argv, settings)
+
+    # The command line wins over the environment, which wins over the search.
+    settings = dataclasses.replace(settings, tool_policy_path=Path(args.tools_file))
 
     logging.basicConfig(
         stream=sys.stderr,

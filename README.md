@@ -226,9 +226,18 @@ benethos-lexware-office-mcp --tools read-only
 ```
 
 which writes every tool into `tools.json`, reading ones on and the rest off,
-and prints what it did. `--tools all` turns everything on, `--tools none`
-turns everything off, `--tools show` only reports. The file is searched
-exactly like the `.env`, lowest precedence first:
+and prints what it did. `--tools write` turns on the writing ones as well,
+and `--tools show` only reports. `--tools-file PATH` says which file to work
+on, winning over everything below.
+
+**No preset ever enables an irreversible tool** — one whose effect is
+`delete`, `book` or `finalize`. A preset is what you reach for when you do not
+want to decide fifteen times, and those are exactly the decisions nobody
+should make by not making one. Switch them on by hand. Nothing ships with such
+an effect yet.
+
+Without `--tools-file`, the file is searched exactly like the `.env`, lowest
+precedence first:
 
 1. the per-user configuration directory
 2. `config/` of a checkout, when you are running from the sources

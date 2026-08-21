@@ -157,8 +157,8 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   through the console script of the same name or
   `python -m benethos_lexware_office_mcp`. Speaks **stdio**, which is what
   Claude Desktop and comparable local clients use. `--log-level` and `--version` on the
-  command line, plus `--tools` to write and inspect the policy file instead
-  of serving.
+  command line, plus `--tools` and `--tools-file` to write and inspect the
+  policy file instead of serving.
 - **Nothing is enabled by default.** Which tools this server offers is one
   flag per tool in `tools.json`, and a tool the file does not name is off — so
   an installation without the file offers nothing at all, and what a server
@@ -217,8 +217,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   per tool: a tool set to `false` is neither listed nor callable, and a tool
   the file does not mention stays on, so an installation without the file
   behaves exactly as before. `benethos-lexware-office-mcp --tools read-only`
-  writes the file with the reading tools on and the rest off, `--tools all`
-  turns everything on, and `--tools show` only reports. The file is read fresh
+  writes the file with the reading tools on and the rest off, `--tools write`
+  turns the writing ones on as well, `--tools show` only reports, and
+  `--tools-file` names the file to work on. Neither preset enables a tool
+  whose effect is irreversible. The file is read fresh
   on every request, so an edit takes effect without a restart — though a
   client that already fetched the tool list keeps showing it until it asks
   again. The file cannot grant anything the tier withholds. It is found the

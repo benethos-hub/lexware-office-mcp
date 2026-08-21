@@ -138,12 +138,27 @@ def test_the_read_only_preset_keeps_exactly_the_reading_tools() -> None:
         assert flags[name] is (meta.access == "read"), name
 
 
-def test_the_all_preset_turns_everything_on() -> None:
-    assert set(preset("all").values()) == {True}
+def test_the_write_preset_turns_on_everything_reversible() -> None:
+    flags = preset("write")
+
+    assert set(flags) == set(known_tools())
+    for name, meta in known_tools().items():
+        assert flags[name] is not meta.irreversible, name
 
 
-def test_the_none_preset_turns_everything_off() -> None:
-    assert set(preset("none").values()) == {False}
+def test_no_preset_ever_enables_an_irreversible_tool() -> None:
+    """A preset is for not deciding fifteen times.
+
+    Deleting a record or booking a voucher is exactly the decision nobody
+    should make by failing to make it, so those stay off until somebody sets
+    them by hand. Nothing ships with such an effect yet, which is why this
+    checks the rule rather than a tool.
+    """
+    for kind in ("read-only", "write"):
+        flags = preset(kind)  # type: ignore[arg-type]
+        for name, meta in known_tools().items():
+            if meta.irreversible:
+                assert flags[name] is False, f"{kind} enabled {name}"
 
 
 def test_an_unknown_preset_is_refused() -> None:
@@ -189,16 +204,29 @@ def test_the_command_line_writes_the_preset_and_does_not_serve(
     assert "read-only" in captured.err
 
 
-def test_the_command_line_can_write_a_file_that_allows_nothing(
+def test_the_command_line_takes_the_file_to_write(tmp_path: Path) -> None:
+    """Naming the target beats setting an environment variable to write once."""
+    policy = tmp_path / "elsewhere" / "tools.json"
+
+    main(["--tools", "write", "--tools-file", str(policy)])
+
+    stored = json.loads(policy.read_text())
+    assert stored["upload_file"] is True
+    assert stored["get_profile"] is True
+
+
+def test_the_named_file_beats_the_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Turning everything off has to be one command, not fifteen edits."""
-    policy = tmp_path / "tools.json"
-    monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(policy))
+    """The command line is the more deliberate of the two, so it wins."""
+    ignored = tmp_path / "from-env.json"
+    wanted = tmp_path / "from-argv.json"
+    monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(ignored))
 
-    main(["--tools", "none"])
+    main(["--tools", "read-only", "--tools-file", str(wanted)])
 
-    assert set(json.loads(policy.read_text()).values()) == {False}
+    assert wanted.is_file()
+    assert not ignored.exists()
 
 
 def test_the_command_line_writes_a_file_even_where_none_existed(
@@ -213,6 +241,6 @@ def test_the_command_line_writes_a_file_even_where_none_existed(
     policy = tmp_path / "fresh" / "tools.json"
     monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(policy))
 
-    main(["--tools", "all"])
+    main(["--tools", "write"])
 
     assert set(json.loads(policy.read_text())) == set(known_tools())
