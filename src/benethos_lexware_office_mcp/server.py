@@ -22,7 +22,13 @@ from mcp.server.mcpserver import MCPServer
 from . import __version__, resources
 from .client import ClientProvider
 from .config import LOG_LEVELS, MODES, Mode, Settings, download_dir, load_settings
-from .policy import set_active_mode
+from .policy import (
+    ToolPolicy,
+    active_policy,
+    preset,
+    set_active_mode,
+    set_active_policy,
+)
 from .tools import register_tools
 
 logger = logging.getLogger(__name__)
@@ -50,6 +56,7 @@ def build_server(
     one rate limiter.
     """
     set_active_mode(settings.mode)
+    set_active_policy(ToolPolicy(settings.policy_file()))
     server = MCPServer(
         name="benethos-lexware-office-mcp",
         title="Unofficial Lexware Office MCP Server",
@@ -91,7 +98,44 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         default=defaults.log_level,
         help="Log level on stderr. Env: LXO_MCP_LOG_LEVEL. Default: %(default)s.",
     )
+    parser.add_argument(
+        "--tools",
+        choices=("show", "all", "read-only"),
+        help=(
+            "Work on the per-tool policy file instead of serving. 'show' "
+            "prints which tools are on. 'all' and 'read-only' write the file "
+            "from that preset, overwriting what is there. Env: "
+            "LXO_MCP_TOOL_POLICY sets the file's location."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+def _tools_command(action: str, settings: Settings) -> None:
+    """Show or rewrite the policy file, then return without serving.
+
+    Everything here goes to **stderr**. stdout carries the JSON-RPC stream,
+    and a command that shares an entry point with the server has no business
+    learning a different habit.
+    """
+    # Building a server imports the tool modules, which is what fills the
+    # registry the policy is written against. At tier `full` so every tool is
+    # known, whatever tier the server will actually run at.
+    build_server(replace_mode(settings, "full"))
+    policy = active_policy()
+
+    if action != "show":
+        policy.save(preset("all" if action == "all" else "read-only"))
+        print(f"Wrote the '{action}' preset to {policy.path}", file=sys.stderr)
+
+    flags = policy.as_map()
+    width = max(len(name) for name in flags)
+    for name, on in flags.items():
+        print(f"  {name:<{width}}  {'on' if on else 'off'}", file=sys.stderr)
+    print(
+        f"{sum(flags.values())} of {len(flags)} tools on, per {policy.path}",
+        file=sys.stderr,
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -108,6 +152,10 @@ def main(argv: list[str] | None = None) -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    if args.tools:
+        _tools_command(args.tools, settings)
+        return
 
     server = build_server(settings)
     if settings.mode != "read":

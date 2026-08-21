@@ -82,10 +82,20 @@ DEFAULT_PDF_PAGES = 10
 
 DEFAULT_LOG_LEVEL = "INFO"
 
+# The per-tool policy lives beside the .env rather than in the repository: it
+# says what this installation is allowed to do, which is a property of the
+# machine and the account, not of the code.
+TOOL_POLICY_NAME = "tools.json"
+
 
 def config_dir() -> Path:
     """Per-user configuration directory for this application."""
     return Path(user_config_dir(APP_NAME, appauthor=False))
+
+
+def tool_policy_file() -> Path:
+    """Default location of the per-tool policy file."""
+    return config_dir() / TOOL_POLICY_NAME
 
 
 def download_dir() -> Path:
@@ -194,6 +204,11 @@ class Settings:
     page_size: int = DEFAULT_PAGE_SIZE
     pdf_pages: int = DEFAULT_PDF_PAGES
     log_level: str = DEFAULT_LOG_LEVEL
+    tool_policy_path: Path | None = None
+
+    def policy_file(self) -> Path:
+        """Where this process reads and writes its per-tool policy."""
+        return self.tool_policy_path or tool_policy_file()
 
     def require_api_key(self) -> str:
         """Return the API key, or explain how to supply one.
@@ -257,6 +272,11 @@ def load_settings(
         ),
         pdf_pages=_as_int(
             get("PDF_PAGES"), DEFAULT_PDF_PAGES, name="LXO_MCP_PDF_PAGES"
+        ),
+        tool_policy_path=(
+            Path(policy_raw).expanduser()
+            if (policy_raw := get("TOOL_POLICY"))
+            else None
         ),
         log_level=log_level,
     )

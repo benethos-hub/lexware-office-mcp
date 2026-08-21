@@ -84,8 +84,11 @@ new HTTP call goes in `client.py`, never in a tool function.
    rule below.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds.
-5. Classify it in `policy.py` (`read`, `write` or `full`). A write tool must
-   not be reachable in `read` mode, at registration or at call time.
+5. Classify it in `policy.py` (`read`, `write` or `full`) with `@requires`.
+   A write tool must not be reachable in `read` mode, at registration or at
+   call time. The per-tool policy file needs no entry: a tool it does not
+   mention is on, and it appears in the file the next time `--tools` writes
+   one.
 6. Record its API call cost in the tool table in SPECS.md section 8.
 7. Add offline tests. Never hit the network in the suite.
 

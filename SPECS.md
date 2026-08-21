@@ -367,6 +367,7 @@ section 2.
 | `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_MODE` | Permission tier, see section 9. | `read` |
+| `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. | `tools.json` in the config dir |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway. | `10` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
@@ -492,65 +493,82 @@ The default is `read` because this server points at a real accounting system
 holding real business records. Nothing that writes is reachable without a
 deliberate change by the account owner.
 
-### 9.2 Per-tool policy — the refinement (planned)
+### 9.2 Per-tool policy — the refinement
 
 **A single read/write/full switch is too blunt.** Raising the tier to `write`
 so the model may draft a quotation also hands it every other write tool in the
 server. What is wanted is a decision per tool, with groups as a convenience
 rather than as the unit of truth.
 
-**Registry.** Every tool carries metadata, recorded where the tool is defined
-so the classification cannot drift away from the code:
+**The file is the truth.** `tools.json` in the configuration directory, one
+flag per tool, never in the repository:
+
+```json
+{ "get_profile": true, "search_vouchers": true, "create_voucher": false }
+```
+
+`LXO_MCP_TOOL_POLICY` moves it. A tool the file does not mention is **on**:
+the file exists to take something away, and a tool that arrives with an
+upgrade is already held back by the tier it declares. Writing a flag for every
+known tool rather than only for the exceptions is what makes the file readable
+without knowing that rule.
+
+**The classification computes a file, it is never consulted instead of one.**
+`policy.preset("read-only")` turns the tiers into a complete set of flags,
+`preset("all")` into another. Both are written to disk and the disk is what is
+read afterwards, so the file always says exactly what is allowed, tool by
+tool. A group action is a way of writing many flags at once and nothing more.
+
+**Where the classification comes from.** The `@requires` decorator records the
+tier as the tool is defined, so `policy.known_tools()` cannot drift away from
+the code it describes — which a table maintained by hand somewhere else
+eventually would.
+
+**Enforcement mirrors 9.1 and adds the policy to both gates.** A disabled tool
+is not registered, so it is not listed and costs no tokens, and a call to one
+is refused by name with the file that switched it off. `register_tool` does
+the registration check for every tool there is, rather than each module doing
+it for its own, so a tool added later cannot quietly escape it.
+
+**The two gates are independent, and a tool has to pass both.** The file
+cannot grant what the tier withholds: a write tool set to `true` while the
+server runs at `read` stays hidden. Otherwise a configuration file would be a
+way around `LXO_MCP_MODE`, which is the one thing that must stay hard to
+weaken.
+
+**Changing it while the server runs.** The file is read fresh on every
+question rather than cached, so an edit takes effect on the next request — a
+few hundred bytes of JSON is cheaper than a copy that can be wrong.
+Enforcement is therefore always current. What is *shown* is not: a client that
+has already fetched the tool list keeps it until it asks again. Sending
+`notifications/tools/list_changed` would fix that and is **not built**,
+because the SDK derives `tools.listChanged` from notification options
+`MCPServer` does not expose — the same limitation that section 13 records for
+resources.
+
+**Still planned.** Two refinements the file does not carry yet:
 
 | Field | Values |
 |---|---|
 | `domain` | diagnostics, contacts, articles, vouchers, sales documents, payments, files, master data |
-| `access` | `read` or `write` |
 | `effect` | write tools only: `create`, `update`, `delete`, `book`, `finalize` |
 
-`delete`, `book` and `finalize` are marked **irreversible**. In this product
-that is not a figure of speech: a finalized invoice carries a consecutive
-number and can be corrected only by a further document, which is the same
-reason section 10.2 refuses to retry a failed creation.
+`domain` would give the presets a middle size — "all contact tools off" —
+and group the interface below. `effect` would mark `delete`, `book` and
+`finalize` **irreversible**, which in this product is not a figure of speech:
+a finalized invoice carries a consecutive number and can be corrected only by
+a further document, the same reason section 10.2 refuses to retry a failed
+creation. If `effect` is added it should do something rather than decorate: a
+separate confirmation, not merely a red label.
 
-**Policy store.** Flags per tool in a JSON file, in the config directory and
-never in the repository:
-
-```json
-{ "get_profile": true, "search_vouchers": true, "create_invoice": false }
-```
-
-Defaults when the file is missing or a tool is absent from it: **read tools on,
-write tools off, unknown tools off.** A tool that arrives with an upgrade is
-therefore off until someone turns it on, rather than silently enabled by an
-update.
-
-**Group actions are presets, not state.** "All contact tools on", "everything
-read-only", "irreversible off" set individual flags and nothing else. The truth
-stays per tool, so the file always says exactly what is allowed.
-
-**Enforcement** mirrors 9.1 and adds the policy to both gates: a disabled tool
-is not listed, and a call to one is refused with a message naming the tool and
-where to enable it.
-
-**Changing it while the server runs.** Under stdio the client spawns the server
-as its own process, so a configuration interface is a separate process and the
-two share the policy file: the interface writes it, the server re-reads it when
-answering `tools/list` and before each call. Re-reading a small JSON file per
-request is cheap and beats holding a copy that can go stale. The server then
-sends `notifications/tools/list_changed` so the client refetches. **(to
-verify)** how completely the SDK supports a tool list that changes after
-startup. Under the HTTP transport of 0.3.0 both would live in one process and
-share the state directly, with the file serving only to survive a restart.
-
-**Interface.** The natural home is the configuration interface of section 16.1:
-a table grouped by domain, one toggle per row, `read` and `write` marked,
-irreversible effects flagged, and the connected organization shown at the top
-from `get_profile` — so it is never in doubt which account the permissions
-being granted apply to.
-
-Later, if it earns its place: confirmation required rather than plain on and
-off for irreversible tools.
+**Interface.** Today the command line: `--tools show` reports, `--tools all`
+and `--tools read-only` write a preset. Everything it prints goes to stderr,
+because it shares an entry point with the server and stdout carries the
+JSON-RPC stream. A graphical version belongs to the configuration interface of
+section 16.1: a table grouped by domain, one toggle per row, `read` and
+`write` marked, irreversible effects flagged, and the connected organization
+shown at the top from `get_profile` — so it is never in doubt which account
+the permissions being granted apply to.
 
 ## 10. Client behaviour (`client.py`)
 
@@ -1060,11 +1078,11 @@ needs to be verified against.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, the per-tool policy of section 9.2, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
 | 0.2.0 | write tools behind `LXO_MCP_MODE=write`, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
-| later | per-tool permission policy (section 9.2), recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
+| later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,
 independently of the tool roadmap above.
@@ -1103,8 +1121,9 @@ the package. This has to be reworked rather than patched.
   shows which settings are active and where each one came from, lets the key
   be entered without going through a text file, and names the storage paths
   explicitly. It would also be the natural place to manage the per-tool
-  permission policy of section 9.2 and to raise the tier deliberately, which is
-  a decision that deserves more friction than editing a line in a file. Runs only when asked and never as part of the MCP server
+  policy of section 9.2, which the command line writes today, and to raise the
+  tier deliberately, which is a decision that deserves more friction than
+  editing a line in a file. Runs only when asked and never as part of the MCP server
   itself, since that speaks stdio.
 - **A read-only diagnostic** as a smaller version of the same idea: report
   every candidate path, whether it exists, and which value won, without ever

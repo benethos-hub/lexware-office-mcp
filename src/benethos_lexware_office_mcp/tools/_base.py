@@ -14,6 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from ..config import MAX_PAGE_SIZE
+from ..policy import active_policy
 
 __all__ = ["PageNumber", "PageSize", "register_tool"]
 
@@ -46,7 +47,11 @@ PageSize = Annotated[
 
 
 def register_tool(server: MCPServer, func: Any) -> None:
-    """Register one tool, with its description tidied first.
+    """Register one tool, unless the policy file switched it off.
+
+    The per-tool check lives here rather than at each call site, so a tool
+    added to a module cannot quietly escape it. The tier is checked by the
+    caller, which knows it as a constant.
 
     The docstring becomes the description the model reads, and descriptions
     are sent on **every** request. Python keeps the source indentation on
@@ -54,6 +59,8 @@ def register_tool(server: MCPServer, func: Any) -> None:
     that whitespace forever. ``cleandoc`` strips the common indent and the
     trailing blank line.
     """
+    if not active_policy().enabled(func.__name__):
+        return
     if func.__doc__:
         func.__doc__ = inspect.cleandoc(func.__doc__)
     server.tool()(func)

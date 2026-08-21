@@ -207,6 +207,17 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   fresher version — advice for a problem you did not have. It now states what
   the API said: the document is a draft and has not been rendered. A genuine
   stale-version conflict still says so.
+- **Individual tools can be switched off**, without giving up the whole
+  permission tier. A JSON file in the configuration directory holds one flag
+  per tool: a tool set to `false` is neither listed nor callable, and a tool
+  the file does not mention stays on, so an installation without the file
+  behaves exactly as before. `benethos-lexware-office-mcp --tools read-only`
+  writes the file with the reading tools on and the rest off, `--tools all`
+  turns everything on, and `--tools show` only reports. The file is read fresh
+  on every request, so an edit takes effect without a restart — though a
+  client that already fetched the tool list keeps showing it until it asks
+  again. The file cannot grant anything the tier withholds. Its location is
+  `LXO_MCP_TOOL_POLICY`.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet

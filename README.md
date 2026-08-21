@@ -215,12 +215,45 @@ involved:
 Restart Claude Desktop fully — quit it from the tray rather than closing the
 window — so the tool list is reloaded.
 
+## Switching individual tools off
+
+`LXO_MCP_MODE` decides in three steps what the server may do at all. It cannot
+say that drafting a quotation is fine but uploading receipts is not, because
+both are `write`. That is what the policy file is for: one flag per tool.
+
+```
+benethos-lexware-office-mcp --tools read-only
+```
+
+writes every tool into `tools.json` in the configuration directory, reading
+ones on and the rest off, and prints what it did. `--tools all` turns
+everything on, `--tools show` only reports. After that, edit the file:
+
+```json
+{
+ "create_contact": false,
+ "search_contacts": true,
+ "upload_file": false
+}
+```
+
+A tool set to `false` is not listed and cannot be called. A tool the file does
+not mention is on, so an installation without the file behaves exactly as it
+did before. The file is read fresh on every request, so an edit takes effect
+without restarting the server — though a client that has already fetched the
+tool list will keep showing the old one until it asks again.
+
+The file cannot grant anything. A write tool set to `true` while
+`LXO_MCP_MODE=read` stays hidden: both gates have to agree, and the tier is
+the one that answers first.
+
 ## Configuration
 
 | Variable | Meaning | Default |
 |---|---|---|
 | `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |
 | `LXO_MCP_MODE` | `read`, `write` or `full` | `read` |
+| `LXO_MCP_TOOL_POLICY` | Per-tool on/off file, see below | `tools.json` in the config directory |
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
