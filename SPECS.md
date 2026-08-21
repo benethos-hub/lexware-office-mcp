@@ -553,9 +553,9 @@ This is a **consequence of registering at startup, not a decision**. It is not
 a safety property and should not be defended as one: it happens to fail in the
 cautious direction, which is luck rather than design. Filtering in
 `list_tools` instead of at registration would make both directions take effect
-on the next listing, at the cost of a subclass of `MCPServer` — the shape the
-convention source of section 3 uses. Open, and worth doing if the file is ever
-edited by anything other than a person at a terminal.
+on the next listing, at the cost of a subclass of `MCPServer`. Open, and worth
+doing if the file is ever edited by anything other than a person at a
+terminal.
 
 **What a tool declares:**
 
