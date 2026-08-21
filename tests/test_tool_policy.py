@@ -323,15 +323,36 @@ async def test_switching_a_tool_off_takes_effect_without_a_restart(
     assert "not enabled" in str(excinfo.value)
 
 
-async def test_switching_a_tool_on_does_not(tmp_path: Path) -> None:
-    """The other half. Registration happens once, when the server is built.
+async def test_switching_a_tool_on_takes_effect_too(tmp_path: Path) -> None:
+    """The other half, and the reason the filter sits in `list_tools`.
 
-    Pinned as it is rather than as it should be: this falls out of the
-    registration time, it was not chosen, and nothing here argues it is right.
+    It used to need a restart: the tool had not been registered, and no
+    re-reading of the file could bring it back. That was a consequence of
+    where the check sat, not a decision, and it made "the file takes effect on
+    the next request" true in one direction only.
     """
     policy = write(tmp_path / "tools.json", {"get_profile": True})
     server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
 
+    assert [t.name for t in await server.list_tools()] == ["get_profile"]
     write(policy, {"get_profile": True, "search_contacts": True})
 
-    assert [t.name for t in await server.list_tools()] == ["get_profile"]
+    assert {t.name for t in await server.list_tools()} == {
+        "get_profile",
+        "search_contacts",
+    }
+
+
+async def test_a_tool_enabled_while_running_can_be_called(tmp_path: Path) -> None:
+    """Listing it and refusing it would be worse than either alone."""
+    policy = write(tmp_path / "tools.json", {})
+    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+
+    assert await server.list_tools() == []
+    write(policy, {"get_deeplink": True})
+
+    result = await server.call_tool(
+        "get_deeplink", {"target": "voucher", "target_id": "PLACEHOLDER-1"}
+    )
+
+    assert (result.structured_content or {})["url"].endswith("PLACEHOLDER-1")

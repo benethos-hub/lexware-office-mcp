@@ -17,7 +17,7 @@ import dataclasses
 import logging
 import sys
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from mcp.server.mcpserver import MCPServer
 
@@ -50,6 +50,28 @@ with their currency.
 """
 
 
+class PolicyServer(MCPServer):
+    """An ``MCPServer`` that lists only what the policy file allows.
+
+    The filter sits here rather than at registration so that both directions
+    take effect the same way: the file is read as the list is built, so a tool
+    switched on is offered from the next listing, exactly as one switched off
+    stops being offered. Registering the decision instead would have frozen it
+    at startup.
+
+    A client still has to ask again to see the change. Most ask once, when
+    they start.
+    """
+
+    def __init__(self, *args: Any, policy: ToolPolicy, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._policy = policy
+
+    async def list_tools(self) -> list[Any]:
+        tools = await super().list_tools()
+        return [tool for tool in tools if self._policy.enabled(tool.name)]
+
+
 def build_server(
     settings: Settings, provider: ClientProvider | None = None
 ) -> MCPServer:
@@ -59,12 +81,14 @@ def build_server(
     client it is allowed to have, and every tool shares it — and with it the
     one rate limiter.
     """
-    set_active_policy(ToolPolicy(settings.policy_file()))
-    server = MCPServer(
+    policy = ToolPolicy(settings.policy_file())
+    set_active_policy(policy)
+    server = PolicyServer(
         name="benethos-lexware-office-mcp",
         title="Unofficial Lexware Office MCP Server",
         version=__version__,
         instructions=_INSTRUCTIONS,
+        policy=policy,
     )
     register_tools(server, settings, provider or ClientProvider(settings))
     resources.publish_existing(server, settings.download_path or download_dir())
@@ -111,10 +135,10 @@ choosing the tools:
      "create_contact": false
     }
 
-  Setting one to false takes effect at once: the tool is refused from the
-  next request on, though a client that has already fetched the list goes on
-  showing it. Setting one to true needs the server restarted, because tools
-  are registered when it starts. Claude Desktop is quit from the tray.
+  Changes take effect at once, in both directions - the file is read as the
+  tool list is built and again on every call. What lags is the client: most
+  ask for the list once, when they start, and go on showing what they were
+  told then. Claude Desktop is quit from the tray to make it ask again.
 
   Running --tools again overwrites the whole file, so edits made by hand are
   lost. Use it to start a file, not to update one.

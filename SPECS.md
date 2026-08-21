@@ -543,19 +543,20 @@ has already fetched the tool list keeps it until it asks again, and
 `tools.listChanged` is advertised as `false` — see section 13, which measures
 why and finds it is a matter of protocol version rather than of design.
 
-**Adding a tool needs a restart, removing one does not** (measured
-2026-08-21). Registration happens once as the server is built, so a tool
-switched on in the file was never registered and cannot be called until the
-process starts again. A tool switched off is refused at the call gate
-immediately, though it stays in a list the client has already fetched.
+**Both directions take effect without a restart**, which is why the filter
+sits in `PolicyServer.list_tools` rather than in `register_tool`. Every tool
+is registered whatever the file says, and the file is read as the list is
+built and again on every call.
 
-This is a **consequence of registering at startup, not a decision**. It is not
-a safety property and should not be defended as one: it happens to fail in the
-cautious direction, which is luck rather than design. Filtering in
-`list_tools` instead of at registration would make both directions take effect
-on the next listing, at the cost of a subclass of `MCPServer`. Open, and worth
-doing if the file is ever edited by anything other than a person at a
-terminal.
+It was the other way round until 2026-08-21, and the asymmetry that produced -
+switching a tool off worked at once, switching one on needed the process
+restarted - was a consequence of *where the check sat*, never a decision. It
+is worth recording that it was briefly defended as one, on the grounds that
+granting permission ought to be deliberate. That was a justification invented
+for an accident.
+
+What still lags is the client, which is not this server's to fix: a tool list
+already fetched stays until the client asks again, and most ask once.
 
 **What a tool declares:**
 

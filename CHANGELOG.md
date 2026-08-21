@@ -229,10 +229,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   says where to write, and works with every preset - overwriting whatever is
   there, so a preset starts a file rather than updating one. A target that
   is a directory, or that cannot be written, is refused with a message
-  rather than a traceback. Switching a tool **off** takes effect at once,
-  since every call is checked against the file. Switching one **on** needs
-  the server restarted, because tools are registered as it starts. The file
-  is read fresh
+  rather than a traceback. An edit takes effect in both directions without
+  restarting the server: the file is read as the tool list is built and again
+  on every call, so a tool switched on is offered from the next listing and
+  one switched off stops being offered. A client that has already fetched the
+  list keeps showing it until it asks again. The file is read fresh
   on every request, so an edit takes effect without a restart — though a
   client that already fetched the tool list keeps showing it until it asks
   again. The file cannot grant anything the tier withholds. It is found the

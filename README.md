@@ -265,13 +265,11 @@ does not mention is also off** — silence is a refusal, so a tool that arrives
 with an upgrade waits for you rather than appearing on its own. No file at all
 means no tools at all, which is why `--tools` is part of setting the server up.
 
-The file is read fresh on every request, but the two directions are not
-symmetric. Switching a tool **off** takes effect at once, since every call is
-checked against the file — a client that has already fetched the list goes on
-showing the tool, and gets a refusal if it calls it. Switching one **on** needs
-the server restarted, because tools are registered as it starts rather than
-looked up as they are listed. Claude Desktop is restarted by quitting it from
-the tray.
+The file is read as the tool list is built and again on every call, so an
+edit takes effect at once in both directions — no restart. What lags is the
+client: most ask for the tool list once, when they start, and go on showing
+what they were told then. Claude Desktop is restarted by quitting it from the
+tray.
 
 Each tool also declares what it is — reading or writing, and which group it
 belongs to. That classification is what `--tools read-only` selects on, and
