@@ -83,11 +83,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   anyway. An existing file is never replaced: a second download of the same
   document is saved beside the first with a counter in its name. Costs one API
   call.
-- **A downloaded sales document reports a `deeplink`** that opens it in the
-  Lexware Office web app. It costs no API call, and it is the one route that
-  works when a client can display neither the file itself nor a resource link:
-  hand it to a person and they open it in a browser. A stored file reports no
-  deeplink, because the web app has no page for one.
+- **A link into the web app is `get_deeplink`'s job alone.** A download
+  reports where the bytes are and nothing else. The link is one tool call
+  away, costs no API call, and is the route that works when a client can
+  display neither the file itself nor a resource link: hand it to a person and
+  they open it in a browser.
 - **Downloaded files are offered as MCP resources.** Every download this
   server performs is registered under a `lexware://download/...` URI and
   appears in the resource list, so a client that does not share a filesystem

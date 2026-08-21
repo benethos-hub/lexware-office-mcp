@@ -137,11 +137,12 @@ an embedded binary into an image block when it calls the API, and
 request is refused. Rendering costs no API call either, since the file is
 already on the server.
 
-A downloaded sales document also reports a `deeplink` that opens it in the
-Lexware Office web app. It costs nothing to build, and it is the route that
-still works when the client can display neither the file nor a resource link:
-somebody opens it in a browser. A stored file has no such link, because the
-web app has no page for one — link the voucher that lists the file instead.
+A link into the web app is a separate tool. `get_deeplink` turns an id into
+a URL for a browser, costs no API call, and is the route that still works when
+the client can display neither the file nor a resource link: somebody opens it
+themselves. A download does not carry one — it answers where the bytes are,
+which is a different question, and the two were joined once long enough for a
+broken link to ride along with a working download.
 
 `upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
 is what the API takes. An XML file is treated as an XRechnung and is

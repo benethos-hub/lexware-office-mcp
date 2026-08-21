@@ -465,7 +465,7 @@ async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
 
     payload = result.structured_content
     assert payload is not None
-    assert set(payload) == {"path", "uri", "mimeType", "size", "deeplink"}
+    assert set(payload) == {"path", "uri", "mimeType", "size"}
     assert Path(payload["path"]).name in payload["uri"]
     assert payload["uri"].startswith("lexware://download/")
     await provider.aclose()
@@ -592,7 +592,6 @@ async def test_the_download_tools_declare_what_they_return(tmp_path: Path) -> No
         "uri",
         "mimeType",
         "size",
-        "deeplink",
     }
 
 
@@ -1025,90 +1024,40 @@ async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> No
     await provider.aclose()
 
 
-async def test_a_download_hands_back_a_link_a_person_can_open(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("download_file", {"file_id": FILE_ID}),
+        (
+            "download_document",
+            {"document_type": "invoice", "document_id": "PLACEHOLDER-DOC-1"},
+        ),
+    ],
+)
+async def test_a_download_says_where_the_bytes_are_and_nothing_else(
+    tool: str, args: dict[str, str], tmp_path: Path
 ) -> None:
-    """Whatever the client can display, a browser can show the document."""
+    """A download answers one question, and a link into the web app is another.
+
+    They were joined once and the join is what let a broken link ride along
+    with a working download for two days.
+    """
     handler = Recorder(headers={"content-type": "application/pdf"})
     server, provider = server_for(handler, tmp_path)
 
-    result = await server.call_tool(
-        "download_document",
-        {"document_type": "invoice", "document_id": "PLACEHOLDER-DOC-1"},
-    )
+    result = await server.call_tool(tool, args)
 
-    payload = result.structured_content or {}
-    assert payload["deeplink"] == (
-        "https://app.lexware.de/permalink/invoices/view/PLACEHOLDER-DOC-1"
-    )
-    assert payload["deeplink"] in result.content[0].text
+    assert "deeplink" not in (result.structured_content or {})
+    assert "permalink" not in result.content[0].text
     await provider.aclose()
 
 
-async def test_a_stored_file_comes_back_without_a_dead_link(
-    tmp_path: Path,
-) -> None:
-    """A link that 404s is worse than none: it is tried before it is doubted."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
-
-    result = await server.call_tool("download_file", {"file_id": FILE_ID})
-
-    assert (result.structured_content or {})["deeplink"] is None
-    assert "web app" not in result.content[0].text
-    await provider.aclose()
-
-
-async def test_a_document_download_links_to_the_document_not_the_file(
-    tmp_path: Path,
-) -> None:
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
-
-    result = await server.call_tool(
-        "download_document",
-        {"document_type": "credit-note", "document_id": "PLACEHOLDER-DOC-1"},
-    )
-
-    assert (result.structured_content or {})["deeplink"] == (
-        "https://app.lexware.de/permalink/credit-notes/view/PLACEHOLDER-DOC-1"
-    )
-    await provider.aclose()
-
-
-async def test_the_link_follows_the_configured_web_app(tmp_path: Path) -> None:
-    """The same setting get_deeplink uses, and one place builds both."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    settings = Settings(
-        api_key=API_KEY,
-        download_path=tmp_path,
-        app_base_url="https://example.invalid/",
-    )
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    server = build_server(settings, provider)
-
-    result = await server.call_tool(
-        "download_document",
-        {"document_type": "invoice", "document_id": "PLACEHOLDER-DOC-1"},
-    )
-
-    assert (result.structured_content or {})["deeplink"].startswith(
-        "https://example.invalid/permalink/"
-    )
-    await provider.aclose()
-
-
-async def test_the_description_tells_the_model_which_routes_it_has() -> None:
+async def test_the_description_sends_the_model_to_the_tool_that_links() -> None:
     """The routes only help if the description names them and says when.
 
     A result carrying `path` and `uri` is useless if the model has to guess
-    which one its client can act on, and a stored file has to say that the
-    third route is missing rather than leave it to be inferred.
+    which one its client can act on, and neither download carries a link any
+    more, so both have to name the tool that does.
     """
     server = build_server(Settings(api_key=API_KEY))
     tools = {t.name: t for t in await server.list_tools()}
@@ -1116,5 +1065,5 @@ async def test_the_description_tells_the_model_which_routes_it_has() -> None:
     stored = tools["download_file"].description or ""
     for route in ("`path`", "`uri`", "read_download"):
         assert route in stored, route
-    assert "no `deeplink`" in stored
-    assert "`deeplink`" in (tools["download_document"].description or "")
+    for name in ("download_file", "download_document"):
+        assert "get_deeplink" in (tools[name].description or ""), name

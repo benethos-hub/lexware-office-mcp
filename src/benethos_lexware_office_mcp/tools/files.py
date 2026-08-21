@@ -94,15 +94,10 @@ class Download(BaseModel):
     )
     mimeType: str = Field(description="The file's content type.")
     size: int = Field(description="Size in bytes.")
-    deeplink: str | None = Field(
-        None,
-        description=(
-            "Opens this document in the Lexware Office web app. Worth handing "
-            "to a person, who can then look at it themselves whatever the "
-            "client is able to display. Absent for a stored file, which has "
-            "no page of its own there."
-        ),
-    )
+    # No deeplink. A download reports where the bytes are, and a link into
+    # the web app is `get_deeplink`'s answer to a different question. Keeping
+    # them apart is what stops one from being wrong about the other, see
+    # SPECS.md section 13.
 
 
 class Delivered(BaseModel):
@@ -207,9 +202,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         - `uri` — pass it to `read_download` to put the content in the
           conversation, or read it as a resource.
 
-        There is no `deeplink`: the web app has no page for a stored file. To
-        send a person somewhere, call `get_deeplink` for the voucher that
-        lists this file.
+        For a link a person can click, call `get_deeplink` with the voucher
+        that lists this file. The web app has no page for the file itself.
 
         Use `download_document` for a sales document, which is rendered
         rather than stored.
@@ -240,8 +234,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> Download:
         """Save the rendered PDF of an invoice or another sales document.
 
-        One API call. Reports `path`, `uri` and `deeplink` and keeps the bytes
-        out of the answer, exactly as `download_file` does.
+        One API call. Reports `path` and `uri` and keeps the bytes out of the
+        answer, exactly as `download_file` does. For a link a person can
+        click, call `get_deeplink` with the same id.
 
         A draft has not been rendered and cannot be downloaded. An XRechnung
         is XML by nature and its PDF is only a preview. A ZUGFeRD document is
@@ -255,7 +250,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             server,
             settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
-            deeplink=permalink(settings, document_type, document_id),
         )
 
     @requires("read")
@@ -384,8 +378,9 @@ def permalink(
 ) -> str:
     """A link into the web app for one record.
 
-    Assembled from ids the caller already holds, so it costs no API call and
-    is worth attaching wherever a person might want to see the thing itself.
+    Assembled from ids the caller already holds, so it costs no API call.
+    Only ``get_deeplink`` calls this: a download says where bytes are, and
+    that is a different question from where a person should click.
 
     Every shape here was requested against the live app on 2026-08-21 rather
     than taken from the documentation, which is where the two known corners
@@ -487,7 +482,6 @@ def _deliver(
     settings: Settings,
     *,
     fallback: str,
-    deeplink: str | None = None,
 ) -> Any:
     """Save a download and hand it to the client both ways.
 
@@ -512,14 +506,11 @@ def _deliver(
         "uri": link.uri,
         "mimeType": link.mime_type,
         "size": len(response.content),
-        "deeplink": deeplink,
     }
     summary = (
         f"Saved {written.name} ({len(response.content)} bytes). "
         f"Readable as the resource {link.uri}."
     )
-    if deeplink:
-        summary += f" Viewable in the web app at {deeplink}."
     return CallToolResult(
         content=[TextContent(type="text", text=summary), link],
         structured_content=payload,
