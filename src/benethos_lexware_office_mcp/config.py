@@ -30,6 +30,7 @@ from pathlib import Path
 
 from platformdirs import user_cache_dir, user_config_dir
 
+from .envfile import read_env_file as _parse_env_file
 from .errors import ConfigError, register_secret
 
 __all__ = [
@@ -100,33 +101,6 @@ def tool_policy_file() -> Path:
 def download_dir() -> Path:
     """Default directory for downloaded documents."""
     return Path(user_cache_dir(APP_NAME, appauthor=False)) / "downloads"
-
-
-def _parse_env_file(path: Path) -> dict[str, str]:
-    """Read a minimal ``.env`` file.
-
-    Supports ``KEY=value``, ``export KEY=value``, ``#`` comments and quoted
-    values. Anything else is ignored rather than raising, because a malformed
-    line in a config file must not stop the server from starting.
-    """
-    values: dict[str, str] = {}
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return values
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        line = line.removeprefix("export ").lstrip()
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        if key:
-            values[key] = value
-    return values
 
 
 def _project_config_dir() -> Path | None:

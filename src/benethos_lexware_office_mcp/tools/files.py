@@ -318,7 +318,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         "{pages}", str(settings.pdf_pages)
     )
 
-    @classify("write", "files", "create")
+    @classify("write", "files", "create", permanence="law")
     async def upload_file(
         path: Annotated[
             str,
@@ -344,7 +344,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = _read_upload(path)
         return dict(await provider.get().upload_file(content, name, content_type))
 
-    @classify("write", "files", "create")
+    @classify("write", "files", "create", permanence="law")
     async def attach_file_to_voucher(
         voucher_id: Annotated[
             str,

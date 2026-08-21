@@ -332,7 +332,8 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   offers nothing at all.
 - **Writing that file:** `--tools read-only` enables the reading tools,
   `--tools write` adds creating and changing, `--tools irreversible` adds
-  deleting, booking and finalizing, and `--tools show` only reports.
+  deleting, `--tools sync` writes in tools an upgrade brought without
+  switching any of them on, and `--tools show` only reports.
   `--tools-file` says which file, and works with every preset. A preset
   overwrites, so it starts a file rather than updating one, and a target that
   is a directory or cannot be written is refused with a message rather than a
@@ -347,12 +348,53 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   directory, last one found winning — so a `config/tools.json` in a clone
   overrides an installed one. `LXO_MCP_TOOL_POLICY` overrides the search and
   `--tools-file` overrides both.
+- **A configuration interface in the browser.**
+  `benethos-lexware-office-mcp setup` serves four pages on `127.0.0.1` and
+  opens a browser: an overview of which files are in effect and where every
+  setting actually comes from, a page for the API key and the settings, one
+  checkbox per tool, and an export that carries the lot to another machine.
+  It writes the same `.env` and `tools.json` the command line does, so the
+  two are interchangeable. It is a separate command and never part of the MCP
+  server, which speaks stdio. Loopback only, with no option to bind anything
+  else, and every state-changing request is guarded against being triggered
+  from another page. German throughout, since Lexware Office is sold for
+  German companies only. `--port` and `--no-browser` belong to it, and unlike
+  everywhere else `--env-file` may name a file that does not exist yet.
+- **What a tool costs the assistant is shown next to it.** Every enabled tool
+  is sent to the model on every single request, so the permissions page puts
+  the character count on each row and totals it live as boxes are ticked. The
+  overview repeats the total for what is currently on.
+- **Destruction and permanence are marked as two different things.**
+  `delete_article` destroys a record and is the one tool that can, while
+  `create_contact`, `create_voucher`, `create_sales_document`, `upload_file`
+  and `attach_file_to_voucher` leave records the API cannot take back. Those
+  carry their own mark, and it distinguishes a contact — which the web app
+  deletes without ceremony — from a booked document, which GoBD and § 146 AO
+  require to stay.
+- **Permission profiles.** A named selection can be saved, loaded and
+  deleted, so that "nur lesend für den Steuerberater" and "voller Zugriff auf
+  dem Testkonto" are one click apart. A profile is a convenience and never a
+  second policy: loading one fills in the checkboxes, and nothing reaches
+  `tools.json` until save is pressed. Profiles live in `tool_profiles.json`
+  beside the policy file they belong to.
+- **Export and import of the whole configuration.** One JSON file with the
+  settings, the permissions and every profile — **without the API key**,
+  which stays on the machine it was entered on. An import shows what would
+  change first: which settings, which tools go on, which profiles get
+  overwritten, and it names nothing as changed that is not. Only a second
+  confirmation writes anything. A tool the file mentions that this
+  installation does not have is reported and skipped, and one the file is
+  silent about keeps its current setting.
+- **The API key can be entered without a text editor**, checked against the
+  API before it is written, and never displayed, logged or exported. The
+  interface says which file it writes to, creating it and its directory if
+  needed, and warns when a real environment variable is set that would
+  override whatever gets saved.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet
 
-Only `get_profile` exists. Searching contacts, articles and vouchers, reading
-sales documents, downloading PDFs and every write operation are specified but
-not built — see the roadmap in [SPECS.md](SPECS.md) section 16, along with the
-questions still open against the live API. The HTTP transport is planned for
-0.3.0 and will ship with its own authentication in front of the API key.
+Every documented endpoint this API offers is covered except event
+subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
+the questions still open against the live API. The HTTP transport is planned
+for 0.3.0 and will ship with its own authentication in front of the API key.

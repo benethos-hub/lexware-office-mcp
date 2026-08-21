@@ -1,0 +1,292 @@
+"""What the four pages say, rendered without a server and without a network."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.configui import pages, probe
+from benethos_lexware_office_mcp.configui.profiles import Profile
+from benethos_lexware_office_mcp.configui.state import Installation
+from benethos_lexware_office_mcp.configui.transfer import Changes
+from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
+
+
+@pytest.fixture(autouse=True)
+def only_this_tests_env(
+    no_configuration_from_this_machine: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing from the developer's machine in the rendered source badges."""
+    monkeypatch.setattr(probe, "_last", None)
+
+
+@pytest.fixture
+def inst(tmp_path: Path) -> Installation:
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
+    settings = Settings(
+        api_key="secret-value-do-not-print",
+        page_size=50,
+        tool_policy_path=tmp_path / "tools.json",
+    )
+    return Installation(settings=settings, env_path=env, cwd=tmp_path)
+
+
+def text(body: bytes) -> str:
+    return body.decode("utf-8")
+
+
+# -- the shell --------------------------------------------------------------
+
+
+def test_every_page_is_german_and_names_itself(inst: Installation) -> None:
+    for render in (pages.overview, pages.credentials, pages.permissions):
+        body = text(render(inst))
+        assert '<html lang="de">' in body
+        assert "Lexware Office MCP</title>" in body
+        assert "Übersicht" in body and "Rechte" in body
+
+
+def test_the_page_carries_no_external_reference(inst: Installation) -> None:
+    """No CDN, no font host, no analytics. It runs without a network."""
+    body = text(pages.overview(inst))
+
+    assert "http://" not in body.replace("http://127.0.0.1", "")
+    assert "https://" not in body.replace("https://api.lexware.io", "").replace(
+        "https://app.lexware.de", ""
+    )
+
+
+# -- Übersicht --------------------------------------------------------------
+
+
+def test_the_overview_never_prints_the_key(inst: Installation) -> None:
+    body = text(pages.overview(inst))
+
+    assert "secret-value-do-not-print" not in body
+    assert "gesetzt" in body
+
+
+def test_a_missing_policy_file_is_explained_rather_than_shown_as_zero(
+    inst: Installation,
+) -> None:
+    body = text(pages.overview(inst))
+
+    assert "kein einziges Tool" in body
+    assert "0 von 25 Tools aktiv" in body
+
+
+def test_writing_tools_are_named_on_the_overview(inst: Installation) -> None:
+    ToolPolicy(inst.settings.policy_file()).save(
+        {"get_profile": True, "create_voucher": True}
+    )
+
+    body = text(pages.overview(inst))
+
+    assert "create_voucher" in body
+    assert "echte" in body and "Buchhaltungsdaten" in body
+
+
+def test_a_read_only_installation_is_not_warned_about(inst: Installation) -> None:
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+
+    assert "note good" in text(pages.overview(inst))
+
+
+def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+
+    body = text(pages.overview(inst))
+
+    assert "Zeichen, rund" in body and "Token" in body
+
+
+def test_the_files_in_use_are_named_with_their_state(inst: Installation) -> None:
+    body = text(pages.overview(inst))
+
+    assert str(inst.env_path) in body
+    assert "noch nicht angelegt" in body  # the policy file
+    assert "vorhanden" in body  # the .env
+
+
+def test_a_value_from_the_command_line_is_not_called_a_default(
+    inst: Installation,
+) -> None:
+    """`--tools-file` is neither a file's doing nor a built-in default."""
+    assert "aus: Aufruf" in text(pages.overview(inst))
+
+
+def test_an_environment_variable_outranking_a_file_is_marked(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LXO_MCP_PAGE_SIZE", "9")
+
+    assert "aus: Umgebung" in text(pages.overview(inst))
+
+
+# -- Zugangsdaten -----------------------------------------------------------
+
+
+def test_the_credentials_page_says_where_it_would_write(inst: Installation) -> None:
+    body = text(pages.credentials(inst))
+
+    assert str(inst.env_path) in body
+    assert "secret-value-do-not-print" not in body
+
+
+def test_a_shadowed_key_is_flagged_before_anybody_types(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LXO_MCP_API_KEY", "from-the-environment")
+
+    assert "Umgebungsvariablen" in text(pages.credentials(inst))
+
+
+def test_the_policy_path_cannot_be_edited_here(inst: Installation) -> None:
+    """Changing it would swap the subject of the page out from under it."""
+    body = text(pages.credentials(inst))
+
+    assert 'name="LXO_MCP_PAGE_SIZE"' in body
+    assert 'name="LXO_MCP_TOOL_POLICY"' not in body
+    assert 'name="LXO_MCP_API_KEY"' not in body  # the key has its own field
+
+
+# -- Rechte -----------------------------------------------------------------
+
+
+def test_every_tool_has_a_checkbox(inst: Installation) -> None:
+    body = text(pages.permissions(inst))
+
+    for name in known_tools():
+        assert f'value="{name}"' in body
+
+
+def test_a_tool_is_tagged_by_what_it_does(inst: Installation) -> None:
+    body = text(pages.permissions(inst))
+
+    assert "lesend</span>" in body
+    assert "schreibend · create" in body
+    assert "schreibend · delete" in body
+
+
+def test_destruction_and_permanence_are_different_marks(inst: Installation) -> None:
+    """`delete_article` destroys but can be redone. A voucher is the reverse."""
+    body = text(pages.permissions(inst))
+
+    assert "bleibt dauerhaft" in body
+    assert "GoBD" in body
+
+
+def test_the_cost_of_each_tool_is_next_to_it(inst: Installation) -> None:
+    body = text(pages.permissions(inst))
+
+    assert "Z.</span>" in body
+    assert "Token je Anfrage" in body
+
+
+def test_the_checkboxes_follow_the_file(inst: Installation) -> None:
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+
+    body = text(pages.permissions(inst))
+
+    assert 'value="get_profile" id="get_profile" checked' in body
+    assert 'value="create_voucher" id="create_voucher">' in body
+
+
+def test_a_loaded_profile_overrides_the_file_without_writing(
+    inst: Installation,
+) -> None:
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+
+    body = text(
+        pages.permissions(inst, flags={"create_voucher": True, "get_profile": False})
+    )
+
+    assert 'value="create_voucher" id="create_voucher" checked' in body
+    assert 'value="get_profile" id="get_profile">' in body
+
+
+def test_saved_profiles_are_offered(inst: Installation) -> None:
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    body = text(pages.permissions(inst))
+
+    assert "Nur Lesen" in body
+    assert 'value="profile-delete"' in body
+
+
+def test_without_profiles_the_bar_explains_itself(inst: Installation) -> None:
+    body = text(pages.permissions(inst))
+
+    assert "Noch keine Profile gespeichert" in body
+    assert 'value="load"' not in body
+
+
+# -- Sichern und Übertragen -------------------------------------------------
+
+
+def test_the_transfer_page_promises_no_key(inst: Installation) -> None:
+    body = text(pages.transfer(inst))
+
+    assert "Ohne API-Schlüssel" in body
+    assert 'action="/export"' in body
+
+
+def test_a_preview_that_switches_tools_on_warns_about_the_account(
+    inst: Installation,
+) -> None:
+    changes = Changes(turn_on=["create_voucher"], overwritten_profiles=["Alt"])
+
+    body = text(pages.transfer(inst, changes=changes, bundle_text="{}"))
+
+    assert "würden eingeschaltet" in body
+    assert "anderes Konto" in body
+    assert 'value="apply"' in body
+
+
+def test_a_preview_with_nothing_in_it_says_so(inst: Installation) -> None:
+    body = text(pages.transfer(inst, changes=Changes(), bundle_text="{}"))
+
+    assert "schon eingestellt" in body
+    assert 'value="apply"' not in body
+
+
+def test_the_pasted_text_survives_a_failed_attempt(inst: Installation) -> None:
+    body = text(pages.transfer(inst, bundle_text='{"kind": "<script>"}'))
+
+    assert "&lt;script&gt;" in body
+    assert "<script>" not in body.split("<textarea")[1].split("</textarea>")[0]
+
+
+# -- the account chip -------------------------------------------------------
+
+
+def test_the_account_appears_on_every_page_once_it_is_known(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Which records these permissions apply to has to stay in view."""
+    monkeypatch.setattr(probe, "_last", probe.Account(company="Test Inc."))
+
+    for render in (pages.overview, pages.credentials, pages.permissions):
+        assert "Konto: Test Inc." in text(render(inst))
+
+
+def test_an_account_summary_reads_as_a_sentence() -> None:
+    account = probe.Account(company="Test Inc.", tax_type="net", small_business=False)
+
+    assert pages.account_summary(account) == (
+        "<strong>Test Inc.</strong> · Steuerart: net · kein Kleinunternehmer"
+    )
+
+
+def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
+    inst.profiles.replace_all(
+        {"<script>böse</script>": Profile(name="<script>böse</script>", tools=())}
+    )
+
+    body = text(pages.permissions(inst))
+
+    assert "&lt;script&gt;" in body
+    assert "<script>böse" not in body

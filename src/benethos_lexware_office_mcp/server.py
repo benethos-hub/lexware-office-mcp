@@ -21,7 +21,7 @@ from typing import Any, cast
 
 from mcp.server.mcpserver import MCPServer
 
-from . import __version__, resources
+from . import __version__, configui, resources
 from .client import ClientProvider
 from .config import LOG_LEVELS, Settings, download_dir, load_settings
 from .policy import (
@@ -116,6 +116,23 @@ Claude Desktop starts it. What you do run is --tools, to say which of its
 tools that client may use."""
 
 _EPILOG = """\
+the configuration interface:
+
+  benethos-lexware-office-mcp setup
+
+  Serves four pages on 127.0.0.1 and opens a browser: which files are in
+  effect and where each setting comes from, the API key, one checkbox per
+  tool with what it costs the model in context, and an export that carries
+  the lot to another machine. It writes the same files this command line
+  does, so the two can be used interchangeably.
+
+  Loopback only, with no way to bind anything else. The pages have no login,
+  because they cannot be reached from another machine.
+
+  --port and --no-browser belong to it. --env-file and --tools-file say which
+  files it edits, and unlike everywhere else the .env does not have to exist
+  yet - creating one is part of what the interface is for.
+
 choosing the tools:
 
   The server offers only what its policy file allows, and nothing at all
@@ -208,6 +225,16 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         "--version", action="version", version=__version__, help="print the version"
     )
     parser.add_argument(
+        "command",
+        nargs="?",
+        choices=("setup",),
+        metavar="COMMAND",
+        help=(
+            "setup: open the configuration interface in a browser instead of "
+            "starting the server (see below)"
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         choices=LOG_LEVELS,
         default=defaults.log_level,
@@ -242,6 +269,18 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
             "which policy file to use instead of looking for one - both for "
             "--tools and for the server itself (see below)"
         ),
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=configui.DEFAULT_PORT,
+        metavar="N",
+        help="setup only: which local port to serve on (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="setup only: do not open a browser, just print the address",
     )
     return parser.parse_args(argv)
 
@@ -319,11 +358,14 @@ def _report_sync(
     print("Nothing was switched on.", file=sys.stderr)
 
 
-def _named_env_file(argv: list[str] | None) -> Path | None:
+def _named_env_file(argv: list[str] | None, *, must_exist: bool = True) -> Path | None:
     """``--env-file`` before anything else reads configuration.
 
     Its own miniature parse, because the real one takes its defaults from the
     settings, and the settings are what this argument decides.
+
+    ``must_exist`` is false for the setup command, which exists in part to
+    create the file the rest of the program insists on finding.
     """
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--env-file")
@@ -331,7 +373,7 @@ def _named_env_file(argv: list[str] | None) -> Path | None:
     if not known.env_file:
         return None
     named = Path(known.env_file).expanduser()
-    if not named.is_file():
+    if not named.is_file() and must_exist:
         # Falling back to the search here would be the worst of both: the
         # server would start, read something else, and behave in a way the
         # command line appears to rule out.
@@ -342,7 +384,9 @@ def _named_env_file(argv: list[str] | None) -> Path | None:
 
 def main(argv: list[str] | None = None) -> None:
     """Console script entry point."""
-    settings = load_settings(env_file=_named_env_file(argv))
+    wants_setup = "setup" in (argv if argv is not None else sys.argv[1:])
+    named_env = _named_env_file(argv, must_exist=not wants_setup)
+    settings = load_settings(env_file=named_env)
     args = _parse_args(argv, settings)
 
     # The command line wins over the environment, which wins over the search.
@@ -360,6 +404,15 @@ def main(argv: list[str] | None = None) -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    if args.command == "setup":
+        configui.start(
+            settings,
+            configui.target_env_file(named_env),
+            port=args.port,
+            open_browser=not args.no_browser,
+        )
+        return
 
     if args.tools:
         _tools_command(args.tools, settings)

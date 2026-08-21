@@ -39,6 +39,7 @@ from .errors import PermissionDeniedError
 
 __all__ = [
     "Access",
+    "Permanence",
     "Preset",
     "ToolMeta",
     "ToolPolicy",
@@ -68,6 +69,22 @@ Effect = Literal["", "create", "update", "delete"]
 
 IRREVERSIBLE: tuple[Effect, ...] = ("delete",)
 
+# What becomes of the record a tool leaves behind. **Not the same axis as
+# `effect`**, and the two point opposite ways: `delete_article` is the one
+# tool that destroys something, and also the one whose result could be
+# recreated exactly. The tools that leave a permanent mark are ordinary
+# creations sitting quietly under the `write` preset. See SPECS.md section 5,
+# "What a write leaves behind".
+#
+# - ``""``  the API can remove it again
+# - ``"app"``  no call here removes it, but the web app deletes one without
+#   ceremony. A gap in the API, which a later version could close.
+# - ``"law"``  the account owner may be required to keep it. Once a document
+#   is final festgeschrieben, GoBD and section 146 AO want it unchanged and
+#   the remedy is a Storno rather than a deletion. No API version changes
+#   that.
+Permanence = Literal["", "app", "law"]
+
 
 @dataclass(frozen=True)
 class ToolMeta:
@@ -80,6 +97,7 @@ class ToolMeta:
     access: Access
     domain: str
     effect: Effect = ""
+    permanence: Permanence = ""
 
     @property
     def irreversible(self) -> bool:
@@ -237,7 +255,12 @@ def active_policy() -> ToolPolicy:
     return _POLICY
 
 
-def classify(access: Access, domain: str, effect: Effect = "") -> Callable[[F], F]:
+def classify(
+    access: Access,
+    domain: str,
+    effect: Effect = "",
+    permanence: Permanence = "",
+) -> Callable[[F], F]:
     """Record what a tool is, and enforce the policy on every call.
 
     The metadata is for whoever writes the file. The wrapper is the second of
@@ -247,7 +270,9 @@ def classify(access: Access, domain: str, effect: Effect = "") -> Callable[[F], 
 
     def decorate(func: F) -> F:
         name = func.__name__
-        _REGISTRY[name] = ToolMeta(access=access, domain=domain, effect=effect)
+        _REGISTRY[name] = ToolMeta(
+            access=access, domain=domain, effect=effect, permanence=permanence
+        )
 
         def guard() -> None:
             if not _POLICY.enabled(name):

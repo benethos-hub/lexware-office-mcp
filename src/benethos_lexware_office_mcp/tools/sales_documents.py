@@ -177,7 +177,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             await client.recurring_templates(page=page, size=size, sort=sort)
         )
 
-    @classify("write", "sales_documents", "create")
+    @classify("write", "sales_documents", "create", permanence="law")
     async def create_sales_document(
         document_type: Annotated[
             CreatableType,

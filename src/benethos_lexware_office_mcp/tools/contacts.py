@@ -175,7 +175,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         return formatting.contact(await provider.get().contact(contact_id))
 
-    @classify("write", "contacts", "create")
+    @classify("write", "contacts", "create", permanence="app")
     async def create_contact(
         kind: Annotated[
             ContactKind,
