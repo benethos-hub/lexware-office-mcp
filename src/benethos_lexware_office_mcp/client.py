@@ -551,13 +551,22 @@ class LexwareClient:
             )
         if status == 404:
             return NotFoundError(f"{path}{detail}")
-        # A stale `version` arrives as 406 naming `version`, not as 409.
-        # Verified 2026-08-20 by updating a contact with the version it had
-        # before an earlier update.
-        if status == 409 or (status == 406 and "version" in sources):
+        # A stale `version` arrives as 406 naming `version`, not as 409
+        # (verified 2026-08-20 by updating a contact with the version it had
+        # before an earlier update), and a 409 need not be about a version at
+        # all: downloading a sales document that is still a draft is refused
+        # with one (verified 2026-08-21). So "read it again" is advice only
+        # where a version was actually named, and every other conflict says
+        # what it is without guessing why.
+        if status == 406 and "version" in sources:
             return ConflictError(
-                "The record changed since it was read, or it is locked. Read it "
-                f"again to get the current version, then retry.{detail}"
+                "The record changed since it was read. Read it again to get "
+                f"the current version, then retry.{detail}"
+            )
+        if status == 409:
+            return ConflictError(
+                f"The API refused {method} {path} in this record's current "
+                f"state.{detail}"
             )
         if status == 406:
             return ValidationError(

@@ -242,9 +242,32 @@ section 2.
   wrong representation comes back.
 - **Rendered documents are for sales documents only.**
   `/v1/vouchers/{id}/document` and `/v1/vouchers/{id}/file` answer 404 for a
-  bookkeeping voucher. The sales document paths are **(to verify)**: the test
-  account holds no sales documents, so `download_document` follows the
-  documented Accept matrix without a live check behind it.
+  bookkeeping voucher.
+- **The sales document paths, verified 2026-08-21** against the first real
+  invoice in the test account:
+  - `GET /v1/invoices/{id}/file` with `Accept: application/pdf` returns the
+    PDF, and its `Content-Disposition` carries a real name (`Rechnung_RE0001.pdf`)
+    rather than something to be invented from the id.
+  - Asking for `application/xml` on a document that is not an XRechnung is a
+    **404**, as it is for a stored file.
+  - `GET /v1/invoices/{id}/document` returns `{"documentFileId": ...}`, and
+    that id through `/v1/files/{id}` yields **byte-identical** content. The
+    two routes are the same file, so the extra call buys nothing.
+- **A draft has no document at all**, and the two paths refuse it differently
+  (verified 2026-08-21): `/file` answers **409** with "is in status 'draft'
+  and therefore cannot be downloaded", `/document` answers **406** with
+  "Requesting PDF document is not possible in state draft". The 409 is not a
+  version conflict, which is what `client._client_error` has to keep apart —
+  a stale version is a 406 naming `version`.
+- **A draft is still indexed.** `/v1/voucherlist` lists it with
+  `voucherStatus: draft` and it already carries its document number, so it is
+  findable long before it can be downloaded.
+- **`invoice` and `salesinvoice` are different types**, confirmed 2026-08-21
+  now that the account holds both. A sales document written in the web app is
+  indexed as `invoice`. A bookkeeping voucher created through `/v1/vouchers`
+  is `salesinvoice` or `purchaseinvoice`. Filtering for one never finds the
+  other, which makes this the easiest way to search past what you are
+  looking for.
 - **Deeplinks** are `{appbaseurl}/permalink/{resource}/{action}/{id}` with
   **plural, kebab-cased** resources (`contacts`, `credit-notes`). Requested
   against the live app on 2026-08-21, unauthenticated, reading only the
@@ -393,7 +416,7 @@ exposed one tool per path.
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `page`, `size` | list of recurring templates | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts) | the requested list, trimmed to the fields a caller needs | 1 |
-| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool. **(to verify)** against a live sales document. | 1 |
+| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size, deeplink}` plus a `resource_link` block. `deeplink` is null here: the web app has no page for a stored file, measured 2026-08-21. It carries a link for `download_document`, where it is the one route that works when the client can display neither the file nor a link. One helper builds it for both downloads and `get_deeplink`, so the three cannot drift apart. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
 | `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts and vouchers, since the permalink shape is the same for them and the extra entries cost nothing. A stored file is **not** a target and a contact ignores `edit`, both because the app answers those with a 404, see section 5. Built 2026-08-20, corrected against the live app 2026-08-21. | 0 |

@@ -122,11 +122,38 @@ async def test_a_client_error_carries_the_api_s_own_wording() -> None:
     assert "voucherDate must not be null" in str(excinfo.value)
 
 
-async def test_conflict_tells_the_caller_to_re_read() -> None:
-    async with make_client(httpx.Response(409, json={})) as client:
+async def test_a_stale_version_tells_the_caller_to_re_read() -> None:
+    """Verified 2026-08-20: a stale version is a 406 naming `version`."""
+    body = {"IssueList": [{"source": "version", "type": "validation_failure"}]}
+    async with make_client(httpx.Response(406, json=body)) as client:
         with pytest.raises(ConflictError) as excinfo:
             await client.request("PUT", "/v1/contacts/abc")
     assert "current version" in str(excinfo.value)
+
+
+async def test_a_conflict_does_not_invent_a_version_that_was_never_named() -> None:
+    """Verified 2026-08-21: a draft sales document refuses its own download.
+
+    `GET /v1/invoices/{id}/file` answers 409 while the document is a draft,
+    and nothing about that is a version conflict. Telling the caller to read
+    the record again for a fresher version sends them after a fix that does
+    not exist.
+    """
+    body = {
+        "status": 409,
+        "error": "Conflict",
+        "message": (
+            "the sales voucher with id abc and voucher type 'Invoice' is in "
+            "status 'draft' and therefore cannot be downloaded"
+        ),
+    }
+    async with make_client(httpx.Response(409, json=body)) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("GET", "/v1/invoices/abc/file")
+
+    message = str(excinfo.value)
+    assert "current version" not in message
+    assert "status 'draft'" in message
 
 
 async def test_the_api_key_never_appears_in_an_error() -> None:

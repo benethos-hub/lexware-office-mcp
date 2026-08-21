@@ -194,6 +194,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   guessing a record id out of it. The API key is redacted from every
   message, and monetary values are passed through exactly as the API reported
   them, always with their currency.
+- **A refusal that is not about a version no longer claims to be.** Asking
+  for the PDF of a sales document that is still a draft is refused with a
+  conflict, and the message used to tell you to read the record again for a
+  fresher version — advice for a problem you did not have. It now states what
+  the API said: the document is a draft and has not been rendered. A genuine
+  stale-version conflict still says so.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet
