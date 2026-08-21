@@ -290,6 +290,13 @@ section 2.
     it is checked.
   - `contacts/view/{id}` redirects to `/contacts/{id}`. **`contacts/edit/{id}`
     is a 404** — a contact is edited on the page it is viewed on.
+  - **What the app shows for an id that does not exist was never checked**
+    while logged in. The redirects above were read unauthenticated, so they
+    say where a link points and nothing about what is rendered there.
+    `get_deeplink` used to claim such a link opens the list of that record
+    type, which was an assumption wearing the clothes of a measurement. The
+    description now says only what is known: the link is not checked, and a
+    wrong id still produces one.
   - **`files/{id}` is a 404**, the shape the documentation quotes.
     `files/view/{id}` is a real route but lands on the unchecked voucher list
     rather than on anything to do with that file, with a real file id as much

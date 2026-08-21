@@ -252,8 +252,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         have. Use it whenever a person should look at something themselves,
         rather than describing where to click.
 
-        The link is not checked for existence. An id that does not exist opens
-        the list of that record type instead of an error.
+        The link is not checked for existence, and a wrong id still produces
+        one. Take the id from a search rather than from memory.
         """
         return {"url": permalink(settings, target, target_id, action)}
 
