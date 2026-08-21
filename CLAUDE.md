@@ -25,7 +25,10 @@ How to work in this repository. Read this before making changes. See
 5. **One rate limiter.** Every outbound request passes the single
    `ratelimit.TokenBucket` that `client.py` owns — retries and pagination
    follow-ups included. The upstream limit is global across all endpoints, so a
-   second bucket anywhere is a bug. See SPECS.md section 10.1.
+   second bucket anywhere is a bug. See SPECS.md section 10.1. **A throwaway
+   probe script is not an exception**: build a `LexwareClient` rather than a
+   bare `httpx.AsyncClient`, or the third request comes back 429 and the
+   account has been told this key misbehaves.
 6. **Secrets never travel.** The API key is never logged, never returned in a
    tool result, and redacted from error text. No real key, tenant ID,
    organization ID, voucher ID or customer record in any versioned file.

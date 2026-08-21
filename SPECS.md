@@ -1,12 +1,14 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0 in progress.** The client, the configuration, the per-tool
-> policy and the contact, voucher and file groups are built and tested. Everything else in this
-> document describes what is still being built, and the roadmap in section 16
-> says which is which. Sections marked **(to verify)** rest on the public
-> documentation and must be confirmed against the live API before the
-> corresponding code is written. Facts already checked against a live account
-> say so with their date.
+> **Status: 0.1.0 in progress.** Every tool of section 8 is built, tested and
+> exercised against a live account, and so is every module of section 4. What
+> holds a release back is section 16.1, how a user configures the server, and
+> CI, which does not exist — the roadmap in section 16 says which is which.
+> Sections marked **(to verify)** rest on the public documentation and must be
+> confirmed against the live API before the corresponding code is written.
+> Only one such marker is left. Facts already checked against a live account
+> say so with their date, and this document carries a great many of them
+> because the API's own documentation turned out to be wrong more than once.
 
 ## 1. Purpose
 
@@ -689,34 +691,37 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **50,424
-characters**, around 2,020 each. Roughly 13,000 to 15,000 tokens, estimated
+compact JSON a `tools/list` answer is, twenty-five tools come to **50,630
+characters**, around 2,025 each. Roughly 13,000 to 15,000 tokens, estimated
 at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,549 | 67% |
-| Tool descriptions, the part under a ceiling | 10,450 | 21% |
+| Input schemas | 33,469 | 66% |
+| Tool descriptions, the part under a ceiling | 10,729 | 21% |
 | Output schemas | 4,340 | 9% |
-| Names, titles and the rest | ~2,085 | 4% |
+| Names, titles and the rest | ~2,092 | 4% |
+
+The figures move whenever a description is touched, so they carry a date
+rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 33,549
-characters of input schema, 13,345 are prose from `Field(description=...)` and
-the remaining 20,204 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 33,469
+characters of input schema, 13,264 are prose from `Field(description=...)` and
+the remaining 20,205 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,744 characters on
 seventeen parameter descriptions, nearly four times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,139), `create_voucher` (4,278), `update_contact` (3,965), `create_contact`
+(5,139), `create_voucher` (4,334), `update_contact` (3,965), `create_contact`
 (3,907), `search_vouchers` (3,378) and `update_voucher` (3,359) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 22,485 characters, a little under half.
+`read-only` installation sends 22,620 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -1562,7 +1567,7 @@ the server at all, and CI, which does not exist.
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **done** — contacts, articles, bookkeeping vouchers, sales documents, receipt upload and voucher attachments are written, and the locking round trip works for the three resources the API lets you update |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | nothing identified. What was listed here — booking a voucher, and the ZUGFeRD and XRechnung download variants — turned out on 2026-08-21 to be one operation the API cannot perform and one that `download_document` and `download_file` already do through `file_format`. The phase stays as a placeholder for what a future API version adds. | empty |
-| later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
+| later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,
 independently of the tool roadmap above.
