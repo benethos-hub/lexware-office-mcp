@@ -64,7 +64,8 @@ src/benethos_lexware_office_mcp/
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
-                  # built: diagnostics, contacts, vouchers, files
+                  # built: diagnostics, contacts, vouchers,
+                  #        sales_documents, files, master_data
 tests/            # offline, httpx MockTransport (a read-only smoke.py is planned)
 ```
 
@@ -133,8 +134,11 @@ judgement into a number to be gamed. Look at the lengths when you touch a
 docstring:
 
 ```
-uv run python -c "import asyncio; from benethos_lexware_office_mcp.config import Settings; from benethos_lexware_office_mcp.server import build_server; print(sorted(((len(t.description or ''), t.name) for t in asyncio.run(build_server(Settings(mode='full')).list_tools())), reverse=True))"
+uv run python -c "import asyncio;from benethos_lexware_office_mcp.server import mcp;print(sorted(((len(t.description or ''),t.name) for t in asyncio.run(mcp.list_tools())),reverse=True))"
 ```
+
+It lists what the policy file enables, so run it with a file that has
+everything on or a tool you just touched will be missing from the answer.
 
 Section 8 of SPECS.md records the same rule.
 

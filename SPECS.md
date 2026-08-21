@@ -385,9 +385,18 @@ section 2.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).
-- **CLI flags:** `--log-level`, `--mode`, `--download-dir` in phase 1, plus the
-  transport flags in phase 3. Every flag has an env equivalent, precedence is
-  CLI > env > `.env` > default.
+- **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
+  `--env-file` in phase 1, plus the transport flags in phase 3. `--mode` and
+  `--download-dir` were planned here and never built: the mode is gone with
+  the tier of section 9.1, and the download directory stayed an environment
+  setting because a client spawns the server and passes no arguments.
+- **Precedence is not one rule for all of them.** A setting resolves as
+  found `.env` files, then the file `--env-file` names, then the real
+  environment, which has the last word - the order Docker and uvicorn use, and
+  what lets a client override one value without rewriting a file.
+  `--log-level` and `--tools-file` are the two flags that outrank the
+  environment, because each is a decision about this one run. `--tools` and
+  `--version` are actions rather than settings and have no equivalent at all.
 - **Entry points:** `python -m benethos_lexware_office_mcp` or the
   `benethos-lexware-office-mcp` console script.
 - **Python:** 3.11 to 3.14, all in the CI matrix.
