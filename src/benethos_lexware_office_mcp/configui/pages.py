@@ -22,6 +22,7 @@ from ..config import (
 from ..policy import ToolMeta, grouped_tools, known_tools
 from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
 from .probe import Account, last_account
+from .profiles import Profile
 from .render import esc, note, page, source_badge
 from .state import API_KEY, EDITABLE_KEYS, SETTING_KEYS, Installation
 from .transfer import Changes
@@ -398,12 +399,17 @@ def permissions(
     return page("Rechte", body, here="/permissions", chip=_chip(last_account()))
 
 
+def _saved_at(profile: Profile) -> str:
+    """The tooltip on a profile: when it was written, if it says."""
+    return f"gespeichert: {profile.saved}" if profile.saved else "ohne Zeitstempel"
+
+
 def _profile_bar(inst: Installation) -> str:
     saved = inst.profiles.all()
     if saved:
         options = "".join(
-            f'<option value="{esc(name)}">{esc(name)} '
-            f"({len(profile.tools)} Tools)</option>"
+            f'<option value="{esc(name)}" title="{esc(_saved_at(profile))}">'
+            f"{esc(name)} ({len(profile.tools)} Tools)</option>"
             for name, profile in saved.items()
         )
         chooser = (

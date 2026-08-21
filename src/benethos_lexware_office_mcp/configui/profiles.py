@@ -25,9 +25,10 @@ import json
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Any
+
+from .stamp import now
 
 __all__ = [
     "PROFILE_FILE_NAME",
@@ -138,7 +139,7 @@ class ProfileStore:
         profile = Profile(
             name=clean,
             tools=tuple(sorted(set(tools))),
-            saved=date.today().isoformat(),
+            saved=now(),
             known=tuple(sorted(set(known))),
         )
         profiles = self.all()

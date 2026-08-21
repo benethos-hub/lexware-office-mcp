@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 import pytest
 
@@ -56,7 +57,7 @@ def test_the_file_is_readable_and_stamped() -> None:
 
     assert document["kind"] == transfer.BUNDLE_KIND
     assert document["serverVersion"] == "9.9.9"
-    assert document["created"]
+    assert datetime.fromisoformat(document["created"]).tzinfo is not None
     assert transfer.dumps(document).endswith("\n")
 
 

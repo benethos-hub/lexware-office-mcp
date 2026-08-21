@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -42,6 +44,19 @@ def test_a_saved_profile_comes_back(store: ProfileStore) -> None:
     assert profile.tools == ("get_profile", "search_vouchers")
     assert profile.known == tuple(sorted(KNOWN))
     assert profile.saved
+
+
+def test_the_timestamp_is_precise_and_unambiguous(store: ProfileStore) -> None:
+    """Microseconds and a UTC offset: a bundle travels between machines.
+
+    Bare local times from two time zones would order wrongly, and a date
+    alone cannot tell two saves of the same profile apart.
+    """
+    store.save("Profil", ["get_profile"], KNOWN)
+    saved = store.all()["Profil"].saved
+
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}[+-]\d\d:\d\d", saved)
+    assert datetime.fromisoformat(saved).tzinfo is not None
 
 
 def test_a_name_is_tidied_and_required(store: ProfileStore) -> None:

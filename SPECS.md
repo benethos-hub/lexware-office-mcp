@@ -97,7 +97,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
-| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `profiles` named sets of permissions, `transfer` the export bundle, `pages` the four screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` the export bundle, `pages` the four screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
@@ -748,6 +748,16 @@ a tool that is off because it did not exist yet, and only the second is worth
 mentioning when a profile is loaded. A profile that never recorded it — one
 written by hand — says nothing rather than announcing every omission.
 
+**Timestamps carry microseconds and a UTC offset**, in profiles and on the
+export alike. The offset because a bundle is made to travel and two local
+times from two zones would order wrongly. Microseconds because that is what
+`datetime` holds — and because nanoseconds would be decoration: measured on
+2026-08-21, 200,000 consecutive `time.time_ns()` calls returned **nine**
+distinct values, so the wall clock behind them advances about once a
+millisecond, and Windows moves that resolution around depending on what else
+is running. Six digits of clock beats six digits of clock and three of
+padding, because somebody eventually relies on the difference.
+
 **The export carries no key.** Settings, permissions and profiles travel in
 one JSON file; `LXO_MCP_API_KEY` is filtered on the way out *and* on the way
 back in, and the file states its absence in a field of its own rather than
@@ -1300,6 +1310,11 @@ These rules are absolute for this repository.
   files. Documentation uses placeholders.
 - Downloaded documents are real business records. They go to the download
   directory, which is gitignored, and are never committed.
+- **What one installation is allowed to do is not a property of the code**,
+  so `tools.json` and the `tool_profiles.json` beside it are gitignored under
+  both their names — bare and under `config/`. A committed policy file would
+  hand the next clone a set of permissions nobody there decided on, and a
+  committed profile would describe somebody's account arrangement.
 - When summarizing an API response into a lasting file, real values are
   replaced by placeholders first.
 - **Write operations are exercised against a Lexware account the user has

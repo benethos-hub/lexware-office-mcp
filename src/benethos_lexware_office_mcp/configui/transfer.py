@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 
 from .profiles import Profile, profile_from_stored
+from .stamp import now
 
 __all__ = [
     "BUNDLE_KIND",
@@ -108,7 +108,7 @@ def build(
     return {
         "kind": BUNDLE_KIND,
         "bundleVersion": BUNDLE_VERSION,
-        "created": date.today().isoformat(),
+        "created": now(),
         "serverVersion": version,
         "apiKey": None,
         "apiKeyNote": _KEY_NOTE,

@@ -22,9 +22,12 @@ htmlcov/
 config/.env
 downloads/
 
-# What this machine is allowed to do is not a property of the code.
+# What this machine is allowed to do is not a property of the code, and
+# neither are the profiles saved beside it.
 tools.json
 config/tools.json
+tool_profiles.json
+config/tool_profiles.json
 
 # ...but the committed sample stays visible.
 !config/.env.sample
