@@ -951,7 +951,6 @@ depended on.
 | Upstream | Error class | Message shape |
 |---|---|---|
 | 400, 406 | `ValidationError` | the API `errorCode` and `message`, plus the offending field path when the response names one |
-
 | 401 | `AuthError` | "API key rejected", with a pointer to the add-on page, never the key |
 | 404 | `NotFoundError` | resource type and the ID that was asked for |
 | 409 | `ConflictError` | version mismatch or locked state, naming the current version so the caller can re-read and retry |
