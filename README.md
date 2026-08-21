@@ -269,9 +269,9 @@ The file is read fresh on every request, but the two directions are not
 symmetric. Switching a tool **off** takes effect at once, since every call is
 checked against the file — a client that has already fetched the list goes on
 showing the tool, and gets a refusal if it calls it. Switching one **on** needs
-the server restarted, because tools are registered as it starts. That is the
-right way round: taking permission away is instant, granting it is deliberate.
-Claude Desktop is restarted by quitting it from the tray.
+the server restarted, because tools are registered as it starts rather than
+looked up as they are listed. Claude Desktop is restarted by quitting it from
+the tray.
 
 Each tool also declares what it is — reading or writing, and which group it
 belongs to. That classification is what `--tools read-only` selects on, and

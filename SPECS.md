@@ -544,13 +544,18 @@ has already fetched the tool list keeps it until it asks again, and
 why and finds it is a matter of protocol version rather than of design.
 
 **Adding a tool needs a restart, removing one does not** (measured
-2026-08-21). Registration happens once, so a tool switched on in the file was
-never registered and cannot be called until the process starts again. A tool
-switched off is refused at the call gate immediately, though it stays in a
-list the client has already fetched. The asymmetry is the right way round —
-taking permission away is instant, granting it is deliberate — but it is an
-asymmetry, and anything that describes the file as taking effect "on the next
-request" has to say which half it means.
+2026-08-21). Registration happens once as the server is built, so a tool
+switched on in the file was never registered and cannot be called until the
+process starts again. A tool switched off is refused at the call gate
+immediately, though it stays in a list the client has already fetched.
+
+This is a **consequence of registering at startup, not a decision**. It is not
+a safety property and should not be defended as one: it happens to fail in the
+cautious direction, which is luck rather than design. Filtering in
+`list_tools` instead of at registration would make both directions take effect
+on the next listing, at the cost of a subclass of `MCPServer` — the shape the
+convention source of section 3 uses. Open, and worth doing if the file is ever
+edited by anything other than a person at a terminal.
 
 **What a tool declares:**
 

@@ -326,8 +326,8 @@ async def test_switching_a_tool_off_takes_effect_without_a_restart(
 async def test_switching_a_tool_on_does_not(tmp_path: Path) -> None:
     """The other half. Registration happens once, when the server is built.
 
-    Documented rather than fixed: taking permission away should be instant and
-    granting it should be deliberate.
+    Pinned as it is rather than as it should be: this falls out of the
+    registration time, it was not chosen, and nothing here argues it is right.
     """
     policy = write(tmp_path / "tools.json", {"get_profile": True})
     server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
