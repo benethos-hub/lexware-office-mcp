@@ -391,6 +391,33 @@ async def test_a_confirmed_delete_goes_through_and_says_what_it_removed() -> Non
     await provider.aclose()
 
 
+async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> None:
+    """Measured 2026-08-21 by the live check in `tests/smoke.py`, on its first
+    run: this endpoint refuses `size` below 25 with `size: MIN`, where every
+    other list takes a page of one. The floor is in the schema, so a caller
+    reading it never writes the call that fails."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_for(handler)
+
+    with pytest.raises(ToolError):
+        await server.call_tool("search_articles", {"size": 5})
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_the_page_floor_is_in_the_schema_the_client_reads() -> None:
+    handler = Scripted()
+    server, provider = server_for(handler)
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    size = tools["search_articles"].input_schema["properties"]["size"]
+
+    assert size["minimum"] == 25
+    assert size["maximum"] == 250
+    await provider.aclose()
+
+
 async def test_the_search_offers_no_parameter_that_looks_like_a_text_search() -> None:
     """The whole point of the measurement: `query` and `title` are ignored
     upstream, so offering either would be a lie in the schema."""

@@ -22,11 +22,11 @@ from pydantic import Field
 
 from .. import formatting
 from ..client import ClientProvider
-from ..config import Settings
+from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ..errors import ConflictError, ValidationError
 from ..payloads import ArticleType, article_body
 from ..policy import classify
-from ._base import PageNumber, PageSize, register_tool
+from ._base import PageNumber, register_tool
 
 __all__ = ["register"]
 
@@ -40,6 +40,21 @@ ArticleId = Annotated[
 ArticleTypeField = Annotated[
     ArticleType | None,
     Field(description="Restrict to goods or to services. Left unset, both come back."),
+]
+
+# Every other list endpoint takes a page of one row. This one refuses
+# anything below 25 with `size: MIN`, measured 2026-08-21 by the live check,
+# so the floor is in the schema rather than in a failed request.
+ArticlePageSize = Annotated[
+    int,
+    Field(
+        description=(
+            "Rows per page. The API refuses fewer than 25 here, unlike every "
+            "other list."
+        ),
+        ge=DEFAULT_PAGE_SIZE,
+        le=MAX_PAGE_SIZE,
+    ),
 ]
 
 LeadingPriceField = Annotated[
@@ -73,7 +88,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         ] = None,
         article_type: ArticleTypeField = None,
         page: PageNumber = 0,
-        size: PageSize = 25,
+        size: ArticlePageSize = DEFAULT_PAGE_SIZE,
     ) -> dict[str, Any]:
         """List articles, filtered by number, barcode or kind.
 

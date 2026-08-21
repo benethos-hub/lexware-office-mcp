@@ -138,6 +138,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **`search_articles` now says the page floor in its schema.** That endpoint
+  refuses a page size below 25 with `size: MIN`, alone among the lists, and
+  the parameter had allowed 1 — so a small page failed upstream instead of
+  being caught here. The minimum is now 25.
 - **`create_sales_document`** — write an invoice, quotation, credit note,
   order confirmation, delivery note or dunning. A down payment invoice cannot
   be created through the API at all, so it is not offered. Costs one API call

@@ -342,6 +342,11 @@ in six months. Every line here is a request that was actually sent.
   given is net or gross, and the API computes the other: a gross price of
   11.90 at 19% comes back with a net price of 10.00 beside it. Nothing here
   derives an amount.
+- **The page size has a floor of 25**, and this endpoint is alone in that:
+  `size` below 25 is refused with `size: MIN`, where the voucher list and the
+  contacts take a page of one. Found by the live check of section 14.1 on its
+  first run, which is what that script is for. The floor is in the tool's
+  schema, so a caller reading it never writes the call that fails.
 - **An article number has to be unique.** A second article carrying one
   already in use is refused with `materialNumber:
   MATERIAL_NUMBER_ALREADY_EXISTS`, which is a field name that appears nowhere
@@ -1277,13 +1282,25 @@ The consequences are the point of writing this down.
   no key, no network and no account. That is true today and stays true. A test
   that quietly skips when no key is present is not a gate, it is a hole that
   reports green.
-- **`tests/smoke.py` is run by hand and never collected by pytest.** It takes
-  a key from the normal configuration chain of section 7, refuses to start
-  without one, calls `get_profile` first so whoever runs it sees which
-  organization is about to be read, and performs **read-only** calls only.
-  **Not built yet** — live checks have so far been one-off scripts kept
-  outside the repository, which is fine for a probe and no substitute for a
-  script anyone can rerun.
+- **`tests/smoke.py` is run by hand and never collected by pytest.** Built
+  2026-08-21. It takes a key from the normal configuration chain of section 7,
+  refuses to start without one, calls `get_profile` first so whoever runs it
+  sees which organization is about to be read, and performs **read-only**
+  calls only. `pytest` does not find it because it is not named `test_*.py`,
+  and `testpaths` is left alone rather than being taught an exception.
+- **It cannot write, structurally.** The server it builds is handed the
+  `read-only` preset of section 9, so a writing tool is not merely unused in
+  the script, it is absent from the server and refused if called. The script
+  checks that too, on the tool list it was given. A promise that a script
+  makes no writing call is worth less than a server that cannot make one.
+- **A check that could not run is reported as skipped, never as passed.** An
+  empty account has no article to read and no rendered document to download,
+  and a live check that reported those as successes would be the same hole as
+  a test that skips itself. The summary counts the three states apart.
+- **It found something on its first run**, which is the argument for having
+  it: `GET /v1/articles` refuses a page size below 25, alone among the list
+  endpoints, and the tool's schema had allowed 1. Nothing offline could have
+  caught that, because the mock answers whatever it is told to.
 - **Upstream drift is invisible to CI.** The suite mocks HTTP completely, so
   it stays green through any change in Lexware's field names or response
   shapes. Only a live run catches that, and only someone holding an account
@@ -1433,7 +1450,9 @@ item. Answered questions stay in place with their answer.
 1. ~~Exact maximum page size per endpoint.~~ **Answered 2026-08-20:** it is
    per endpoint, not one number. `voucherlist` caps at 250, `contacts`
    accepts 500 and refuses 1000. This project caps at 250 as the lowest
-   ceiling measured. See section 5.
+   ceiling measured. **Extended 2026-08-21:** there are floors as well.
+   `/v1/articles` refuses anything below 25 with `size: MIN`, which no other
+   list does. See section 5.
 2. Whether the API offers an idempotency key for POST. This is the highest
    value unknown after question 8 — it decides whether a failed document
    creation can be retried at all, see section 10.2.

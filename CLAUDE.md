@@ -66,7 +66,8 @@ src/benethos_lexware_office_mcp/
     <group>.py    # one module per resource group, thin tool definitions
                   # built: diagnostics, contacts, vouchers,
                   #        sales_documents, files, master_data
-tests/            # offline, httpx MockTransport (a read-only smoke.py is planned)
+tests/            # offline, httpx MockTransport
+  smoke.py        # read-only live check, run by hand, never collected
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
@@ -175,8 +176,16 @@ SPECS.md rather than stating them as fact.
 repository and none goes into CI, so anything automated has to pass with no
 key, no network and no account. Never write a test that reaches the API, and
 never write one that skips itself when no key is present — that reports green
-while checking nothing. Live verification belongs in the separate read-only
-script described in SPECS.md section 14.1.
+while checking nothing. Live verification belongs in `tests/smoke.py`:
+
+```
+uv run python tests/smoke.py
+```
+
+It is read-only, builds its server with the `read-only` preset so a writing
+tool is not there to be called, and reports a check it could not run as
+skipped rather than as passed. Add to it whenever a live measurement is worth
+repeating. See SPECS.md section 14.1.
 
 ## Conventions
 

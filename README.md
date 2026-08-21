@@ -390,8 +390,18 @@ nothing writes to stdout on the startup path.
 No API key ships with this repository and none belongs in CI, so a checkout
 can never talk to Lexware on its own. Checking the server against the real API
 is therefore always a deliberate local run with a key you supply, separate from
-the suite above and never part of it. A read-only smoke script for that is
-planned and does not exist yet, see [SPECS.md](SPECS.md) section 14.1.
+the suite above and never part of it:
+
+```
+uv run python tests/smoke.py
+uv run python tests/smoke.py --env-file path/to/.env
+```
+
+It reads your account and writes nothing to it. The server it builds gets the
+`read-only` preset, so the writing tools are not there to be called at all. It
+prints what it checked, what the account had nothing for, and what failed, and
+it masks record ids so the report can be pasted somewhere. `pytest` never runs
+it. See [SPECS.md](SPECS.md) section 14.1 for why a live check is not a gate.
 
 Contributions and issues are welcome once the first release is out. Until
 then, [SPECS.md](SPECS.md) is the place where design decisions are recorded,
