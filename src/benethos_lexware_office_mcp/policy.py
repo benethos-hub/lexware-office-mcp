@@ -15,8 +15,10 @@ script can *write* a sensible file - "the reading tools", "the voucher group"
 
 Enforcement happens at two levels, deliberately (SPECS.md section 9):
 
-1. **Registration.** A tool the file does not enable is never registered: it
-   does not appear in ``list_tools`` and costs no tokens.
+1. **Listing.** ``server.PolicyServer`` leaves a disabled tool out of
+   ``list_tools``, so it never reaches the model and costs no tokens. The file
+   is read as the list is built, not when the server starts, so enabling a
+   tool works as immediately as disabling one.
 2. **Call.** The wrapper :func:`classify` puts around the function checks
    again when a call arrives, so a client holding a stale tool list cannot
    smuggle one through.

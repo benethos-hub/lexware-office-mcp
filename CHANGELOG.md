@@ -218,29 +218,28 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   fresher version — advice for a problem you did not have. It now states what
   the API said: the document is a draft and has not been rendered. A genuine
   stale-version conflict still says so.
-- **Individual tools can be switched off**, without giving up the whole
-  permission tier. A JSON file in the configuration directory holds one flag
-  per tool: a tool set to `false` is neither listed nor callable, and a tool
-  the file does not mention stays on, so an installation without the file
-  behaves exactly as before. `benethos-lexware-office-mcp --tools read-only`
-  writes the file with the reading tools on and the rest off, `--tools write`
-  turns the writing ones on as well, `--tools irreversible` adds deleting,
-  booking and finalizing, and `--tools show` only reports. `--tools-file`
-  says where to write, and works with every preset - overwriting whatever is
-  there, so a preset starts a file rather than updating one. A target that
-  is a directory, or that cannot be written, is refused with a message
-  rather than a traceback. An edit takes effect in both directions without
-  restarting the server: the file is read as the tool list is built and again
-  on every call, so a tool switched on is offered from the next listing and
-  one switched off stops being offered. A client that has already fetched the
-  list keeps showing it until it asks again. The file is read fresh
-  on every request, so an edit takes effect without a restart — though a
-  client that already fetched the tool list keeps showing it until it asks
-  again. The file cannot grant anything the tier withholds. It is found the
-  same way the `.env` is — per-user configuration directory, then `config/` of
-  a checkout, then the working directory, last one found winning — so a
-  `config/tools.json` in a clone overrides an installed one.
-  `LXO_MCP_TOOL_POLICY` overrides the search.
+- **Which tools exist is one flag per tool, in `tools.json`.** A tool set to
+  `false` is neither listed nor callable, and so is a tool the file does not
+  mention — silence is a refusal, so a tool arriving with an upgrade waits to
+  be enabled rather than appearing on its own. Without the file the server
+  offers nothing at all.
+- **Writing that file:** `--tools read-only` enables the reading tools,
+  `--tools write` adds creating and changing, `--tools irreversible` adds
+  deleting, booking and finalizing, and `--tools show` only reports.
+  `--tools-file` says which file, and works with every preset. A preset
+  overwrites, so it starts a file rather than updating one, and a target that
+  is a directory or cannot be written is refused with a message rather than a
+  traceback.
+- **An edit takes effect in both directions without a restart.** The file is
+  read as the tool list is built and again on every call, so a tool switched
+  on is offered from the next listing and one switched off stops being
+  offered. A client that has already fetched the list keeps showing it until
+  it asks again, which most do only at startup.
+- **Where that file lives:** found the same way the `.env` is — per-user
+  configuration directory, then `config/` of a checkout, then the working
+  directory, last one found winning — so a `config/tools.json` in a clone
+  overrides an installed one. `LXO_MCP_TOOL_POLICY` overrides the search and
+  `--tools-file` overrides both.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet

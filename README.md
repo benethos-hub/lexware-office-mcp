@@ -56,7 +56,7 @@ The server points at a real accounting system, so the defaults are cautious.
   hand. Not a level, not a group: `create_contact` on and `upload_file` off is
   an ordinary thing to want, and there is no combination the file cannot
   express.
-- The file is checked twice, once when tools are registered and again when a
+- The file is checked twice, once when the tool list is built and again when a
   call arrives, so a stale tool list on the client cannot slip past it.
 - The API key is never logged, never returned in a tool result, and redacted
   from error messages.

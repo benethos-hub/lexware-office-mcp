@@ -1,7 +1,7 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0 in progress.** The client, the configuration, the permission
-> tiers and the first tool are built and tested. Everything else in this
+> **Status: 0.1.0 in progress.** The client, the configuration, the per-tool
+> policy and the contact, voucher and file groups are built and tested. Everything else in this
 > document describes what is still being built, and the roadmap in section 16
 > says which is which. Sections marked **(to verify)** rest on the public
 > documentation and must be confirmed against the live API before the
@@ -78,19 +78,19 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 
 | Module | Responsibility | State |
 |--------|----------------|-------|
-| `server.py` | `MCPServer` instance, tool registration, CLI and `main()`. | built |
+| `server.py` | The `PolicyServer` instance, which is an `MCPServer` listing only what the policy file allows, plus tool registration, the CLI and `main()`. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
 | `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
-| `policy.py` | Permission tiers and their enforcement, see section 9. | built |
+| `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
 | `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
-| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. | built |
+| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles. | planned |
@@ -505,18 +505,19 @@ goes through: the per-user directory, then `config/` of a checkout, then the
 working directory, last one found winning. One order for every configuration
 file there is, because two files searched two ways would be two rules to
 remember and the one remembered wrongly would be the one holding the
-permissions. `LXO_MCP_TOOL_POLICY` overrides the search entirely. A tool the
-file does not mention is **on**:
-the file exists to take something away, and a tool that arrives with an
-upgrade is already held back by the tier it declares. Writing a flag for every
-known tool rather than only for the exceptions is what makes the file readable
-without knowing that rule.
+permissions. `LXO_MCP_TOOL_POLICY` overrides the search, and `--tools-file`
+overrides that. A tool the file does not mention is **off**: the file is the
+only gate there is, so anything it fails to say has to be a no, and a tool
+arriving with an upgrade waits to be enabled rather than appearing on its own.
+Writing a flag for every known tool rather than only for the exceptions is
+what makes the file readable without knowing that rule.
 
 **The classification computes a file, it is never consulted instead of one.**
-`policy.preset("read-only")` turns the tiers into a complete set of flags,
-`preset("all")` into another. Both are written to disk and the disk is what is
-read afterwards, so the file always says exactly what is allowed, tool by
-tool. A group action is a way of writing many flags at once and nothing more.
+`policy.preset` turns the classification into a complete set of flags —
+`read-only`, `write` and `irreversible`, each containing the last. It is
+written to disk and the disk is what is read afterwards, so the file always
+says exactly what is allowed, tool by tool. A preset is a way of writing many
+flags at once and nothing more.
 
 **Where the classification comes from.** The `@classify` decorator records
 `access`, `domain` and `effect` as the tool is defined, so
@@ -525,11 +526,11 @@ table maintained by hand somewhere else eventually would. It is **metadata,
 not permission**: nothing reads it when a call arrives. A script selects on
 `access`, an interface groups by `domain`, and both then write flags.
 
-**Enforcement happens twice, as defence in depth.** A disabled tool is not
-registered, so it is not listed and costs no tokens, and a call to one is
-refused by name with the file that would enable it. `register_tool` does the
-registration check for every tool there is, rather than each module doing it
-for its own, so a tool added later cannot quietly escape it.
+**Enforcement happens twice, as defence in depth.** A disabled tool is left
+out of the list, so it never reaches the model and costs no tokens, and a call
+to one is refused by name with the file that would enable it. The listing
+filter is in `PolicyServer`, one place for every tool there is, so a tool
+added to a module later cannot quietly escape it.
 
 **A server that offers nothing says so on stderr**, naming the file and the
 command that writes one. From the client an empty tool list is
@@ -1075,8 +1076,11 @@ Built, tested offline and exercised against a live test account:
   `get_voucher`, `get_payments`, `download_file`, `download_document`,
   `read_download` and `get_deeplink`. Writing: `create_contact`,
   `update_contact`, `create_voucher`, `update_voucher` and `upload_file`
-- one flag per tool in a JSON file, enforced at registration and at call, with
-  nothing enabled until that file says so
+- one flag per tool in a JSON file, enforced when the list is built and again
+  when a call arrives, with nothing enabled until that file says so and an
+  edit taking effect in both directions without a restart. Presets and the
+  file it writes come from the command line, `--tools` and `--tools-file`,
+  and `--env-file` names the settings the same way
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
@@ -1106,17 +1110,16 @@ does not list them.
 
 **The immediate next step** is the sales documents: reading an invoice, a
 quotation or a credit note in full. `search_vouchers` already returns their
-ids and `download_document` can already fetch their PDFs, so reading the
-document itself is the missing piece — and it would also put a real sales
-document in the test account, which is what `download_document` still
-needs to be verified against.
+ids and `download_document` fetches their PDFs — verified live on 2026-08-21
+against the first real invoice in the test account, in both the rendered and
+the draft case — so reading the document itself is the piece that is missing.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, permission tiers, the per-tool policy of section 9.2, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads, and the contact, voucher and file groups are done and exercised against a live account. Articles, sales documents, master data and CI are open. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **started** — contacts, bookkeeping vouchers and receipt upload are written and the locking round trip works, the remaining resources are open |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
-| 0.4.0 | irreversible operations behind `full`, pursue chains, ZUGFeRD and XRechnung download variants | planned |
+| 0.4.0 | irreversible operations, which no tool carries yet, pursue chains, ZUGFeRD and XRechnung download variants | planned |
 | later | recurring templates beyond read, event subscriptions if a deployment shape justifies them | undecided |
 
 Section 16.1 holds one design decision that has to be settled before a release,
@@ -1156,10 +1159,11 @@ the package. This has to be reworked rather than patched.
   shows which settings are active and where each one came from, lets the key
   be entered without going through a text file, and names the storage paths
   explicitly. It would also be the natural place to manage the per-tool
-  policy of section 9.2, which the command line writes today, and to raise the
-  tier deliberately, which is a decision that deserves more friction than
-  editing a line in a file. Runs only when asked and never as part of the MCP server
-  itself, since that speaks stdio.
+  policy of section 9.2, which the command line writes today — enabling a
+  tool that changes records deserves more friction than editing a line in a
+  file, and an interface can ask for confirmation where a text editor cannot.
+  Runs only when asked and never as part of the MCP server itself, since that
+  speaks stdio.
 - **A read-only diagnostic** as a smaller version of the same idea: report
   every candidate path, whether it exists, and which value won, without ever
   printing the key. Useful on its own, whatever else is chosen.
