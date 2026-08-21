@@ -93,22 +93,24 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--tools",
-        choices=("show", "read-only", "write"),
+        choices=("show", "read-only", "write", "irreversible"),
         help=(
-            "Work on the tool policy file instead of serving. 'show' prints "
-            "which tools are on. 'read-only' and 'write' overwrite the file "
-            "with that preset. Neither enables an irreversible tool."
+            "Work on the tool policy file instead of serving, writing it with "
+            "--tools-file or wherever the search finds it. 'show' prints "
+            "which tools are on. The other three overwrite the file: "
+            "'read-only' queries only, 'write' adds creating and updating, "
+            "'irreversible' adds deleting, booking and finalizing."
         ),
     )
     parser.add_argument(
         "--tools-file",
         metavar="PATH",
         help=(
-            "Which policy file --tools reads or writes, and which one the "
-            "server runs under. Wins over LXO_MCP_TOOL_POLICY and over the "
-            "search: the per-user config directory, then config/ of a "
-            "checkout, then the working directory. --tools show prints the "
-            "file actually in force."
+            "Where to write the policy file, and which one the server runs "
+            "under. Without it the file is searched for: the per-user config "
+            "directory, then config/ of a checkout, then the working "
+            "directory, last one found winning. Wins over "
+            "LXO_MCP_TOOL_POLICY. --tools show prints the file in force."
         ),
     )
     return parser.parse_args(argv)

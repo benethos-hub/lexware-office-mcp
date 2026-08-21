@@ -226,15 +226,21 @@ benethos-lexware-office-mcp --tools read-only
 ```
 
 which writes every tool into `tools.json`, reading ones on and the rest off,
-and prints what it did. `--tools write` turns on the writing ones as well,
-and `--tools show` only reports. `--tools-file PATH` says which file to work
-on, winning over everything below.
+and prints what it did. Three presets, each containing the last:
 
-**No preset ever enables an irreversible tool** — one whose effect is
-`delete`, `book` or `finalize`. A preset is what you reach for when you do not
-want to decide fifteen times, and those are exactly the decisions nobody
-should make by not making one. Switch them on by hand. Nothing ships with such
-an effect yet.
+| | enables |
+|---|---|
+| `--tools read-only` | queries only |
+| `--tools write` | and creating and updating |
+| `--tools irreversible` | and deleting, booking, finalizing |
+
+`--tools show` only reports. **`--tools-file PATH` says where to write**, and
+works with all three — `--tools write --tools-file ./tools.json` creates the
+file there.
+
+The third step is its own because it is its own decision: deleting a record or
+booking a voucher should be chosen by naming it, not by picking the largest
+option. Nothing ships with such an effect yet.
 
 Without `--tools-file`, the file is searched exactly like the `.env`, lowest
 precedence first:

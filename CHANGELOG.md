@@ -218,9 +218,9 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   the file does not mention stays on, so an installation without the file
   behaves exactly as before. `benethos-lexware-office-mcp --tools read-only`
   writes the file with the reading tools on and the rest off, `--tools write`
-  turns the writing ones on as well, `--tools show` only reports, and
-  `--tools-file` names the file to work on. Neither preset enables a tool
-  whose effect is irreversible. The file is read fresh
+  turns the writing ones on as well, `--tools irreversible` adds deleting,
+  booking and finalizing, and `--tools show` only reports. `--tools-file`
+  says where to write, and works with every preset. The file is read fresh
   on every request, so an edit takes effect without a restart — though a
   client that already fetched the tool list keeps showing it until it asks
   again. The file cannot grant anything the tier withholds. It is found the

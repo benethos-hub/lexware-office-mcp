@@ -99,7 +99,7 @@ def grouped_tools() -> dict[str, list[str]]:
     return {domain: sorted(groups[domain]) for domain in sorted(groups)}
 
 
-Preset = Literal["read-only", "write"]
+Preset = Literal["read-only", "write", "irreversible"]
 
 
 def preset(kind: Preset) -> dict[str, bool]:
@@ -109,15 +109,21 @@ def preset(kind: Preset) -> dict[str, bool]:
     the file and the file is what is read afterwards, so a preset is a way of
     setting many flags at once and never a rule applied later.
 
-    Neither preset turns on an **irreversible** tool. A preset is what somebody
-    reaches for when they do not want to decide fifteen times, and deleting a
-    record or booking a voucher is exactly the decision nobody should make by
-    not making it. Those are switched on by hand, one at a time.
+    Three of them, each one containing the last:
+
+    - ``read-only`` - queries only.
+    - ``write`` - and creating and updating, but nothing whose effect cannot
+      be undone.
+    - ``irreversible`` - everything, deleting, booking and finalizing
+      included. Its own step because that is a different decision, and it
+      should be made by naming it rather than by picking the largest option.
     """
     if kind == "read-only":
         return {name: meta.access == "read" for name, meta in _REGISTRY.items()}
     if kind == "write":
         return {name: not meta.irreversible for name, meta in _REGISTRY.items()}
+    if kind == "irreversible":
+        return dict.fromkeys(_REGISTRY, True)
     raise ValueError(f"Unknown preset: {kind!r}")
 
 

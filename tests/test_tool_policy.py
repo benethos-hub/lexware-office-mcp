@@ -146,19 +146,33 @@ def test_the_write_preset_turns_on_everything_reversible() -> None:
         assert flags[name] is not meta.irreversible, name
 
 
-def test_no_preset_ever_enables_an_irreversible_tool() -> None:
-    """A preset is for not deciding fifteen times.
+def test_the_irreversible_preset_turns_on_everything() -> None:
+    """The third step, and the only one that reaches deleting and booking."""
+    assert set(preset("irreversible").values()) == {True}
 
-    Deleting a record or booking a voucher is exactly the decision nobody
-    should make by failing to make it, so those stay off until somebody sets
-    them by hand. Nothing ships with such an effect yet, which is why this
-    checks the rule rather than a tool.
+
+def test_only_the_third_preset_reaches_an_irreversible_tool() -> None:
+    """Its own step because it is its own decision.
+
+    Nothing ships with such an effect yet, so this holds the rule rather than
+    a tool: the first `delete_*` will not arrive through `write`.
     """
     for kind in ("read-only", "write"):
         flags = preset(kind)  # type: ignore[arg-type]
         for name, meta in known_tools().items():
             if meta.irreversible:
                 assert flags[name] is False, f"{kind} enabled {name}"
+
+
+def test_each_preset_contains_the_one_before_it() -> None:
+    """Three steps, so each has to be a superset of the last."""
+    read_only = {n for n, on in preset("read-only").items() if on}
+    write = {n for n, on in preset("write").items() if on}
+    everything = {n for n, on in preset("irreversible").items() if on}
+
+    assert read_only < write or read_only == write
+    assert write <= everything
+    assert everything == set(known_tools())
 
 
 def test_an_unknown_preset_is_refused() -> None:
@@ -204,14 +218,17 @@ def test_the_command_line_writes_the_preset_and_does_not_serve(
     assert "read-only" in captured.err
 
 
-def test_the_command_line_takes_the_file_to_write(tmp_path: Path) -> None:
-    """Naming the target beats setting an environment variable to write once."""
-    policy = tmp_path / "elsewhere" / "tools.json"
+@pytest.mark.parametrize("choice", ["read-only", "write", "irreversible"])
+def test_every_preset_can_be_written_to_a_named_file(
+    choice: str, tmp_path: Path
+) -> None:
+    """The path is given with the preset, for all three of them."""
+    policy = tmp_path / "elsewhere" / f"{choice}.json"
 
-    main(["--tools", "write", "--tools-file", str(policy)])
+    main(["--tools", choice, "--tools-file", str(policy)])
 
     stored = json.loads(policy.read_text())
-    assert stored["upload_file"] is True
+    assert set(stored) == set(known_tools())
     assert stored["get_profile"] is True
 
 
