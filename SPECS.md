@@ -559,6 +559,17 @@ table maintained by hand somewhere else eventually would. It is **metadata,
 not permission**: nothing reads it when a call arrives. A script selects on
 `access`, an interface groups by `domain`, and both then write flags.
 
+**`write` does not mean undoable, and the preset names cannot say so.** The
+`irreversible` step covers the effects that destroy or freeze a record —
+`delete`, `book`, `finalize` — and no tool carries one yet. What it does not
+cover is a creation that cannot be taken back, and there are two: the API has
+no way to delete a bookkeeping voucher, so `create_voucher` and `upload_file`
+both leave something behind that only the web app can correct. They stay
+under `write`, because the alternative is to put ordinary bookkeeping behind
+a step named after deletion, and a preset that overstates its danger gets
+ignored rather than read. The command line and the README say it in words
+instead.
+
 **The domain is the module the tool lives in**, for every tool without
 exception: `contacts`, `diagnostics`, `files`, `master_data`,
 `sales_documents`, `vouchers`. A tool that points at a sales document while

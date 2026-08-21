@@ -105,6 +105,10 @@ address would empty out the addresses, the note and everything else. Both
 also need the `version` you last read: if the record changed in between, the
 update is refused and nothing is written.
 
+`--tools write` is not the same as undoable. Nothing it enables deletes a
+record, but two of the tools create one that cannot be removed afterwards,
+which is the next paragraph.
+
 **A bookkeeping voucher cannot be deleted through the API.** There is no
 endpoint for it, so a wrong `create_voucher` has to be corrected in the
 Lexware Office web app. Pass `unchecked` to record an entry for review

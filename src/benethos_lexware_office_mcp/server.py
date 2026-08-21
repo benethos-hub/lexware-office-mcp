@@ -133,6 +133,10 @@ choosing the tools:
     benethos-lexware-office-mcp --tools show
         change nothing, just list what is on
 
+  'write' does not mean undoable. Nothing in it deletes a record, but the
+  API cannot delete a bookkeeping voucher at all, so a voucher created by
+  create_voucher or by upload_file has to be corrected in the web app.
+
   The file is JSON, one line per tool:
 
     {

@@ -138,6 +138,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   id does. Take it from the `voucherType` that `search_vouchers` reported. A
   draft reads in full even though it cannot be downloaded, and says so by
   carrying no `files.documentFileId`.
+- **`--tools write` now says what it does not promise.** Nothing that preset
+  enables deletes a record, but `create_voucher` and `upload_file` leave a
+  bookkeeping voucher behind that the API cannot remove, and only the web app
+  can correct. The `irreversible` step is about `delete`, `book` and
+  `finalize`, which no tool carries yet, so it was not the place a reader
+  would have found this out.
 - **`get_master_data`** — read one of the four lists an account is configured
   with: countries, payment conditions, posting categories or print layouts.
   Costs one API call. Two of them are long — a live account holds 257
