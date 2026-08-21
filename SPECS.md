@@ -1,9 +1,10 @@
 # Specification — Unofficial Lexware Office MCP Server
 
 > **Status: 0.1.0 in progress.** Every tool of section 8 is built, tested and
-> exercised against a live account, and so is every module of section 4. What
-> holds a release back is section 16.1, how a user configures the server, and
-> CI, which does not exist — the roadmap in section 16 says which is which.
+> exercised against a live account, and so is every module of section 4,
+> including the configuration interface of section 7.1. What holds a release
+> back is CI, which does not exist, and packing the settings sample into the
+> wheel — the roadmap in section 16 says which is which.
 > Sections marked **(to verify)** rest on the public documentation and must be
 > confirmed against the live API before the corresponding code is written.
 > Only one such marker is left. Facts already checked against a live account
@@ -66,6 +67,9 @@ not this project. No Lexware logos, brand colors, or domains containing
 ## 4. Architecture
 
 ```
+a person          --browser/HTTP-->  configui/ (localhost, on request only)
+                                          |  writes .env and tools.json
+                                          v
 MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
                                               |
                      +------------------------+-----------------------+
@@ -92,6 +96,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
+| `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `profiles` named sets of permissions, `transfer` the export bundle, `pages` the four screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
@@ -683,6 +689,82 @@ outranks the installation, which is why the working directory sits above it.
 No secret is ever read from a versioned file. `config/.env` is gitignored and
 `config/.env.sample`, which is committed, holds no key.
 
+### 7.1 The configuration interface
+
+`benethos-lexware-office-mcp setup` serves four pages on `127.0.0.1` and opens
+a browser. It writes the same `.env` and `tools.json` the command line does,
+so the two are interchangeable and neither owns the files.
+
+**It is never part of the MCP server.** That process speaks JSON-RPC over
+stdio and stdout belongs to the protocol. This is a separate command, started
+by a person, that stops when they are done. The two share their configuration
+modules and nothing else.
+
+**Loopback only, with no option to bind anything else.** The pages have no
+login, which is defensible exactly as long as they cannot be reached from
+another machine — so the choice is refused rather than defaulted. Every
+state-changing request is guarded twice, because a page in another tab must
+not be able to rewrite credentials or permissions: the `Origin` or `Referer`
+has to be loopback, and a random token from a `SameSite=Strict` cookie has to
+come back in the form.
+
+**The pages are German.** This is the only surface a person reads, and
+Lexware Office is sold for German companies only — its own help centre rules
+out an Austrian or Swiss company as the account holder, so a language switch
+would be machinery for a case that does not exist. Code, comments and
+docstrings stay English, and so do the messages `config.py` raises: those are
+quoted into the page rather than translated, because a German paraphrase
+would be a second copy of a rule that lives in the code.
+
+| Page | What it answers |
+|---|---|
+| Übersicht | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
+| Zugangsdaten | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
+| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. |
+| Sichern und Übertragen | The export, and an import that shows what it would change before writing anything. |
+
+**Five answers to "where did this value come from", not three.** A real
+environment variable, the command line for the one setting it can name, the
+`.env` this interface writes to, *another* `.env` the search also reads, and
+the built-in default. The fourth exists because typing over such a value here
+would appear to work and change nothing.
+
+**What a tool costs is shown next to it.** Section 8 measures the tool list at
+around 2,025 characters per tool, sent on every request for the life of the
+server. The permissions page puts that number on each row and totals it live,
+because switching a tool on is a budget decision as well as a permission one
+and nothing else in the project makes that visible.
+
+**Profiles are a convenience, never a second policy.** A profile is a named
+list of enabled tool names, stored in `tool_profiles.json` beside the policy
+file it belongs to. Loading one fills in the checkboxes and stops there — the
+file is written when a person presses save, by the code that writes any other
+change. Two files with a say in what may be asked of a live accounting system
+would contradict section 9.2, which has one.
+
+A profile also records **which tools existed when it was written**. Without
+that, a tool that is off because somebody switched it off looks exactly like
+a tool that is off because it did not exist yet, and only the second is worth
+mentioning when a profile is loaded. A profile that never recorded it — one
+written by hand — says nothing rather than announcing every omission.
+
+**The export carries no key.** Settings, permissions and profiles travel in
+one JSON file; `LXO_MCP_API_KEY` is filtered on the way out *and* on the way
+back in, and the file states its absence in a field of its own rather than
+leaving it to be noticed. A file whose purpose is to leave the machine is the
+last place a credential belongs, and the second installation is usually a
+second account anyway.
+
+**An import writes nothing on the way in.** It is parsed, compared against
+what is here, and rendered as a list: which settings, which tools go on,
+which profiles get overwritten. A tool the file names that this installation
+does not have is reported and skipped rather than written into the policy
+file as a decision about something uncallable, and a tool the file is silent
+about keeps its current setting — an import completes a policy file, it does
+not replace one. Only a second request applies any of it. Permissions
+arriving from elsewhere were written for another account, which is why the
+preview names the one this installation is pointed at.
+
 ## 8. Tools
 
 Tool count is kept deliberately low. Descriptions and schemas are sent on
@@ -861,7 +943,7 @@ says exactly what is allowed, tool by tool. A preset is a way of writing many
 flags at once and nothing more.
 
 **Where the classification comes from.** The `@classify` decorator records
-`access`, `domain` and `effect` as the tool is defined, so
+`access`, `domain`, `effect` and `permanence` as the tool is defined, so
 `policy.known_tools()` cannot drift away from the code it describes — which a
 table maintained by hand somewhere else eventually would. It is **metadata,
 not permission**: nothing reads it when a call arrives. A script selects on
@@ -872,16 +954,32 @@ not permission**: nothing reads it when a call arrives. A script selects on
 destroys a record, and `delete_article` is the one tool carrying it. Section 5
 has the full inventory of what each write leaves behind, and it runs the other
 way round from the preset names: the tool marked irreversible is the only one
-whose result could be recreated exactly. What the step does not cover is a creation that cannot be taken back, and there are two: the API has
-no way to delete a bookkeeping voucher, so `create_voucher` and `upload_file`
-both leave something behind that only the web app can correct. They stay
+whose result could be recreated exactly. What the step does not cover is a
+creation that cannot be taken back, and there are five of those. They stay
 under `write`, because the alternative is to put ordinary bookkeeping behind
 a step named after deletion, and a preset that overstates its danger gets
-ignored rather than read. The command line and the README say it in words
-instead.
+ignored rather than read.
+
+**`permanence` is the axis that does say so**, added on 2026-08-21 when the
+configuration interface needed to warn about it and found the classification
+had no word for it. Three values, and the difference between the last two is
+the point:
+
+| Value | Meaning | Tools |
+|---|---|---|
+| `""` | the API can remove it again | everything else |
+| `"app"` | no call here removes it, but the web app deletes one without ceremony | `create_contact` |
+| `"law"` | the account owner may be required to keep it | `create_voucher`, `create_sales_document`, `upload_file`, `attach_file_to_voucher` |
+
+A missing route is a gap a later API version could close. A booked document
+is not: GoBD and § 146 AO want it unchanged and the remedy is a Storno rather
+than a deletion, whatever the API grows. Section 5 measures both. Like the
+rest of the classification this decides nothing — it is there so that an
+interface offering to switch these tools on can say which kind of permanent
+it means, and so that the command line and the README can say it in words.
 
 **The domain is the module the tool lives in**, for every tool without
-exception: `contacts`, `diagnostics`, `files`, `master_data`,
+exception: `articles`, `contacts`, `diagnostics`, `files`, `master_data`,
 `sales_documents`, `vouchers`. A tool that points at a sales document while
 doing something else — `download_document` fetches its PDF, `get_deeplink`
 builds a link to it — is grouped by what it does rather than by what it names,
@@ -967,23 +1065,21 @@ setting. The third
 step exists separately because deleting is its own decision — reachable, but
 only by naming it rather than by choosing the largest option. Everything it prints goes to stderr,
 because it shares an entry point with the server and stdout carries the
-JSON-RPC stream. A graphical version belongs to the configuration interface of
-section 16.1: a table grouped by domain, one toggle per row, `read` and
-`write` marked, irreversible effects flagged, and the connected organization
-shown at the top from `get_profile` — so it is never in doubt which account
-the permissions being granted apply to.
+JSON-RPC stream. The graphical version is the Rechte page of section 7.1:
+a table grouped by domain, one toggle per row, `read` and `write` marked,
+irreversible effects flagged, permanent ones flagged separately, and the
+connected organization shown at the top from `get_profile` — so it is never
+in doubt which account the permissions being granted apply to.
 
-**To do there as well: show what each tool costs in context.** A tool that is
-on is sent to the model on every single request, description and schemas
-alike, and section 8 measures that at around 2,050 characters per tool with
-`create_voucher` at more than double. Nothing in the server reports this
-today, so the cost of switching a tool on is invisible at the moment of
-switching it on. The interface is the place to put it: a per-row figure and a
-running total for everything currently enabled, so a policy can be chosen
-against a budget rather than against a guess. Characters are what can be
-counted honestly — a token count would need a tokenizer for a model this
-server does not know it is talking to, so if tokens are shown at all they are
-shown as an estimate and labelled as one.
+**It shows what each tool costs in context, which nothing else here does.** A
+tool that is on is sent to the model on every single request, description and
+schemas alike, and section 8 measures that at around 2,025 characters per
+tool with `create_sales_document` at more than double. The page carries a
+per-row figure and a running total that follows the checkboxes, so a policy
+can be chosen against a budget rather than against a guess. Characters are
+what can be counted honestly — a token count would need a tokenizer for a
+model this server does not know it is talking to, so the token figure beside
+them is labelled as an estimate and derived from a fixed ratio.
 
 ## 10. Client behaviour (`client.py`)
 
@@ -1557,28 +1653,27 @@ does not list them.
 
 **Phase 1 and phase 2 are complete.** Every read tool of section 8 exists,
 every resource group of section 4 is built, and every documented call is
-covered except the event subscriptions, which section 2 rules out. What holds
-a release back is no longer a tool: it is section 16.1, how a user configures
-the server at all, and CI, which does not exist.
+covered except the event subscriptions, which section 2 rules out. The
+configuration question of section 16.1 is answered too: `setup` serves the
+interface described in section 7.1. What is left before a release is CI,
+which does not exist, and shipping `config/.env.sample` inside the wheel.
 
 | Phase | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. The configuration rework of section 16.1 and CI are open. |
+| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, the configuration interface of section 7.1, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. CI is open, and so is packing the settings sample into the wheel. |
 | 0.2.0 | write tools, file upload, optimistic locking round trip | **done** — contacts, articles, bookkeeping vouchers, sales documents, receipt upload and voucher attachments are written, and the locking round trip works for the three resources the API lets you update |
 | 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
 | 0.4.0 | nothing identified. What was listed here — booking a voucher, and the ZUGFeRD and XRechnung download variants — turned out on 2026-08-21 to be one operation the API cannot perform and one that `download_document` and `download_file` already do through `file_format`. The phase stays as a placeholder for what a future API version adds. | empty |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
-Section 16.1 holds one design decision that has to be settled before a release,
-independently of the tool roadmap above.
+### 16.1 Answered: how a user configures the server
 
-### 16.1 Open: how a user configures the server
+**Settled on 2026-08-21 by building the interface**, the third of the four
+directions below. It is specified in section 7.1. The problem it was opened
+for is recorded here as it stood, because the reasoning is what the interface
+is answerable to.
 
-**To do before publishing.** The way settings and the API key are stored works
-for a clone on the developer's machine and falls apart for anyone installing
-the package. This has to be reworked rather than patched.
-
-**What is wrong today**
+**What was wrong**
 
 - A user installing from PyPI gets **no sample**. The wheel packs the package
   directory only, and `config/.env.sample` sits beside it, so the ten settings
@@ -1591,35 +1686,35 @@ the package. This has to be reworked rather than patched.
 - **Nothing says which file is in effect.** Five sources are merged, and a
   setting that appears not to work gives no hint whether it was overridden, or
   read from a file the user has forgotten about.
-- The failure a user meets first is therefore a server that starts, lists its
+- The failure a user met first was therefore a server that starts, lists its
   tools, and answers every one of them with "no API key".
 
-**Directions, to decide rather than to assume**
+**The four directions, and what became of them**
 
 - **Ship the sample in the wheel** and name its target path in the error
-  message. The smallest change, and it fixes the discoverability half.
+  message. **Still open**, and the one piece of this not yet done. The
+  interface makes it less urgent — a person who runs `setup` never needs the
+  sample — but a wheel that does not carry its own documentation of the
+  settings is still worth fixing.
 - **A command that writes the file**, creating the directory and refusing to
-  overwrite an existing one. Considered once and dropped, because it wrote
-  into the per-user directory while development wanted the clone. Both cases
-  now exist, so it is worth reconsidering with that distinction built in.
-- **A small local configuration interface.** A page served on localhost that
-  shows which settings are active and where each one came from, lets the key
-  be entered without going through a text file, and names the storage paths
-  explicitly. It would also be the natural place to manage the per-tool
-  policy of section 9.2, which the command line writes today — enabling a
-  tool that changes records deserves more friction than editing a line in a
-  file, and an interface can ask for confirmation where a text editor cannot.
-  Runs only when asked and never as part of the MCP server itself, since that
-  speaks stdio.
-- **A read-only diagnostic** as a smaller version of the same idea: report
-  every candidate path, whether it exists, and which value won, without ever
-  printing the key. Useful on its own, whatever else is chosen.
+  overwrite an existing one. **Superseded.** The interface writes it, and
+  writes it by merging rather than by overwriting, which is what the
+  objection to the original version was about.
+- **A small local configuration interface.** **Chosen and built.** See
+  section 7.1. It grew two things beyond the sketch: the context cost of each
+  tool, and permission profiles with an export that carries them to another
+  machine.
+- **A read-only diagnostic** as a smaller version of the same idea. **Built
+  as the Übersicht page** rather than as a separate command: every candidate
+  file, whether it exists, which value won and where it came from, without
+  ever printing the key.
 
-**Constraints that hold regardless.** The key never enters a versioned file
-and never appears in output. A real environment variable keeps outranking
-every file, because that is what lets a client, a container or a test override
-the lot. Whatever is built must work for both an installed package and a
-clone, and say plainly which of the two it is acting on.
+**Constraints that held, and were kept.** The key never enters a versioned
+file and never appears in output — the interface neither displays it back nor
+puts it in an export. A real environment variable still outranks every file,
+and the page marks a setting it would be pointless to type over. The
+interface works for an installed package and for a clone, and names the file
+it is acting on rather than leaving it to be inferred.
 
 ### Open questions
 

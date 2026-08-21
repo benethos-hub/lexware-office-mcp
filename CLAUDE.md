@@ -19,7 +19,13 @@ How to work in this repository. Read this before making changes. See
    - `.\.venv\Scripts\python.exe ...` (PowerShell)
    - `.venv/Scripts/python.exe ...` (Bash on Windows)
 3. **English in the repo.** All code, comments, docstrings and documentation
-   are English. Conversation with the user may be German.
+   are English. Conversation with the user may be German. **One exception,
+   and only one:** the text a person reads on screen in `configui/` is
+   German, because that interface has exactly one audience and Lexware Office
+   is sold for German companies only. Code, comments and docstrings there are
+   English like everywhere else, and a message raised outside `configui/` is
+   quoted into the page rather than translated — a German paraphrase would be
+   a second copy of a rule that lives in the code.
 4. **stdio is sacred.** stdout carries the MCP JSON-RPC stream. Never
    `print()` to stdout from server or library code, log to **stderr** only.
 5. **One rate limiter.** Every outbound request passes the single
@@ -64,6 +70,10 @@ src/benethos_lexware_office_mcp/
   resources.py    # downloads published as MCP resources for the client
   rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
   errors.py       # ToolError hierarchy
+  envfile.py      # reading and writing a .env, comments left alone
+  configui/       # the local configuration interface, `setup` serves it
+                  # render, state, cost, probe, profiles, transfer,
+                  # pages, app - never part of the MCP server process
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
@@ -93,10 +103,12 @@ new HTTP call goes in `client.py`, never in a tool function.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds.
 5. Classify it with `@classify(access, domain)` — `read` or `write`, plus
-   the group it belongs to, and `effect` for a write tool. That is metadata
-   for whoever writes the policy file, never a permission: the file alone
-   decides. A new tool is **off** until the file names it, so run `--tools`
-   after adding one, or it will not appear.
+   the group it belongs to, `effect` for a write tool, and `permanence` when
+   what it writes cannot be removed through the API: `"app"` when only the
+   web app can delete it, `"law"` when the account owner may be obliged to
+   keep it. That is metadata for whoever writes the policy file, never a
+   permission: the file alone decides. A new tool is **off** until the file
+   names it, so run `--tools` after adding one, or it will not appear.
 6. Record its API call cost in the tool table in SPECS.md section 8.
 7. Add offline tests. Never hit the network in the suite.
 
@@ -168,6 +180,14 @@ measurement of what the whole list costs.
   ```
 - After changing tool signatures or docstrings, **fully restart Claude
   Desktop** (quit from the tray, not just close the window) to reload the tools.
+- The configuration interface renders without a browser, so a change to a
+  page can be read as text:
+  ```
+  uv run benethos-lexware-office-mcp setup --no-browser --port 8790       --env-file scratch/.env --tools-file scratch/tools.json
+  ```
+  Point it at scratch files rather than at your own configuration - it
+  writes what it is told to write. Its tests cover the pages and the routes,
+  so a rendering change that matters should fail one of them first.
 
 **The gates above do not cover the upstream API changing.** The suite mocks
 HTTP completely and stays green through any change in Lexware's field names or

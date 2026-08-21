@@ -52,10 +52,13 @@ The server points at a real accounting system, so the defaults are cautious.
 - **Nothing is enabled until you say so.** A fresh installation has no
   policy file, and a server without one offers no tools at all. What this
   server may do is a decision somebody made, never a default that happened.
-- **One flag per tool**, in a JSON file you write with `--tools` and edit by
-  hand. Not a level, not a group: `create_contact` on and `upload_file` off is
-  an ordinary thing to want, and there is no combination the file cannot
-  express.
+- **One flag per tool**, in a JSON file you write with `--tools`, tick
+  through `setup`, or edit by hand. Not a level, not a group:
+  `create_contact` on and `upload_file` off is an ordinary thing to want, and
+  there is no combination the file cannot express.
+- **What a tool costs you is visible while you decide.** Every enabled tool
+  is sent to the assistant on every request, and the permissions page puts
+  that number on each row.
 - The file is checked twice, once when the tool list is built and again when a
   call arrives, so a stale tool list on the client cannot slip past it.
 - The API key is never logged, never returned in a tool result, and redacted
@@ -202,8 +205,19 @@ There is no PyPI release yet, so this means cloning the repository. With
 git clone https://github.com/benethos-hub/lexware-office-mcp
 cd lexware-office-mcp
 uv sync
-cp config/.env.sample config/.env    # then put your API key in it
 ```
+
+Then configure it in a browser:
+
+```bash
+uv run benethos-lexware-office-mcp setup
+```
+
+That opens the interface described under
+[Configuring it in a browser](#configuring-it-in-a-browser): key, settings and
+one checkbox per tool. Everything it does can also be done by hand — copy
+`config/.env.sample` to `config/.env`, put the key in it, and use `--tools` as
+described below.
 
 Check that it works:
 
@@ -232,10 +246,57 @@ involved:
 Restart Claude Desktop fully — quit it from the tray rather than closing the
 window — so the tool list is reloaded.
 
+## Configuring it in a browser
+
+```bash
+benethos-lexware-office-mcp setup
+```
+
+Four pages on `127.0.0.1`, in German, closed with Ctrl+C. They write the same
+files the command line does, so you can use either or both.
+
+**Übersicht** — which `.env` and which `tools.json` are actually in effect,
+what every setting resolves to and where that value came from, whether each
+file exists yet, how many tools are on and what they cost. A connection test
+on the button, never on page load.
+
+**Zugangsdaten** — the API key, checked against the API before it is saved
+unless you say otherwise, and the settings that are not secret. The key is
+never shown back to you, never logged and never exported. If an environment
+variable is setting it, the page says so, because that would override
+whatever you save.
+
+**Rechte** — one checkbox per tool, grouped, with the presets as buttons.
+Each row carries what that tool costs the assistant in context, and the total
+follows your ticks: every enabled tool is sent to the model on **every**
+request, so switching one on is a budget decision as well as a permission
+one. Writing tools are marked, and the ones whose result the API cannot take
+back are marked separately — deleting an article is undoable by creating it
+again, while a booked voucher stays.
+
+Profiles live here too. Save the current selection under a name, load it
+later. Loading only fills the boxes: nothing reaches `tools.json` until you
+press save. They are stored in `tool_profiles.json` beside the policy file.
+
+**Sichern und Übertragen** — one JSON file with the settings, the permissions
+and every profile, to carry to another machine. **Your API key is not in it**
+and cannot be put in it. An import shows what it would change before writing
+anything: which settings, which tools go on, which profiles get overwritten.
+
+Two things worth knowing. It **binds `127.0.0.1` and nothing else** — the
+pages have no password, which is only defensible while they cannot be reached
+from another machine, so there is no option to change it. And it is a
+**separate command**: the MCP server never serves HTTP, and a client such as
+Claude Desktop starts that one, not this.
+
+`--port N` moves it, `--no-browser` only prints the address, and `--env-file`
+and `--tools-file` say which files it edits. Unlike everywhere else those
+files do not have to exist yet.
+
 ## Switching individual tools off
 
-One JSON file decides what this server offers, and nothing else does. Start
-it with
+One JSON file decides what this server offers, and nothing else does. Either
+tick the boxes under `setup` above, or start the file with
 
 ```
 benethos-lexware-office-mcp --tools read-only
@@ -297,10 +358,10 @@ client: most ask for the tool list once, when they start, and go on showing
 what they were told then. Claude Desktop is restarted by quitting it from the
 tray.
 
-Each tool also declares what it is — reading or writing, and which group it
-belongs to. That classification is what `--tools read-only` selects on, and
-what an interface would group by. It never decides a call: only the file
-does.
+Each tool also declares what it is — reading or writing, which group it
+belongs to, and whether what it writes can be removed again. That
+classification is what `--tools read-only` selects on and what the browser
+interface groups and marks by. It never decides a call: only the file does.
 
 ## Configuration
 
@@ -315,7 +376,11 @@ client's configuration carries its own account and its own permissions:
 ```
 
 A path that does not exist is refused rather than quietly falling back to the
-search.
+search — except under `setup`, which exists partly to create one.
+
+`setup` writes this file for you and shows which of the sources below each
+value is coming from, which is the quickest way to answer "why is this
+setting being ignored".
 
 | Variable | Meaning | Default |
 |---|---|---|
