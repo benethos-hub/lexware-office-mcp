@@ -1877,13 +1877,19 @@ order:
    owner as well. Merges are squash or rebase, the history stays linear, and a
    merged branch deletes itself. Nothing is written to `main` directly any
    more.
-2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds three
+2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds four
    jobs: `lint` (`ruff check`, the format check, `mypy` and `uv lock --check`),
-   `test` across the Python matrix of section 6 with the coverage floor, and
+   `test` across the Python matrix of section 6 with the coverage floor,
    `fresh-install`, which builds the wheel, installs it with no lockfile
    involved and asserts that an installation without a policy file offers no
    tools at all - the rule of section 9.2, which no offline test reaches
-   because every one of them writes a policy file first. Every job passes with
+   because every one of them writes a policy file first - and `docker`, which
+   builds the image and asserts the same rule against the artefact people
+   actually run: the container generates its own bearer token, refuses a
+   request that does not carry it, and answers `tools/list` with nothing. It
+   also fails the build if a plain `up` would start the configuration
+   interface, which belongs behind its profile. Only `linux/amd64` is built,
+   because nothing publishes a second architecture yet. Every job passes with
    no key, no network and no account, see section 14.1.
    `.github/dependabot.yml` asks weekly about the dependency ranges and the
    pinned actions.
@@ -1925,7 +1931,7 @@ suggested they were.
 | Release | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
-| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end. What is left is the `docker` job in CI and adding it to the required checks, see the note under item 2 |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end and guarded by the `docker` job in CI. What is left is adding that job to the required checks, which can only happen once it has run, see the note under item 2 |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
 **There is no numbered release between 0.2.0 and whatever a future API
