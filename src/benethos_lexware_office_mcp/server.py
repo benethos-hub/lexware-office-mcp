@@ -57,6 +57,9 @@ logger = logging.getLogger(__name__)
 # bytes of JSON at that rate is nothing.
 POLICY_POLL_SECONDS = 2.0
 
+# Sent once, when a session starts, rather than with every request the way a
+# tool description is. That is the whole reason there is room here for what
+# holds across tools instead of inside one of them.
 _INSTRUCTIONS = """\
 Access to a Lexware Office account through its public API. The account owner
 decides which of these tools exist, so the list is the whole of what is
@@ -68,6 +71,18 @@ id from the result. search_vouchers is the only way to find a document at all,
 so a question about invoices, credit notes or what is still unpaid starts
 there. Monetary values are returned exactly as the API reports them, always
 with their currency.
+
+These are somebody's books, and a tool without readOnlyHint changes them for
+real. Before the first such call in a session, call get_profile and name the
+company you are about to write to. Most of what this API creates it cannot
+remove again, so say what a call will leave behind before making it, and make
+it once - there is no idempotency key, and a repeated create is a second
+record rather than the same one.
+
+Every call spends from one budget of two requests per second, shared across
+all endpoints. One search with the right filter is worth several fetches, and
+a list answers in pages: read the page block of a result before asking for
+another one.
 """
 
 

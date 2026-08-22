@@ -902,20 +902,46 @@ every request, so a wide surface is paid for continuously. Related endpoints
 are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
-**What the tool list actually costs, measured 2026-08-21.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **50,805
-characters**, around 2,032 each. Roughly 13,000 to 15,000 tokens, estimated
-at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
+**What the tool list actually costs, measured 2026-08-21 and again on
+2026-08-22 with the annotations below.** Serialized as the compact JSON a
+`tools/list` answer is, twenty-five tools come to **52,221 characters**,
+around 2,089 each. Roughly 13,000 to 15,000 tokens, estimated at 3.2 to 3.8
+characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,469 | 66% |
+| Input schemas | 33,469 | 64% |
 | Tool descriptions, the part under a ceiling | 10,890 | 21% |
-| Output schemas | 4,340 | 9% |
+| Output schemas | 4,340 | 8% |
+| Annotations | 1,041 | 2% |
 | Names, titles and the rest | ~2,092 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
+
+**Annotations, and why they cost what they cost.** Every tool carries the MCP
+hints, derived in `tools/_base.py` from what `@classify` already recorded
+rather than written out per tool: a tool cannot then say one thing to the
+policy file and another to a client. `read_only_hint` follows `access`.
+`destructive_hint` is false for a create, which only adds, and true for an
+update or a delete - this API replaces a record rather than patching it.
+`idempotent_hint` is the same distinction seen from the other side: a second
+create is a second record, since there is no idempotency key (question 2,
+section 16), while a repeated update spends a version it no longer has and a
+repeated delete finds nothing left, so neither changes the books twice.
+
+`open_world_hint` is the one stated only where it differs from the protocol's
+assumption, which is `get_deeplink` and `read_download` - the two tools that
+answer without reaching the API. Stating it on the other twenty-three would
+have cost 483 characters to repeat a default. The three hints above are
+stated either way, including where they match the default: a client that does
+not fill defaults in would otherwise read "this deletes things" as nothing at
+all, and that is not a saving worth 900 characters.
+
+These are hints, and the protocol says a client must not make tool-use
+decisions on them from a server it does not trust. Nothing here enforces
+anything - the policy file of section 9 does that, twice, and neither gate
+consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
