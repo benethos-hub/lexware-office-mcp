@@ -1889,9 +1889,10 @@ order:
    Trusted Publishing, so no token is stored here. It needs a pending
    publisher on PyPI first, whose five fields the workflow header spells out.
    **The release itself:** a `release/X.Y.Z` branch that moves the CHANGELOG
-   `[Unreleased]` section to a numbered one with its compare links and brings
-   the README's installation instructions in line, then a tag and a GitHub
-   release on the merged commit, which is what triggers the upload.
+   `[Unreleased]` section to a numbered one with its compare links, bumps the
+   version pin in the README's client example, and brings the installation
+   instructions in line, then a tag and a GitHub release on the merged commit,
+   which is what triggers the upload.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
