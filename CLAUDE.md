@@ -76,6 +76,7 @@ src/benethos_lexware_office_mcp/
   resources.py    # downloads published as MCP resources for the client
   rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
   errors.py       # ToolError hierarchy
+  transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
   configui/       # the local configuration interface, `setup` serves it
                   # render, state, cost, probe, profiles, transfer,

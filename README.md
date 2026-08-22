@@ -539,12 +539,58 @@ startup rather than turning into an API error later.
 
 ## Transport
 
-The first releases speak **stdio** only, which is what Claude Desktop and
-comparable local clients use. An HTTP transport is planned for 0.2.0 and will
-ship with its own bearer authentication in front of the API key, because
-anyone who can reach an unprotected port could otherwise spend your Lexware
-credentials. Until that authentication exists, HTTP stays unavailable rather
-than insecure.
+**stdio** is the default and what Claude Desktop and comparable local clients
+use: the client starts the server as its own child process, and nothing else
+can talk to it.
+
+**streamable-HTTP** and **SSE** serve the same tools on a port, for a
+container or a machine of their own:
+
+```bash
+uvx benethos-lexware-office-mcp --transport streamable-http --port 8770
+```
+
+Two things stand in front of that port, and neither is optional. A **bearer
+token** every request must carry as `Authorization: Bearer <token>` — without
+`LXO_MCP_BEARER_TOKEN` the server refuses to start an HTTP transport at all,
+because anyone who can reach the port could otherwise spend your Lexware
+credentials. And the SDK's **DNS-rebinding guard**, which checks `Host` and
+`Origin` against an allowlist of the loopback names, extended by
+`--allowed-hosts` where a container or a proxy puts another name in front.
+
+Neither makes the port safe to publish on a network. They make it survivable
+on a machine shared with other processes. `--host` binds somewhere other than
+loopback, which a container has to do — see [In a container](#in-a-container)
+for why that is not the relaxation it looks like.
+
+## In a container
+
+```bash
+docker compose up -d                      # the server, on 127.0.0.1:8770
+docker compose --profile setup up -d      # add the configuration interface
+```
+
+Open <http://127.0.0.1:8771/>, enter the key, tick the tools, then
+`docker compose --profile setup down`. The interface is behind a profile
+because it has no login and it takes an API key, so it is meant to run for
+the minutes it is needed rather than permanently.
+
+**Nothing has to be prepared first.** On its first start the server makes a
+bearer token, writes it into the config volume and says so — the interface
+shows it, and that is the value a client needs. It is not baked into the
+image, where every copy would share it.
+
+**The container binds `0.0.0.0`, and that is not a relaxation.** A process on
+the container's own loopback cannot be reached through a published port at
+all. The isolation is the network namespace, and who may reach the port is
+decided by the publish, which maps `127.0.0.1` only.
+
+**A setting saved in the browser reaches the running server.** Settings are
+read once at startup, so the container is told to end when its settings file
+changes and Compose starts it again a second later. What Compose pins as real
+environment variables — the transport, the bind address, the port, the allowed
+hosts — belongs to the container and cannot be changed from the volume, see
+[Configuration](#configuration).
 
 ## Example prompts
 

@@ -1,9 +1,11 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0, the first release.** Every tool of section 8 is built,
+> **Status: 0.1.0 released, 0.2.0 in progress.** Every tool of section 8 is built,
 > tested and exercised against a live account, and so is every module of
-> section 4, including the configuration interface of section 7.1. The
-> roadmap in section 16 says what 0.2.0 is for.
+> section 4, including the configuration interface of section 7.1. The HTTP
+> transport, the container image and the Compose file of 0.2.0 are built and
+> driven in Docker but not released - the roadmap in section 16 says what is
+> left.
 > Sections marked **(to verify)** rest on the public documentation and must be
 > confirmed against the live API before the corresponding code is written.
 > Only one such marker is left. Facts already checked against a live account
@@ -98,6 +100,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
+| `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
@@ -770,7 +773,7 @@ without a restart is the *content* of that file, read fresh on every question:
 only its identity is fixed.
 
 **The two can still disagree, and only one direction can fix it from here.**
-A client usually starts the server with `--env-file` and `--tools-file`;
+A client usually starts the server with `--env-file` and `--tools-file`, and
 `setup` is started separately and cannot see those arguments. So the overview
 prints the `"args"` entry that would make the client match the files this
 interface holds, and names the other way round as well — starting `setup`
@@ -1802,7 +1805,8 @@ Built, tested offline and exercised against a live test account:
 - **every module in the table of section 4.** None is marked planned any
   more. The table is the list, so that this does not become a second one to
   keep in step.
-- twenty-five tools over the **stdio** transport, in seven groups. Reading:
+- twenty-five tools in seven groups, over **stdio** and, since 0.2.0, over
+  **streamable-HTTP** or **SSE** behind a required bearer token. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
   `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
   `get_sales_document`, `get_recurring_templates`, `get_master_data`,
@@ -1826,6 +1830,11 @@ Built, tested offline and exercised against a live test account:
   before it is written, and one checkbox per tool with what it costs the
   model in context, permission profiles and the policy file as a download.
   Never part of the server process, loopback only, see section 7.1
+- **a container image and a Compose file**, two stages, non-root, 168 MB. The
+  server on a loopback-published port and the configuration interface behind a
+  `setup` profile on the same volume. A bearer token made on first start
+  rather than baked in, and a process that ends when its settings file changes
+  so the new ones take effect, see section 6
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
@@ -1916,7 +1925,7 @@ suggested they were.
 | Release | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
-| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **next**, once 0.1.0 is out |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end. What is left is the `docker` job in CI and adding it to the required checks, see the note under item 2 |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
 **There is no numbered release between 0.2.0 and whatever a future API
