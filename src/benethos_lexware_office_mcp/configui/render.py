@@ -76,6 +76,10 @@ _CSS = """
   .grp h3 { margin: .4rem 0; font-size: 1rem; display: flex;
             justify-content: space-between; align-items: center; gap: .6rem;
             flex-wrap: wrap; }
+  details.grp > summary { font-size: 1rem; font-weight: 700; cursor: pointer;
+            padding: .3rem 0; }
+  details.grp > summary .count { font-weight: 400; color: #666;
+            font-size: .85rem; }
   .grp .acts button { font-size: .78rem; padding: .15rem .5rem; }
   .tool { display: flex; align-items: center; gap: .5rem; padding: .15rem 0; }
   .tool .cost { margin-left: auto; font-size: .78rem; color: #666;

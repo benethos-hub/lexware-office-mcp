@@ -354,6 +354,37 @@ def test_a_loaded_profile_overrides_the_file_without_writing(
     assert 'value="get_profile" id="get_profile">' in body
 
 
+def test_both_side_blocks_start_folded(inst: Installation) -> None:
+    """The tool list is the point of the page. These two are not."""
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    body = text(pages.permissions(inst))
+
+    assert body.count("<details") == 2
+    assert '<details class="grp" open>' not in body
+    assert "Profile <span" in body
+    assert "Rechtedatei: Import und Export" in body
+
+
+def test_a_block_unfolds_when_its_own_action_answered(inst: Installation) -> None:
+    """A refusal that hides the field it is about helps nobody."""
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    body = text(pages.permissions(inst, opened="profiles"))
+
+    assert body.count(" open>") == 1
+    assert body.index(" open>") < body.index("Rechtedatei: Import und Export")
+
+
+def test_the_folded_profile_block_still_says_how_many(inst: Installation) -> None:
+    assert "— noch keine" in text(pages.permissions(inst))
+
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    assert "— 1 gespeichert" in text(pages.permissions(inst))
+
+
 def test_saved_profiles_are_offered(inst: Installation) -> None:
     inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
 

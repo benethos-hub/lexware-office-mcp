@@ -304,11 +304,14 @@ def permissions(
     csrf: str = "",
     message: str = "",
     flags: dict[str, bool] | None = None,
+    opened: str = "",
 ) -> bytes:
     """One checkbox per tool, what it costs, and the saved profiles.
 
     ``flags`` overrides what the file says, which is how a loaded profile
-    fills the form without anything being written yet.
+    fills the form without anything being written yet. ``opened`` names the
+    folded block to show unfolded, so an action's answer arrives beside the
+    controls it is about.
 
     With no policy file at all the boxes open on **read-only** rather than on
     nothing. A blank form is a poor starting point for a decision, and this
@@ -373,8 +376,8 @@ def permissions(
    <code>{esc(str(inst.settings.policy_file()))}</code>.</p>
 
 <form method="post" action="/permissions" id="permform">{_csrf(csrf)}
-  {_profile_bar(inst)}
-  {_policy_transfer(inst)}
+  {_profile_bar(inst, opened == "profiles")}
+  {_policy_transfer(inst, opened == "policy")}
   {_legend()}
   <p>
     <button type="button" data-act="all-on">alles an</button>
@@ -476,12 +479,22 @@ def _permanence_badge(kind: str) -> str:
     return f'<span class="tag keep" title="{esc(title)}">{esc(text)}</span>'
 
 
+def _open(opened: bool) -> str:
+    """A block starts open when the last action was about it.
+
+    A refusal that hides the control it is about would be the worst of both:
+    the message says the name is taken, and the field to change it is folded
+    away.
+    """
+    return " open" if opened else ""
+
+
 def _saved_at(profile: Profile) -> str:
     """The tooltip on a profile: when it was written, if it says."""
     return f"gespeichert: {profile.saved}" if profile.saved else "ohne Zeitstempel"
 
 
-def _profile_bar(inst: Installation) -> str:
+def _profile_bar(inst: Installation, opened: bool = False) -> str:
     saved = inst.profiles.all()
     if saved:
         options = "".join(
@@ -505,8 +518,8 @@ def _profile_bar(inst: Installation) -> str:
             "Auswahl.</p></div>"
         )
     return f"""
-<div class="grp">
-  <h3>Profile</h3>
+<details class="grp"{_open(opened)}>
+  <summary>Profile <span class="count">{_profile_count(saved)}</span></summary>
   <p class="hint">Ein Profil ist eine benannte Auswahl, keine zweite
      Rechtedatei. Laden füllt nur die Haken — geschrieben wird erst mit
      „Rechte speichern". Ein vorhandenes Profil wird oben überschrieben,
@@ -520,11 +533,16 @@ def _profile_bar(inst: Installation) -> str:
              placeholder="z. B. Steuerberater, nur lesend"></div>
     <button type="submit" name="action" value="profile-save">Neu anlegen</button>
   </div>
-</div>
+</details>
 """
 
 
-def _policy_transfer(inst: Installation) -> str:
+def _profile_count(saved: dict[str, Profile]) -> str:
+    """What the collapsed summary still has to say."""
+    return f"— {len(saved)} gespeichert" if saved else "— noch keine"
+
+
+def _policy_transfer(inst: Installation, opened: bool = False) -> str:
     """The policy file itself, out and in.
 
     Folded away behind a summary: it is the rarest thing on this page, and a
@@ -545,8 +563,8 @@ def _policy_transfer(inst: Installation) -> str:
         "Einmal speichern legt sie an.</p>"
     )
     return f"""
-<div class="grp">
-  <h3>Rechtedatei mitnehmen oder einlesen</h3>
+<details class="grp"{_open(opened)}>
+  <summary>Rechtedatei: Import und Export</summary>
   {export}
   <p><input type="file" id="policyfile" accept="application/json,.json"></p>
   <textarea name="bundle" rows="5"
@@ -556,7 +574,7 @@ def _policy_transfer(inst: Installation) -> str:
   <span class="hint">Setzt nur die Haken. Tools, die die Datei nicht nennt,
      bleiben aus — wie <code>--tools sync</code> auf der Kommandozeile.
      Geschrieben wird erst mit „Rechte speichern".</span></p>
-</div>
+</details>
 <script>
 (function () {{
   var pick = document.getElementById('policyfile');

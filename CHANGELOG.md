@@ -373,7 +373,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   `tools.json` until save is pressed. Profiles live in `tool_profiles.json`
   beside the policy file they belong to. Creating one under a name that is
   already taken is refused — case and spacing do not make a second profile —
-  and replacing one is its own button beside the list.
+  and replacing one is its own button beside the list. The profile block and
+  the import and export block are both folded away by default, so the tool
+  list stays the page, and a block unfolds itself when it has something to
+  answer.
 - **A policy file can be downloaded and read back in.** The download is
   `tools.json` as it stands, with no wrapper around it, so it works on
   another installation with or without this interface — and a file written

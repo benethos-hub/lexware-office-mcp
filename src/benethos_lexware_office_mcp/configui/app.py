@@ -382,13 +382,18 @@ class Handler(BaseHTTPRequestHandler):
                 "auswählen und überschreiben, oder einen anderen Namen nehmen.",
                 kind="bad",
                 flags=_flags(chosen),
+                opened="profiles",
             )
             return
         try:
             profile = inst.profiles.save(name, chosen, known_tools())
         except ProfileError as exc:
             self._page_with(
-                pages.permissions, str(exc), kind="bad", flags=_flags(chosen)
+                pages.permissions,
+                str(exc),
+                kind="bad",
+                flags=_flags(chosen),
+                opened="profiles",
             )
             return
         except OSError as exc:
@@ -397,6 +402,7 @@ class Handler(BaseHTTPRequestHandler):
                 f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
                 kind="bad",
                 flags=_flags(chosen),
+                opened="profiles",
             )
             return
         self._page_with(
@@ -405,6 +411,7 @@ class Handler(BaseHTTPRequestHandler):
             "Die Rechtedatei selbst ist unverändert.",
             kind="good",
             flags=_flags(chosen),
+            opened="profiles",
         )
 
     def _overwrite_profile(self, form: dict[str, list[str]], chosen: list[str]) -> None:
@@ -417,6 +424,7 @@ class Handler(BaseHTTPRequestHandler):
                 f"Kein Profil namens {name}.",
                 kind="bad",
                 flags=_flags(chosen),
+                opened="profiles",
             )
             return
         try:
@@ -427,6 +435,7 @@ class Handler(BaseHTTPRequestHandler):
                 f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
                 kind="bad",
                 flags=_flags(chosen),
+                opened="profiles",
             )
             return
         self._page_with(
@@ -435,6 +444,7 @@ class Handler(BaseHTTPRequestHandler):
             "Die Rechtedatei selbst ist unverändert.",
             kind="good",
             flags=_flags(chosen),
+            opened="profiles",
         )
 
     def _delete_profile(self, form: dict[str, list[str]]) -> None:
@@ -444,6 +454,7 @@ class Handler(BaseHTTPRequestHandler):
             pages.permissions,
             f"Profil {name} gelöscht." if gone else f"Kein Profil namens {name}.",
             kind="good" if gone else "bad",
+            opened="profiles",
         )
 
     # --- carrying the policy file ----------------------------------------
@@ -469,7 +480,11 @@ class Handler(BaseHTTPRequestHandler):
             arriving = transfer.parse(text)
         except transfer.TransferError as exc:
             self._page_with(
-                pages.permissions, str(exc), kind="bad", flags=_flags(chosen)
+                pages.permissions,
+                str(exc),
+                kind="bad",
+                flags=_flags(chosen),
+                opened="policy",
             )
             return
 
@@ -499,6 +514,7 @@ class Handler(BaseHTTPRequestHandler):
                 csrf=self._session,
                 message=note(esc(text_out)),
                 flags=flags,
+                opened="policy",
             ),
         )
 
@@ -511,8 +527,13 @@ class Handler(BaseHTTPRequestHandler):
         *,
         kind: str = "",
         flags: dict[str, bool] | None = None,
+        opened: str = "",
     ) -> None:
-        extra = {"flags": flags} if flags is not None else {}
+        extra: dict[str, Any] = {}
+        if flags is not None:
+            extra["flags"] = flags
+        if opened:
+            extra["opened"] = opened
         self._send(
             200,
             render(

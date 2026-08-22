@@ -287,6 +287,7 @@ def test_a_name_that_is_taken_is_refused_rather_than_overwritten(
 
     assert "schon ein Profil" in note(body)
     assert "Nur Lesen" in note(body)
+    assert " open>" in body  # the field to change the name is not folded away
     assert list(installation.profiles.all()) == ["Nur Lesen"]
     assert installation.profiles.all()["Nur Lesen"].tools == ("get_profile",)
 
