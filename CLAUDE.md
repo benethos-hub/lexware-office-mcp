@@ -38,6 +38,12 @@ How to work in this repository. Read this before making changes. See
 6. **Secrets never travel.** The API key is never logged, never returned in a
    tool result, and redacted from error text. No real key, tenant ID,
    organization ID, voucher ID or customer record in any versioned file.
+   **Nor does a filesystem path of this machine.** Anything handed to the
+   client ends up in a model's context: a path carries a user name and a
+   directory layout, and the caller cannot act on it anyway. Say what to set
+   or which command to run, and let stderr name the file for the person
+   sitting at the machine. The one exception is a path the caller supplied
+   or asked for, such as a download's destination.
 7. **The repo stands on its own.** State a convention as this project's
    decision. Do not reference the author's other repositories, local
    filesystem paths, or email addresses in versioned files.

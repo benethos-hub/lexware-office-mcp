@@ -207,3 +207,23 @@ def test_a_real_environment_variable_still_wins(
     settings = C.load_settings(cwd=tmp_path, env_file=named)
 
     assert settings.page_size == 33
+
+
+def test_the_missing_key_message_names_no_path() -> None:
+    """It reaches the client, and from there a model's context.
+
+    Where the .env would go is a directory layout with a user name in it,
+    and nothing the caller can act on. The command names the file for the
+    person at the machine, who can.
+    """
+    from benethos_lexware_office_mcp.config import Settings
+    from benethos_lexware_office_mcp.errors import ConfigError
+
+    with pytest.raises(ConfigError) as excinfo:
+        Settings().require_api_key()
+
+    message = str(excinfo.value)
+    assert "LXO_MCP_API_KEY" in message
+    assert "setup" in message
+    assert "/" not in message.replace("`", "")
+    assert "\\" not in message

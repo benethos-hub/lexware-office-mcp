@@ -140,17 +140,29 @@ def test_the_gate_works_on_a_plain_function_too(restore_policy: object) -> None:
         sample_sync_tool()
 
 
-def test_the_refusal_names_the_file_to_change(restore_policy: object) -> None:
-    """A refusal that does not say where to fix it is an unhelpful one."""
+def test_the_refusal_names_the_tool_but_never_a_path(
+    restore_policy: object,
+) -> None:
+    """This message reaches the client, and from there a model's context.
+
+    Which tool was refused is what the caller can act on. Where the file
+    sits on somebody's disk is not, and it carries a user name and a
+    directory layout along with it.
+    """
 
     @classify("read", "diagnostics")
     def sample_named_tool() -> str:
         return "ran"
 
-    set_active_policy(ToolPolicy(__import__("pathlib").Path("nowhere/tools.json")))
+    set_active_policy(
+        ToolPolicy(__import__("pathlib").Path("/home/someone/secret/tools.json"))
+    )
 
     with pytest.raises(PermissionDeniedError) as excinfo:
         sample_named_tool()
 
-    assert "tools.json" in str(excinfo.value)
-    assert "sample_named_tool" in str(excinfo.value)
+    message = str(excinfo.value)
+    assert "sample_named_tool" in message
+    assert "someone" not in message
+    assert "tools.json" not in message
+    assert "/" not in message and "\\" not in message

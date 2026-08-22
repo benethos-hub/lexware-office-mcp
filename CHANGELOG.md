@@ -390,6 +390,14 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   interface says which file it writes to, creating it and its directory if
   needed, and warns when a real environment variable is set that would
   override whatever gets saved.
+- **No message hands the client a path from the server's machine.** A refusal
+  used to read "Set it to true in <the full path of the file>" and a missing
+  key named the directory the `.env` would go in. Both reach a model's
+  context, both carry a user name and a directory layout, and neither is
+  something the caller can act on. They now name the tool and the setting,
+  and leave the file to stderr and the configuration interface, which is
+  where somebody can actually change it. A download still answers with the
+  path it wrote to, since that is what the call was for.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet

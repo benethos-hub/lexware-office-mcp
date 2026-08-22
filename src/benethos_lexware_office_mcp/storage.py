@@ -89,7 +89,12 @@ def save(content: bytes, name: str, directory: Path) -> Path:
             return candidate
         if candidate.read_bytes() == content:
             return candidate
-    raise FileExistsError(f"Too many files already named like {name!r} in {directory}.")
+    # Without the directory: this message can reach the client, and where
+    # downloads land on somebody's disk is not the caller's business. The
+    # filename is theirs already - it came from the document they asked for.
+    raise FileExistsError(
+        f"Too many files already named like {name!r} in the download directory."
+    )
 
 
 def _candidates(name: str, directory: Path) -> Iterator[Path]:

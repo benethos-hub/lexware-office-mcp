@@ -236,10 +236,14 @@ class Settings:
         that actually reaches the API needs one.
         """
         if not self.api_key:
+            # Deliberately without the path of the .env: this message reaches
+            # the client and a model's context, where a directory layout is
+            # nothing anybody can act on. The command names the file on the
+            # machine, which is where somebody can.
             raise ConfigError(
-                "No API key. Set LXO_MCP_API_KEY, or put it in a .env file at "
-                f"{config_dir() / '.env'}. Create a key in Lexware Office under "
-                "Extensions, Public API."
+                "No API key configured for this server. Set LXO_MCP_API_KEY, "
+                "or run `benethos-lexware-office-mcp setup` on the machine "
+                "the server runs on."
             )
         return self.api_key
 

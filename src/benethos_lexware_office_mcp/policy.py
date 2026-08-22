@@ -285,10 +285,14 @@ def classify(
 
         def guard() -> None:
             if not _POLICY.enabled(name):
-                where = _POLICY.path or "the tool policy file"
+                # No path in this message. It travels to the client and from
+                # there into a model's context, and where a file sits on
+                # somebody's disk - user name, directory layout and all - is
+                # nothing the caller can act on. The person who can act on it
+                # is at the machine, where stderr already names the file.
                 raise PermissionDeniedError(
-                    f"{name} is not enabled for this installation. Set it to "
-                    f"true in {where}."
+                    f"{name} is not enabled for this installation. The account "
+                    "owner decides that in the server's tool policy."
                 )
 
         if inspect.iscoroutinefunction(func):

@@ -1378,6 +1378,14 @@ These rules are absolute for this repository.
   documentation, tests, commit messages or memory files.
 - Real tenant, organization, contact and voucher IDs never appear in versioned
   files. Documentation uses placeholders.
+- **No filesystem path of the host machine is handed to the client.** Every
+  message a tool returns reaches a model's context, and a path carries a user
+  name and a directory layout with it while telling the caller nothing it can
+  act on. A refusal names the tool and what to set, not the file; the person
+  who can edit the file is at the machine, where stderr and the configuration
+  interface both name it. The exception is a path the caller supplied or
+  asked for — `download_file` answers with where it wrote the bytes, which is
+  the point of calling it.
 - Downloaded documents are real business records. They go to the download
   directory, which is gitignored, and are never committed.
 - **What one installation is allowed to do is not a property of the code**,
