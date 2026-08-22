@@ -43,6 +43,15 @@ housekeeping are out of scope here — design decisions live in
   reach a running server without anyone opening a terminal. Off unless asked
   for, since ending is the whole of it where nothing restarts it. The image
   switches it on.
+- **The HTTP token is generated and managed where it is used.** A server
+  told to (`LXO_MCP_GENERATE_BEARER_TOKEN`, which the image sets) makes one
+  on first start — thirty-two random bytes into the settings file — so a
+  container needs no secret typed before it runs, and none is baked into the
+  image where every copy would share it. The configuration interface shows
+  it, saves a typed one and generates a fresh one on request. It refuses an
+  empty one: blank means unchanged for the API key, whose field is blank by
+  design, but the token field shows what is in force, so blank there could
+  only mean a server that stops serving.
 - **`setup` can bind an address other than loopback**, with `--host`. A
   container has to: a process on the container's own loopback cannot be
   reached through a published port. It says on stderr when it binds anything

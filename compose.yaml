@@ -32,11 +32,11 @@ services:
       - "127.0.0.1:8770:8770"
     restart: unless-stopped
     environment:
-      # **Required.** Without it the server refuses to start. Put it in a .env
-      # beside this file - compose reads that automatically - or export it:
-      #   LXO_MCP_BEARER_TOKEN=$(python -c "import secrets;print(secrets.token_urlsafe(32))")
-      # Compose fails with this message rather than starting something unguarded.
-      LXO_MCP_BEARER_TOKEN: ${LXO_MCP_BEARER_TOKEN:?set LXO_MCP_BEARER_TOKEN, an HTTP transport is not served without one}
+      # No bearer token here on purpose. The container makes one on first
+      # start and keeps it in the config volume, and the configuration
+      # interface shows and changes it. Setting it here would work - and
+      # would then beat the volume, so the page could no longer change it.
+      #
       # Owned by the container and pinned here, because `environment` beats
       # anything in the config volume: a .env that was written for local stdio
       # use cannot turn the container into something the published port cannot

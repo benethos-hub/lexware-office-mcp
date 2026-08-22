@@ -180,6 +180,11 @@ def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
     return candidates[0]
 
 
+def _flag(raw: str | None) -> bool:
+    """A switch from the environment. Absent is off, and so is anything odd."""
+    return (raw or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _env_lookup(
     cwd: Path | None = None, env_file: Path | None = None
 ) -> dict[str, str]:
@@ -254,6 +259,7 @@ class Settings:
     bearer_token: str | None = None
     allowed_hosts: tuple[str, ...] = ()
     exit_on_config_change: bool = False
+    generate_bearer_token: bool = False
 
     def policy_file(self) -> Path:
         """Where this process reads and writes its per-tool policy."""
@@ -315,12 +321,8 @@ def load_settings(
 
     # Only something that restarts the process may ask for this, so it is
     # off unless said otherwise. The container image says otherwise.
-    exit_on_change = (get("EXIT_ON_CONFIG_CHANGE") or "").lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
+    exit_on_change = _flag(get("EXIT_ON_CONFIG_CHANGE"))
+    generate_token = _flag(get("GENERATE_BEARER_TOKEN"))
 
     allowed = get("ALLOWED_HOSTS") or ""
     allowed_hosts = tuple(
@@ -359,4 +361,5 @@ def load_settings(
         bearer_token=bearer_token,
         allowed_hosts=allowed_hosts,
         exit_on_config_change=exit_on_change,
+        generate_bearer_token=generate_token,
     )

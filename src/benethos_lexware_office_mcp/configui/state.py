@@ -30,6 +30,12 @@ from .render import (
 
 __all__ = ["SETTING_KEYS", "Installation"]
 
+# The three settings with a form of their own, named here because the
+# lists below are built by leaving them out.
+API_KEY = "LXO_MCP_API_KEY"
+POLICY_KEY = "LXO_MCP_TOOL_POLICY"
+BEARER_KEY = "LXO_MCP_BEARER_TOKEN"
+
 # Every setting a person may see, in the order the settings sample introduces
 # them. The key is first because it is the one that has to be there.
 SETTING_KEYS: tuple[str, ...] = (
@@ -44,6 +50,7 @@ SETTING_KEYS: tuple[str, ...] = (
     "LXO_MCP_PAGE_SIZE",
     "LXO_MCP_PDF_PAGES",
     "LXO_MCP_LOG_LEVEL",
+    "LXO_MCP_BEARER_TOKEN",
 )
 
 # Editable on the credentials page. `LXO_MCP_TOOL_POLICY` is deliberately not:
@@ -51,11 +58,13 @@ SETTING_KEYS: tuple[str, ...] = (
 # from inside would swap the page's own subject out under it. The command line
 # says which one to work on, and the overview shows which one won.
 EDITABLE_KEYS: tuple[str, ...] = tuple(
-    key for key in SETTING_KEYS if key not in ("LXO_MCP_API_KEY", "LXO_MCP_TOOL_POLICY")
+    key
+    for key in SETTING_KEYS
+    # The key and the token have their own forms, one because it is
+    # never shown back and one because it must never be blank. The
+    # policy file is decided at start, see the overview page.
+    if key not in (API_KEY, POLICY_KEY, BEARER_KEY)
 )
-
-API_KEY = "LXO_MCP_API_KEY"
-POLICY_KEY = "LXO_MCP_TOOL_POLICY"
 
 
 @dataclass

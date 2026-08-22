@@ -18,6 +18,7 @@ import contextlib
 import dataclasses
 import functools
 import logging
+import secrets
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -36,7 +37,8 @@ from .config import (
     resolve_config_file,
     settings_sample,
 )
-from .errors import ConfigError
+from .envfile import update_env_file
+from .errors import ConfigError, register_secret
 from .policy import (
     Preset,
     ToolPolicy,
@@ -568,6 +570,7 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     if settings.transport != "stdio":
+        settings = _bearer_token_in_place(settings, _env_in_effect(named_env))
         try:
             require_bearer(settings)
         except ConfigError as exc:
@@ -591,6 +594,33 @@ def main(argv: list[str] | None = None) -> None:
     if watch is not None:
         logging.getLogger(__name__).info("Ending on a change to %s", watch.name)
     run_http(server, settings, watch=watch)
+
+
+def _bearer_token_in_place(settings: Settings, env_path: Path) -> Settings:
+    """Write a generated token into the settings file, if that was asked for.
+
+    A container has no one to type a secret before it starts, and refusing to
+    run would only invite a memorable one. Thirty-two random bytes beat any
+    of those, so where something is deployed rather than launched by hand the
+    server makes one and keeps it in the file it reads.
+
+    Nowhere else, and never silently: writing into a file a person maintains
+    is not something to do unasked, and the value never reaches the log. The
+    configuration interface shows it, because it has to be copied into a
+    client to be of any use.
+    """
+    if settings.bearer_token or not settings.generate_bearer_token:
+        return settings
+
+    token = secrets.token_urlsafe(32)
+    update_env_file(env_path, {"LXO_MCP_BEARER_TOKEN": token})
+    register_secret(token)
+    logging.getLogger(__name__).warning(
+        "No bearer token was set, so one was generated and written to %s. "
+        "The configuration interface shows it - a client needs it to connect.",
+        env_path.name,
+    )
+    return dataclasses.replace(settings, bearer_token=token)
 
 
 def _env_in_effect(named: Path | None) -> Path:

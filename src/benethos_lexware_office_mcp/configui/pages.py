@@ -27,7 +27,13 @@ from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
 from .probe import Account, last_account
 from .profiles import Profile
 from .render import esc, note, page, source_badge
-from .state import API_KEY, EDITABLE_KEYS, SETTING_KEYS, Installation
+from .state import (
+    API_KEY,
+    BEARER_KEY,
+    EDITABLE_KEYS,
+    SETTING_KEYS,
+    Installation,
+)
 
 __all__ = ["credentials", "overview", "permissions"]
 
@@ -56,6 +62,7 @@ _SETTING_LABELS: dict[str, str] = {
     "LXO_MCP_PAGE_SIZE": "Zeilen je Seite",
     "LXO_MCP_PDF_PAGES": "PDF-Seiten je Ansicht",
     "LXO_MCP_LOG_LEVEL": "Protokollstufe",
+    "LXO_MCP_BEARER_TOKEN": "HTTP-Token",
 }
 
 # What the API cannot take back, and what that actually means for the record.
@@ -130,6 +137,12 @@ def _resolved(inst: Installation) -> dict[str, str]:
         "LXO_MCP_PAGE_SIZE": str(settings.page_size),
         "LXO_MCP_PDF_PAGES": str(settings.pdf_pages),
         "LXO_MCP_LOG_LEVEL": settings.log_level,
+        # A state, not a value: the overview is the page someone
+        # screenshots. The credentials page shows the token itself,
+        # where it exists to be copied.
+        "LXO_MCP_BEARER_TOKEN": (
+            "gesetzt" if settings.bearer_token else "nicht gesetzt"
+        ),
     }
 
 
@@ -296,6 +309,27 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
      <span class="hint">Sonst wird der Schlüssel erst gegen die API geprüft
      und nur bei Erfolg geschrieben.</span></p>
   <p><button type="submit">Schlüssel speichern</button></p>
+</form>
+
+<h2>HTTP-Token</h2>
+<p class="hint">Nur für den HTTP-Transport. Über stdio startet der Client den
+   Server selbst, da kann niemand sonst mit ihm sprechen — über einen Port
+   schon, und dahinter liegt der Zugang zu echten Buchhaltungsdaten. Ohne
+   Token startet der Server den HTTP-Transport nicht.</p>
+<p class="hint">Dieses Token steht im Klartext, anders als der API-Schlüssel:
+   es muss in die Konfiguration des Clients kopiert werden, sonst nützt es
+   niemandem.</p>
+<form method="post" action="/bearer">{_csrf(csrf)}
+  <label class="fld" for="bearer">Token <code>{esc(BEARER_KEY)}</code>
+    {source_badge(inst.source_of(BEARER_KEY), inst.source_detail(BEARER_KEY))}</label>
+  <input type="text" id="bearer" name="bearer" autocomplete="off"
+         value="{esc(inst.file_env().get(BEARER_KEY, ""))}"
+         placeholder="noch keins">
+  <p><button type="submit" name="action" value="save">Token speichern</button>
+     <button type="submit" name="action" value="generate">Neu erzeugen</button></p>
+  <p class="hint">Leer wird nicht angenommen. Neu erzeugen schreibt 32
+     zufällige Bytes — ein Client mit dem alten Token kommt danach nicht mehr
+     durch.</p>
 </form>
 
 <h2>Einstellungen</h2>

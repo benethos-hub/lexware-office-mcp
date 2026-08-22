@@ -37,9 +37,11 @@ FROM python:3.13-slim AS runtime
 # namespace, and who may reach the port is decided on the host side by the
 # publish: compose maps 127.0.0.1 only.
 #
-# The bearer token is NOT baked in. Without one the server refuses to start an
-# HTTP transport, which is the intended failure: an image carrying a default
-# secret would be worse than one that will not run.
+# **The bearer token is not baked in, and must not be.** A secret in an image
+# is shared by everyone who pulls it. The server makes one on first start
+# instead - thirty-two random bytes, written into /config/.env, which is a
+# volume and therefore this installation's own. The configuration interface
+# shows it, because it has to be copied into a client to be of any use.
 #
 # The API key is not baked in either. It belongs in /config/.env, which the
 # configuration interface writes - see the `setup` profile in compose.yaml.
@@ -52,7 +54,8 @@ ENV PYTHONUNBUFFERED=1 \
     LXO_MCP_HTTP_PATH=/mcp \
     LXO_MCP_TOOL_POLICY=/config/tools.json \
     LXO_MCP_DOWNLOAD_DIR=/downloads \
-    LXO_MCP_EXIT_ON_CONFIG_CHANGE=1
+    LXO_MCP_EXIT_ON_CONFIG_CHANGE=1 \
+    LXO_MCP_GENERATE_BEARER_TOKEN=1
 
 # A non-root user that owns what it writes.
 RUN useradd --create-home --uid 10001 appuser \

@@ -37,7 +37,7 @@ from ..policy import known_tools
 from . import pages, probe, transfer
 from .profiles import ProfileError
 from .render import esc, note, page
-from .state import API_KEY, EDITABLE_KEYS, Installation
+from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
 
 __all__ = ["ConfigServer", "Handler", "serve"]
 
@@ -167,6 +167,7 @@ class Handler(BaseHTTPRequestHandler):
         routes = {
             "/check": self._check,
             "/credentials": self._save_key,
+            "/bearer": self._save_bearer,
             "/settings": self._save_settings,
             "/permissions": self._permissions,
         }
@@ -247,6 +248,53 @@ class Handler(BaseHTTPRequestHandler):
         self._page_with(
             pages.credentials,
             f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}",
+            kind="good",
+        )
+
+    def _save_bearer(self, form: dict[str, list[str]]) -> None:
+        """Write the HTTP token, or make one. Never write an empty one.
+
+        Empty means "leave alone" for the API key, where the field is blank
+        by design. Here the field shows what is set, so blank can only mean
+        the value was cleared - and a cleared token is a server that stops
+        serving on its next start.
+        """
+        inst = self.installation
+        if form.get("action", [""])[0] == "generate":
+            token = secrets.token_urlsafe(32)
+            done = "Neues Token erzeugt und gespeichert."
+        else:
+            token = (form.get("bearer", [""])[0]).strip()
+            if not token:
+                self._page_with(
+                    pages.credentials,
+                    "Nicht gespeichert: ein leeres Token wäre kein Token. "
+                    "Der Server startet den HTTP-Transport dann nicht.",
+                    kind="bad",
+                )
+                return
+            done = "Token gespeichert."
+
+        try:
+            update_env_file(inst.env_path, {BEARER_KEY: token})
+        except OSError as exc:
+            self._page_with(
+                pages.credentials,
+                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
+                kind="bad",
+            )
+            return
+
+        inst.reload()
+        shadow = (
+            " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
+            if inst.shadowed(BEARER_KEY)
+            else ""
+        )
+        self._page_with(
+            pages.credentials,
+            f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
+            f"jeder Client braucht es dann neu.{shadow}",
             kind="good",
         )
 
