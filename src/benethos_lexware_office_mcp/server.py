@@ -1,10 +1,10 @@
 """MCP server entry point.
 
 Run with ``python -m benethos_lexware_office_mcp`` or the installed
-``benethos-lexware-office-mcp`` console script. The transport is **stdio**
-only, which is what Claude Desktop and comparable local clients use. An HTTP
-transport is planned for 0.2.0 and will ship with its own authentication in
-front of the API key (SPECS.md section 6).
+``benethos-lexware-office-mcp`` console script. **stdio** is the default and
+is what Claude Desktop and comparable local clients use. ``--transport
+streamable-http`` or ``sse`` serves the same tools over HTTP instead, behind
+a bearer token that is required rather than offered (SPECS.md section 6).
 
 Logging always goes to stderr, so that under stdio stdout stays reserved for
 the JSON-RPC stream.
