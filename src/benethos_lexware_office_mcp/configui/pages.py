@@ -7,8 +7,8 @@ by handing it an installation and reading the HTML back.
 The reading order is the order of the navigation. **Übersicht** answers what
 this installation is and which files it uses, **Zugangsdaten** is where the
 key and the settings are entered, and **Rechte** is the point of the whole
-thing — including the saved profiles, which can be carried to another
-installation from there.
+thing — including the saved profiles and the policy file itself, which can be
+downloaded and read back from there.
 """
 
 from __future__ import annotations

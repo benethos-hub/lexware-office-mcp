@@ -17,7 +17,7 @@ The modules, in the order they depend on each other:
 - ``cost`` — what a tool costs in the model's context, measured once
 - ``probe`` — the one API call this interface makes, on request
 - ``profiles`` — named sets of permissions
-- ``transfer`` — the profile export, and reading one back
+- ``transfer`` — a policy file written out, and read back in
 - ``pages`` — the three screens, pure functions from state to bytes
 - ``app`` — the HTTP server, the routing, and the two CSRF guards
 """
