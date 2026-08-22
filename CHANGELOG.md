@@ -52,6 +52,12 @@ housekeeping are out of scope here — design decisions live in
   empty one: blank means unchanged for the API key, whose field is blank by
   design, but the token field shows what is in force, so blank there could
   only mean a server that stops serving.
+- **The image is published**, so a container no longer means cloning this
+  repository and building one. A release pushes
+  `ghcr.io/benethos-hub/lexware-office-mcp` for `linux/amd64` and
+  `linux/arm64`, tagged with the version, the major.minor line and `latest`.
+  `compose.yaml` carries the two commented lines that switch it from building
+  to pulling, and that file is then all you need from here.
 - **`setup` can bind an address other than loopback**, with `--host`. A
   container has to: a process on the container's own loopback cannot be
   reached through a published port. It says on stderr when it binds anything

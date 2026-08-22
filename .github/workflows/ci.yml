@@ -135,9 +135,6 @@ jobs:
   # test touches: the suite is offline Python, and a Dockerfile is neither.
   # Everything asserted here was verified by hand once, which is exactly the
   # kind of proof that stops being true without anyone noticing.
-  #
-  # Only linux/amd64 is built. A second architecture is worth building when
-  # something publishes one, and nothing here does yet.
   docker:
     runs-on: ubuntu-latest
     steps:
@@ -145,6 +142,26 @@ jobs:
 
       - name: Build the image
         run: docker build -t benethos-lexware-office-mcp:ci .
+
+      # A release publishes linux/amd64 and linux/arm64, and only amd64 is
+      # built above, so an arm64-only break would first show itself during a
+      # release. Nothing is loaded or pushed here: that the build completes is
+      # the whole assertion, and the container below is run on the runner's own
+      # architecture.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build for arm64 as well
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # The configuration interface has no login and takes an API key. It is
       # behind a profile so that a plain `up` leaves it out, and that is a

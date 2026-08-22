@@ -1918,6 +1918,29 @@ order:
    version pin in the README's client example, and brings the installation
    instructions in line, then a tag and a GitHub release on the merged commit,
    which is what triggers the upload.
+5. **Publication of the image**, so that running this server in a container
+   does not require cloning the repository first. The same workflow gained a
+   second job that pushes `ghcr.io/benethos-hub/lexware-office-mcp` for
+   `linux/amd64` and `linux/arm64`, authenticated by the automatic
+   `GITHUB_TOKEN`, which is why the registry is ghcr and not one that needs an
+   account and a stored secret. The two jobs are independent: a broken image
+   does not withhold the upload to PyPI. `workflow_dispatch` runs the image
+   half alone and tags it `edge`, since a release is otherwise the only way to
+   exercise a workflow that triggers on one.
+
+   **The metadata has to sit on the index, not only on the manifests.** A
+   multi-architecture image is an index pointing at one manifest per
+   architecture, and the package page reads the index. Labels in the image
+   configuration are then present and read by nothing, which is how a package
+   page comes to say "No description provided" about an image that carries a
+   description. `DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest` puts them
+   in both places, and the job then reads the published index back and fails
+   if the description, the source or the version is not on it - a release is a
+   poor moment to discover that setting a value and it arriving are different
+   things.
+
+   A new ghcr package is private even under a public repository, so the first
+   push needs a one-time visibility switch. The workflow header says where.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
@@ -1931,7 +1954,7 @@ suggested they were.
 | Release | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
-| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end and guarded by the `docker` job in CI. What is left is adding that job to the required checks, which can only happen once it has run, see the note under item 2 |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end and guarded by the `docker` job in CI, and the release publishes the image to ghcr as well as the package to PyPI. What is left is adding that job to the required checks, which can only happen once it has run, see the note under item 2 |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
 **There is no numbered release between 0.2.0 and whatever a future API
