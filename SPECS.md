@@ -667,6 +667,20 @@ still meets it.
 - **Entry points:** `python -m benethos_lexware_office_mcp` or the
   `benethos-lexware-office-mcp` console script.
 - **Python:** 3.11 to 3.14, all in the CI matrix.
+- **3.14 changed how annotations reach a schema, measured 2026-08-22.** One
+  parameter carries a description built at startup, because the default it
+  states is configurable, and the finished annotation is attached after the
+  definition - `from __future__ import annotations` would otherwise turn it
+  into source text the SDK evaluates in module scope, where the per-process
+  value does not exist. Up to 3.13 the wrapper `classify` returns and the
+  function it wraps shared one annotations dictionary, so editing one reached
+  the other, which is the function `inspect.signature` arrives at. Under PEP
+  649 they no longer do: annotations are computed on demand from
+  `__annotate__`, the wrapper materializes a dictionary of its own, and the
+  original goes on answering from its source text. Both are set now, by
+  replacing the dictionary rather than editing it, which drops `__annotate__`
+  and leaves one answer for every reader. The offline suite is identical on
+  every version and caught none of it - the matrix did.
 
 ## 7. Configuration
 
@@ -1839,27 +1853,45 @@ described in section 7.1. Nothing on the API side is outstanding.
 **What stands between here and 0.1.0 is not code**, and it is best done in
 this order:
 
-1. **A public repository**, which does not exist yet. While it does not,
-   `main` is written directly and a finished branch is merged locally. Once
-   it exists the merge goes through a pull request instead, which is also
-   what CI needs something to run against.
-2. **CI**, written and waiting for somewhere to run. `.github/workflows/ci.yml`
-   holds three jobs: `lint` (`ruff check`, the format check, `mypy` and
-   `uv lock --check`), `test` across the Python matrix of section 6 with the
-   coverage floor, and `fresh-install`, which builds the wheel, installs it
-   with no lockfile involved and asserts that an installation without a policy
-   file offers no tools at all - the rule of section 9.2, which no offline
-   test reaches because every one of them writes a policy file first. Every
-   job passes with no key, no network and no account, see section 14.1.
+1. ~~**A public repository.**~~ **Done 2026-08-22:**
+   `github.com/benethos-hub/lexware-office-mcp`. `main` is protected and can
+   only be reached through a pull request whose six checks are green, for the
+   owner as well. Merges are squash or rebase, the history stays linear, and a
+   merged branch deletes itself. Nothing is written to `main` directly any
+   more.
+2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds three
+   jobs: `lint` (`ruff check`, the format check, `mypy` and `uv lock --check`),
+   `test` across the Python matrix of section 6 with the coverage floor, and
+   `fresh-install`, which builds the wheel, installs it with no lockfile
+   involved and asserts that an installation without a policy file offers no
+   tools at all - the rule of section 9.2, which no offline test reaches
+   because every one of them writes a policy file first. Every job passes with
+   no key, no network and no account, see section 14.1.
    `.github/dependabot.yml` asks weekly about the dependency ranges and the
-   pinned actions. None of it has ever run: a workflow needs a repository,
-   which is why this sits behind the item above.
+   pinned actions.
+
+   **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
+   where a parameter description had silently disappeared from a tool schema.
+   See section 6 for what changed in Python and why the workaround it broke
+   was there.
+
+   **A new job is not required by itself.** The six that block a merge are
+   listed in the branch protection, so a job added later - `docker` with
+   0.2.0, or a Python version added to the matrix - runs, may fail, and still
+   lets the merge through until it is added to that list as well.
 3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
    sample moved into the package as `env.sample`, so it is installed with the
    code instead of sitting beside it, and `--settings-sample` prints it.
    Building the wheel now finds it among thirty-nine files. See section 16.1.
 4. **Publication to PyPI**, which is what makes the installation instructions
    in the README true for someone who has not cloned the repository.
+   `.github/workflows/publish.yml` does it from a published release over
+   Trusted Publishing, so no token is stored here. It needs a pending
+   publisher on PyPI first, whose five fields the workflow header spells out.
+   **The release itself:** a `release/X.Y.Z` branch that moves the CHANGELOG
+   `[Unreleased]` section to a numbered one with its compare links and brings
+   the README's installation instructions in line, then a tag and a GitHub
+   release on the merged commit, which is what triggers the upload.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
