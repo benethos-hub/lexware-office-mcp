@@ -28,10 +28,11 @@ name: Publish
 # All five have to match or the upload is refused, and the environment below
 # is the one it names.
 #
-# One-time setup for the registry, and only possible after the first push has
-# created the package: a new ghcr package is private even when its repository
-# is public, so `docker pull` fails for everyone but the owner until it is
-# switched under Packages -> Package settings -> Change visibility -> Public.
+# The registry needed no setup, measured on 2026-08-22 with the first push:
+# the package came out public and was pulled with no login and no account,
+# even though the documented behaviour is that a new package is private until
+# switched. If a pull ever does come back unauthorized, that switch is under
+# Packages -> Package settings -> Change visibility.
 #
 # The release process itself is in SPECS.md section 16.
 

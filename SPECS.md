@@ -1960,8 +1960,14 @@ order:
    poor moment to discover that setting a value and it arriving are different
    things.
 
-   A new ghcr package is private even under a public repository, so the first
-   push needs a one-time visibility switch. The workflow header says where.
+   **Measured on 2026-08-22 by running it**, which is the only way the
+   metadata could be believed. `workflow_dispatch` pushed `edge`, the readback
+   found both architectures and the description on the index, and the package
+   page shows that description rather than "No description provided". The
+   image was then pulled on a machine with no login and started from the pull:
+   it generated its own token and refused a request without it. Contrary to
+   the documented behaviour, the package did not need a visibility switch - it
+   was public from the first push.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
