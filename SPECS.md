@@ -1842,10 +1842,17 @@ this order:
    `main` is written directly and a finished branch is merged locally. Once
    it exists the merge goes through a pull request instead, which is also
    what CI needs something to run against.
-2. **CI**, which does not exist at all. The suite, `ruff check`,
-   `ruff format --check`, `mypy` and the coverage floor across the Python
-   matrix of section 6. It has to pass with no key, no network and no
-   account, see section 14.1 for why nothing in it may reach the API.
+2. **CI**, written and waiting for somewhere to run. `.github/workflows/ci.yml`
+   holds three jobs: `lint` (`ruff check`, the format check, `mypy` and
+   `uv lock --check`), `test` across the Python matrix of section 6 with the
+   coverage floor, and `fresh-install`, which builds the wheel, installs it
+   with no lockfile involved and asserts that an installation without a policy
+   file offers no tools at all - the rule of section 9.2, which no offline
+   test reaches because every one of them writes a policy file first. Every
+   job passes with no key, no network and no account, see section 14.1.
+   `.github/dependabot.yml` asks weekly about the dependency ranges and the
+   pinned actions. None of it has ever run: a workflow needs a repository,
+   which is why this sits behind the item above.
 3. **`config/.env.sample` inside the wheel**, verified missing by building
    one on 2026-08-22: thirty-eight files, and the sample is not among them.
    An installed copy therefore has no local documentation of the settings at

@@ -1,0 +1,132 @@
+name: CI
+
+# Everything here has to pass with no API key, no network to Lexware and no
+# account. No key ships with this repository and none goes into CI, so a check
+# that needs one cannot be a gate. The live check lives in tests/smoke.py and
+# is run by hand, see SPECS.md section 14.1.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (locked)
+        run: uv sync --extra dev --frozen
+
+      - name: Lockfile is in step with pyproject.toml
+        run: uv lock --check
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Ruff (format check)
+        run: uv run ruff format --check .
+
+      - name: Mypy (type check)
+        run: uv run mypy
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies (locked)
+        run: uv sync --extra dev --frozen
+
+      # httpx is mocked at the transport, so the suite never opens a socket.
+      # tests/smoke.py is not collected: it holds no test_* functions and is
+      # the read-only live check.
+      - name: Run tests with coverage
+        run: uv run pytest -q --cov=benethos_lexware_office_mcp --cov-fail-under=80
+
+  # Every other job installs from uv.lock, which pins dependencies to a set
+  # known to work. Reproducibility needs that, but it hides a broken *declared*
+  # range: someone installing from PyPI resolves the ranges in pyproject.toml
+  # instead, so `mcp>=2.0.0,<3` is a promise nothing else here tests. This job
+  # resolves the way that person does, with no lockfile involved.
+  #
+  # It also guards the rule the server is built around, which no offline test
+  # can reach because every one of them builds a policy file first: an
+  # installation that has none offers no tools at all.
+  fresh-install:
+    runs-on: ubuntu-latest
+    env:
+      # The per-user configuration directory, pointed at an empty one rather
+      # than trusting the runner to have none. What is being asserted is what
+      # a fresh machine does, so leave nothing about that to chance.
+      XDG_CONFIG_HOME: /tmp/xdg
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build the wheel
+        run: uv build --wheel
+
+      - name: Install it into a clean environment (no lockfile)
+        run: |
+          uv venv /tmp/fresh
+          uv pip install --python /tmp/fresh/bin/python dist/*.whl
+          echo "--- resolved dependency versions ---"
+          uv pip list --python /tmp/fresh/bin/python
+
+      # From an empty directory, because the file search reads the working
+      # directory too and a checkout is not what a user installs.
+      - name: A fresh installation starts and offers nothing
+        run: |
+          mkdir -p /tmp/empty
+          cd /tmp/empty
+          /tmp/fresh/bin/python -c "import benethos_lexware_office_mcp as p; print('version', p.__version__)"
+          /tmp/fresh/bin/benethos-lexware-office-mcp --help > /dev/null
+          /tmp/fresh/bin/python -c "
+          import asyncio
+          from benethos_lexware_office_mcp import config, server
+          settings = config.load_settings()
+          policy = settings.policy_file()
+          assert not policy.is_file(), 'a runner should not have a policy file'
+          tools = asyncio.run(server.build_server(settings).list_tools())
+          assert not tools, 'a fresh installation offered ' + str(len(tools)) + ' tools'
+          print('OK: no policy file, no tools, no key needed to find that out')
+          "
+
+      - name: The policy file is the only thing that turns tools on
+        run: |
+          cd /tmp/empty
+          /tmp/fresh/bin/benethos-lexware-office-mcp --tools read-only --tools-file ./tools.json
+          /tmp/fresh/bin/python -c "
+          import asyncio
+          from benethos_lexware_office_mcp import config, server
+          settings = config.load_settings()
+          names = {t.name for t in asyncio.run(server.build_server(settings).list_tools())}
+          assert names, 'the read-only preset enabled nothing'
+          assert 'get_profile' in names, 'the read-only preset is missing a reading tool'
+          assert 'create_contact' not in names, 'the read-only preset offered a write tool'
+          print('OK: the preset enabled', len(names), 'tools, none of them writing')
+          "

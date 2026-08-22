@@ -182,8 +182,12 @@ measurement of what the whole list costs.
 - Lint and format: `uv run ruff check .` and `uv run ruff format .`
   (CI checks `ruff format --check`).
 - Types: `uv run mypy`.
+- Lockfile in step with `pyproject.toml`: `uv lock --check`.
 - Coverage floor 80%:
   `uv run pytest --cov=benethos_lexware_office_mcp --cov-fail-under=80`.
+  Add `--no-sync` while a client is running this server from the checkout:
+  `--cov` reinstalls the package first, and a running server holds the console
+  script open, so the run fails on a locked file rather than on a test.
 - Inspect what the client actually sends to the model:
   ```
   uv run python -c "import asyncio,json;from benethos_lexware_office_mcp.server import mcp;print(json.dumps([t.model_dump() for t in asyncio.run(mcp.list_tools())],indent=2,default=str))"

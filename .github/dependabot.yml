@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # The dependency ranges declared in pyproject.toml. `mcp` carries an upper
+  # bound on purpose, so a major release arrives as a pull request to look at
+  # rather than as a resolution nobody chose.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # The actions the workflows pin by major version.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
