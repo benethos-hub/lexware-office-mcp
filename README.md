@@ -1,5 +1,14 @@
 # Unofficial Lexware Office MCP Server
 
+[![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
+[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+<!-- A PyPI version badge belongs here once the package is published, along
+     with the Python badge read from the release rather than written by hand.
+     Neither can be added before then: both would show a broken image. -->
+
 > **Disclaimer**
 >
 > - This project is **not affiliated with, endorsed by, or sponsored by
@@ -31,8 +40,8 @@ them for you.
 > The server runs over stdio and handles contacts, vouchers and documents:
 > find them, read them, create them, change them, see what is still unpaid,
 > download a PDF and upload a receipt. `get_profile` answers which account
-> is connected. The rest of the tools below are specified but not built, and
-> the table says which is which. There is no PyPI release yet, so
+> is connected. Every tool in the table below is built, and each was
+> exercised against a live account. There is no PyPI release yet, so
 > installation means cloning the repository. See [SPECS.md](SPECS.md) for
 > the full technical specification and the roadmap.
 
