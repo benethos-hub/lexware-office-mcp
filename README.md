@@ -201,8 +201,11 @@ rejected if it is not one.
 
 ## Requirements
 
-- Python 3.11 or newer. Installing pulls in the MCP SDK, httpx,
-  platformdirs and pypdfium2, the last of these to render PDF pages
+- [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
+  its own Python and the `uvx` command every example below uses
+- Python 3.11 or newer, if you would rather bring your own. Installing pulls
+  in the MCP SDK, httpx, platformdirs and pypdfium2, the last of these to
+  render PDF pages
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 
@@ -223,8 +226,23 @@ cut access if anything looks wrong.
 
 ## Installation
 
-**Nothing has to be installed.** With
-[uv](https://docs.astral.sh/uv/), `uvx` fetches the package and runs it:
+**1. Install uv**, if you have not already. It comes with `uvx`, and it is the
+only thing this needs — see the
+[uv installation page](https://docs.astral.sh/uv/getting-started/installation/)
+for every method:
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**2. Configure the server.** Nothing has to be installed for this: `uvx`
+fetches the package and runs it.
 
 ```bash
 uvx benethos-lexware-office-mcp setup
@@ -242,7 +260,7 @@ Check that it works:
 uvx benethos-lexware-office-mcp --help
 ```
 
-Then point Claude Desktop at it in `claude_desktop_config.json`:
+**3. Point Claude Desktop at it** in `claude_desktop_config.json`:
 
 ```json
 {
@@ -304,8 +322,8 @@ out of shared folders and out of backups other people can read. When you stop
 using the server, delete it **and revoke the key** under Extensions, Public
 API — revoking is the only step that actually ends access.
 
-Restart Claude Desktop fully — quit it from the tray rather than closing the
-window — so the tool list is reloaded.
+**4. Restart Claude Desktop fully** — quit it from the tray rather than
+closing the window — so the tool list is reloaded.
 
 ## Configuring it in a browser
 
