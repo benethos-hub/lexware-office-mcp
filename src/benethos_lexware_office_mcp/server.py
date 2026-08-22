@@ -385,13 +385,6 @@ def main(argv: list[str] | None = None) -> None:
     """Console script entry point."""
     wants_setup = "setup" in (argv if argv is not None else sys.argv[1:])
     named_env = _named_env_file(argv, must_exist=not wants_setup)
-    if wants_setup:
-        # Only here: the interface may have been told once which files it
-        # works on, because it cannot see the arguments the client passes to
-        # the server. The server itself never reads those pointers - one more
-        # thing with a say in which policy file it obeys is exactly what
-        # section 9.2 does not want.
-        named_env = configui.target_env_file(named_env)
     settings = load_settings(env_file=named_env)
     args = _parse_args(argv, settings)
 
@@ -412,15 +405,8 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     if args.command == "setup":
-        remembered = configui.target_policy_file(
-            Path(args.tools_file).expanduser() if args.tools_file else None
-        )
-        if remembered is not None:
-            settings = dataclasses.replace(settings, tool_policy_path=remembered)
         configui.start(
             settings,
-            # Already resolved above, and this call returns the same path -
-            # asked again only so the type says Path rather than Path | None.
             configui.target_env_file(named_env),
             port=args.port,
             open_browser=not args.no_browser,

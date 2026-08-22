@@ -9,8 +9,6 @@ import pytest
 
 from benethos_lexware_office_mcp import configui, server
 from benethos_lexware_office_mcp.config import Settings
-from benethos_lexware_office_mcp.configui import pins as pins_module
-from benethos_lexware_office_mcp.configui.pins import PINS_NAME, Pins, write_pins
 
 
 @pytest.fixture
@@ -83,78 +81,3 @@ def test_a_named_file_wins_over_the_search(tmp_path: Path) -> None:
     named = tmp_path / "named.env"
 
     assert configui.target_env_file(named) == named
-
-
-@pytest.fixture
-def pinned(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    target = tmp_path / PINS_NAME
-    monkeypatch.setattr(pins_module, "pins_file", lambda: target)
-    return target
-
-
-def test_setup_uses_the_files_it_was_told_to_remember(
-    started: list[dict[str, Any]], pinned: Path, tmp_path: Path
-) -> None:
-    """The client's arguments are invisible from here, so they get written
-    down once instead."""
-    env = tmp_path / "remembered.env"
-    env.write_text("LXO_MCP_PAGE_SIZE=44", encoding="utf-8")
-    policy = tmp_path / "remembered.json"
-    write_pins(Pins(env_file=env, tools_file=policy))
-
-    server.main(["setup", "--no-browser"])
-
-    assert started[0]["env_path"] == env
-    assert started[0]["settings"].policy_file() == policy
-    assert started[0]["settings"].page_size == 44
-
-
-def test_the_command_line_still_wins_over_what_was_remembered(
-    started: list[dict[str, Any]], pinned: Path, tmp_path: Path
-) -> None:
-    write_pins(
-        Pins(env_file=tmp_path / "remembered.env", tools_file=tmp_path / "r.json")
-    )
-    named_env = tmp_path / "named.env"
-    named_policy = tmp_path / "named.json"
-
-    server.main(
-        [
-            "setup",
-            "--no-browser",
-            "--env-file",
-            str(named_env),
-            "--tools-file",
-            str(named_policy),
-        ]
-    )
-
-    assert started[0]["env_path"] == named_env
-    assert started[0]["settings"].policy_file() == named_policy
-
-
-def test_the_server_itself_ignores_the_remembered_files(
-    pinned: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Only the interface moves. The policy the server enforces does not."""
-    write_pins(
-        Pins(env_file=tmp_path / "remembered.env", tools_file=tmp_path / "r.json")
-    )
-    searched = tmp_path / "searched.json"
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.config.tool_policy_file", lambda: searched
-    )
-    seen: list[Path | None] = []
-    monkeypatch.setattr(
-        server, "build_server", lambda s: seen.append(s.policy_file()) or _Stub()
-    )
-    monkeypatch.setattr(server, "_report_what_is_enabled", lambda s: None)
-
-    server.main([])
-
-    assert seen == [searched]
-
-
-class _Stub:
-    def run(self) -> None:
-        return None

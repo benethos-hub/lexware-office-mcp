@@ -352,16 +352,14 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   ticked and says plainly that nothing is active until you save. No file
   still means no tools, exactly as before — what changed is the starting
   point of the form, not what the server offers.
-- **The interface can be told which files to work on, once.** It runs in its
-  own process and cannot see the arguments your client passes to the server,
-  so a client started with `--tools-file` left it editing a different file
-  and reporting success. The overview now has *Andere Dateien bearbeiten*:
-  set the `.env` and the policy file there and they are remembered in
-  `setup.json` in your config directory, used on every later start, and
-  overridden by `--env-file` and `--tools-file` when those are given. The
-  same page shows the `"args"` entry that makes your client match. What is
-  remembered moves the interface only — the server resolves its own policy
-  file and never reads that file.
+- **Both processes fix their files at startup and say which.** The server
+  and the interface each resolve the `.env` and the policy file once, when
+  they start, and hold them — the contents still take effect without a
+  restart, only the identity of the file is fixed. Deleting it disables
+  everything rather than falling back to another file somewhere. Since
+  neither process can see how the other was started, the overview prints the
+  `"args"` entry that makes your client use the same files, and says that
+  giving `setup` the same arguments does the job too.
 - **What a tool costs the assistant is shown next to it.** Every enabled tool
   is sent to the model on every single request, so the permissions page puts
   the character count on each row and totals it live as boxes are ticked. The

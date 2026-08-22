@@ -22,7 +22,6 @@ from ..config import (
 )
 from ..policy import ToolMeta, grouped_tools, known_tools, preset
 from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
-from .pins import pins_file
 from .probe import Account, last_account
 from .profiles import Profile
 from .render import esc, note, page, source_badge
@@ -121,7 +120,7 @@ def _resolved(inst: Installation) -> dict[str, str]:
         "LXO_MCP_API_KEY": "gesetzt" if settings.api_key else "nicht gesetzt",
         "LXO_MCP_BASE_URL": settings.base_url,
         "LXO_MCP_APP_BASE_URL": settings.app_base_url,
-        "LXO_MCP_TOOL_POLICY": str(settings.policy_file()),
+        "LXO_MCP_TOOL_POLICY": str(inst.policy_path),
         "LXO_MCP_DOWNLOAD_DIR": str(settings.download_path or download_dir()),
         "LXO_MCP_TIMEOUT": f"{settings.timeout:g}",
         "LXO_MCP_RATE": f"{settings.rate:g}",
@@ -205,48 +204,37 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
 
 <h2>Dateien</h2>
 {_files_table(inst)}
-{_which_files(inst, csrf)}
+{_client_arguments(inst)}
 """
     return page("Übersicht", body, here="/", chip=_chip(account))
 
 
-def _which_files(inst: Installation, csrf: str) -> str:
-    """Which files this interface works on, and how to match the server.
+def _client_arguments(inst: Installation) -> str:
+    """The client entry that would make the server use these same files.
 
-    The interface runs in its own process and **cannot see the arguments a
-    client passes to the server**. So it says which files it is acting on,
-    lets them be pointed somewhere else once and for all, and offers the
-    client entry that would make the server agree — the only direction in
-    which the two can be brought together from here.
+    Both processes pick their files when they start, and this one cannot see
+    the arguments the other was given. It can only say which files it is
+    working on — so it says them in the form they have to be pasted in.
+    Without that, a client started with ``--tools-file`` leaves this page
+    editing a different file and reporting success.
     """
-    policy = str(inst.settings.policy_file())
     args = json.dumps(
-        ["--env-file", str(inst.env_path), "--tools-file", policy],
+        ["--env-file", str(inst.env_path), "--tools-file", str(inst.policy_path)],
         ensure_ascii=False,
     )
     return f"""
-<details class="grp">
-  <summary>Andere Dateien bearbeiten</summary>
-  <form method="post" action="/files">{_csrf(csrf)}
-    <label class="fld">Einstellungen (<code>.env</code>)</label>
-    <input type="text" name="env_file" value="{esc(str(inst.env_path))}">
-    <label class="fld">Rechtedatei</label>
-    <input type="text" name="tools_file" value="{esc(policy)}">
-    <p class="hint">Gemerkt in <code>{esc(str(pins_file()))}</code> und beim
-       nächsten Start wieder benutzt. Das gilt nur für diese Oberfläche — der
-       Server sucht seine Rechtedatei selbst und liest diese Merkdatei nie.</p>
-    <p><button type="submit">Dateien übernehmen</button></p>
-  </form>
-  <p class="hint">Diese Oberfläche läuft in einem eigenen Prozess und sieht
-     nicht, mit welchen Argumenten dein Client den Server startet. Damit er
-     dieselben Dateien benutzt, gehört das in seine Konfiguration:</p>
-  <p><code>"args": {esc(args)}</code></p>
-</details>
+<p class="hint">Diese Oberfläche läuft in einem eigenen Prozess und sieht
+   nicht, mit welchen Argumenten dein Client den MCP-Server startet. Damit er
+   dieselben Dateien benutzt, gehört das in seine Konfiguration:</p>
+<p><code>"args": {esc(args)}</code></p>
+<p class="hint">Oder umgekehrt: <code>setup</code> mit denselben
+   <code>--env-file</code> und <code>--tools-file</code> starten. Beide
+   Prozesse legen ihre Dateien beim Start fest und wechseln sie nicht mehr.</p>
 """
 
 
 def _files_table(inst: Installation) -> str:
-    policy_path = inst.settings.policy_file()
+    policy_path = inst.policy_path
     rows = [
         ("Einstellungen (<code>.env</code>)", inst.env_path),
         ("Rechte", policy_path),
@@ -410,7 +398,7 @@ def permissions(
    sofort, der Client muss die Liste allerdings neu abfragen — Claude Desktop
    dafür über das Taskleistensymbol beenden und neu starten.</p>
 <p class="hint">Geschrieben wird nach
-   <code>{esc(str(inst.settings.policy_file()))}</code>.</p>
+   <code>{esc(str(inst.policy_path))}</code>.</p>
 
 <form method="post" action="/permissions" id="permform">{_csrf(csrf)}
   {_profile_bar(inst, opened == "profiles")}

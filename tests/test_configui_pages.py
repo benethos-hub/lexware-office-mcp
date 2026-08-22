@@ -206,25 +206,57 @@ def test_the_overview_offers_the_matching_client_arguments(
 ) -> None:
     """The one direction in which the two processes can be brought together.
 
-    The interface cannot see what the client passes to the server, so it says
-    what to put there instead.
+    Neither can see how the other was started, and both fix their files at
+    start, so all this page can do is say which files it holds.
     """
     body = text(pages.overview(inst))
 
-    assert "Andere Dateien bearbeiten" in body
     assert "--tools-file" in body
-    assert str(inst.settings.policy_file()) in body.replace("\\\\", "\\")
-    assert "liest diese Merkdatei nie" in body
+    assert "eigenen Prozess" in body
+    assert "beim Start fest" in body
 
 
-def test_a_remembered_path_is_not_called_a_command_line_one(
-    inst: Installation,
+def test_a_searched_policy_file_is_not_called_a_default(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from benethos_lexware_office_mcp.configui.pins import Pins
+    """Nobody named it, but a resolved path is not a built-in default."""
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.config.tool_policy_file",
+        lambda: inst.policy_path,
+    )
+    plain = Installation(
+        settings=Settings(api_key="x"), env_path=inst.env_path, cwd=inst.cwd
+    )
 
-    inst.pins = Pins(tools_file=inst.settings.policy_file())
+    assert "aus: Suche" in text(pages.overview(plain))
 
-    assert "aus: gemerkt" in text(pages.overview(inst))
+
+def test_the_policy_file_is_fixed_for_the_life_of_the_process(
+    inst: Installation, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The search can answer differently once a file appears somewhere.
+
+    A process that quietly changed which permissions it edits would be the
+    harder thing to reason about, and deleting the pinned file disables
+    everything rather than promoting the next candidate.
+    """
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.config.tool_policy_file",
+        lambda: tmp_path / "somewhere-else.json",
+    )
+    plain = Installation(
+        settings=Settings(api_key="x"), env_path=inst.env_path, cwd=inst.cwd
+    )
+    pinned = plain.policy_path
+
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.config.tool_policy_file",
+        lambda: tmp_path / "higher-precedence.json",
+    )
+    plain.reload()
+
+    assert plain.policy_path == pinned
+    assert plain.policy.path == pinned
 
 
 def test_a_value_from_the_command_line_is_not_called_a_default(

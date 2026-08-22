@@ -302,15 +302,12 @@ Claude Desktop starts that one, not this.
 and `--tools-file` say which files it edits. Unlike everywhere else those
 files do not have to exist yet.
 
-**If your client starts the server with `--tools-file`, tell the interface
-about it**, or it will edit a different file and say it saved. Either pass
-the same arguments to `setup`, or set them once under *Andere Dateien
-bearbeiten* on the overview — they are remembered in `setup.json` in your
-config directory and used on every later start. That page also shows the
-`"args"` entry to paste into your client, which is the easier direction: the
-interface cannot see how the server was started, but it knows exactly which
-files it is working on. What it remembers moves only the interface — the
-server always resolves its own policy file.
+**If your client starts the server with `--tools-file`, give `setup` the same
+argument** — otherwise it edits a different file and reports success. Both
+processes fix their files when they start and never change them afterwards,
+and neither can see how the other was started. The overview prints the
+`"args"` line that makes your client match the files the interface is
+holding, which is the easier direction.
 
 ## Switching individual tools off
 

@@ -11,7 +11,6 @@ should not go on showing what was true when the tab was opened.
 
 from __future__ import annotations
 
-import dataclasses
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,7 +18,6 @@ from pathlib import Path
 from ..config import Settings, config_candidates, load_settings
 from ..envfile import read_env_file
 from ..policy import ToolPolicy
-from .pins import Pins
 from .profiles import ProfileStore, profile_file
 from .render import (
     CLI_SOURCE,
@@ -27,7 +25,7 @@ from .render import (
     ENV_SOURCE,
     FILE_SOURCE,
     OTHER_FILE_SOURCE,
-    PIN_SOURCE,
+    SEARCH_SOURCE,
 )
 
 __all__ = ["SETTING_KEYS", "Installation"]
@@ -67,36 +65,43 @@ class Installation:
     settings: Settings
     env_path: Path
     cwd: Path = field(default_factory=Path.cwd)
-    pins: Pins = field(default_factory=Pins)
 
     def __post_init__(self) -> None:
-        # What `--tools-file` said, kept so that a later reload cannot lose
-        # it. Resolving the settings again reads only files and the
-        # environment, and the command line is in neither.
-        self._named_policy = self.settings.tool_policy_path
+        # **Pinned once, at start**, exactly as the server pins its own: the
+        # search of section 7 can answer differently the moment a file
+        # appears somewhere, and a process that quietly changed which policy
+        # file it obeys - or edits - is the harder thing to reason about.
+        # Deleting the pinned file therefore disables everything rather than
+        # promoting the next candidate, which is the safer failure.
+        #
+        # It also survives `reload`, which resolves only files and the
+        # environment and would otherwise lose a path named on the command
+        # line.
+        self._policy_path = self.settings.policy_file()
+
+    @property
+    def policy_path(self) -> Path:
+        """The policy file this interface works on, fixed at start."""
+        return self._policy_path
 
     @property
     def policy(self) -> ToolPolicy:
-        """The policy file in effect, re-read on every question."""
-        return ToolPolicy(self.settings.policy_file())
+        """That file's flags, re-read on every question."""
+        return ToolPolicy(self._policy_path)
 
     @property
     def profiles(self) -> ProfileStore:
         """The saved profiles that belong to that policy file."""
-        return ProfileStore(profile_file(self.settings.policy_file()))
+        return ProfileStore(profile_file(self._policy_path))
 
     def reload(self) -> None:
         """Resolve the settings again, after something was written.
 
-        The policy file named on the command line survives this. Without
-        that, saving a key would quietly move the interface to whichever
-        policy file the search finds, and the page would go on claiming to
-        edit the one it was started with.
+        The policy file does not move with it: it was pinned at start and
+        stays there for the life of the process, so saving a key cannot
+        change which permissions this interface is editing.
         """
-        fresh = load_settings(env_file=self.env_path, cwd=self.cwd)
-        if self._named_policy is not None:
-            fresh = dataclasses.replace(fresh, tool_policy_path=self._named_policy)
-        self.settings = fresh
+        self.settings = load_settings(env_file=self.env_path, cwd=self.cwd)
 
     # --- where a value comes from ------------------------------------------
     # In the order that decides: a real environment variable, then the command
@@ -122,22 +127,25 @@ class Installation:
         return merged
 
     def source_of(self, key: str) -> str:
-        """Where this value actually comes from, in the order that decides.
+        """Where this value comes from, in the order that decides.
 
         A file is asked before the command line for one reason: the policy
         path lands in the settings whether it came from ``--tools-file`` or
         from ``LXO_MCP_TOOL_POLICY`` in a file, and calling the second one
-        "Aufruf" would be wrong.
+        "Aufruf" would be wrong. When nothing names it at all, the search
+        found it - which is not the same as a built-in default either.
         """
         if os.environ.get(key, "").strip():
             return ENV_SOURCE
         supplier = self.source_file(key)
         if supplier is not None:
             return FILE_SOURCE if supplier == self.env_path else OTHER_FILE_SOURCE
-        if key == POLICY_KEY and self.settings.tool_policy_path is not None:
-            if self.settings.tool_policy_path == self.pins.tools_file:
-                return PIN_SOURCE
-            return CLI_SOURCE
+        if key == POLICY_KEY:
+            return (
+                CLI_SOURCE
+                if self.settings.tool_policy_path is not None
+                else SEARCH_SOURCE
+            )
         return DEFAULT_SOURCE
 
     def source_file(self, key: str) -> Path | None:
@@ -160,22 +168,11 @@ class Installation:
         supplier = self.source_file(key)
         if supplier is not None:
             return str(supplier)
-        if key == POLICY_KEY and self.settings.tool_policy_path is not None:
-            if self.settings.tool_policy_path == self.pins.tools_file:
-                return "Für diese Oberfläche gemerkt, siehe Übersicht."
-            return "Mit --tools-file auf der Kommandozeile benannt."
+        if key == POLICY_KEY:
+            if self.settings.tool_policy_path is not None:
+                return "Mit --tools-file auf der Kommandozeile benannt."
+            return "Beim Start gesucht und seitdem festgehalten."
         return ""
-
-    def retarget(self, env_path: Path, policy_path: Path | None) -> None:
-        """Work on these files from now on, and remember them.
-
-        Only this interface moves. The server resolves its own policy file
-        and never reads the pointers - see `pins.py`.
-        """
-        self.env_path = env_path
-        self.pins = Pins(env_file=env_path, tools_file=policy_path)
-        self._named_policy = policy_path
-        self.reload()
 
     def shadowed(self, key: str) -> bool:
         """Whether writing this key here would have no effect.

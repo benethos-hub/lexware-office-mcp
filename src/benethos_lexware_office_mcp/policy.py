@@ -169,52 +169,32 @@ class ToolPolicy:
     hundred bytes, and a copy held in memory is a copy that can be wrong.
     """
 
-    def __init__(
-        self,
-        path: Path | None = None,
-        *,
-        resolve: Callable[[], Path] | None = None,
-    ) -> None:
-        """Either a fixed file, a way to find one, or neither.
-
-        ``resolve`` is called on **every** question rather than once, so the
-        search of section 7 keeps applying while the server runs: a
-        ``config/tools.json`` created later outranks the per-user file the
-        moment it exists, exactly as it would have at startup. A path given
-        outright pins the file instead, which is what ``--tools-file`` means.
-
-        Neither of them is the state a fresh process starts in, and it stays
-        the state that enables nothing.
-        """
+    def __init__(self, path: Path | None = None) -> None:
         self._path = path
-        self._resolve = resolve
 
     @property
     def path(self) -> Path | None:
         """The file this policy reads, or ``None`` when there is none."""
-        if self._resolve is not None:
-            return self._resolve()
         return self._path
 
     def exists(self) -> bool:
         """Whether there is a file at all. Nothing is enabled without one."""
-        path = self.path
-        return path is not None and path.is_file()
+        return self._path is not None and self._path.is_file()
 
     def _stored(self) -> dict[str, bool]:
-        path = self.path
-        if path is None or not path.is_file():
+        if not self.exists():
             return {}
+        assert self._path is not None
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(self._path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             # The file is edited by hand and by other programs, so a broken one
             # must not stop the server. It must not grant anything either: an
             # unreadable policy enables nothing, and says so on stderr.
-            logger.warning("Unreadable tool policy %s: %s", path, exc)
+            logger.warning("Unreadable tool policy %s: %s", self._path, exc)
             return {}
         if not isinstance(data, dict):
-            logger.warning("Tool policy %s is not an object, ignoring it.", path)
+            logger.warning("Tool policy %s is not an object, ignoring it.", self._path)
             return {}
         return {str(key): bool(value) for key, value in data.items()}
 
@@ -259,12 +239,11 @@ class ToolPolicy:
         reads as a complete inventory rather than as a list that leaves the
         reader guessing what is missing and why.
         """
-        path = self.path
-        if path is None:
+        if self._path is None:
             raise ValueError("This policy has no file to write to.")
         clean = {name: bool(flags.get(name, False)) for name in sorted(_REGISTRY)}
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(
             json.dumps(clean, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
         )
 
