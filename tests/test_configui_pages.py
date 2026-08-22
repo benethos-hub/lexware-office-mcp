@@ -1,4 +1,4 @@
-"""What the four pages say, rendered without a server and without a network."""
+"""What the three pages say, rendered without a server and without a network."""
 
 from __future__ import annotations
 

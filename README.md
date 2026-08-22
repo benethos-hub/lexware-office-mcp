@@ -283,7 +283,10 @@ record later.
 
 Profiles live here too. Save the current selection under a name, load it
 later. Loading only fills the boxes: nothing reaches `tools.json` until you
-press save. They are stored in `tool_profiles.json` beside the policy file.
+press save. A name that is already taken is refused rather than quietly
+replacing what is there — case and spacing do not make a second profile — and
+replacing one is its own button beside the list. They are stored in
+`tool_profiles.json` beside the policy file.
 
 The **policy file itself** can be downloaded and read back in from the same
 page — the file as it is, so it works on another installation with or
@@ -482,9 +485,12 @@ uv run mypy
 ```
 
 The test suite is fully offline. It mocks the HTTP layer and needs no API
-key, so it runs anywhere. Three of the tests start the server as a real
-subprocess and speak MCP to it over stdio, which is also what proves that
-nothing writes to stdout on the startup path.
+key, so it runs anywhere. Two kinds of test leave the process without leaving
+the machine: three start the server as a real subprocess and speak MCP to it
+over stdio, which is also what proves that nothing writes to stdout on the
+startup path, and the configuration interface is driven through a real
+loopback HTTP server with a real cookie jar, because its CSRF guards are only
+worth testing the way a browser meets them.
 
 No API key ships with this repository and none belongs in CI, so a checkout
 can never talk to Lexware on its own. Checking the server against the real API

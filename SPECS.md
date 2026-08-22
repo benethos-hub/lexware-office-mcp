@@ -1294,7 +1294,7 @@ resource it targets. A per-resource limiter would let five idle endpoints hand
 out five buckets worth of tokens and blow the global budget while each one
 believes it is well behaved. There is exactly one bucket, and every outbound
 call acquires a token from it before the request is issued, including retries,
-pagination follow-ups and the second call that `get_document_pdf` needs.
+pagination follow-ups and the read that an update makes before it writes.
 
 **Parameters:** *r* is `LXO_MCP_RATE` (default `1.5` per second) and *b* is
 `LXO_MCP_BURST` (default `2`). The rate sits deliberately **below** the
@@ -1777,6 +1777,15 @@ Built, tested offline and exercised against a live test account:
   edit taking effect in both directions without a restart. Presets and the
   file it writes come from the command line, `--tools` and `--tools-file`,
   and `--env-file` names the settings the same way
+- **a client told when that list changes**: `tools.listChanged` announced and
+  `notifications/tools/list_changed` sent when the set of enabled tools
+  differs, which Claude Desktop acts on without a restart — measured
+  2026-08-22, see section 9.2
+- **a configuration interface in the browser**, `setup`, three pages: which
+  files are in effect and where every value came from, the API key checked
+  before it is written, and one checkbox per tool with what it costs the
+  model in context, permission profiles and the policy file as a download.
+  Never part of the server process, loopback only, see section 7.1
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
