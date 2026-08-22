@@ -9,6 +9,7 @@ wants, and as a **resource link**, which is what everyone else needs. See
 from __future__ import annotations
 
 import base64
+import inspect
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -313,7 +314,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     # baked into the source. See `max_pages_field` for why the annotation is
     # attached here instead of written into the signature. `replace` rather
     # than `format`, which would choke on any brace added to the text later.
-    read_download.__annotations__["max_pages"] = max_pages_field(settings.pdf_pages)
+    # `classify` returns a wrapper, and the schema is built from the function
+    # `inspect.signature` arrives at, which follows `__wrapped__` down to the
+    # original. Both are set, and by **replacing** the dict rather than editing
+    # it: since Python 3.14 (PEP 649) annotations are computed on demand from
+    # `__annotate__`, and editing the dict the wrapper materializes leaves the
+    # original still answering from its own source text. Assigning a whole dict
+    # drops `__annotate__`, so the value below is what every reader sees.
+    field = max_pages_field(settings.pdf_pages)
+    for fn in (read_download, inspect.unwrap(read_download)):
+        fn.__annotations__ = dict(fn.__annotations__) | {"max_pages": field}
     read_download.__doc__ = (read_download.__doc__ or "").replace(
         "{pages}", str(settings.pdf_pages)
     )
