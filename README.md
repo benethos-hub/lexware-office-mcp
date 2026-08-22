@@ -33,14 +33,14 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.1.0 is on PyPI, and this checkout is ahead of it.**
+> **Status: 0.2.0.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt. `get_profile` answers which account is connected. Every
 > tool in the table below is built, and each was exercised against a live
-> account. It speaks stdio, and here - before the 0.2.0 release that will
-> carry them to PyPI - a streamable-HTTP transport behind a bearer token,
-> with a container image and a Compose file to go with it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
+> account. It speaks stdio to a client that starts it, and streamable HTTP
+> behind a bearer token where something else has to reach it - as a published
+> container image, with a Compose file for the two of them. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
 > technical specification and the roadmap.
 
 ## Why this exists
@@ -267,7 +267,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.1.0"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.2.0"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -566,15 +566,66 @@ for why that is not the relaxation it looks like.
 
 ## In a container
 
+The image is published for `linux/amd64` and `linux/arm64`, so nothing from
+this repository is needed to run one:
+
+```bash
+docker pull ghcr.io/benethos-hub/lexware-office-mcp:latest
+```
+
+Use `:0.2.0` instead of `:latest` to pin a version.
+
+### With Compose
+
 ```bash
 docker compose up -d                      # the server, on 127.0.0.1:8770
 docker compose --profile setup up -d      # add the configuration interface
 ```
 
-Open <http://127.0.0.1:8771/>, enter the key, tick the tools, then
-`docker compose --profile setup down`. The interface is behind a profile
-because it has no login and it takes an API key, so it is meant to run for
-the minutes it is needed rather than permanently.
+As shipped, `compose.yaml` builds from this checkout. Two commented lines in
+each of its two services switch it to the published image, and that file is
+then the only thing you need from here.
+
+### As single containers
+
+```bash
+docker run -d --name lexware-office-mcp \
+  --restart unless-stopped \
+  -p 127.0.0.1:8770:8770 \
+  -v lxo-config:/config -v lxo-downloads:/downloads \
+  ghcr.io/benethos-hub/lexware-office-mcp:latest
+```
+
+The token it generated for itself is in the config volume, which is where you
+read it from:
+
+```bash
+docker exec lexware-office-mcp cat /config/.env
+```
+
+The configuration interface is the same image with its other command, pointed
+at the same volume:
+
+```bash
+docker run --rm -d --name lexware-office-mcp-setup \
+  -p 127.0.0.1:8771:8771 \
+  -v lxo-config:/config -v lxo-downloads:/downloads \
+  ghcr.io/benethos-hub/lexware-office-mcp:latest \
+  setup --no-browser --host 0.0.0.0 --port 8771 \
+        --env-file /config/.env --tools-file /config/tools.json
+```
+
+**`--restart unless-stopped` is not decoration here.** The container ends its
+process when the settings file changes, which is what carries a saved setting
+into a running server. With no restart policy it ends and stays ended.
+
+### Either way
+
+Open <http://127.0.0.1:8771/>, enter the key, tick the tools, then stop the
+interface again — `docker compose --profile setup down`, or
+`docker stop lexware-office-mcp-setup`. It is meant to run for the minutes it
+is needed rather than permanently, because it has no login and it takes an
+API key.
 
 **Nothing has to be prepared first.** On its first start the server makes a
 bearer token, writes it into the config volume and says so — the interface

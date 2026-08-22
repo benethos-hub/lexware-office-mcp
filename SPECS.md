@@ -1,16 +1,13 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0 released, 0.2.0 in progress.** Every tool of section 8 is built,
-> tested and exercised against a live account, and so is every module of
-> section 4, including the configuration interface of section 7.1. The HTTP
-> transport, the container image and the Compose file of 0.2.0 are built and
-> driven in Docker but not released - the roadmap in section 16 says what is
-> left.
-> Sections marked **(to verify)** rest on the public documentation and must be
-> confirmed against the live API before the corresponding code is written.
-> Only one such marker is left. Facts already checked against a live account
-> say so with their date, and this document carries a great many of them
-> because the API's own documentation turned out to be wrong more than once.
+> **Status: 0.2.0.** Every tool of section 8 is built, tested and exercised
+> against a live account, and so is every module of section 4, including the
+> HTTP transport of section 6 and the configuration interface of section 7.1.
+> The container image is published, and a client has reached a live account
+> through it over HTTP.
+> Facts checked against a live account say so with their date, and this
+> document carries a great many of them because the API's own documentation
+> turned out to be wrong more than once.
 
 ## 1. Purpose
 
@@ -1879,9 +1876,9 @@ fixtures are the shapes the API actually returned, and the enum values in the
 voucher schemas were measured rather than taken from the documentation, which
 does not list them.
 
-**Feature complete, and not released.** Every tool of section 8 exists, every
-resource group of section 4 is built, and every documented call is covered
-except the event subscriptions, which section 2 rules out. The configuration
+**Feature complete.** Every tool of section 8 exists, every resource group of
+section 4 is built, and every documented call is covered except the event
+subscriptions, which section 2 rules out. The configuration
 question of section 16.1 is answered too: `setup` serves the interface
 described in section 7.1. Nothing on the API side is outstanding.
 
@@ -1977,8 +1974,7 @@ suggested they were.
 | Release | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
-| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end and guarded by the `docker` job in CI, and the release publishes the image to ghcr as well as the package to PyPI. What is left is adding that job to the required checks, which can only happen once it has run, see the note under item 2 |
-| later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the seven checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
 
 **There is no numbered release between 0.2.0 and whatever a future API
 version brings.** What was once listed as a phase of its own — booking a
