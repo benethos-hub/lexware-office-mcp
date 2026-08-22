@@ -1209,10 +1209,6 @@ after, see section 5. Nothing acts on it
 yet. When something does it should be a separate confirmation rather than a
 red label, or the flag is decoration.
 
-**Still planned:** a preset per domain, so "the voucher group off" is one
-action rather than five edits. `grouped_tools()` already returns what it
-needs.
-
 The graphical interface below is the intended home for all of this, and
 `sync` is what keeps a file fit for it: an interface renders one row per tool,
 which is only possible while the file names every tool there is.
