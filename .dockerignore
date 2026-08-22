@@ -1,0 +1,35 @@
+# What the build needs is pyproject.toml, uv.lock, README.md and src/.
+# Everything else only makes the context bigger and the cache colder.
+
+.git
+.github
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+.coverage.*
+htmlcov
+dist
+build
+**/__pycache__
+**/*.py[cod]
+
+# Never into an image: credentials, the machine's permissions, its downloads.
+.env
+.env.*
+config/.env
+config/tools.json
+tool_profiles.json
+config/tool_profiles.json
+downloads
+
+# Not needed at build time.
+tests
+scratch
+compose.yaml
+Dockerfile
+SPECS.md
+CLAUDE.md
+CHANGELOG.md
+LICENSE

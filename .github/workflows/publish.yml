@@ -1,9 +1,15 @@
 name: Publish
 
-# Builds the sdist and the wheel and uploads them to PyPI when a GitHub
-# release is published. Nothing else triggers it: a version may be uploaded
-# to PyPI exactly once, so a run that is not tied to a release tag has no
-# version it could legitimately claim.
+# Publishes the release artefacts when a GitHub release is published:
+#   * the sdist and the wheel to PyPI, through Trusted Publishing
+#   * the container image to ghcr.io, through the automatic GITHUB_TOKEN
+#
+# The two jobs are independent, so a broken image push does not withhold the
+# upload to PyPI and neither waits on the other.
+#
+# `workflow_dispatch` runs the image half alone and tags the result `edge`.
+# PyPI is skipped there: a version may be uploaded to PyPI exactly once, and a
+# manual run carries no release tag it could legitimately claim a version from.
 #
 # Authentication is Trusted Publishing, which exchanges the workflow's OIDC
 # identity for a short-lived token. **No API token is stored anywhere in this
@@ -22,11 +28,17 @@ name: Publish
 # All five have to match or the upload is refused, and the environment below
 # is the one it names.
 #
+# One-time setup for the registry, and only possible after the first push has
+# created the package: a new ghcr package is private even when its repository
+# is public, so `docker pull` fails for everyone but the owner until it is
+# switched under Packages -> Package settings -> Change visibility -> Public.
+#
 # The release process itself is in SPECS.md section 16.
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,6 +46,8 @@ permissions:
 jobs:
   pypi-publish:
     name: Build and publish to PyPI
+    # A manual run has no version to publish, and PyPI refuses a re-upload.
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -69,3 +83,94 @@ jobs:
 
       - name: Publish to PyPI (Trusted Publishing)
         run: uv publish --trusted-publishing always
+
+  ghcr-publish:
+    name: Build and publish the image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io as the GITHUB_TOKEN identity
+    steps:
+      - uses: actions/checkout@v7
+
+      # arm64 is emulated on an amd64 runner. Nothing in this image is compiled
+      # from source - pypdfium2 ships a prebuilt PDFium for aarch64 and the rest
+      # is pure Python - so the emulation only has to run an unpack.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags, labels and annotations
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          # Annotate the index as well as the individual manifests. The default
+          # is manifests only, and for a multi-architecture image the package
+          # page reads the index - the manifest list above the per-architecture
+          # manifests. Labels sitting in the image configuration are then
+          # perfectly present and read by nothing, which is exactly how a
+          # package page ends up saying "No description provided".
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Read the published index back. Setting the annotations above and
+      # trusting them is what produced a description nobody could see, and the
+      # cost of finding out is a release that has already happened.
+      - name: The published index carries what the package page reads
+        run: |
+          ref=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "inspecting $ref"
+          docker buildx imagetools inspect "$ref" --raw > /tmp/index.json
+          python3 - <<'PY'
+          import json
+
+          index = json.load(open("/tmp/index.json"))
+          annotations = index.get("annotations") or {}
+          platforms = sorted(
+              f"{m['platform']['os']}/{m['platform']['architecture']}"
+              for m in index.get("manifests", [])
+              if m.get("platform", {}).get("architecture") != "unknown"
+          )
+          missing = [
+              key
+              for key in (
+                  "org.opencontainers.image.description",
+                  "org.opencontainers.image.source",
+                  "org.opencontainers.image.version",
+              )
+              if not annotations.get(key)
+          ]
+          assert not missing, f"the index carries no {missing} - the package page shows nothing"
+          assert "linux/amd64" in platforms, f"amd64 is missing, index holds {platforms}"
+          assert "linux/arm64" in platforms, f"arm64 is missing, index holds {platforms}"
+          print("OK:", ", ".join(platforms))
+          print("   ", annotations["org.opencontainers.image.description"])
+          PY

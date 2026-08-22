@@ -81,6 +81,16 @@ DEFAULT_PDF_PAGES = 10
 
 DEFAULT_LOG_LEVEL = "INFO"
 
+# The HTTP transport. Loopback by default because a bind address is the one
+# setting where a careless default is a security hole rather than an
+# inconvenience. A container overrides it, and whoever changes it elsewhere is
+# saying they mean to.
+DEFAULT_HTTP_HOST = "127.0.0.1"
+DEFAULT_HTTP_PORT = 8770
+DEFAULT_HTTP_PATH = "/mcp"
+TRANSPORTS: tuple[str, ...] = ("stdio", "streamable-http", "sse")
+DEFAULT_TRANSPORT = "stdio"
+
 # The per-tool policy lives beside the .env rather than in the repository: it
 # says what this installation is allowed to do, which is a property of the
 # machine and the account, not of the code.
@@ -170,6 +180,11 @@ def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
     return candidates[0]
 
 
+def _flag(raw: str | None) -> bool:
+    """A switch from the environment. Absent is off, and so is anything odd."""
+    return (raw or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _env_lookup(
     cwd: Path | None = None, env_file: Path | None = None
 ) -> dict[str, str]:
@@ -237,6 +252,14 @@ class Settings:
     pdf_pages: int = DEFAULT_PDF_PAGES
     log_level: str = DEFAULT_LOG_LEVEL
     tool_policy_path: Path | None = None
+    transport: str = DEFAULT_TRANSPORT
+    http_host: str = DEFAULT_HTTP_HOST
+    http_port: int = DEFAULT_HTTP_PORT
+    http_path: str = DEFAULT_HTTP_PATH
+    bearer_token: str | None = None
+    allowed_hosts: tuple[str, ...] = ()
+    exit_on_config_change: bool = False
+    generate_bearer_token: bool = False
 
     def policy_file(self) -> Path:
         """Where this process reads and writes its per-tool policy."""
@@ -289,6 +312,23 @@ def load_settings(
 
     raw_download = get("DOWNLOAD_DIR")
 
+    transport = (get("TRANSPORT") or DEFAULT_TRANSPORT).lower()
+    if transport not in TRANSPORTS:
+        transport = DEFAULT_TRANSPORT
+
+    bearer_token = get("BEARER_TOKEN") or None
+    register_secret(bearer_token)
+
+    # Only something that restarts the process may ask for this, so it is
+    # off unless said otherwise. The container image says otherwise.
+    exit_on_change = _flag(get("EXIT_ON_CONFIG_CHANGE"))
+    generate_token = _flag(get("GENERATE_BEARER_TOKEN"))
+
+    allowed = get("ALLOWED_HOSTS") or ""
+    allowed_hosts = tuple(
+        part for part in (p.strip() for p in allowed.split(",")) if part
+    )
+
     return Settings(
         api_key=api_key,
         base_url=(get("BASE_URL") or DEFAULT_BASE_URL).rstrip("/"),
@@ -312,4 +352,14 @@ def load_settings(
             else None
         ),
         log_level=log_level,
+        transport=transport,
+        http_host=get("HTTP_HOST") or DEFAULT_HTTP_HOST,
+        http_port=_as_int(
+            get("HTTP_PORT"), DEFAULT_HTTP_PORT, name="LXO_MCP_HTTP_PORT"
+        ),
+        http_path=get("HTTP_PATH") or DEFAULT_HTTP_PATH,
+        bearer_token=bearer_token,
+        allowed_hosts=allowed_hosts,
+        exit_on_config_change=exit_on_change,
+        generate_bearer_token=generate_token,
     )

@@ -23,6 +23,7 @@ from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import probe, transfer
 from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
 from benethos_lexware_office_mcp.configui.state import Installation
+from benethos_lexware_office_mcp.envfile import read_env_file
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
@@ -584,3 +585,56 @@ def test_an_imported_file_becomes_the_policy_once_it_is_saved(
     assert transfer.parse(
         installation.settings.policy_file().read_text(encoding="utf-8")
     ) == {name: name in ("get_profile", "search_vouchers") for name in known_tools()}
+
+
+# -- the HTTP token ---------------------------------------------------------
+
+
+def test_the_token_can_be_saved_from_the_page(
+    browser: Browser, installation: Installation
+) -> None:
+    status, body, _ = browser.post(
+        "/bearer", {"bearer": "a-token-typed-by-hand", "action": "save"}
+    )
+
+    assert status == 200
+    written = read_env_file(installation.env_path)
+    assert written["LXO_MCP_BEARER_TOKEN"] == "a-token-typed-by-hand"
+    assert "gespeichert" in note(body)
+
+
+def test_generating_writes_a_long_random_token(
+    browser: Browser, installation: Installation
+) -> None:
+    _, body, _ = browser.post("/bearer", {"action": "generate"})
+    first = read_env_file(installation.env_path)["LXO_MCP_BEARER_TOKEN"]
+
+    assert len(first) >= 32
+    assert "erzeugt" in note(body)
+
+    browser.post("/bearer", {"action": "generate"})
+    assert read_env_file(installation.env_path)["LXO_MCP_BEARER_TOKEN"] != first
+
+
+def test_an_empty_token_is_refused(
+    browser: Browser, installation: Installation
+) -> None:
+    """Blank means cleared here, not unchanged: the field shows what is set."""
+    browser.post("/bearer", {"bearer": "the-one-in-force", "action": "save"})
+
+    _, body, _ = browser.post("/bearer", {"bearer": "   ", "action": "save"})
+
+    still = read_env_file(installation.env_path)["LXO_MCP_BEARER_TOKEN"]
+    assert still == "the-one-in-force"
+    assert "Nicht gespeichert" in note(body)
+
+
+def test_the_page_shows_the_token_it_would_hand_to_a_client(
+    browser: Browser,
+) -> None:
+    """Unlike the API key, which is never shown back: this one gets copied."""
+    browser.post("/bearer", {"bearer": "shown-because-it-is-copied", "action": "save"})
+
+    _, body, _ = browser.get("/credentials")
+
+    assert "shown-because-it-is-copied" in body

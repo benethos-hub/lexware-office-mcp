@@ -5,10 +5,13 @@ keep stdout to itself. This is a separate command, started by a person, that
 serves on the loopback interface and stops when they are done. The two share
 their configuration modules and nothing else.
 
-**It binds 127.0.0.1 and offers no way to change that.** The pages have no
-login, because a page that only the local machine can reach does not need one
-— and the moment it could be reached from elsewhere it would need one badly.
-Refusing the choice is the simplest way to keep that true.
+**It binds 127.0.0.1 unless told otherwise.** The pages have no login,
+because a page only the local machine can reach does not need one. A
+container is the case that has to say otherwise: a process bound to the
+container's own loopback cannot be reached through a published port at all.
+There the isolation is the network namespace and the host-side publish, not
+the bind address. Anywhere else, changing it is a decision with consequences,
+and the server says so on stderr when it does.
 
 State-changing requests are guarded twice, because they rewrite credentials
 and permissions and a page in another tab must not be able to trigger one:
@@ -34,11 +37,11 @@ from ..policy import known_tools
 from . import pages, probe, transfer
 from .profiles import ProfileError
 from .render import esc, note, page
-from .state import API_KEY, EDITABLE_KEYS, Installation
+from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
 
 __all__ = ["ConfigServer", "Handler", "serve"]
 
-HOST = "127.0.0.1"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 
 _SESSION_COOKIE = "lxo_config"
@@ -164,6 +167,7 @@ class Handler(BaseHTTPRequestHandler):
         routes = {
             "/check": self._check,
             "/credentials": self._save_key,
+            "/bearer": self._save_bearer,
             "/settings": self._save_settings,
             "/permissions": self._permissions,
         }
@@ -244,6 +248,53 @@ class Handler(BaseHTTPRequestHandler):
         self._page_with(
             pages.credentials,
             f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}",
+            kind="good",
+        )
+
+    def _save_bearer(self, form: dict[str, list[str]]) -> None:
+        """Write the HTTP token, or make one. Never write an empty one.
+
+        Empty means "leave alone" for the API key, where the field is blank
+        by design. Here the field shows what is set, so blank can only mean
+        the value was cleared - and a cleared token is a server that stops
+        serving on its next start.
+        """
+        inst = self.installation
+        if form.get("action", [""])[0] == "generate":
+            token = secrets.token_urlsafe(32)
+            done = "Neues Token erzeugt und gespeichert."
+        else:
+            token = (form.get("bearer", [""])[0]).strip()
+            if not token:
+                self._page_with(
+                    pages.credentials,
+                    "Nicht gespeichert: ein leeres Token wäre kein Token. "
+                    "Der Server startet den HTTP-Transport dann nicht.",
+                    kind="bad",
+                )
+                return
+            done = "Token gespeichert."
+
+        try:
+            update_env_file(inst.env_path, {BEARER_KEY: token})
+        except OSError as exc:
+            self._page_with(
+                pages.credentials,
+                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
+                kind="bad",
+            )
+            return
+
+        inst.reload()
+        shadow = (
+            " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
+            if inst.shadowed(BEARER_KEY)
+            else ""
+        )
+        self._page_with(
+            pages.credentials,
+            f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
+            f"jeder Client braucht es dann neu.{shadow}",
             kind="good",
         )
 
@@ -552,6 +603,7 @@ def _flags(chosen: list[str]) -> dict[str, bool]:
 def serve(
     installation: Installation,
     *,
+    host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
 ) -> None:
@@ -561,10 +613,19 @@ def serve(
     command shares an entry point with a server for which stdout is the
     protocol, and one habit is easier to keep than two.
     """
-    server = ConfigServer((HOST, port), Handler)
+    server = ConfigServer((host, port), Handler)
     server.installation = installation
-    url = f"http://{HOST}:{port}/"
+    # The address a person opens, which is not always the one that was bound:
+    # 0.0.0.0 is a bind, not a destination.
+    reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
+    url = f"http://{reachable}:{port}/"
     print(f"Konfiguration im Browser: {url}", file=sys.stderr)
+    if host not in _LOOPBACK:
+        print(
+            f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
+            "aus erreichbar. Die Seiten haben keine Anmeldung.",
+            file=sys.stderr,
+        )
     print(f".env:    {installation.env_path}", file=sys.stderr)
     print(f"Rechte:  {installation.policy_path}", file=sys.stderr)
     print(f"Profile: {installation.profiles.path}", file=sys.stderr)

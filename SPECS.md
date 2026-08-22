@@ -1,9 +1,11 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0, the first release.** Every tool of section 8 is built,
+> **Status: 0.1.0 released, 0.2.0 in progress.** Every tool of section 8 is built,
 > tested and exercised against a live account, and so is every module of
-> section 4, including the configuration interface of section 7.1. The
-> roadmap in section 16 says what 0.2.0 is for.
+> section 4, including the configuration interface of section 7.1. The HTTP
+> transport, the container image and the Compose file of 0.2.0 are built and
+> driven in Docker but not released - the roadmap in section 16 says what is
+> left.
 > Sections marked **(to verify)** rest on the public documentation and must be
 > confirmed against the live API before the corresponding code is written.
 > Only one such marker is left. Facts already checked against a live account
@@ -98,6 +100,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
+| `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
@@ -641,13 +644,44 @@ still meets it.
 - **0.1.0 is stdio only.** `MCPServer.run()` with the default stdio
   transport, launched as a subprocess by the client. This is the entire
   transport surface of the first releases, by explicit decision.
-- **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with
-  `--host`, `--port`, `--path`, `--allowed-hosts`, `--allowed-origins`. The HTTP
-  transport also needs its own authentication in
-  front of the API key, because anyone who can reach the port can otherwise
-  spend the account owner's credentials. A static bearer token checked by the
-  server, plus the SDK's DNS-rebinding `Host`/`Origin` guard, is the intended
-  minimum. Until that is built, HTTP stays unavailable rather than insecure.
+- **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with `--host`,
+  `--port`, `--path` and `--allowed-hosts`, in `transport.py`. **The bearer
+  token is required, not offered**: an HTTP transport without
+  `LXO_MCP_BEARER_TOKEN` refuses to start, because anyone who can reach the
+  port can otherwise spend the account owner's credentials. It is one shared
+  secret compared in constant time — the server speaks for one account and has
+  no user to authorize, so an OAuth flow would be machinery for a case that
+  does not exist. The SDK's DNS-rebinding `Host`/`Origin` guard sits on top of
+  it, with the loopback names always kept and `--allowed-hosts` adding a
+  container or proxy name to them. There is no `--allowed-origins`: an origin
+  is derived from each allowed host, which is the only shape that has come up.
+
+  Neither guard makes the port safe on a network. They make it survivable on a
+  machine shared with other processes, which is what a container published on
+  a loopback port is. **`--host` and `--port` serve whichever of the two
+  listening things this process is**, the transport or the configuration
+  interface of section 7.1, since a process is never both.
+- **A changed settings file ends the process** when
+  `LXO_MCP_EXIT_ON_CONFIG_CHANGE` says so, which the image sets and nothing
+  else does. Settings are read once, at startup: the key goes into a
+  long-lived client and the one rate limiter of section 10.1 hangs off it, so
+  rebuilding that in place would mean moving state between two clients.
+  Ending instead hands the problem to whatever started the process, and a
+  fresh one reads everything again - which is what lets a key saved in a
+  browser reach a running server. Off by default, because ending is the whole
+  of it where nothing restarts it.
+
+  The watch compares a **hash of the content**, not a timestamp: the
+  configuration interface rewrites the whole file on every save, changed or
+  not. Two further rules were bought with defects. The baseline is taken
+  *after* a generated bearer token has been written, or the process would
+  restart on its own first act. And **only a value that two reads in a row
+  agree on counts as a state at all**, at both ends of the comparison: a save
+  truncates before it writes, so a poll landing inside one reads an empty
+  file, and a watch that started during a save would otherwise hold that
+  emptiness as its baseline and end the process over the file coming back.
+  CI found it, as a rewrite of identical content ending the process for
+  nothing - a race that needs a loaded machine, which a developer's is not.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).
@@ -760,7 +794,7 @@ without a restart is the *content* of that file, read fresh on every question:
 only its identity is fixed.
 
 **The two can still disagree, and only one direction can fix it from here.**
-A client usually starts the server with `--env-file` and `--tools-file`;
+A client usually starts the server with `--env-file` and `--tools-file`, and
 `setup` is started separately and cannot see those arguments. So the overview
 prints the `"args"` entry that would make the client match the files this
 interface holds, and names the other way round as well — starting `setup`
@@ -1792,7 +1826,8 @@ Built, tested offline and exercised against a live test account:
 - **every module in the table of section 4.** None is marked planned any
   more. The table is the list, so that this does not become a second one to
   keep in step.
-- twenty-five tools over the **stdio** transport, in seven groups. Reading:
+- twenty-five tools in seven groups, over **stdio** and, since 0.2.0, over
+  **streamable-HTTP** or **SSE** behind a required bearer token. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
   `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
   `get_sales_document`, `get_recurring_templates`, `get_master_data`,
@@ -1816,6 +1851,11 @@ Built, tested offline and exercised against a live test account:
   before it is written, and one checkbox per tool with what it costs the
   model in context, permission profiles and the policy file as a download.
   Never part of the server process, loopback only, see section 7.1
+- **a container image and a Compose file**, two stages, non-root, 168 MB. The
+  server on a loopback-published port and the configuration interface behind a
+  `setup` profile on the same volume. A bearer token made on first start
+  rather than baked in, and a process that ends when its settings file changes
+  so the new ones take effect, see section 6
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
@@ -1858,13 +1898,19 @@ order:
    owner as well. Merges are squash or rebase, the history stays linear, and a
    merged branch deletes itself. Nothing is written to `main` directly any
    more.
-2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds three
+2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds four
    jobs: `lint` (`ruff check`, the format check, `mypy` and `uv lock --check`),
-   `test` across the Python matrix of section 6 with the coverage floor, and
+   `test` across the Python matrix of section 6 with the coverage floor,
    `fresh-install`, which builds the wheel, installs it with no lockfile
    involved and asserts that an installation without a policy file offers no
    tools at all - the rule of section 9.2, which no offline test reaches
-   because every one of them writes a policy file first. Every job passes with
+   because every one of them writes a policy file first - and `docker`, which
+   builds the image and asserts the same rule against the artefact people
+   actually run: the container generates its own bearer token, refuses a
+   request that does not carry it, and answers `tools/list` with nothing. It
+   also fails the build if a plain `up` would start the configuration
+   interface, which belongs behind its profile. Only `linux/amd64` is built,
+   because nothing publishes a second architecture yet. Every job passes with
    no key, no network and no account, see section 14.1.
    `.github/dependabot.yml` asks weekly about the dependency ranges and the
    pinned actions.
@@ -1893,6 +1939,29 @@ order:
    version pin in the README's client example, and brings the installation
    instructions in line, then a tag and a GitHub release on the merged commit,
    which is what triggers the upload.
+5. **Publication of the image**, so that running this server in a container
+   does not require cloning the repository first. The same workflow gained a
+   second job that pushes `ghcr.io/benethos-hub/lexware-office-mcp` for
+   `linux/amd64` and `linux/arm64`, authenticated by the automatic
+   `GITHUB_TOKEN`, which is why the registry is ghcr and not one that needs an
+   account and a stored secret. The two jobs are independent: a broken image
+   does not withhold the upload to PyPI. `workflow_dispatch` runs the image
+   half alone and tags it `edge`, since a release is otherwise the only way to
+   exercise a workflow that triggers on one.
+
+   **The metadata has to sit on the index, not only on the manifests.** A
+   multi-architecture image is an index pointing at one manifest per
+   architecture, and the package page reads the index. Labels in the image
+   configuration are then present and read by nothing, which is how a package
+   page comes to say "No description provided" about an image that carries a
+   description. `DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest` puts them
+   in both places, and the job then reads the published index back and fails
+   if the description, the source or the version is not on it - a release is a
+   poor moment to discover that setting a value and it arriving are different
+   things.
+
+   A new ghcr package is private even under a public repository, so the first
+   push needs a one-time visibility switch. The workflow header says where.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
@@ -1906,7 +1975,7 @@ suggested they were.
 | Release | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
-| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **next**, once 0.1.0 is out |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **built, unreleased** — `transport.py`, `Dockerfile` and `compose.yaml`, exercised in Docker end to end and guarded by the `docker` job in CI, and the release publishes the image to ghcr as well as the package to PyPI. What is left is adding that job to the required checks, which can only happen once it has run, see the note under item 2 |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
 **There is no numbered release between 0.2.0 and whatever a future API

@@ -27,10 +27,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..config import Settings, resolve_config_file
-from .app import DEFAULT_PORT, serve
+from .app import DEFAULT_HOST, DEFAULT_PORT, serve
 from .state import Installation
 
-__all__ = ["DEFAULT_PORT", "Installation", "start", "target_env_file"]
+__all__ = [
+    "DEFAULT_HOST",
+    "DEFAULT_PORT",
+    "Installation",
+    "start",
+    "target_env_file",
+]
 
 
 def target_env_file(named: Path | None = None, cwd: Path | None = None) -> Path:
@@ -48,6 +54,7 @@ def start(
     settings: Settings,
     env_path: Path,
     *,
+    host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
     cwd: Path | None = None,
@@ -56,4 +63,4 @@ def start(
     installation = Installation(
         settings=settings, env_path=env_path, cwd=cwd or Path.cwd()
     )
-    serve(installation, port=port, open_browser=open_browser)
+    serve(installation, host=host, port=port, open_browser=open_browser)

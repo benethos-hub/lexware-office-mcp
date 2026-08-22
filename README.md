@@ -33,13 +33,14 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.1.0, the first release.**
-> The server runs over stdio and handles contacts, vouchers and documents:
-> find them, read them, create them, change them, see what is still unpaid,
-> download a PDF and upload a receipt. `get_profile` answers which account
-> is connected. Every tool in the table below is built, and each was
-> exercised against a live account. An HTTP transport, a container image and
-> a Compose file are what 0.2.0 is for. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
+> **Status: 0.1.0 is on PyPI, and this checkout is ahead of it.**
+> The server handles contacts, vouchers and documents: find them, read them,
+> create them, change them, see what is still unpaid, download a PDF and
+> upload a receipt. `get_profile` answers which account is connected. Every
+> tool in the table below is built, and each was exercised against a live
+> account. It speaks stdio, and here - before the 0.2.0 release that will
+> carry them to PyPI - a streamable-HTTP transport behind a bearer token,
+> with a container image and a Compose file to go with it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
 > technical specification and the roadmap.
 
 ## Why this exists
@@ -460,10 +461,44 @@ interface groups and marks by. It never decides a call: only the file does.
 
 ## Configuration
 
-Settings come from a `.env` file, found the same way the policy file is, or
-from real environment variables, which win over it. `--env-file PATH` names
-one instead of searching, and pairs with `--tools-file` so that one entry in a
-client's configuration carries its own account and its own permissions:
+### Where a value comes from, and which one wins
+
+Six sources, **lowest first** — a later one overrides an earlier one:
+
+1. the built-in default
+2. `.env` in the per-user configuration directory
+3. `config/.env` of the checkout the server runs from, if it runs from one
+4. `config/.env` and then `.env` in the working directory
+5. the file `--env-file` names, which is read **after** all of those rather
+   than instead of them: it was named rather than found, so it outranks them
+6. **a real environment variable**, which beats every file
+
+The last one is the one that surprises people. A setting exported in your
+shell, put in a client's `env` block, or pinned in a Compose file **cannot be
+changed by editing a `.env`** — not by hand, and not through `setup`. The
+value is written, the file is correct, and nothing happens.
+
+The configuration interface says so rather than letting you find out: each
+setting carries a badge naming its source, and one that an environment
+variable is holding is marked as such. When something you saved seems to be
+ignored, that badge is the answer.
+
+**In a container this is not an edge case.** `compose.yaml` pins the
+transport, the bind address, the port and the allowed hosts as real
+environment variables, because those belong to the container rather than to
+the installation inside it. Everything else — the API key, the HTTP token,
+the limits — is left to the config volume, which is what makes the
+configuration interface able to change it.
+
+The same order applies to the policy file, and `LXO_MCP_TOOL_POLICY` and
+`--tools-file` name one directly. The interface pins whichever file it found
+when it started, so the page cannot swap its own subject out from under you.
+
+### Naming the files
+
+`--env-file PATH` names a settings file instead of searching, and pairs with
+`--tools-file` so that one entry in a client's configuration carries its own
+account and its own permissions:
 
 ```json
 "args": ["--env-file", "/path/to/test.env",
@@ -473,9 +508,9 @@ client's configuration carries its own account and its own permissions:
 A path that does not exist is refused rather than quietly falling back to the
 search — except under `setup`, which exists partly to create one.
 
-`setup` writes this file for you and shows which of the sources below each
-value is coming from, which is the quickest way to answer "why is this
-setting being ignored".
+`setup` writes this file for you.
+
+### The settings
 
 | Variable | Meaning | Default |
 |---|---|---|
@@ -490,6 +525,14 @@ setting being ignored".
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default | `10` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
+| `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
+| `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport | — |
+| `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport | `127.0.0.1` |
+| `LXO_MCP_HTTP_PORT` | Port to bind | `8770` |
+| `LXO_MCP_HTTP_PATH` | URL path the transport serves on | `/mcp` |
+| `LXO_MCP_ALLOWED_HOSTS` | `Host` values to accept besides loopback, comma separated | — |
+| `LXO_MCP_GENERATE_BEARER_TOKEN` | Make a token at startup if none is set and write it to the settings file | off |
+| `LXO_MCP_EXIT_ON_CONFIG_CHANGE` | End the process when the settings file changes, for something that restarts it | off |
 
 Every setting above is in use. `LXO_MCP_PAGE_SIZE` is capped at 250, which is
 the lowest page size any endpoint accepts, and a larger value is refused at
@@ -497,12 +540,58 @@ startup rather than turning into an API error later.
 
 ## Transport
 
-The first releases speak **stdio** only, which is what Claude Desktop and
-comparable local clients use. An HTTP transport is planned for 0.2.0 and will
-ship with its own bearer authentication in front of the API key, because
-anyone who can reach an unprotected port could otherwise spend your Lexware
-credentials. Until that authentication exists, HTTP stays unavailable rather
-than insecure.
+**stdio** is the default and what Claude Desktop and comparable local clients
+use: the client starts the server as its own child process, and nothing else
+can talk to it.
+
+**streamable-HTTP** and **SSE** serve the same tools on a port, for a
+container or a machine of their own:
+
+```bash
+uvx benethos-lexware-office-mcp --transport streamable-http --port 8770
+```
+
+Two things stand in front of that port, and neither is optional. A **bearer
+token** every request must carry as `Authorization: Bearer <token>` — without
+`LXO_MCP_BEARER_TOKEN` the server refuses to start an HTTP transport at all,
+because anyone who can reach the port could otherwise spend your Lexware
+credentials. And the SDK's **DNS-rebinding guard**, which checks `Host` and
+`Origin` against an allowlist of the loopback names, extended by
+`--allowed-hosts` where a container or a proxy puts another name in front.
+
+Neither makes the port safe to publish on a network. They make it survivable
+on a machine shared with other processes. `--host` binds somewhere other than
+loopback, which a container has to do — see [In a container](#in-a-container)
+for why that is not the relaxation it looks like.
+
+## In a container
+
+```bash
+docker compose up -d                      # the server, on 127.0.0.1:8770
+docker compose --profile setup up -d      # add the configuration interface
+```
+
+Open <http://127.0.0.1:8771/>, enter the key, tick the tools, then
+`docker compose --profile setup down`. The interface is behind a profile
+because it has no login and it takes an API key, so it is meant to run for
+the minutes it is needed rather than permanently.
+
+**Nothing has to be prepared first.** On its first start the server makes a
+bearer token, writes it into the config volume and says so — the interface
+shows it, and that is the value a client needs. It is not baked into the
+image, where every copy would share it.
+
+**The container binds `0.0.0.0`, and that is not a relaxation.** A process on
+the container's own loopback cannot be reached through a published port at
+all. The isolation is the network namespace, and who may reach the port is
+decided by the publish, which maps `127.0.0.1` only.
+
+**A setting saved in the browser reaches the running server.** Settings are
+read once at startup, so the container is told to end when its settings file
+changes and Compose starts it again a second later. What Compose pins as real
+environment variables — the transport, the bind address, the port, the allowed
+hosts — belongs to the container and cannot be changed from the volume, see
+[Configuration](#configuration).
 
 ## Example prompts
 

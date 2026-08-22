@@ -130,3 +130,117 @@ jobs:
           assert 'create_contact' not in names, 'the read-only preset offered a write tool'
           print('OK: the preset enabled', len(names), 'tools, none of them writing')
           "
+
+  # The image and the Compose file are the only part of this repository that no
+  # test touches: the suite is offline Python, and a Dockerfile is neither.
+  # Everything asserted here was verified by hand once, which is exactly the
+  # kind of proof that stops being true without anyone noticing.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t benethos-lexware-office-mcp:ci .
+
+      # A release publishes linux/amd64 and linux/arm64, and only amd64 is
+      # built above, so an arm64-only break would first show itself during a
+      # release. Nothing is loaded or pushed here: that the build completes is
+      # the whole assertion, and the container below is run on the runner's own
+      # architecture.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build for arm64 as well
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The configuration interface has no login and takes an API key. It is
+      # behind a profile so that a plain `up` leaves it out, and that is a
+      # property worth failing a build over.
+      - name: Compose is valid, and the interface stays behind its profile
+        run: |
+          docker compose config -q
+          plain=$(docker compose config --services)
+          with=$(docker compose --profile setup config --services)
+          # `a && b` as a whole statement is not exempt from errexit, so a
+          # grep that finds nothing would end the step. Ask with `if`.
+          if echo "$plain" | grep -qx setup; then
+            echo "::error::a plain up would start the setup service"
+            exit 1
+          fi
+          echo "$with" | grep -qx setup || { echo "::error::the setup profile starts nothing"; exit 1; }
+          echo "OK: plain up starts $(echo "$plain" | wc -l) service, the setup profile adds one"
+
+      - name: Start it
+        run: |
+          docker run -d --name lxo-ci -p 8770:8770 benethos-lexware-office-mcp:ci
+          # curl writes 000 for %{http_code} when it cannot connect *and* exits
+          # non-zero, so the fallback has to be an assignment rather than an
+          # `|| echo` inside the substitution - that would concatenate the two
+          # and leave the loop on the first attempt.
+          code=000
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8770/mcp -d '{}') || code=000
+            [ "$code" = "000" ] || break
+            sleep 1
+          done
+          if [ "$code" != "401" ]; then
+            echo "::error::an unauthenticated request answered $code, expected 401"
+            exit 1
+          fi
+          echo "OK: the port serves, and it refuses a request without a token"
+
+      # What the image promises on a machine that was handed nothing: it makes
+      # its own token, only that token gets in, and an installation with no
+      # policy file offers no tools - the rule the whole server is built around,
+      # asserted here against the artefact people actually run.
+      - name: It generates a token, guards with it, and offers no tools
+        run: |
+          token=$(docker exec lxo-ci sh -c "grep '^LXO_MCP_BEARER_TOKEN=' /config/.env | cut -d= -f2-" | tr -d '\r\n')
+          [ ${#token} -ge 32 ] || { echo "::error::no generated token in /config/.env"; exit 1; }
+          wrong=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8770/mcp \
+            -H "authorization: Bearer not-the-token" -d '{}')
+          [ "$wrong" = "401" ] || { echo "::error::a wrong token answered $wrong"; exit 1; }
+
+          acc="accept: application/json, text/event-stream"
+          ct="content-type: application/json"
+          auth="authorization: Bearer $token"
+          sid=$(curl -s -D - -o /dev/null -X POST http://localhost:8770/mcp -H "$auth" -H "$ct" -H "$acc" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            | tr -d '\r' | awk 'tolower($1)=="mcp-session-id:"{print $2}')
+          [ -n "$sid" ] || { echo "::error::initialize returned no session id"; exit 1; }
+          curl -s -o /dev/null -X POST http://localhost:8770/mcp -H "$auth" -H "$ct" -H "$acc" \
+            -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+          body=$(curl -s -X POST http://localhost:8770/mcp -H "$auth" -H "$ct" -H "$acc" \
+            -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+          echo "$body" | grep -q '"tools":\[\]' || {
+            echo "::error::the container offered tools without a policy file"
+            echo "$body" | head -5
+            exit 1
+          }
+          echo "OK: token generated, only it is accepted, and no policy file means no tools"
+
+      # compose depends on this one, and it is a shell command in a string that
+      # nothing else checks.
+      - name: The image reports itself healthy
+        run: |
+          for _ in $(seq 1 20); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' lxo-ci)
+            [ "$status" = "starting" ] || break
+            sleep 3
+          done
+          [ "$status" = "healthy" ] || { echo "::error::health check reports $status"; exit 1; }
+          echo "OK: healthy"
+
+      - name: What it said
+        if: always()
+        run: docker logs lxo-ci || true
