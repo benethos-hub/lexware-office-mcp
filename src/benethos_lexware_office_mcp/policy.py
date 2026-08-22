@@ -79,11 +79,19 @@ IRREVERSIBLE: tuple[Effect, ...] = ("delete",)
 # - ``""``  the API can remove it again
 # - ``"app"``  no call here removes it, but the web app deletes one without
 #   ceremony. A gap in the API, which a later version could close.
-# - ``"law"``  the account owner may be required to keep it. Once a document
-#   is final festgeschrieben, GoBD and section 146 AO want it unchanged and
-#   the remedy is a Storno rather than a deletion. No API version changes
-#   that.
-Permanence = Literal["", "app", "law"]
+# - ``"books"``  no call here removes it, and it is a bookkeeping record, so
+#   the web app deletes it only while nothing has bound it: not
+#   festgeschrieben, no payment assigned, no follow-on document, not
+#   exported. **Nothing this API creates is bound at the moment it is
+#   created** - `update_voucher` works, which a festgeschrieben record would
+#   not allow, and a sales document is a draft unless the call asks for
+#   `finalize`. What the mark says is that this record can *become* permanent,
+#   and that from the Festschreibung on, section 146 AO wants it unchanged and
+#   the remedy is a Storno rather than a deletion.
+#
+# The second value was called ``"law"`` until 2026-08-22 and was read, rightly,
+# as claiming the obligation applies from the start. It does not.
+Permanence = Literal["", "app", "books"]
 
 
 @dataclass(frozen=True)

@@ -267,7 +267,7 @@ def test_destruction_and_permanence_are_different_marks(inst: Installation) -> N
     body = text(pages.permissions(inst))
 
     assert "nur App" in body
-    assert "nur App · GoBD" in body
+    assert "nur App · Buchhaltung" in body
 
 
 def test_the_marks_do_not_claim_a_record_can_never_be_deleted(
@@ -282,7 +282,8 @@ def test_the_marks_do_not_claim_a_record_can_never_be_deleted(
     body = text(pages.permissions(inst))
 
     assert "bleibt dauerhaft" not in body
-    assert "solange es nicht festgeschrieben" in body
+    assert "Beim Anlegen ist nichts festgeschrieben" in body
+    assert "solange nichts" in body
     assert "Storno-Buchung" in body
 
 

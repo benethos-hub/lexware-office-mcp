@@ -57,23 +57,22 @@ _SETTING_LABELS: dict[str, str] = {
 }
 
 # What the API cannot take back, and what that actually means for the record.
-# **Neither of these says "gone forever"**: Lexware Office deletes most of it
-# without ceremony, and only a festgeschrieben document is genuinely stuck.
-# The earlier wording here said "bleibt dauerhaft", which overstated the
-# second case and had already been corrected in the tool descriptions - see
-# SPECS.md section 5, which reads it out of the vendor's own help pages.
+# **Neither of these says "gone forever", and neither says "bound now".**
+# Nothing this API creates is festgeschrieben at the moment it is created: a
+# voucher stays editable, and a sales document is a draft unless the call asks
+# for `finalize`. See SPECS.md section 5.
 _PERMANENCE_LABELS: dict[str, tuple[str, str]] = {
     "app": (
         "nur App",
         "Die API nimmt das nicht zurück. In Lexware Office selbst lässt sich "
         "ein Kontakt ohne Weiteres löschen.",
     ),
-    "law": (
-        "nur App · GoBD",
-        "Die API nimmt das nicht zurück. In der Web-App löschbar, solange der "
-        "Beleg nicht festgeschrieben, mit einer Zahlung verknüpft, "
-        "weiterverarbeitet oder exportiert ist. Nach dem Festschreiben bleibt "
-        "er stehen, § 146 AO, und korrigiert wird mit einer Storno-Buchung.",
+    "books": (
+        "nur App · Buchhaltung",
+        "Die API nimmt das nicht zurück. Beim Anlegen ist nichts "
+        "festgeschrieben - in der Web-App löschbar, solange der Beleg nicht "
+        "festgeschrieben, mit einer Zahlung verknüpft, weiterverarbeitet oder "
+        "exportiert ist. Ab dem Festschreiben bleibt er stehen, § 146 AO.",
     ),
 }
 
@@ -455,14 +454,17 @@ def _legend() -> str:
     lässt sich danach neu anlegen.
   </p>
   <p class="hint">
-    {_permanence_badge("app")} die API nimmt das nicht zurück. In Lexware
-    Office selbst lässt es sich löschen, solange es nicht festgeschrieben, mit
-    einer Zahlung verknüpft, weiterverarbeitet oder exportiert ist.
+    {_permanence_badge("app")} die API nimmt das nicht zurück, Lexware Office
+    selbst löscht es ohne Weiteres. Betrifft nur Kontakte.
   </p>
   <p class="hint">
-    {_permanence_badge("law")} zusätzlich: nach dem Festschreiben bleibt der
-    Beleg stehen, § 146 AO. Korrigiert wird dann mit einer Storno-Buchung,
-    nicht mit einer Löschung.
+    {_permanence_badge("books")} geht in die Buchhaltung. <strong>Beim
+    Anlegen ist nichts festgeschrieben</strong> — ein Beleg bleibt änderbar,
+    ein Verkaufsbeleg entsteht als Entwurf, solange die Anfrage nicht
+    <code>finalize</code> setzt. Gelöscht wird in der Web-App, solange nichts
+    ihn bindet: nicht festgeschrieben, keine Zahlung zugeordnet, keine
+    Folgedokumente, nicht exportiert. Erst ab dem Festschreiben bleibt er
+    stehen, § 146 AO, und korrigiert wird mit einer Storno-Buchung.
   </p>
 </div>
 """

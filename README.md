@@ -275,8 +275,11 @@ Each row carries what that tool costs the assistant in context, and the total
 follows your ticks: every enabled tool is sent to the model on **every**
 request, so switching one on is a budget decision as well as a permission
 one. Writing tools are marked, and the ones whose result the API cannot take
-back are marked separately — deleting an article is undoable by creating it
-again, while a booked voucher stays.
+back are marked separately: `nur App` for a contact, which Lexware Office
+deletes without ceremony, and `nur App · Buchhaltung` for a record that
+enters the books. Neither means it is stuck — nothing is festgeschrieben when
+it is created, and a legend on the page names the four things that do bind a
+record later.
 
 Profiles live here too. Save the current selection under a name, load it
 later. Loading only fills the boxes: nothing reaches `tools.json` until you

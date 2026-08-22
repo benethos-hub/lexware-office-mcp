@@ -747,19 +747,18 @@ and nothing else in the project makes that visible.
 **The marks are explained on the page, not in a tooltip.** Each row carries
 what the tool does — `lesend`, `schreibend · create`, `schreibend · delete` —
 and, where it applies, what becomes of what it writes: `nur App` for a record
-only the web app deletes, `nur App · GoBD` for one that additionally has to
-stay once it is festgeschrieben. A legend above the groups says what each of
+only the web app deletes, `nur App · Buchhaltung` for one that enters the
+books and can be bound later. A legend above the groups says what each of
 those means, because a tooltip is a poor place for the one distinction this
 page exists to make.
 
-**Neither permanence mark claims a record is gone forever**, and an earlier
-wording here did. `bleibt dauerhaft` was on all five of them, which overstates
-every case except a festgeschrieben document: per section 5, the web app
-deletes the rest unless it is festgeschrieben, has a payment assigned, has
-follow-on documents, or has been exported. That qualification is now on the
-page. It is the same overstatement the tool descriptions carried until
-2026-08-21 and were corrected for, which is worth noticing — the wording had
-been fixed in one place and reintroduced in another.
+**Neither permanence mark claims a record is gone forever, or bound now.**
+The wording here said `bleibt dauerhaft` on all five, which was wrong twice
+over: the web app deletes most of it, and nothing is festgeschrieben at the
+moment it is created. The legend now says that outright and names the four
+things that do bind a record. Worth noticing for its own sake — the same
+overstatement was in the tool descriptions until 2026-08-21 and was corrected
+there, then written again here from memory rather than from section 5.
 
 **Profiles are a convenience, never a second policy.** A profile is a named
 list of enabled tool names, stored in `tool_profiles.json` beside the policy
@@ -1005,14 +1004,25 @@ the point:
 |---|---|---|
 | `""` | the API can remove it again | everything else |
 | `"app"` | no call here removes it, but the web app deletes one without ceremony | `create_contact` |
-| `"law"` | the account owner may be required to keep it | `create_voucher`, `create_sales_document`, `upload_file`, `attach_file_to_voucher` |
+| `"books"` | no call here removes it, and it is a bookkeeping record, so the web app deletes it only while nothing has bound it | `create_voucher`, `create_sales_document`, `upload_file`, `attach_file_to_voucher` |
 
-A missing route is a gap a later API version could close. A booked document
-is not: GoBD and § 146 AO want it unchanged and the remedy is a Storno rather
-than a deletion, whatever the API grows. Section 5 measures both. Like the
-rest of the classification this decides nothing — it is there so that an
-interface offering to switch these tools on can say which kind of permanent
-it means, and so that the command line and the README can say it in words.
+A missing route is a gap a later API version could close. A bookkeeping
+record is different in kind: from the Festschreibung on, § 146 AO wants it
+unchanged and the remedy is a Storno rather than a deletion, whatever the API
+grows.
+
+**Nothing this API creates is bound at the moment it is created**, and the
+second value was called `"law"` until 2026-08-22, which said otherwise. Two
+things in this repository disprove it: `update_voucher` works, which a
+festgeschrieben record would not allow, and `create_sales_document` produces
+a draft unless the call asks for `finalize`. What the mark records is that
+such a record *can become* permanent — through Festschreibung, an assigned
+payment, a follow-on document or an export — while a contact never does.
+
+Like the rest of the classification this decides nothing. It is there so that
+an interface offering to switch these tools on can say which kind of
+permanent it means, and so that the command line and the README can say it in
+words.
 
 **The domain is the module the tool lives in**, for every tool without
 exception: `articles`, `contacts`, `diagnostics`, `files`, `master_data`,

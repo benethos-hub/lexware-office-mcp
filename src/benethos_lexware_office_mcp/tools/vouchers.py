@@ -260,7 +260,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         return formatting.payments(await provider.get().payments(voucher_id))
 
-    @classify("write", "vouchers", "create", permanence="law")
+    @classify("write", "vouchers", "create", permanence="books")
     async def create_voucher(
         voucher_type: Annotated[
             VoucherType,
