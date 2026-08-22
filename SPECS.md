@@ -1847,8 +1847,11 @@ this order:
    matrix of section 6. It has to pass with no key, no network and no
    account, see section 14.1 for why nothing in it may reach the API.
 3. **`config/.env.sample` inside the wheel**, verified missing by building
-   one: seventeen files, and the sample is not among them. See section 16.1,
-   where it is the last of the four directions still open.
+   one on 2026-08-22: thirty-eight files, and the sample is not among them.
+   An installed copy therefore has no local documentation of the settings at
+   all, while `config.py` and `--help` both name the sample as the file to
+   copy. See section 16.1, where this is the last of the four directions
+   still open.
 4. **Publication to PyPI**, which is what makes the installation instructions
    in the README true for someone who has not cloned the repository.
 
@@ -1885,8 +1888,8 @@ is answerable to.
 
 - A user installing from PyPI gets **no sample**. The wheel packs the package
   directory only, and `config/.env.sample` sits beside it, so the ten settings
-  exist only in the README. Verified by building the wheel: 17 files, none of
-  them the sample.
+  exist only in the README. Verified by building the wheel: 38 files as of
+  2026-08-22, none of them the sample.
 - There is **no way to create the file**. The only location that works for an
   installed package is the per-user config directory, and neither the
   directory nor the file is created by anything. A user would have to make
