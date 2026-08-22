@@ -1752,7 +1752,12 @@ The consequences are the point of writing this down.
 ## 15. Conventions
 
 - Everything in the repository is English: code, comments, docstrings and
-  documentation. Conversation with the user may be German.
+  documentation. Conversation with the user may be German. **One exception:**
+  the text a person reads on screen in `configui/` is German, because Lexware
+  Office is sold for German companies only and its own help centre rules out
+  an Austrian or Swiss account holder, see section 7.1. Code, comments and
+  docstrings in that package are English like everywhere else, and a message
+  raised outside it is quoted into the page rather than translated.
 - Type hints everywhere, `from __future__ import annotations` at the top of
   every module.
 - Virtual environment only, never the global interpreter. `uv sync --extra dev`
