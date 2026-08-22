@@ -291,7 +291,7 @@ replacing one is its own button beside the list. They are stored in
 The **policy file itself** can be downloaded and read back in from the same
 page — the file as it is, so it works on another installation with or
 without this interface, and a `tools.json` written by `--tools` reads here.
-Reading one only ticks the boxes; saving is still a separate press. A tool
+Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
 

@@ -757,7 +757,7 @@ environment variable, the command line for the one setting it can name, the
 `.env` this interface writes to, *another* `.env` the search also reads, the
 search itself for a policy file nobody named, and the built-in default. The
 fourth exists because typing over such a value here would appear to work and
-change nothing; the fifth because a resolved path is not a default.
+change nothing, and the fifth because a resolved path is not a default.
 
 **With no policy file the boxes open on read-only.** A blank form is a poor
 starting point for a decision, and the alternative — every box empty — reads
@@ -1427,7 +1427,7 @@ These rules are absolute for this repository.
 - **No filesystem path of the host machine is handed to the client.** Every
   message a tool returns reaches a model's context, and a path carries a user
   name and a directory layout with it while telling the caller nothing it can
-  act on. A refusal names the tool and what to set, not the file; the person
+  act on. A refusal names the tool and what to set, not the file. The person
   who can edit the file is at the machine, where stderr and the configuration
   interface both name it. The exception is a path the caller supplied or
   asked for — `download_file` answers with where it wrote the bytes, which is
