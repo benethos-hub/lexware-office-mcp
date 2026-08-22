@@ -252,7 +252,7 @@ window — so the tool list is reloaded.
 benethos-lexware-office-mcp setup
 ```
 
-Four pages on `127.0.0.1`, in German, closed with Ctrl+C. They write the same
+Three pages on `127.0.0.1`, in German, closed with Ctrl+C. They write the same
 files the command line does, so you can use either or both.
 
 **Übersicht** — which `.env` and which `tools.json` are actually in effect,
@@ -283,12 +283,11 @@ record later.
 
 Profiles live here too. Save the current selection under a name, load it
 later. Loading only fills the boxes: nothing reaches `tools.json` until you
-press save. They are stored in `tool_profiles.json` beside the policy file.
-
-**Sichern und Übertragen** — one JSON file with the settings, the permissions
-and every profile, to carry to another machine. **Your API key is not in it**
-and cannot be put in it. An import shows what it would change before writing
-anything: which settings, which tools go on, which profiles get overwritten.
+press save. They are stored in `tool_profiles.json` beside the policy file,
+and they can be downloaded as one JSON file and read back on another
+installation — **profiles only**, no settings, no key, and no permissions,
+so an import adds to what you can choose from and changes nothing about what
+the server currently offers.
 
 Two things worth knowing. It **binds `127.0.0.1` and nothing else** — the
 pages have no password, which is only defensible while they cannot be reached

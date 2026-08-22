@@ -337,11 +337,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   overrides an installed one. `LXO_MCP_TOOL_POLICY` overrides the search and
   `--tools-file` overrides both.
 - **A configuration interface in the browser.**
-  `benethos-lexware-office-mcp setup` serves four pages on `127.0.0.1` and
+  `benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1` and
   opens a browser: an overview of which files are in effect and where every
-  setting actually comes from, a page for the API key and the settings, one
-  checkbox per tool, and an export that carries the lot to another machine.
-  It writes the same `.env` and `tools.json` the command line does, so the
+  setting actually comes from, a page for the API key and the settings, and
+  one checkbox per tool. It writes the same `.env` and `tools.json` the command line does, so the
   two are interchangeable. It is a separate command and never part of the MCP
   server, which speaks stdio. Loopback only, with no option to bind anything
   else, and every state-changing request is guarded against being triggered
@@ -373,14 +372,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   second policy: loading one fills in the checkboxes, and nothing reaches
   `tools.json` until save is pressed. Profiles live in `tool_profiles.json`
   beside the policy file they belong to.
-- **Export and import of the whole configuration.** One JSON file with the
-  settings, the permissions and every profile — **without the API key**,
-  which stays on the machine it was entered on. An import shows what would
-  change first: which settings, which tools go on, which profiles get
-  overwritten, and it names nothing as changed that is not. Only a second
-  confirmation writes anything. A tool the file mentions that this
-  installation does not have is reported and skipped, and one the file is
-  silent about keeps its current setting.
+- **Profiles can be carried to another installation.** One JSON file with
+  the saved profiles, downloaded from the permissions page and read back
+  there. **Profiles only** — no settings, no permissions and no API key, so
+  an import adds to what you can choose from and changes nothing about what
+  the server currently offers. It says what it added and what it
+  overwrote.
 - **The API key can be entered without a text editor**, checked against the
   API before it is written, and never displayed, logged or exported. The
   interface says which file it writes to, creating it and its directory if

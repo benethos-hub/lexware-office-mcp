@@ -1,4 +1,4 @@
-"""The local web server that puts the four pages in a browser.
+"""The local web server that puts the three pages in a browser.
 
 **Never part of the MCP server.** That one speaks JSON-RPC over stdio and must
 keep stdout to itself. This is a separate command, started by a person, that
@@ -44,7 +44,7 @@ DEFAULT_PORT = 8770
 _SESSION_COOKIE = "lxo_config"
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
-_EXPORT_NAME = "lexware-office-mcp-config.json"
+_EXPORT_NAME = "lexware-office-mcp-profile.json"
 
 
 class ConfigServer(ThreadingHTTPServer):
@@ -54,7 +54,7 @@ class ConfigServer(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    """Four pages, six actions, and two guards in front of every action."""
+    """Three pages, a handful of actions, and two guards in front of each."""
 
     server_version = f"lexware-office-mcp-config/{__version__}"
 
@@ -148,8 +148,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, pages.credentials(inst, csrf=self._session))
         elif path == "/permissions":
             self._send(200, pages.permissions(inst, csrf=self._session))
-        elif path == "/transfer":
-            self._send(200, pages.transfer(inst, csrf=self._session))
         elif path == "/export":
             self._export()
         else:
@@ -167,7 +165,6 @@ class Handler(BaseHTTPRequestHandler):
             "/credentials": self._save_key,
             "/settings": self._save_settings,
             "/permissions": self._permissions,
-            "/transfer": self._transfer,
         }
         action = routes.get(path)
         if action is None:
@@ -301,6 +298,12 @@ class Handler(BaseHTTPRequestHandler):
         if action == "profile-delete":
             self._delete_profile(form)
             return
+        if action == "profile-export":
+            self._export()
+            return
+        if action == "profile-import":
+            self._import_profiles(form, chosen)
+            return
         if action != "save":
             self._not_found()
             return
@@ -393,79 +396,52 @@ class Handler(BaseHTTPRequestHandler):
             kind="good" if gone else "bad",
         )
 
-    # --- export and import -------------------------------------------------
+    # --- carrying the profiles ------------------------------------------
 
     def _export(self) -> None:
-        inst = self.installation
-        document = transfer.build(
-            inst.file_env(),
-            inst.policy.as_map(),
-            inst.profiles.all(),
-            version=__version__,
-        )
+        """The saved profiles as a download. Nothing else travels."""
+        document = transfer.build(self.installation.profiles.all(), version=__version__)
         self._download(transfer.dumps(document).encode("utf-8"), _EXPORT_NAME)
 
-    def _transfer(self, form: dict[str, list[str]]) -> None:
+    def _import_profiles(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+        """Add profiles from a file. No permission changes, so no preview.
+
+        A profile is a list of names to choose from later. Nothing here
+        reaches `tools.json`, which is what makes this safe to apply straight
+        away - unlike the configuration bundle this replaced, which could
+        have switched tools on for an account it was never written for.
+        """
         inst = self.installation
-        action = (form.get("action", [""])[0]).strip()
         text = form.get("bundle", [""])[0]
-        if action not in ("preview", "apply"):
-            self._not_found()
-            return
         try:
-            bundle = transfer.parse(text)
+            arriving = transfer.parse(text)
         except transfer.TransferError as exc:
-            self._send(
-                200,
-                pages.transfer(
-                    inst,
-                    csrf=self._session,
-                    message=pages.message_box(str(exc), "bad"),
-                    bundle_text=text,
-                ),
+            self._page_with(
+                pages.permissions, str(exc), kind="bad", flags=_flags(chosen)
             )
             return
-
-        changes = transfer.compare(
-            bundle,
-            current_settings=inst.file_env(),
-            current_tools=inst.policy.as_map(),
-            current_profiles=inst.profiles.all(),
-        )
-        if action == "preview":
-            self._send(
-                200,
-                pages.transfer(
-                    inst, csrf=self._session, changes=changes, bundle_text=text
-                ),
-            )
-            return
-
-        message = self._apply(bundle, changes)
-        self._send(200, pages.transfer(inst, csrf=self._session, message=message))
-
-    def _apply(self, bundle: transfer.Bundle, changes: transfer.Changes) -> str:
-        inst = self.installation
         try:
-            if bundle.settings:
-                update_env_file(inst.env_path, bundle.settings)
-            flags = inst.policy.as_map()
-            flags.update(
-                {name: flag for name, flag in bundle.tools.items() if name in flags}
+            overwritten = inst.profiles.merge(arriving)
+        except OSError as exc:
+            self._page_with(
+                pages.permissions,
+                f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
+                kind="bad",
+                flags=_flags(chosen),
             )
-            inst.policy.save(flags)
-            overwritten = inst.profiles.merge(bundle.profiles)
-        except (OSError, ValueError) as exc:
-            return pages.message_box(f"Übernahme fehlgeschlagen: {exc}", "bad")
-        inst.reload()
-        parts = [
-            f"{len(bundle.settings)} Einstellungen übernommen",
-            f"{len(changes.turn_on)} Tools eingeschaltet",
-            f"{len(changes.turn_off)} ausgeschaltet",
-            f"{len(bundle.profiles)} Profile übernommen"
-            + (f", davon {len(overwritten)} überschrieben" if overwritten else ""),
-        ]
-        return pages.message_box(". ".join(parts) + ".", "good")
+            return
+        added = sorted(name for name in arriving if name not in overwritten)
+        parts = [f"{len(arriving)} Profile eingelesen"]
+        if added:
+            parts.append("neu: " + ", ".join(added))
+        if overwritten:
+            parts.append("überschrieben: " + ", ".join(overwritten))
+        self._page_with(
+            pages.permissions,
+            ". ".join(parts) + ". An den Rechten ändert das nichts.",
+            kind="good",
+            flags=_flags(chosen),
+        )
 
     # --- one small convenience ---------------------------------------------
 

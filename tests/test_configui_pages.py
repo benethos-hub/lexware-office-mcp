@@ -13,7 +13,6 @@ from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
 from benethos_lexware_office_mcp.configui.profiles import Profile
 from benethos_lexware_office_mcp.configui.state import Installation
-from benethos_lexware_office_mcp.configui.transfer import Changes
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
 
@@ -76,7 +75,7 @@ class Balance(HTMLParser):
 
 
 @pytest.mark.parametrize(
-    "render", [pages.overview, pages.credentials, pages.permissions, pages.transfer]
+    "render", [pages.overview, pages.credentials, pages.permissions]
 )
 def test_the_markup_closes_what_it_opens(inst: Installation, render: object) -> None:
     """These pages are built by string concatenation, so this is worth a test.
@@ -371,40 +370,41 @@ def test_without_profiles_the_bar_explains_itself(inst: Installation) -> None:
     assert 'value="load"' not in body
 
 
-# -- Sichern und Übertragen -------------------------------------------------
+# -- carrying the profiles -------------------------------------------------
 
 
-def test_the_transfer_page_promises_no_key(inst: Installation) -> None:
-    body = text(pages.transfer(inst))
+def test_the_profiles_can_be_taken_along(inst: Installation) -> None:
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
 
-    assert "Ohne API-Schlüssel" in body
-    assert 'action="/export"' in body
+    body = text(pages.permissions(inst))
+
+    assert 'value="profile-export"' in body
+    assert 'value="profile-import"' in body
+    assert "Ohne Zugangsdaten" in body
 
 
-def test_a_preview_that_switches_tools_on_warns_about_the_account(
+def test_nothing_is_offered_for_export_before_there_is_one(
     inst: Installation,
 ) -> None:
-    changes = Changes(turn_on=["create_voucher"], overwritten_profiles=["Alt"])
+    body = text(pages.permissions(inst))
 
-    body = text(pages.transfer(inst, changes=changes, bundle_text="{}"))
-
-    assert "würden eingeschaltet" in body
-    assert "anderes Konto" in body
-    assert 'value="apply"' in body
+    assert 'value="profile-export"' not in body
+    assert "Noch nichts zu exportieren" in body
 
 
-def test_a_preview_with_nothing_in_it_says_so(inst: Installation) -> None:
-    body = text(pages.transfer(inst, changes=Changes(), bundle_text="{}"))
+def test_the_page_no_longer_carries_the_configuration_bundle(
+    inst: Installation,
+) -> None:
+    """Settings and permissions do not travel. Only profiles do.
 
-    assert "schon eingestellt" in body
-    assert 'value="apply"' not in body
-
-
-def test_the_pasted_text_survives_a_failed_attempt(inst: Installation) -> None:
-    body = text(pages.transfer(inst, bundle_text='{"kind": "<script>"}'))
-
-    assert "&lt;script&gt;" in body
-    assert "<script>" not in body.split("<textarea")[1].split("</textarea>")[0]
+    The bundle that carried everything also carried `LXO_MCP_TOOL_POLICY`,
+    an absolute path describing one machine, and an import writing it would
+    have pointed the target at a policy file that does not exist there.
+    """
+    for render in (pages.overview, pages.credentials, pages.permissions):
+        body = text(render(inst))
+        assert "Sichern und Übertragen" not in body
+        assert "/transfer" not in body
 
 
 # -- the account chip -------------------------------------------------------

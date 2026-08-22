@@ -142,9 +142,7 @@ def note(body: str) -> str:
 # -- routing ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "path", ["/", "/index.html", "/credentials", "/permissions", "/transfer"]
-)
+@pytest.mark.parametrize("path", ["/", "/index.html", "/credentials", "/permissions"])
 def test_every_page_answers(browser: Browser, path: str) -> None:
     status, body, _ = browser.get(path)
 
@@ -419,69 +417,103 @@ def test_a_setting_the_server_would_refuse_is_not_written(
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
 
 
-# -- export and import ------------------------------------------------------
+# -- carrying the profiles -------------------------------------------------
 
 
-def test_the_export_is_a_download_without_the_key(
+def test_the_transfer_page_is_gone(browser: Browser) -> None:
+    """Settings and permissions do not travel any more. Only profiles do."""
+    assert browser.get("/transfer")[0] == 404
+    assert browser.post("/transfer", {"action": "preview"}, csrf=None)[0] == 404
+
+
+def test_the_export_carries_the_profiles_and_nothing_else(
     browser: Browser, installation: Installation
 ) -> None:
     installation.env_path.write_text(
         "LXO_MCP_API_KEY=secret-value\nLXO_MCP_PAGE_SIZE=50\n", encoding="utf-8"
     )
     ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
 
     status, body, headers = browser.get("/export")
 
     assert status == 200
     assert "attachment" in headers["Content-Disposition"]
     assert "secret-value" not in body
+    assert "LXO_MCP" not in body
     document = json.loads(body)
-    assert document["tools"]["get_profile"] is True
-    assert document["settings"] == {"LXO_MCP_PAGE_SIZE": "50"}
+    assert set(document["profiles"]) == {"Nur Lesen"}
+    assert "tools" not in document and "settings" not in document
 
 
-def test_a_file_that_is_not_a_bundle_is_refused(browser: Browser) -> None:
-    _, body, _ = browser.post("/transfer", {"action": "preview", "bundle": "kaputt"})
+def test_the_export_button_on_the_permissions_page_downloads_the_same(
+    browser: Browser, installation: Installation
+) -> None:
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    status, body, headers = browser.post("/permissions", {"action": "profile-export"})
+
+    assert status == 200
+    assert "attachment" in headers["Content-Disposition"]
+    assert set(json.loads(body)["profiles"]) == {"Nur Lesen"}
+
+
+def test_importing_profiles_adds_them_and_touches_no_permission(
+    browser: Browser, installation: Installation
+) -> None:
+    """The reason this needs no preview: nothing here reaches tools.json."""
+    ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
+    text = transfer.dumps(
+        transfer.build(
+            {"Von woanders": Profile(name="Von woanders", tools=("create_voucher",))}
+        )
+    )
+
+    _, body, _ = browser.post(
+        "/permissions", {"action": "profile-import", "bundle": text}
+    )
+
+    assert "Von woanders" in installation.profiles.all()
+    assert flags(installation) == {"get_profile": True} | {
+        name: False for name in known_tools() if name != "get_profile"
+    }
+    assert "neu: Von woanders" in note(body)
+    assert "ändert das nichts" in note(body)
+
+
+def test_an_import_says_what_it_overwrote(
+    browser: Browser, installation: Installation
+) -> None:
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+    text = transfer.dumps(
+        transfer.build(
+            {"Nur Lesen": Profile(name="Nur Lesen", tools=("search_vouchers",))}
+        )
+    )
+
+    _, body, _ = browser.post(
+        "/permissions", {"action": "profile-import", "bundle": text}
+    )
+
+    assert "überschrieben: Nur Lesen" in note(body)
+    assert installation.profiles.all()["Nur Lesen"].tools == ("search_vouchers",)
+
+
+def test_a_file_that_is_not_a_profile_export_is_refused(browser: Browser) -> None:
+    _, body, _ = browser.post(
+        "/permissions", {"action": "profile-import", "bundle": "kaputt"}
+    )
 
     assert "keine gültige JSON" in note(body)
 
 
-def test_a_preview_writes_nothing(browser: Browser, installation: Installation) -> None:
-    text = transfer.dumps(transfer.build({}, {"create_voucher": True}, {}, version="0"))
-
-    _, body, _ = browser.post("/transfer", {"action": "preview", "bundle": text})
-
-    assert "würden eingeschaltet" in body
-    assert not installation.settings.policy_file().exists()
-
-
-def test_applying_writes_all_three(
+def test_a_refused_import_keeps_the_ticks_that_were_set(
     browser: Browser, installation: Installation
 ) -> None:
-    ToolPolicy(installation.settings.policy_file()).save({"delete_article": True})
-    text = transfer.dumps(
-        transfer.build(
-            {"LXO_MCP_BURST": "3"},
-            {"create_voucher": True, "delete_article": False},
-            {"Nur Lesen": Profile(name="Nur Lesen", tools=("get_profile",))},
-            version="0",
-        )
+    _, body, _ = browser.post(
+        "/permissions",
+        {"action": "profile-import", "bundle": "kaputt", "tool": ["create_voucher"]},
     )
 
-    _, body, _ = browser.post("/transfer", {"action": "apply", "bundle": text})
-
-    assert flags(installation)["create_voucher"] is True
-    assert flags(installation)["delete_article"] is False
-    assert "LXO_MCP_BURST=3" in installation.env_path.read_text(encoding="utf-8")
-    assert "Nur Lesen" in installation.profiles.all()
-    assert "übernommen" in note(body)
-
-
-def test_applying_a_bundle_that_is_not_one_reports_it(browser: Browser) -> None:
-    _, body, _ = browser.post("/transfer", {"action": "apply", "bundle": "[]"})
-
-    assert "kein Objekt" in note(body)
-
-
-def test_an_unknown_transfer_action_is_a_404(browser: Browser) -> None:
-    assert browser.post("/transfer", {"action": "sonstwas", "bundle": "{}"})[0] == 404
+    assert 'value="create_voucher" id="create_voucher" checked' in body
+    assert not installation.settings.policy_file().exists()

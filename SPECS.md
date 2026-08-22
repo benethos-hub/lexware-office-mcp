@@ -704,8 +704,8 @@ No secret is ever read from a versioned file. `config/.env` is gitignored and
 
 ### 7.1 The configuration interface
 
-`benethos-lexware-office-mcp setup` serves four pages on `127.0.0.1` and opens
-a browser. It writes the same `.env` and `tools.json` the command line does,
+`benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1` and
+opens a browser. It writes the same `.env` and `tools.json` the command line does,
 so the two are interchangeable and neither owns the files.
 
 **It is never part of the MCP server.** That process speaks JSON-RPC over
@@ -733,8 +733,7 @@ would be a second copy of a rule that lives in the code.
 |---|---|
 | Übersicht | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
 | Zugangsdaten | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
-| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. |
-| Sichern und Übertragen | The export, and an import that shows what it would change before writing anything. |
+| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The profiles can also be downloaded and read back from here. |
 
 **Five answers to "where did this value come from", not three.** A real
 environment variable, the command line for the one setting it can name, the
@@ -796,22 +795,25 @@ millisecond, and Windows moves that resolution around depending on what else
 is running. Six digits of clock beats six digits of clock and three of
 padding, because somebody eventually relies on the difference.
 
-**The export carries no key.** Settings, permissions and profiles travel in
-one JSON file; `LXO_MCP_API_KEY` is filtered on the way out *and* on the way
-back in, and the file states its absence in a field of its own rather than
-leaving it to be noticed. A file whose purpose is to leave the machine is the
-last place a credential belongs, and the second installation is usually a
-second account anyway.
+**The profiles can be carried to another installation, and nothing else
+can.** One JSON file holding the saved profiles, downloaded from the
+permissions page and read back there. Importing them changes no permission:
+it adds to the list this installation can choose from, and `tools.json` is
+written when somebody presses save, exactly as for a profile made by hand.
+That is what makes an import safe to apply without a preview.
 
-**An import writes nothing on the way in.** It is parsed, compared against
-what is here, and rendered as a list: which settings, which tools go on,
-which profiles get overwritten. A tool the file names that this installation
-does not have is reported and skipped rather than written into the policy
-file as a decision about something uncallable, and a tool the file is silent
-about keeps its current setting — an import completes a policy file, it does
-not replace one. Only a second request applies any of it. Permissions
-arriving from elsewhere were written for another account, which is why the
-preview names the one this installation is pointed at.
+**A bundle carrying the whole configuration was built first and taken out
+again on 2026-08-22.** It held the settings, the flags and the profiles, and
+the settings were the problem: `LXO_MCP_TOOL_POLICY` and
+`LXO_MCP_DOWNLOAD_DIR` are absolute paths describing one machine. An import
+writing the first would have pointed the target installation at a policy file
+that does not exist there — which means no tools at all, immediately after an
+import that appeared to grant some, and the preview would have listed it as
+one settings row among others. A profile has none of that: it is a list of
+tool names, and a tool name means the same thing on every machine.
+
+The API key was never in either format, filtered on the way out and again on
+the way in. The narrower one cannot carry a setting at all.
 
 ## 8. Tools
 

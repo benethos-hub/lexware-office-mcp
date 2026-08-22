@@ -105,7 +105,6 @@ _LINKS: tuple[tuple[str, str], ...] = (
     ("/", "Übersicht"),
     ("/credentials", "Zugangsdaten"),
     ("/permissions", "Rechte"),
-    ("/transfer", "Sichern und Übertragen"),
 )
 
 

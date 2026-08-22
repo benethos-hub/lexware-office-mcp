@@ -120,11 +120,10 @@ the configuration interface:
 
   benethos-lexware-office-mcp setup
 
-  Serves four pages on 127.0.0.1 and opens a browser: which files are in
-  effect and where each setting comes from, the API key, one checkbox per
-  tool with what it costs the model in context, and an export that carries
-  the lot to another machine. It writes the same files this command line
-  does, so the two can be used interchangeably.
+  Serves three pages on 127.0.0.1 and opens a browser: which files are in
+  effect and where each setting comes from, the API key, and one checkbox
+  per tool with what it costs the model in context. It writes the same files
+  this command line does, so the two can be used interchangeably.
 
   Loopback only, with no way to bind anything else. The pages have no login,
   because they cannot be reached from another machine.

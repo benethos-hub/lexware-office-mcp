@@ -1,4 +1,4 @@
-"""The four screens, each a function from state to bytes.
+"""The three screens, each a function from state to bytes.
 
 Rendering is kept apart from serving on purpose: nothing here reads a request,
 writes a file or reaches the network, so every page can be rendered in a test
@@ -6,8 +6,9 @@ by handing it an installation and reading the HTML back.
 
 The reading order is the order of the navigation. **Übersicht** answers what
 this installation is and which files it uses, **Zugangsdaten** is where the
-key and the settings are entered, **Rechte** is the point of the whole thing,
-and **Sichern und Übertragen** moves all of it to the next machine.
+key and the settings are entered, and **Rechte** is the point of the whole
+thing — including the saved profiles, which can be carried to another
+installation from there.
 """
 
 from __future__ import annotations
@@ -25,9 +26,8 @@ from .probe import Account, last_account
 from .profiles import Profile
 from .render import esc, note, page, source_badge
 from .state import API_KEY, EDITABLE_KEYS, SETTING_KEYS, Installation
-from .transfer import Changes
 
-__all__ = ["credentials", "overview", "permissions", "transfer"]
+__all__ = ["credentials", "overview", "permissions"]
 
 # A domain is an identifier in the code and a heading on the screen, and the
 # two want different words. An unmapped domain shows its own name rather than
@@ -516,48 +516,42 @@ def _profile_bar(inst: Installation) -> str:
              placeholder="z. B. Steuerberater, nur lesend"></div>
     <button type="submit" name="action" value="profile-save">Profil sichern</button>
   </div>
+  {_profile_transfer(bool(saved))}
 </div>
 """
 
 
-# --- Sichern und Übertragen ------------------------------------------------
+def _profile_transfer(has_profiles: bool) -> str:
+    """Carrying the profiles to another installation, and back.
 
-
-def transfer(
-    inst: Installation,
-    *,
-    csrf: str = "",
-    message: str = "",
-    changes: Changes | None = None,
-    bundle_text: str = "",
-) -> bytes:
-    """Export as a download, import as a preview that has to be confirmed."""
-    preview = _preview(changes, bundle_text, csrf) if changes is not None else ""
-    body = f"""
-{message}
-<h2>Sichern</h2>
-<p>Eine Datei mit den Einstellungen, den Rechten und allen Profilen.
-   <strong>Ohne API-Schlüssel</strong> — der wird auf der Zielinstallation
-   neu eingetragen. Mitgenommen wird, was in
-   <code>{esc(str(inst.env_path))}</code> steht, nicht was auf dieser Maschine
-   als Umgebungsvariable gesetzt ist.</p>
-<form method="get" action="/export">
-  <p><button type="submit">Konfiguration herunterladen</button></p>
-</form>
-
-<h2>Übertragen</h2>
-<p>Datei auswählen oder Inhalt einfügen. Der nächste Schritt zeigt nur an, was
-   sich ändern würde — geschrieben wird nichts, bevor das bestätigt ist.</p>
-<form method="post" action="/transfer">{_csrf(csrf)}
-  <p><input type="file" id="pick" accept="application/json,.json"></p>
-  <textarea name="bundle" rows="8"
-            placeholder="Inhalt der Exportdatei">{esc(bundle_text)}</textarea>
-  <p><button type="submit" name="action" value="preview">Prüfen</button></p>
-</form>
-{preview}
+    Folded away behind a summary: it is the rarest thing on this page, and a
+    textarea sitting open would push the tool list off the screen. Only the
+    profiles travel - see `transfer.py` for why the settings do not.
+    """
+    export = (
+        '<p><button type="submit" name="action" value="profile-export">'
+        "Profile herunterladen</button> "
+        '<span class="hint">Eine JSON-Datei mit allen gespeicherten Profilen. '
+        "Ohne Zugangsdaten, ohne Einstellungen, ohne die Rechtedatei "
+        "selbst.</span></p>"
+        if has_profiles
+        else '<p class="hint">Noch nichts zu exportieren.</p>'
+    )
+    return f"""
+<details style="margin-top:.6rem">
+  <summary>Profile mitnehmen oder einlesen</summary>
+  {export}
+  <p><input type="file" id="profilefile" accept="application/json,.json"></p>
+  <textarea name="bundle" rows="5"
+            placeholder="Inhalt einer Profil-Datei"></textarea>
+  <p><button type="submit" name="action" value="profile-import">Profile
+     einlesen</button>
+  <span class="hint">Legt die Profile an oder überschreibt gleichnamige. An
+     den Rechten ändert das nichts.</span></p>
+</details>
 <script>
 (function () {{
-  var pick = document.getElementById('pick');
+  var pick = document.getElementById('profilefile');
   if (!pick) return;
   pick.addEventListener('change', function () {{
     var file = pick.files && pick.files[0];
@@ -571,78 +565,6 @@ def transfer(
 }})();
 </script>
 """
-    return page(
-        "Sichern und Übertragen", body, here="/transfer", chip=_chip(last_account())
-    )
-
-
-def _preview(changes: Changes, bundle_text: str, csrf: str) -> str:
-    if changes.empty:
-        return note(
-            "Die Datei enthält genau das, was hier schon eingestellt ist.", "good"
-        )
-
-    parts = ["<h2>Das würde sich ändern</h2>"]
-    if changes.settings:
-        rows = "".join(
-            f"<tr><td><code>{esc(key)}</code></td>"
-            f"<td>{esc(old or '—')}</td><td>{esc(new)}</td></tr>"
-            for key, old, new in changes.settings
-        )
-        parts.append(
-            "<h3>Einstellungen</h3><table>"
-            "<tr><th>Schlüssel</th><th>jetzt</th><th>danach</th></tr>"
-            f"{rows}</table>"
-        )
-    if changes.turn_on:
-        parts.append(
-            note(
-                f"<strong>{len(changes.turn_on)} Tools würden eingeschaltet:</strong> "
-                + ", ".join(f"<code>{esc(n)}</code>" for n in changes.turn_on)
-                + ". Diese Rechte wurden für ein anderes Konto geschrieben. "
-                "Vorher unter Übersicht prüfen, welches Konto hier hängt."
-            )
-        )
-    if changes.turn_off:
-        parts.append(
-            "<p><strong>Ausgeschaltet würden:</strong> "
-            + ", ".join(f"<code>{esc(n)}</code>" for n in changes.turn_off)
-            + ".</p>"
-        )
-    if changes.unmentioned_tools:
-        parts.append(
-            '<p class="hint">Unverändert, weil die Datei sie nicht nennt: '
-            + ", ".join(f"<code>{esc(n)}</code>" for n in changes.unmentioned_tools)
-            + ".</p>"
-        )
-    if changes.unknown_tools:
-        parts.append(
-            '<p class="hint">Übergangen, weil es sie hier nicht gibt: '
-            + ", ".join(f"<code>{esc(n)}</code>" for n in changes.unknown_tools)
-            + ".</p>"
-        )
-    if changes.new_profiles:
-        parts.append(
-            "<p><strong>Neue Profile:</strong> "
-            + ", ".join(esc(n) for n in changes.new_profiles)
-            + ".</p>"
-        )
-    if changes.overwritten_profiles:
-        parts.append(
-            note(
-                "<strong>Überschrieben würden die Profile:</strong> "
-                + ", ".join(esc(n) for n in changes.overwritten_profiles)
-                + "."
-            )
-        )
-
-    parts.append(
-        f'<form method="post" action="/transfer">{_csrf(csrf)}'
-        f'<input type="hidden" name="bundle" value="{esc(bundle_text)}">'
-        '<p><button type="submit" name="action" value="apply">'
-        "Übernehmen</button></p></form>"
-    )
-    return "".join(parts)
 
 
 def message_box(text: str, kind: str = "") -> str:
