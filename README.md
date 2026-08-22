@@ -369,10 +369,12 @@ with an upgrade waits for you rather than appearing on its own. No file at all
 means no tools at all, which is why `--tools` is part of setting the server up.
 
 The file is read as the tool list is built and again on every call, so an
-edit takes effect at once in both directions — no restart. What lags is the
-client: most ask for the tool list once, when they start, and go on showing
-what they were told then. Claude Desktop is restarted by quitting it from the
-tray.
+edit takes effect at once in both directions — no restart. The server also
+**tells the client** when the set of enabled tools changes, so it can fetch
+the list again on its own. Whether your client acts on that is up to it;
+nothing depends on it either way, since a tool that has been switched off
+cannot be called whatever list the client is still showing. If yours does not
+notice, restart it — Claude Desktop by quitting it from the tray.
 
 Each tool also declares what it is — reading or writing, which group it
 belongs to, and whether what it writes can be removed again. That

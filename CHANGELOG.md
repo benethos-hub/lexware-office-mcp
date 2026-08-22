@@ -329,8 +329,14 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 - **An edit takes effect in both directions without a restart.** The file is
   read as the tool list is built and again on every call, so a tool switched
   on is offered from the next listing and one switched off stops being
-  offered. A client that has already fetched the list keeps showing it until
-  it asks again, which most do only at startup.
+  offered.
+- **And the client is told, so it can fetch the list again by itself.** The
+  server announces `tools.listChanged` and sends
+  `notifications/tools/list_changed` when the set of enabled tools actually
+  changes — not when the file is merely rewritten, which the configuration
+  interface does on every save. Whether a client acts on it is up to the
+  client, and nothing depends on it: a tool that has been switched off cannot
+  be called whatever list is still on screen.
 - **Where that file lives:** found the same way the `.env` is — per-user
   configuration directory, then `config/` of a checkout, then the working
   directory, last one found winning — so a `config/tools.json` in a clone

@@ -1097,10 +1097,33 @@ indistinguishable from a broken server, and the difference matters.
 **Changing it while the server runs.** The file is read fresh on every
 question rather than cached, so an edit takes effect on the next request — a
 few hundred bytes of JSON is cheaper than a copy that can be wrong.
-Enforcement is therefore always current. What is *shown* is not: a client that
-has already fetched the tool list keeps it until it asks again, and
-`tools.listChanged` is advertised as `false` — see section 13, which measures
-why and finds it is a matter of protocol version rather than of design.
+Enforcement is therefore always current. What is *shown* lags until the client
+asks again — so it is told to. `PolicyServer` announces
+`tools.listChanged: true`, binding the `NotificationOptions` once in its
+constructor so that stdio and both HTTP transports are covered, and a watcher
+sends `notifications/tools/list_changed` when the set of enabled tools
+actually differs.
+
+Three decisions in that watcher are worth stating:
+
+- **It compares the visible set, not the file.** The configuration interface
+  rewrites the whole policy file on every save, so a timestamp would announce
+  a change on every click that changed nothing.
+- **It starts when a session appears, not at construction.** Without a client
+  there is nobody to tell, and a task polling in every process that merely
+  builds a server — the test suite, `--tools show` — is a nuisance nobody
+  asked for. The session comes from `_handle_list_tools`, the private hook,
+  because that is the only place it is offered for a listing: the public
+  `list_tools()` is called without it.
+- **It notifies every session it has seen** and drops the ones that fail,
+  which is one client over stdio and will be several over HTTP.
+
+**Nothing depends on it.** A client that ignores the notification, or never
+receives one, still cannot call a tool that has been switched off: the file
+is read again on every call. The notification saves a restart, it does not
+enforce anything. Whether a given client acts on it is the client's business
+and has not been measured here — see section 13 for what the protocol says
+about the capability.
 
 **Both directions take effect without a restart**, which is why the filter
 sits in `PolicyServer.list_tools` rather than in `register_tool`. Every tool
@@ -1605,8 +1628,9 @@ subclasses with concise, actionable messages.
   read from disk in the same breath. The same files were reachable either way,
   so restricting the registration protected nothing and cost every URI its
   life at restart.
-- **A client is never told the list changed, and that is a protocol version
-  rather than a design.** Measured against mcp 2.0.0 on 2026-08-21:
+- **A client is told when the tool list changes, since 2026-08-22.** For
+  resources it still is not, and the measurement below explains why the
+  default is what it is. Measured against mcp 2.0.0 on 2026-08-21:
   - Under the handshake protocols, capabilities come from `NotificationOptions`,
     whose three flags all default to `False`. `MCPServer` has no parameter for
     them and calls `create_initialization_options()` with no arguments, so
@@ -1621,12 +1645,20 @@ subclasses with concise, actionable messages.
     `2025-11-25`, the newest handshake version, whatever the client asks for,
     and the modern `server/discover` is not reachable over stdio at all.
 
-  So the practical effect stands - a client that lists once at startup sees
-  what was on disk then, and this is the second reason `read_download` exists,
-  the first being that Claude Desktop does not follow a resource link. What
-  does **not** stand is treating it as something to work around: it is wiring
-  that switches itself on with a protocol update, and a hand-built watcher
-  sending notifications nobody asked for would be waste at best.
+  **What that analysis missed is that `PolicyServer` is ours.** The default
+  is what it is, but `create_initialization_options` takes the
+  `NotificationOptions` and can be bound once in the constructor — where it
+  covers stdio and both HTTP transports at a stroke, since all three call
+  that same method. The conclusion drawn from the measurement, that a watcher
+  would be "waste at best", followed from the flag being out of reach. It was
+  not.
+
+  So section 9.2 now describes a server that announces `tools.listChanged`
+  and sends `notifications/tools/list_changed` when the set of enabled tools
+  actually changes. For **resources** the finding stands unchanged: nothing
+  announces or sends anything, which is the second reason `read_download`
+  exists, the first being that Claude Desktop does not follow a resource
+  link.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be

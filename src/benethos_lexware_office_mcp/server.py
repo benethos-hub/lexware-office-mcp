@@ -13,12 +13,16 @@ the JSON-RPC stream.
 from __future__ import annotations
 
 import argparse
+import asyncio
+import contextlib
 import dataclasses
+import functools
 import logging
 import sys
 from pathlib import Path
 from typing import Any, cast
 
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 
 from . import __version__, configui, resources
@@ -35,6 +39,11 @@ from .policy import (
 from .tools import register_tools
 
 logger = logging.getLogger(__name__)
+
+# How often the watcher looks at the policy file. Short enough that a change
+# made in the browser feels immediate, long enough that reading a few hundred
+# bytes of JSON at that rate is nothing.
+POLICY_POLL_SECONDS = 2.0
 
 _INSTRUCTIONS = """\
 Access to a Lexware Office account through its public API. The account owner
@@ -59,13 +68,30 @@ class PolicyServer(MCPServer):
     stops being offered. Registering the decision instead would have frozen it
     at startup.
 
-    A client still has to ask again to see the change. Most ask once, when
-    they start.
+    A client is told when that happens, so it can ask again: the server
+    announces ``tools.listChanged`` and a watcher sends
+    ``notifications/tools/list_changed`` when the set of enabled tools
+    actually differs. Whether a given client acts on it is the client's
+    business - enforcement never relies on it, because the file is read again
+    on every call.
     """
 
     def __init__(self, *args: Any, policy: ToolPolicy, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._policy = policy
+        self._sessions: set[Any] = set()
+        self._watcher: asyncio.Task[None] | None = None
+        self._seen: dict[str, bool] | None = None
+        # Bound once, here, rather than per transport: `run_stdio_async` and
+        # its two HTTP siblings all call this same method with no arguments,
+        # and its default leaves every listChanged flag false. Announcing the
+        # capability is what makes the notification mean anything - a client
+        # is entitled to ignore one it was never promised.
+        low = self._lowlevel_server
+        low.create_initialization_options = functools.partial(  # type: ignore[method-assign]
+            low.create_initialization_options,
+            NotificationOptions(tools_changed=True),
+        )
 
     async def list_tools(self) -> list[Any]:
         # One reading of the file for the whole list. Asking `enabled` per
@@ -75,6 +101,66 @@ class PolicyServer(MCPServer):
         allowed = self._policy.as_map()
         tools = await super().list_tools()
         return [tool for tool in tools if allowed.get(tool.name, False)]
+
+    async def _handle_list_tools(self, ctx: Any, params: Any) -> Any:
+        """Answer the request, and keep the session it arrived on.
+
+        The private hook rather than `list_tools`, because this is the only
+        place the session is offered for a listing: `_handle_list_tools`
+        receives the request context and calls `list_tools()` without it.
+        """
+        self._sessions.add(ctx.session)
+        self._start_watching()
+        return await super()._handle_list_tools(ctx, params)
+
+    def _start_watching(self) -> None:
+        """Begin polling, once there is somebody to tell.
+
+        Deliberately not started at construction. Without a session there is
+        nobody to notify, and a task that outlives every test in a suite that
+        never connects a client is a nuisance nobody asked for.
+        """
+        if self._watcher is not None and not self._watcher.done():
+            return
+        self._seen = self._policy.as_map()
+        self._watcher = asyncio.create_task(self._watch())
+
+    async def _watch(self) -> None:
+        """Notice a changed tool list and say so.
+
+        **The comparison is the visible set, not the file.** The
+        configuration interface rewrites the whole policy file on every save,
+        so watching its timestamp would announce a change on every click that
+        changed nothing.
+        """
+        while True:
+            await asyncio.sleep(POLICY_POLL_SECONDS)
+            current = self._policy.as_map()
+            if current == self._seen:
+                continue
+            self._seen = current
+            await self._announce()
+
+    async def _announce(self) -> None:
+        """Tell every live session, and forget the ones that are not."""
+        for session in list(self._sessions):
+            try:
+                await session.send_tool_list_changed()
+            except Exception as exc:  # noqa: BLE001 - a dead session is normal
+                # On stderr rather than swallowed: a client that never
+                # refreshes is a thing to be able to look into, and this is
+                # the only trace it would leave.
+                logger.debug("Could not notify a session, dropping it: %s", exc)
+                self._sessions.discard(session)
+
+    async def stop_watching(self) -> None:
+        """Cancel the watcher. For shutdown, and for tests."""
+        task, self._watcher = self._watcher, None
+        if task is None:
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 def build_server(
