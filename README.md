@@ -49,6 +49,22 @@ owner generates and can revoke.
 
 The server points at a real accounting system, so the defaults are cautious.
 
+**Run it read-only unless you have a reason not to.** This server can change
+real accounting records - create a contact, record a voucher, issue an invoice,
+attach a receipt - and it is the assistant that decides when to call such a
+tool, not you. `--tools read-only` gives it everything it needs to answer
+questions about the books, which is what most people want it for: search,
+read, and download. Nothing in that set writes.
+
+Turn a write tool on when you have a job for it, and know what it leaves
+behind. This API cannot delete a bookkeeping voucher at all, so a wrong one
+is corrected in the web app rather than withdrawn here, and a finalized
+invoice is a real document with a number that has been used. If you are not
+sure which tools you need, read-only is the honest starting point - the
+permissions page adds one later in a click, and a client that honours
+`notifications/tools/list_changed`, as Claude Desktop does, picks it up
+without a restart.
+
 - **Nothing is enabled until you say so.** A fresh installation has no
   policy file, and a server without one offers no tools at all. What this
   server may do is a decision somebody made, never a default that happened.
