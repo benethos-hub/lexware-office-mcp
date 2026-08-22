@@ -370,9 +370,9 @@ means no tools at all, which is why `--tools` is part of setting the server up.
 
 The file is read as the tool list is built and again on every call, so an
 edit takes effect at once in both directions — no restart. The server also
-**tells the client** when the set of enabled tools changes, so it can fetch
-the list again on its own. Whether your client acts on that is up to it;
-nothing depends on it either way, since a tool that has been switched off
+**tells the client** when the set of enabled tools changes, so it fetches the
+list again by itself: Claude Desktop picks a change up while it is running.
+Nothing depends on it either way, since a tool that has been switched off
 cannot be called whatever list the client is still showing. If yours does not
 notice, restart it — Claude Desktop by quitting it from the tray.
 

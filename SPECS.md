@@ -1118,12 +1118,17 @@ Three decisions in that watcher are worth stating:
 - **It notifies every session it has seen** and drops the ones that fail,
   which is one client over stdio and will be several over HTTP.
 
-**Nothing depends on it.** A client that ignores the notification, or never
-receives one, still cannot call a tool that has been switched off: the file
-is read again on every call. The notification saves a restart, it does not
-enforce anything. Whether a given client acts on it is the client's business
-and has not been measured here — see section 13 for what the protocol says
-about the capability.
+**Claude Desktop acts on it, verified 2026-08-22.** With the capability
+announced, a permission changed in the configuration interface reached the
+running client without restarting it. That is the whole point of the
+exercise, and it was worth measuring rather than assuming: the same
+notification sent *without* announcing the capability had never been shown to
+do anything, see section 13.
+
+**Nothing depends on it even so.** A client that ignores the notification, or
+never receives one, still cannot call a tool that has been switched off: the
+file is read again on every call. The notification saves a restart, it does
+not enforce anything.
 
 **Both directions take effect without a restart**, which is why the filter
 sits in `PolicyServer.list_tools` rather than in `register_tool`. Every tool
@@ -1655,10 +1660,15 @@ subclasses with concise, actionable messages.
 
   So section 9.2 now describes a server that announces `tools.listChanged`
   and sends `notifications/tools/list_changed` when the set of enabled tools
-  actually changes. For **resources** the finding stands unchanged: nothing
-  announces or sends anything, which is the second reason `read_download`
-  exists, the first being that Claude Desktop does not follow a resource
-  link.
+  actually changes — and **Claude Desktop acts on it, measured 2026-08-22**
+  over a real stdio handshake reporting `tools: {'listChanged': True}`. The
+  two halves are separable and only one of them had ever been tried: sending
+  the notification without announcing the capability leaves a conforming
+  client free to ignore it, and whether any client did was never established.
+
+  For **resources** the finding stands unchanged: nothing announces or sends
+  anything, which is the second reason `read_download` exists, the first
+  being that Claude Desktop does not follow a resource link.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be
