@@ -25,7 +25,12 @@ container on a loopback-published port is.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import logging
+import threading
+from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .config import Settings
@@ -35,7 +40,19 @@ if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from mcp.server.mcpserver import MCPServer
     from starlette.types import ASGIApp, Receive, Scope, Send
 
-__all__ = ["bearer_middleware", "require_bearer", "run_http", "transport_security"]
+__all__ = [
+    "bearer_middleware",
+    "require_bearer",
+    "run_http",
+    "transport_security",
+    "watch_for_change",
+]
+
+log = logging.getLogger(__name__)
+
+# How often the settings file is looked at. Slow enough to cost nothing, fast
+# enough that a person who just saved the key does not wait for it.
+CONFIG_POLL_SECONDS = 2.0
 
 # What the SDK allows by default. Kept and only extended, so naming a
 # container host never removes local access.
@@ -134,15 +151,74 @@ def http_app(server: MCPServer, settings: Settings) -> ASGIApp:
     return bearer_middleware(app, token)
 
 
-def run_http(server: MCPServer, settings: Settings) -> None:  # pragma: no cover
-    """Serve over HTTP until interrupted. Covered by hand, not by the suite."""
+def _fingerprint(path: Path) -> str | None:
+    """What the file says right now, or ``None`` while it does not exist.
+
+    The content rather than the timestamp: the configuration interface writes
+    the whole file on every save, and two saves inside one clock tick would
+    look identical by mtime.
+    """
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def watch_for_change(
+    path: Path,
+    on_change: Callable[[], None],
+    *,
+    stop: threading.Event,
+    poll: float = CONFIG_POLL_SECONDS,
+) -> None:
+    """Call ``on_change`` once the file differs from what it said at the start.
+
+    Settings are read when the process starts and never again - the API key
+    goes into a long-lived client, and the rate limiter that hangs off it is
+    the one this process is allowed to have. Rebuilding that in place would
+    mean moving state between two clients. Ending the process instead hands
+    the problem to whatever started it, and a fresh one reads everything
+    again. Nothing calls this unless something is there to restart it.
+    """
+    baseline = _fingerprint(path)
+    while not stop.wait(poll):
+        if _fingerprint(path) != baseline:
+            log.info(
+                "%s changed, ending this process so it is started again", path.name
+            )
+            on_change()
+            return
+
+
+def run_http(
+    server: MCPServer,
+    settings: Settings,
+    *,
+    watch: Path | None = None,
+) -> None:  # pragma: no cover - a socket and a signal, driven by hand
+    """Serve over HTTP until interrupted, or until ``watch`` changes."""
     import uvicorn
 
-    uvicorn.Server(
+    running = uvicorn.Server(
         uvicorn.Config(
             http_app(server, settings),
             host=settings.http_host,
             port=settings.http_port,
             log_level=settings.log_level.lower(),
         )
-    ).run()
+    )
+
+    stop = threading.Event()
+    if watch is not None:
+        threading.Thread(
+            target=watch_for_change,
+            args=(watch, lambda: setattr(running, "should_exit", True)),
+            kwargs={"stop": stop},
+            name="settings-watch",
+            daemon=True,
+        ).start()
+
+    try:
+        running.run()
+    finally:
+        stop.set()

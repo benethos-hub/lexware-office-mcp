@@ -7,13 +7,14 @@ it sends.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from benethos_lexware_office_mcp import transport
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.config import Settings, load_settings
 from benethos_lexware_office_mcp.errors import ConfigError
 from benethos_lexware_office_mcp.server import build_server, main
 
@@ -185,3 +186,94 @@ def test_the_cli_refuses_http_without_a_token_and_says_why(
     assert captured.out == "", "stdout carries the JSON-RPC stream"
     assert "LXO_MCP_BEARER_TOKEN" in captured.err
     assert "Traceback" not in captured.err
+
+
+# -- the settings watcher ----------------------------------------------------
+
+
+def test_a_changed_settings_file_ends_the_process(tmp_path: Path) -> None:
+    """Not a reload: a fresh process is the only way every setting moves."""
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
+    ended = threading.Event()
+    stop = threading.Event()
+
+    watcher = threading.Thread(
+        target=transport.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01},
+        daemon=True,
+    )
+    watcher.start()
+    env.write_text("LXO_MCP_API_KEY=second\n", encoding="utf-8")
+
+    assert ended.wait(5), "the change was not noticed"
+    stop.set()
+    watcher.join(timeout=5)
+
+
+def test_an_untouched_file_ends_nothing(tmp_path: Path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
+    ended = threading.Event()
+    stop = threading.Event()
+
+    watcher = threading.Thread(
+        target=transport.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01},
+        daemon=True,
+    )
+    watcher.start()
+    assert not ended.wait(0.2)
+
+    stop.set()
+    watcher.join(timeout=5)
+    assert not ended.is_set()
+
+
+def test_the_same_content_written_again_is_not_a_change(tmp_path: Path) -> None:
+    """The interface rewrites the whole file on every save, changed or not."""
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
+    ended = threading.Event()
+    stop = threading.Event()
+
+    watcher = threading.Thread(
+        target=transport.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01},
+        daemon=True,
+    )
+    watcher.start()
+    env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
+    assert not ended.wait(0.2)
+
+    stop.set()
+    watcher.join(timeout=5)
+
+
+def test_a_file_that_appears_later_counts_as_a_change(tmp_path: Path) -> None:
+    """A container starts before anyone has configured it."""
+    env = tmp_path / ".env"
+    ended = threading.Event()
+    stop = threading.Event()
+
+    watcher = threading.Thread(
+        target=transport.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01},
+        daemon=True,
+    )
+    watcher.start()
+    env.write_text("LXO_MCP_API_KEY=written-now\n", encoding="utf-8")
+
+    assert ended.wait(5)
+    stop.set()
+    watcher.join(timeout=5)
+
+
+def test_ending_on_a_change_is_off_unless_asked_for() -> None:
+    """Outside a container nothing would start it again, so it must not end."""
+    assert load_settings({}).exit_on_config_change is False
+    assert load_settings({"LXO_MCP_EXIT_ON_CONFIG_CHANGE": "1"}).exit_on_config_change

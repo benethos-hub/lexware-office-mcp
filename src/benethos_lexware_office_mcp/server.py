@@ -33,6 +33,7 @@ from .config import (
     Settings,
     download_dir,
     load_settings,
+    resolve_config_file,
     settings_sample,
 )
 from .errors import ConfigError
@@ -581,7 +582,24 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     _report_where_it_listens(settings)
-    run_http(server, settings)
+    # The .env is read once, at startup. Where something restarts this
+    # process - a container, a service manager - it can be told to end when
+    # that file changes, so a key saved in the browser takes effect without
+    # anyone opening a terminal. Nowhere else, since ending would be the
+    # whole of it.
+    watch = _env_in_effect(named_env) if settings.exit_on_config_change else None
+    if watch is not None:
+        logging.getLogger(__name__).info("Ending on a change to %s", watch.name)
+    run_http(server, settings, watch=watch)
+
+
+def _env_in_effect(named: Path | None) -> Path:
+    """The settings file this process was configured from.
+
+    Pinned here for the same reason the policy file is pinned: the identity
+    of the file is decided once, and only its contents are read again.
+    """
+    return named if named is not None else resolve_config_file(".env")
 
 
 def _host_list(raw: str | None) -> tuple[str, ...]:

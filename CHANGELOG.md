@@ -26,6 +26,23 @@ housekeeping are out of scope here — design decisions live in
   The SDK's DNS-rebinding guard checks `Host` and `Origin` on top, with the
   loopback names always allowed and `--allowed-hosts` adding a container or a
   proxy name.
+- **A container image and a Compose file.** `docker compose up -d` serves the
+  streamable-HTTP transport on `127.0.0.1:8770`, with the `.env`, the policy
+  file and the saved profiles in a `config` volume and downloads in another.
+  The image binds `0.0.0.0` because a process on the container's own loopback
+  cannot be reached through a published port at all — who may reach it is
+  decided by the host-side publish.
+- **The configuration interface as a second container, behind a profile.**
+  `docker compose --profile setup up -d` puts it on `127.0.0.1:8771` against
+  the same volume, and a plain `up` leaves it out. It has no login and it
+  takes an API key, so it is meant to be started for the minutes it is needed
+  and stopped again.
+- **`LXO_MCP_EXIT_ON_CONFIG_CHANGE`**, which ends the process when the
+  settings file changes so that whatever started it starts it again. Settings
+  are read once, at startup, and this is what lets a key saved in the browser
+  reach a running server without anyone opening a terminal. Off unless asked
+  for, since ending is the whole of it where nothing restarts it. The image
+  switches it on.
 - **`setup` can bind an address other than loopback**, with `--host`. A
   container has to: a process on the container's own loopback cannot be
   reached through a published port. It says on stderr when it binds anything

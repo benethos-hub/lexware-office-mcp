@@ -1,0 +1,99 @@
+# Hosting this server over the streamable-HTTP transport, and configuring it
+# in a browser without a terminal.
+#
+#   docker compose up -d                     start the server
+#   docker compose --profile setup up        add the configuration interface
+#   docker compose --profile setup down      take it away again
+#   docker compose logs -f                   follow what it says
+#   docker compose down                      stop everything
+#
+# The configuration interface is behind a profile on purpose. It has no login,
+# it accepts an API key, and it is needed for minutes rather than months. A
+# profile is not started by a plain `up`, so leaving it out of the file would
+# be the only stronger statement.
+
+name: benethos-lexware-office-mcp
+
+services:
+  benethos-lexware-office-mcp:
+    # As shipped: BUILD from this checkout. To run the published image
+    # instead, comment the two lines below and uncomment the two after them -
+    # you then need nothing from this repository except this file.
+    build: .
+    image: benethos-lexware-office-mcp:latest
+    # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
+    # pull_policy: always
+    container_name: benethos-lexware-office-mcp
+    ports:
+      # bind:host:container. Published on the loopback interface of the host,
+      # because a bearer token is a guard against other processes on this
+      # machine and not a reason to put an accounting API on a network. Drop
+      # the 127.0.0.1 prefix only behind a proxy that authenticates for you.
+      - "127.0.0.1:8770:8770"
+    restart: unless-stopped
+    environment:
+      # **Required.** Without it the server refuses to start. Put it in a .env
+      # beside this file - compose reads that automatically - or export it:
+      #   LXO_MCP_BEARER_TOKEN=$(python -c "import secrets;print(secrets.token_urlsafe(32))")
+      # Compose fails with this message rather than starting something unguarded.
+      LXO_MCP_BEARER_TOKEN: ${LXO_MCP_BEARER_TOKEN:?set LXO_MCP_BEARER_TOKEN, an HTTP transport is not served without one}
+      # Owned by the container and pinned here, because `environment` beats
+      # anything in the config volume: a .env that was written for local stdio
+      # use cannot turn the container into something the published port cannot
+      # reach.
+      LXO_MCP_TRANSPORT: streamable-http
+      LXO_MCP_HTTP_HOST: "0.0.0.0"
+      LXO_MCP_HTTP_PORT: "8770"
+      # The container's own name, so a second container on this network can
+      # talk to it. The loopback names stay allowed either way.
+      LXO_MCP_ALLOWED_HOSTS: "benethos-lexware-office-mcp:8770"
+      # Settings are read once, at startup. This ends the process when
+      # /config/.env changes, and `restart: unless-stopped` brings it back with
+      # the new ones - which is what makes configuring in the browser enough.
+      LXO_MCP_EXIT_ON_CONFIG_CHANGE: "1"
+      LXO_MCP_LOG_LEVEL: INFO
+    volumes:
+      # The .env, the policy file and the saved permission profiles.
+      - config:/config
+      # Documents fetched from the API. Real business records, so they persist.
+      - downloads:/downloads
+
+  # Started by name, never by a plain `up`:
+  #   docker compose --profile setup up -d
+  # Then open http://127.0.0.1:8771/, enter the key, tick the tools, and stop
+  # it again. The server notices the changed file and restarts itself.
+  setup:
+    profiles: ["setup"]
+    build: .
+    image: benethos-lexware-office-mcp:latest
+    container_name: benethos-lexware-office-mcp-setup
+    command:
+      - setup
+      - --no-browser
+      # Binding the container's loopback would make the published port answer
+      # nothing. What keeps this reachable from this machine only is the
+      # 127.0.0.1 in the publish below.
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8771"
+      - --env-file
+      - /config/.env
+      - --tools-file
+      - /config/tools.json
+    ports:
+      - "127.0.0.1:8771:8771"
+    # The image checks the transport port, which this one does not serve. A
+    # page a person is looking at reports its own health well enough.
+    healthcheck:
+      disable: true
+    # No restart policy: this is meant to be stopped when you are done, and a
+    # page that takes an API key should not come back by itself.
+    restart: "no"
+    volumes:
+      - config:/config
+      - downloads:/downloads
+
+volumes:
+  config:
+  downloads:

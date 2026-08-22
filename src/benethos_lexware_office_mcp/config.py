@@ -253,6 +253,7 @@ class Settings:
     http_path: str = DEFAULT_HTTP_PATH
     bearer_token: str | None = None
     allowed_hosts: tuple[str, ...] = ()
+    exit_on_config_change: bool = False
 
     def policy_file(self) -> Path:
         """Where this process reads and writes its per-tool policy."""
@@ -312,6 +313,15 @@ def load_settings(
     bearer_token = get("BEARER_TOKEN") or None
     register_secret(bearer_token)
 
+    # Only something that restarts the process may ask for this, so it is
+    # off unless said otherwise. The container image says otherwise.
+    exit_on_change = (get("EXIT_ON_CONFIG_CHANGE") or "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
     allowed = get("ALLOWED_HOSTS") or ""
     allowed_hosts = tuple(
         part for part in (p.strip() for p in allowed.split(",")) if part
@@ -348,4 +358,5 @@ def load_settings(
         http_path=get("HTTP_PATH") or DEFAULT_HTTP_PATH,
         bearer_token=bearer_token,
         allowed_hosts=allowed_hosts,
+        exit_on_config_change=exit_on_change,
     )
