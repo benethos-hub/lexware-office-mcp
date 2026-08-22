@@ -2088,16 +2088,22 @@ item. Answered questions stay in place with their answer.
    cleanly. So the capacity is small and fixed, not a function of how long the
    key has been quiet. `LXO_MCP_BURST` stays at `2` anyway — see section 10.1
    for why the measurement does not simply become the default.
-7. Whether 429 responses carry a `Retry-After` header, and whether the block
-   duration grows with repeated offences as the wording about permanent
-   blocking suggests.
+7. ~~Whether 429 responses carry a `Retry-After` header, and whether the
+   block duration grows with repeated offences as the wording about permanent
+   blocking suggests.~~ **Closed unanswered on 2026-08-22, by decision.**
+   Answering it means provoking 429s against a production account on purpose,
+   and the second half cannot be answered by anything but repeated offences -
+   the behaviour the documentation says leads to a permanent block. This
+   project does not probe its provider for limits it was asked not to test.
+   The retry rules of section 10.1 assume no `Retry-After` and back off with
+   jitter, which is the right behaviour whether or not the header is there,
+   so nothing is waiting on the answer.
 8. ~~Whether an API key can be generated inside a 30-day test account.~~
    **Answered 2026-08-20:** yes, and it works against the production endpoints.
    See section 11.1.
 
 **Nothing is left that a test account could answer.** Questions 2 and 6 were
 measured on 2026-08-21 and 5 was closed against the documentation the same
-day. Question 7 stays open on purpose: provoking 429s repeatedly is exactly
-what the documentation warns leads to a permanent block, and the one 429 that
-did occur while measuring question 6 came back without a `Retry-After` worth
-reading, which is not enough to answer it.
+day. Question 7 is closed by decision rather than by measurement, see above.
+The one 429 that did occur while measuring question 6 came back without a
+`Retry-After` worth reading, and that remains the only observation there is.
