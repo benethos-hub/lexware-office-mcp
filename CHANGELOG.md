@@ -373,9 +373,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   `delete_article` destroys a record and is the one tool that can, while
   `create_contact`, `create_voucher`, `create_sales_document`, `upload_file`
   and `attach_file_to_voucher` leave records the API cannot take back. Those
-  carry their own mark, and it distinguishes a contact — which the web app
-  deletes without ceremony — from a booked document, which GoBD and § 146 AO
-  require to stay.
+  carry a mark of their own — `nur App` for a record only the web app
+  deletes, `nur App · GoBD` for one that additionally has to stay once it is
+  festgeschrieben — and a legend above the list says what each mark means.
+  Neither of them claims a record is gone forever: the web app deletes most
+  of it unless it is festgeschrieben, has a payment assigned, has follow-on
+  documents, or has been exported.
 - **Permission profiles.** A named selection can be saved, loaded and
   deleted, so that "nur lesend für den Steuerberater" and "voller Zugriff auf
   dem Testkonto" are one click apart. A profile is a convenience and never a

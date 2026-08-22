@@ -744,6 +744,23 @@ server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible.
 
+**The marks are explained on the page, not in a tooltip.** Each row carries
+what the tool does — `lesend`, `schreibend · create`, `schreibend · delete` —
+and, where it applies, what becomes of what it writes: `nur App` for a record
+only the web app deletes, `nur App · GoBD` for one that additionally has to
+stay once it is festgeschrieben. A legend above the groups says what each of
+those means, because a tooltip is a poor place for the one distinction this
+page exists to make.
+
+**Neither permanence mark claims a record is gone forever**, and an earlier
+wording here did. `bleibt dauerhaft` was on all five of them, which overstates
+every case except a festgeschrieben document: per section 5, the web app
+deletes the rest unless it is festgeschrieben, has a payment assigned, has
+follow-on documents, or has been exported. That qualification is now on the
+page. It is the same overstatement the tool descriptions carried until
+2026-08-21 and were corrected for, which is worth noticing — the wording had
+been fixed in one place and reintroduced in another.
+
 **Profiles are a convenience, never a second policy.** A profile is a named
 list of enabled tool names, stored in `tool_profiles.json` beside the policy
 file it belongs to. Loading one fills in the checkboxes and stops there — the

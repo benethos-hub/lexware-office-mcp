@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -87,6 +89,38 @@ def test_the_markup_closes_what_it_opens(inst: Installation, render: object) -> 
 
     assert balance.wrong == []
     assert balance.open == []
+
+
+def test_a_page_renders_without_a_server_having_been_built(tmp_path: Path) -> None:
+    """The tools do not exist until something builds a server.
+
+    `classify` runs as each tool is registered, so `known_tools()` answers
+    with an empty registry in a process that has not done that - and the
+    permissions page used to raise `KeyError` there. This has to be a
+    subprocess: conftest imports the server for every other test in the file.
+    """
+    script = f"""
+from pathlib import Path
+from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.configui import pages
+from benethos_lexware_office_mcp.configui.state import Installation
+
+tmp = Path(r{str(tmp_path)!r})
+(tmp / ".env").write_text("", encoding="utf-8")
+inst = Installation(
+    settings=Settings(tool_policy_path=tmp / "tools.json"),
+    env_path=tmp / ".env",
+    cwd=tmp,
+)
+assert b"get_profile" in pages.permissions(inst)
+# An empty registry renders as "0 von 0 Tools aktiv" rather than raising.
+assert b"von 0 Tools" not in pages.overview(inst)
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=120
+    )
+
+    assert done.returncode == 0, done.stderr
 
 
 def test_the_page_carries_no_external_reference(inst: Installation) -> None:
@@ -232,8 +266,35 @@ def test_destruction_and_permanence_are_different_marks(inst: Installation) -> N
     """`delete_article` destroys but can be redone. A voucher is the reverse."""
     body = text(pages.permissions(inst))
 
-    assert "bleibt dauerhaft" in body
-    assert "GoBD" in body
+    assert "nur App" in body
+    assert "nur App · GoBD" in body
+
+
+def test_the_marks_do_not_claim_a_record_can_never_be_deleted(
+    inst: Installation,
+) -> None:
+    """The web app deletes most of it. Only a festgeschrieben document stays.
+
+    An earlier wording said "bleibt dauerhaft" on every one of these, which
+    overstated the case the same way the tool descriptions once did - see
+    SPECS.md section 5.
+    """
+    body = text(pages.permissions(inst))
+
+    assert "bleibt dauerhaft" not in body
+    assert "solange es nicht festgeschrieben" in body
+    assert "Storno-Buchung" in body
+
+
+def test_what_the_marks_mean_is_on_the_page_not_in_a_tooltip(
+    inst: Installation,
+) -> None:
+    body = text(pages.permissions(inst))
+
+    assert "Was die Marken bedeuten" in body
+    # The legend explains every mark the rows can carry.
+    for mark in ("lesend", "schreibend · create", "schreibend · delete", "nur App"):
+        assert mark in body
 
 
 def test_the_cost_of_each_tool_is_next_to_it(inst: Installation) -> None:

@@ -56,16 +56,24 @@ _SETTING_LABELS: dict[str, str] = {
     "LXO_MCP_LOG_LEVEL": "Protokollstufe",
 }
 
+# What the API cannot take back, and what that actually means for the record.
+# **Neither of these says "gone forever"**: Lexware Office deletes most of it
+# without ceremony, and only a festgeschrieben document is genuinely stuck.
+# The earlier wording here said "bleibt dauerhaft", which overstated the
+# second case and had already been corrected in the tool descriptions - see
+# SPECS.md section 5, which reads it out of the vendor's own help pages.
 _PERMANENCE_LABELS: dict[str, tuple[str, str]] = {
     "app": (
-        "bleibt",
-        "Die API nimmt das nicht zurück. Löschen geht nur in der Web-App.",
+        "nur App",
+        "Die API nimmt das nicht zurück. In Lexware Office selbst lässt sich "
+        "ein Kontakt ohne Weiteres löschen.",
     ),
     "law": (
-        "bleibt dauerhaft",
-        "Die API nimmt das nicht zurück, und ein festgeschriebener Beleg muss "
-        "nach GoBD und § 146 AO stehen bleiben. Korrigiert wird mit einer "
-        "Storno-Buchung in der Web-App.",
+        "nur App · GoBD",
+        "Die API nimmt das nicht zurück. In der Web-App löschbar, solange der "
+        "Beleg nicht festgeschrieben, mit einer Zahlung verknüpft, "
+        "weiterverarbeitet oder exportiert ist. Nach dem Festschreiben bleibt "
+        "er stehen, § 146 AO, und korrigiert wird mit einer Storno-Buchung.",
     ),
 }
 
@@ -94,11 +102,9 @@ def _tag(meta: ToolMeta) -> str:
 
 
 def _permanence(meta: ToolMeta) -> str:
-    label = _PERMANENCE_LABELS.get(meta.permanence)
-    if label is None:
+    if meta.permanence not in _PERMANENCE_LABELS:
         return ""
-    text, title = label
-    return f'<span class="tag keep" title="{esc(title)}">{esc(text)}</span>'
+    return _permanence_badge(meta.permanence)
 
 
 def _cost_note(characters: int) -> str:
@@ -128,6 +134,11 @@ def _resolved(inst: Installation) -> dict[str, str]:
 
 def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     """What this installation is, which files it reads, and what it may do."""
+    # Measured first, and not only because the figure is wanted below:
+    # building a server is what *defines* the tools, since `classify` runs as
+    # each one is registered. Asking `known_tools()` before this returns an
+    # empty registry in any process that has not built one.
+    costs = tool_costs(inst.settings)
     resolved = _resolved(inst)
     rows = "".join(
         f"<tr><td>{esc(_SETTING_LABELS.get(key, key))}<br>"
@@ -140,7 +151,6 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     policy = inst.policy
     flags = policy.as_map()
     meta = known_tools()
-    costs = tool_costs(inst.settings)
     on = [name for name, flag in flags.items() if flag]
     writers = [name for name in on if meta[name].access == "write"]
     spend = sum(costs.get(name, 0) for name in on)
@@ -307,8 +317,9 @@ def permissions(
     somebody presses save, exactly as before. The page says so at the top,
     because ticks that do not describe the file have to be labelled.
     """
-    meta = known_tools()
+    # Before `known_tools()`, for the reason given in `overview`.
     costs = tool_costs(inst.settings)
+    meta = known_tools()
     fresh = not inst.policy.exists()
     if flags is not None:
         state = flags
@@ -364,6 +375,7 @@ def permissions(
 
 <form method="post" action="/permissions" id="permform">{_csrf(csrf)}
   {_profile_bar(inst)}
+  {_legend()}
   <p>
     <button type="button" data-act="all-on">alles an</button>
     <button type="button" data-act="all-off">alles aus</button>
@@ -423,6 +435,42 @@ def permissions(
 </script>
 """
     return page("Rechte", body, here="/permissions", chip=_chip(last_account()))
+
+
+def _legend() -> str:
+    """What the marks on each row mean, on the page rather than in a tooltip.
+
+    A tooltip is a poor place for the one distinction this page exists to
+    make. The badges are rendered here with the same markup they carry in the
+    list, so the legend cannot drift into describing a different colour.
+    """
+    return f"""
+<div class="grp">
+  <h3>Was die Marken bedeuten</h3>
+  <p class="hint">
+    <span class="tag read">lesend</span> fragt nur ab.
+    <span class="tag write">schreibend · create</span> legt an oder ändert.
+    <span class="tag del">schreibend · delete</span> entfernt einen Datensatz —
+    das kann genau ein Tool, <code>delete_article</code>, und ein Artikel
+    lässt sich danach neu anlegen.
+  </p>
+  <p class="hint">
+    {_permanence_badge("app")} die API nimmt das nicht zurück. In Lexware
+    Office selbst lässt es sich löschen, solange es nicht festgeschrieben, mit
+    einer Zahlung verknüpft, weiterverarbeitet oder exportiert ist.
+  </p>
+  <p class="hint">
+    {_permanence_badge("law")} zusätzlich: nach dem Festschreiben bleibt der
+    Beleg stehen, § 146 AO. Korrigiert wird dann mit einer Storno-Buchung,
+    nicht mit einer Löschung.
+  </p>
+</div>
+"""
+
+
+def _permanence_badge(kind: str) -> str:
+    text, title = _PERMANENCE_LABELS[kind]
+    return f'<span class="tag keep" title="{esc(title)}">{esc(text)}</span>'
 
 
 def _saved_at(profile: Profile) -> str:
