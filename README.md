@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
 
 > **Disclaimer**
 >
@@ -22,7 +22,7 @@
 >   or legal advice.** Do not rely on it for filings, audits, or your
 >   bookkeeping obligations.
 > - Provided "as is", without warranty. Intended for personal and professional
->   use at your own risk. See [LICENSE](LICENSE).
+>   use at your own risk. See [LICENSE](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE).
 > - For **commercial use**, review Lexware's API terms and your own retention
 >   and documentation duties.
 
@@ -39,7 +39,7 @@ them for you.
 > download a PDF and upload a receipt. `get_profile` answers which account
 > is connected. Every tool in the table below is built, and each was
 > exercised against a live account. An HTTP transport, a container image and
-> a Compose file are what 0.2.0 is for. See [SPECS.md](SPECS.md) for the full
+> a Compose file are what 0.2.0 is for. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
 > technical specification and the roadmap.
 
 ## Why this exists
@@ -92,7 +92,7 @@ without a restart.
 ## Tools
 
 **Built** means it works today. The rest are specified in
-[SPECS.md](SPECS.md) and not implemented yet.
+[SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) and not implemented yet.
 
 Read tools:
 
@@ -580,15 +580,15 @@ It reads your account and writes nothing to it. The server it builds gets the
 `read-only` preset, so the writing tools are not there to be called at all. It
 prints what it checked, what the account had nothing for, and what failed, and
 it masks record ids so the report can be pasted somewhere. `pytest` never runs
-it. See [SPECS.md](SPECS.md) section 14.1 for why a live check is not a gate.
+it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) section 14.1 for why a live check is not a gate.
 
 Contributions and issues are welcome once the first release is out. Until
-then, [SPECS.md](SPECS.md) is the place where design decisions are recorded,
+then, [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) is the place where design decisions are recorded,
 including the open questions still to be resolved against the live API.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE).
 
 ## Trademarks and affiliation
 
