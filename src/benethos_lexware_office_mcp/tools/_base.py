@@ -11,9 +11,11 @@ import inspect
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..config import MAX_PAGE_SIZE
+from ..policy import known_tools
 
 __all__ = ["PageNumber", "PageSize", "register_tool"]
 
@@ -45,6 +47,49 @@ PageSize = Annotated[
 ]
 
 
+# Two tools answer without reaching the API at all: `get_deeplink` builds a
+# URL out of ids the caller already holds, and `read_download` reads a file
+# this server put on disk earlier. Everything else talks to Lexware.
+_CLOSED_WORLD = frozenset({"get_deeplink", "read_download"})
+
+
+def _annotations(name: str) -> ToolAnnotations | None:
+    """The MCP hints for one tool, derived from what `classify` recorded.
+
+    Derived rather than declared per tool, so a tool cannot end up saying one
+    thing to the policy file and another to the client. The protocol calls
+    these hints and warns that a client must not trust them from an untrusted
+    server, which is why nothing here enforces anything: the policy file
+    decides what may be called, see :mod:`..policy`.
+    """
+    meta = known_tools().get(name)
+    if meta is None:  # pragma: no cover - every tool is classified
+        return None
+    # `open_world_hint` is only stated where it is *not* what the protocol
+    # already assumes, which saves it being repeated on two dozen tools. The
+    # three hints below are stated either way: a client that skips a default
+    # would then read "deletes things" as nothing at all, and this list is
+    # sent often enough that the difference was worth measuring - see SPECS.md
+    # section 8.
+    if meta.access == "read":
+        return ToolAnnotations(
+            read_only_hint=True,
+            open_world_hint=False if name in _CLOSED_WORLD else None,
+        )
+    return ToolAnnotations(
+        read_only_hint=False,
+        # A create only adds. An update replaces the record, because this API
+        # has no patch, and a delete removes it - both destroy what was there.
+        destructive_hint=meta.effect != "create",
+        # A second create makes a second record: the API offers no
+        # idempotency key, measured 2026-08-21, see SPECS.md section 16. A
+        # repeat of an update or a delete leaves the books as they already
+        # are - the update spends a version it no longer has and is refused,
+        # the delete finds nothing left to remove.
+        idempotent_hint=meta.effect != "create",
+    )
+
+
 def register_tool(server: MCPServer, func: Any) -> None:
     """Register one tool, with its description tidied first.
 
@@ -63,4 +108,4 @@ def register_tool(server: MCPServer, func: Any) -> None:
     """
     if func.__doc__:
         func.__doc__ = inspect.cleandoc(func.__doc__)
-    server.tool()(func)
+    server.tool(annotations=_annotations(func.__name__))(func)

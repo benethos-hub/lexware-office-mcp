@@ -17,6 +17,14 @@ housekeeping are out of scope here — design decisions live in
 
 ### Added
 
+- **Every tool now carries the MCP annotations**, so a client can tell a
+  reading tool from a writing one without parsing prose: `readOnlyHint` on
+  every read tool, `destructiveHint` false for a create and true for an update
+  or a delete, `idempotentHint` saying that a second create is a second record
+  while a repeated update or delete is not, and `openWorldHint` false on the
+  two tools that answer without reaching the API. They are derived from the
+  same classification the policy file is written against, and they decide
+  nothing: the file remains the only gate.
 - **An HTTP transport**, `--transport streamable-http` or `sse`, beside the
   stdio one that stays the default. `--host`, `--port`, `--path` and
   `--allowed-hosts` configure it, or `LXO_MCP_TRANSPORT`, `LXO_MCP_HTTP_HOST`,
@@ -68,6 +76,15 @@ housekeeping are out of scope here — design decisions live in
   container has to: a process on the container's own loopback cannot be
   reached through a published port. It says on stderr when it binds anything
   else, because the pages still have no login.
+
+### Changed
+
+- **The server's instructions** now say what holds across tools rather than
+  only how to find an id: that a tool without `readOnlyHint` changes real
+  books, that `get_profile` names the company before the first write of a
+  session, that a create cannot be repeated safely, and that every call spends
+  from one budget shared by all endpoints. They are sent once per session
+  rather than with every request, which is what makes the room affordable.
 
 ## [0.1.0] - 2026-08-22
 
