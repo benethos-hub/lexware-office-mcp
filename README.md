@@ -439,7 +439,7 @@ startup rather than turning into an API error later.
 ## Transport
 
 The first releases speak **stdio** only, which is what Claude Desktop and
-comparable local clients use. An HTTP transport is planned for 0.3.0 and will
+comparable local clients use. An HTTP transport is planned for 0.2.0 and will
 ship with its own bearer authentication in front of the API key, because
 anyone who can reach an unprotected port could otherwise spend your Lexware
 credentials. Until that authentication exists, HTTP stays unavailable rather

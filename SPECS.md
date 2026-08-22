@@ -639,10 +639,10 @@ still meets it.
 
 ## 6. Transport and runtime
 
-- **Phase 1 is stdio only.** `MCPServer.run()` with the default stdio
+- **0.1.0 is stdio only.** `MCPServer.run()` with the default stdio
   transport, launched as a subprocess by the client. This is the entire
   transport surface of the first releases, by explicit decision.
-- **Phase 3 adds HTTP** (`--transport streamable-http` / `sse`) with
+- **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with
   `--host`, `--port`, `--path`, `--allowed-hosts`, `--allowed-origins`. The HTTP
   transport also needs its own authentication in
   front of the API key, because anyone who can reach the port can otherwise
@@ -653,7 +653,7 @@ still meets it.
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).
 - **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
-  `--env-file` in phase 1, plus the transport flags in phase 3. `--mode` and
+  `--env-file` today, plus the transport flags when HTTP arrives. `--mode` and
   `--download-dir` were planned here and never built: the mode is gone with
   the tier of section 9.1, and the download directory stayed an environment
   setting because a client spawns the server and passes no arguments.
@@ -895,7 +895,7 @@ a date on it rather than a budget. What is stable is the shape: schemas cost
 three times what descriptions cost, and the tools that take structured
 arguments cost three to four times what the simple ones do.
 
-### Phase 1 — read only
+### Read tools
 
 | Tool | Inputs | Output | Calls |
 |---|---|---|---|
@@ -915,7 +915,7 @@ arguments cost three to four times what the simple ones do.
 | `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts and vouchers, since the permalink shape is the same for them and the extra entries cost nothing. A stored file is **not** a target and a contact ignores `edit`, both because the app answers those with a 404, see section 5. Built 2026-08-20, corrected against the live app 2026-08-21. | 0 |
 
-### Phase 2 — writes
+### Write tools
 
 | Tool | Inputs | Calls | Notes |
 |---|---|---|---|
@@ -924,7 +924,7 @@ arguments cost three to four times what the simple ones do.
 
 | Tool | Notes |
 |---|---|
-| `create_contact` / `update_contact` | **Built 2026-08-20**, see the phase 1 table above for what they cost. |
+| `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and drops the side that is no longer authoritative so a new net price is never sent beside a stale gross one. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
@@ -932,7 +932,7 @@ arguments cost three to four times what the simple ones do.
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
 
-### Phase 3 — irreversible
+### Irreversible tools
 
 `delete_article` is **built**, and is what the `confirm: true` convention was
 written for: the argument defaults to false, nothing is sent without it, and
@@ -943,7 +943,7 @@ be asked for here.
 **And that is all of them.** Booking a voucher was listed here as a third,
 and it is not possible: the API has no state transitions, measured 2026-08-21
 and written up in section 5. Nothing can be booked, finalized or voided after
-the fact, so `delete_article` is the whole of phase 3 rather than its first
+the fact, so `delete_article` is the whole of this group rather than its first
 instalment.
 
 It is also the only tool for which the `irreversible` preset differs from
@@ -1824,20 +1824,50 @@ fixtures are the shapes the API actually returned, and the enum values in the
 voucher schemas were measured rather than taken from the documentation, which
 does not list them.
 
-**Phase 1 and phase 2 are complete.** Every read tool of section 8 exists,
-every resource group of section 4 is built, and every documented call is
-covered except the event subscriptions, which section 2 rules out. The
-configuration question of section 16.1 is answered too: `setup` serves the
-interface described in section 7.1. What is left before a release is CI,
-which does not exist, and shipping `config/.env.sample` inside the wheel.
+**Feature complete, and not released.** Every tool of section 8 exists, every
+resource group of section 4 is built, and every documented call is covered
+except the event subscriptions, which section 2 rules out. The configuration
+question of section 16.1 is answered too: `setup` serves the interface
+described in section 7.1. Nothing on the API side is outstanding.
 
-| Phase | Content | State |
+**What stands between here and 0.1.0 is not code**, and it is best done in
+this order:
+
+1. **A public repository**, which does not exist yet. While it does not,
+   `main` is written directly and a finished branch is merged locally. Once
+   it exists the merge goes through a pull request instead, which is also
+   what CI needs something to run against.
+2. **CI**, which does not exist at all. The suite, `ruff check`,
+   `ruff format --check`, `mypy` and the coverage floor across the Python
+   matrix of section 6. It has to pass with no key, no network and no
+   account, see section 14.1 for why nothing in it may reach the API.
+3. **`config/.env.sample` inside the wheel**, verified missing by building
+   one: seventeen files, and the sample is not among them. See section 16.1,
+   where it is the last of the four directions still open.
+4. **Publication to PyPI**, which is what makes the installation instructions
+   in the README true for someone who has not cloned the repository.
+
+**The numbers below no longer mean what they were named for.** They were
+assigned when the work was expected to arrive release by release, and it did
+not: writing, the policy and the configuration interface all landed before
+the first release rather than after it. So 0.1.0 is everything that has been
+built, and the table below records releases only. The tool groups of section 8
+keep the same split but are named for what they are — reading, writing and
+irreversible — because they were never a release order and calling them phases
+suggested they were.
+
+| Release | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, read-only tools of section 8 phase 1, config, client with rate limiting, error mapping, offline test suite, CI | **in progress** — transport, config, the per-tool policy of section 9, the configuration interface of section 7.1, client, rate limiter, error mapping, paging, downloads and every resource group of section 4 are done and exercised against a live account. CI is open, and so is packing the settings sample into the wheel. |
-| 0.2.0 | write tools, file upload, optimistic locking round trip | **done** — contacts, articles, bookkeeping vouchers, sales documents, receipt upload and voucher attachments are written, and the locking round trip works for the three resources the API lets you update |
-| 0.3.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | planned |
-| 0.4.0 | nothing identified. What was listed here — booking a voucher, and the ZUGFeRD and XRechnung download variants — turned out on 2026-08-21 to be one operation the API cannot perform and one that `download_document` and `download_file` already do through `file_format`. The phase stays as a placeholder for what a future API version adds. | empty |
+| 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **feature complete, unreleased** — every part of it is built and exercised against a live account. The four items above are what is left, and none of them is a feature. |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **next**, once 0.1.0 is out |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
+
+**There is no numbered release between 0.2.0 and whatever a future API
+version brings.** What was once listed as a phase of its own — booking a
+voucher, and the ZUGFeRD and XRechnung download variants — turned out on
+2026-08-21 to be one operation the API cannot perform and one that
+`download_document` and `download_file` already do through `file_format`. A
+number gets assigned when there is content for it, not before.
 
 ### 16.1 Answered: how a user configures the server
 

@@ -427,4 +427,4 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 Every documented endpoint this API offers is covered except event
 subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
-for 0.3.0 and will ship with its own authentication in front of the API key.
+for 0.2.0 and will ship with its own authentication in front of the API key.

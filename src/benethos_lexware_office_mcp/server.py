@@ -3,7 +3,7 @@
 Run with ``python -m benethos_lexware_office_mcp`` or the installed
 ``benethos-lexware-office-mcp`` console script. The transport is **stdio**
 only, which is what Claude Desktop and comparable local clients use. An HTTP
-transport is planned for 0.3.0 and will ship with its own authentication in
+transport is planned for 0.2.0 and will ship with its own authentication in
 front of the API key (SPECS.md section 6).
 
 Logging always goes to stderr, so that under stdio stdout stays reserved for
