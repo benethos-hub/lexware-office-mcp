@@ -18,7 +18,8 @@ services:
   benethos-lexware-office-mcp:
     # As shipped: BUILD from this checkout. To run the published image
     # instead, comment the two lines below and uncomment the two after them -
-    # you then need nothing from this repository except this file.
+    # and do the same for the `setup` service, which is the same image. Both
+    # switched, you need nothing from this repository except this file.
     build: .
     image: benethos-lexware-office-mcp:latest
     # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
@@ -69,8 +70,12 @@ services:
   # it again. The server notices the changed file and restarts itself.
   setup:
     profiles: ["setup"]
+    # The same image as above, serving its other command. Switch it the same
+    # way: comment the two lines below, uncomment the two after them.
     build: .
     image: benethos-lexware-office-mcp:latest
+    # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
+    # pull_policy: always
     container_name: benethos-lexware-office-mcp-setup
     command:
       - setup

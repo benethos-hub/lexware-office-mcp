@@ -75,6 +75,7 @@ jobs:
           names = zipfile.ZipFile(wheel).namelist()
           expected = [
               "benethos_lexware_office_mcp/env.sample",
+              "benethos_lexware_office_mcp/py.typed",
               "benethos_lexware_office_mcp/server.py",
           ]
           missing = [n for n in expected if n not in names]
