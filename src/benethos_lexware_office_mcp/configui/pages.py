@@ -374,6 +374,7 @@ def permissions(
 
 <form method="post" action="/permissions" id="permform">{_csrf(csrf)}
   {_profile_bar(inst)}
+  {_policy_transfer(inst)}
   {_legend()}
   <p>
     <button type="button" data-act="all-on">alles an</button>
@@ -516,42 +517,46 @@ def _profile_bar(inst: Installation) -> str:
              placeholder="z. B. Steuerberater, nur lesend"></div>
     <button type="submit" name="action" value="profile-save">Profil sichern</button>
   </div>
-  {_profile_transfer(bool(saved))}
 </div>
 """
 
 
-def _profile_transfer(has_profiles: bool) -> str:
-    """Carrying the profiles to another installation, and back.
+def _policy_transfer(inst: Installation) -> str:
+    """The policy file itself, out and in.
 
     Folded away behind a summary: it is the rarest thing on this page, and a
-    textarea sitting open would push the tool list off the screen. Only the
-    profiles travel - see `transfer.py` for why the settings do not.
+    textarea sitting open would push the tool list off the screen.
+
+    Reading one only fills the boxes. Writing still happens on save, as it
+    does for a loaded profile, which is what keeps one rule for how
+    `tools.json` gets written.
     """
     export = (
-        '<p><button type="submit" name="action" value="profile-export">'
-        "Profile herunterladen</button> "
-        '<span class="hint">Eine JSON-Datei mit allen gespeicherten Profilen. '
-        "Ohne Zugangsdaten, ohne Einstellungen, ohne die Rechtedatei "
-        "selbst.</span></p>"
-        if has_profiles
-        else '<p class="hint">Noch nichts zu exportieren.</p>'
+        '<p><button type="submit" name="action" value="policy-export">'
+        "Rechtedatei herunterladen</button> "
+        '<span class="hint">Genau die Datei, die dieser Server liest — '
+        "auf einer anderen Installation nutzbar, mit oder ohne diese "
+        "Oberfläche.</span></p>"
+        if inst.policy.exists()
+        else '<p class="hint">Es gibt noch keine Rechtedatei zum Herunterladen. '
+        "Einmal speichern legt sie an.</p>"
     )
     return f"""
-<details style="margin-top:.6rem">
-  <summary>Profile mitnehmen oder einlesen</summary>
+<div class="grp">
+  <h3>Rechtedatei mitnehmen oder einlesen</h3>
   {export}
-  <p><input type="file" id="profilefile" accept="application/json,.json"></p>
+  <p><input type="file" id="policyfile" accept="application/json,.json"></p>
   <textarea name="bundle" rows="5"
-            placeholder="Inhalt einer Profil-Datei"></textarea>
-  <p><button type="submit" name="action" value="profile-import">Profile
+            placeholder="Inhalt einer tools.json"></textarea>
+  <p><button type="submit" name="action" value="policy-import">Rechtedatei
      einlesen</button>
-  <span class="hint">Legt die Profile an oder überschreibt gleichnamige. An
-     den Rechten ändert das nichts.</span></p>
-</details>
+  <span class="hint">Setzt nur die Haken. Tools, die die Datei nicht nennt,
+     bleiben aus — wie <code>--tools sync</code> auf der Kommandozeile.
+     Geschrieben wird erst mit „Rechte speichern".</span></p>
+</div>
 <script>
 (function () {{
-  var pick = document.getElementById('profilefile');
+  var pick = document.getElementById('policyfile');
   if (!pick) return;
   pick.addEventListener('change', function () {{
     var file = pick.files && pick.files[0];

@@ -733,7 +733,7 @@ would be a second copy of a rule that lives in the code.
 |---|---|
 | Übersicht | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
 | Zugangsdaten | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
-| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The profiles can also be downloaded and read back from here. |
+| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
 
 **Five answers to "where did this value come from", not three.** A real
 environment variable, the command line for the one setting it can name, the
@@ -795,25 +795,34 @@ millisecond, and Windows moves that resolution around depending on what else
 is running. Six digits of clock beats six digits of clock and three of
 padding, because somebody eventually relies on the difference.
 
-**The profiles can be carried to another installation, and nothing else
-can.** One JSON file holding the saved profiles, downloaded from the
-permissions page and read back there. Importing them changes no permission:
-it adds to the list this installation can choose from, and `tools.json` is
-written when somebody presses save, exactly as for a profile made by hand.
-That is what makes an import safe to apply without a preview.
+**One policy file can be carried to another installation, and nothing else
+can.** The download is the file itself, in the shape `tools.json` already
+has: one flag per tool, no wrapper, no format version. So it can be dropped
+into another installation's config directory or named with `--tools-file`,
+and a file written by `--tools` reads here — one format for one thing, rather
+than a second one wrapping it.
 
-**A bundle carrying the whole configuration was built first and taken out
-again on 2026-08-22.** It held the settings, the flags and the profiles, and
+**Reading one follows the rule `--tools sync` follows.** A tool the file does
+not name is off, which is what an unmentioned tool means everywhere else in
+this project, so a file written before a tool existed leaves that tool
+switched off rather than guessing. How many those are is said out loud, and a
+name that is no longer a tool is reported and dropped. Reading only fills the
+checkboxes: `tools.json` is written on save, as it is for a loaded profile,
+which keeps one rule for how that file comes to be written.
+
+**Two wider formats were built first and taken out again on 2026-08-22.** The
+first carried the settings, the permissions and the profiles together, and
 the settings were the problem: `LXO_MCP_TOOL_POLICY` and
-`LXO_MCP_DOWNLOAD_DIR` are absolute paths describing one machine. An import
-writing the first would have pointed the target installation at a policy file
-that does not exist there — which means no tools at all, immediately after an
-import that appeared to grant some, and the preview would have listed it as
-one settings row among others. A profile has none of that: it is a list of
-tool names, and a tool name means the same thing on every machine.
+`LXO_MCP_DOWNLOAD_DIR` are absolute paths describing one machine, and an
+import writing the first would have pointed the target installation at a
+policy file that does not exist there — no tools at all, immediately after an
+import that appeared to grant some. The second carried the profiles alone,
+which was safe but answered a question nobody had: a profile is a convenience
+of this interface, while the policy file is the thing an installation
+actually runs on.
 
-The API key was never in either format, filtered on the way out and again on
-the way in. The narrower one cannot carry a setting at all.
+No format carried the API key, and this one has nowhere to put a setting at
+all.
 
 ## 8. Tools
 

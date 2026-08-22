@@ -22,7 +22,6 @@ import pytest
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import probe, transfer
 from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
-from benethos_lexware_office_mcp.configui.profiles import Profile
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
@@ -417,91 +416,94 @@ def test_a_setting_the_server_would_refuse_is_not_written(
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
 
 
-# -- carrying the profiles -------------------------------------------------
+# -- carrying the policy file ----------------------------------------------
 
 
 def test_the_transfer_page_is_gone(browser: Browser) -> None:
-    """Settings and permissions do not travel any more. Only profiles do."""
+    """Settings and profiles do not travel. One policy file does."""
     assert browser.get("/transfer")[0] == 404
     assert browser.post("/transfer", {"action": "preview"}, csrf=None)[0] == 404
 
 
-def test_the_export_carries_the_profiles_and_nothing_else(
+def test_the_export_is_the_policy_file_itself(
     browser: Browser, installation: Installation
 ) -> None:
-    installation.env_path.write_text(
-        "LXO_MCP_API_KEY=secret-value\nLXO_MCP_PAGE_SIZE=50\n", encoding="utf-8"
-    )
+    installation.env_path.write_text("LXO_MCP_API_KEY=secret-value", encoding="utf-8")
     ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
-    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
 
     status, body, headers = browser.get("/export")
 
     assert status == 200
     assert "attachment" in headers["Content-Disposition"]
     assert "secret-value" not in body
-    assert "LXO_MCP" not in body
-    document = json.loads(body)
-    assert set(document["profiles"]) == {"Nur Lesen"}
-    assert "tools" not in document and "settings" not in document
+    assert json.loads(body) == flags(installation)
 
 
-def test_the_export_button_on_the_permissions_page_downloads_the_same(
+def test_the_export_button_downloads_the_same(
     browser: Browser, installation: Installation
 ) -> None:
-    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+    ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
 
-    status, body, headers = browser.post("/permissions", {"action": "profile-export"})
+    status, body, headers = browser.post("/permissions", {"action": "policy-export"})
 
     assert status == 200
     assert "attachment" in headers["Content-Disposition"]
-    assert set(json.loads(body)["profiles"]) == {"Nur Lesen"}
+    assert json.loads(body)["get_profile"] is True
 
 
-def test_importing_profiles_adds_them_and_touches_no_permission(
+def test_importing_fills_the_form_and_writes_nothing(
     browser: Browser, installation: Installation
 ) -> None:
-    """The reason this needs no preview: nothing here reaches tools.json."""
-    ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
-    text = transfer.dumps(
-        transfer.build(
-            {"Von woanders": Profile(name="Von woanders", tools=("create_voucher",))}
-        )
+    ToolPolicy(installation.settings.policy_file()).save(
+        dict.fromkeys(known_tools(), True)
     )
+    arriving = transfer.dumps({"get_profile": True, "create_voucher": False})
 
     _, body, _ = browser.post(
-        "/permissions", {"action": "profile-import", "bundle": text}
+        "/permissions", {"action": "policy-import", "bundle": arriving}
     )
 
-    assert "Von woanders" in installation.profiles.all()
-    assert flags(installation) == {"get_profile": True} | {
-        name: False for name in known_tools() if name != "get_profile"
-    }
-    assert "neu: Von woanders" in note(body)
-    assert "ändert das nichts" in note(body)
+    assert 'value="get_profile" id="get_profile" checked' in body
+    assert 'value="create_voucher" id="create_voucher">' in body
+    assert flags(installation)["create_voucher"] is True  # the file is untouched
+    assert "Geschrieben ist noch nichts" in note(body)
 
 
-def test_an_import_says_what_it_overwrote(
+def test_a_tool_the_file_predates_stays_off_and_is_named(
     browser: Browser, installation: Installation
 ) -> None:
-    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
-    text = transfer.dumps(
-        transfer.build(
-            {"Nur Lesen": Profile(name="Nur Lesen", tools=("search_vouchers",))}
-        )
-    )
+    """The rule `--tools sync` follows: silence is off, and it is said aloud."""
+    arriving = transfer.dumps({"get_profile": True})
 
     _, body, _ = browser.post(
-        "/permissions", {"action": "profile-import", "bundle": text}
+        "/permissions", {"action": "policy-import", "bundle": arriving}
     )
 
-    assert "überschrieben: Nur Lesen" in note(body)
-    assert installation.profiles.all()["Nur Lesen"].tools == ("search_vouchers",)
+    assert 'value="create_voucher" id="create_voucher">' in body
+    assert "nennt die Datei nicht" in note(body)
+    assert "create_voucher" in note(body)
+    assert "1 von 25 Tools angehakt" in note(body)
 
 
-def test_a_file_that_is_not_a_profile_export_is_refused(browser: Browser) -> None:
+def test_a_name_that_is_no_longer_a_tool_is_reported_and_dropped(
+    browser: Browser, installation: Installation
+) -> None:
+    arriving = transfer.dumps({"get_profile": True, "tool_from_an_older_version": True})
+
     _, body, _ = browser.post(
-        "/permissions", {"action": "profile-import", "bundle": "kaputt"}
+        "/permissions", {"action": "policy-import", "bundle": arriving}
+    )
+
+    assert "tool_from_an_older_version" in note(body)
+    assert "hier nicht gibt" in note(body)
+    assert "tool_from_an_older_version" not in body.split("<form")[1].split("</form>")[
+        0
+    ].replace(note(body), "")
+
+
+def test_a_file_that_is_not_a_policy_is_refused(browser: Browser) -> None:
+    _, body, _ = browser.post(
+        "/permissions", {"action": "policy-import", "bundle": "kaputt"}
     )
 
     assert "keine gültige JSON" in note(body)
@@ -512,8 +514,25 @@ def test_a_refused_import_keeps_the_ticks_that_were_set(
 ) -> None:
     _, body, _ = browser.post(
         "/permissions",
-        {"action": "profile-import", "bundle": "kaputt", "tool": ["create_voucher"]},
+        {"action": "policy-import", "bundle": "kaputt", "tool": ["create_voucher"]},
     )
 
     assert 'value="create_voucher" id="create_voucher" checked' in body
     assert not installation.settings.policy_file().exists()
+
+
+def test_an_imported_file_becomes_the_policy_once_it_is_saved(
+    browser: Browser, installation: Installation
+) -> None:
+    """The round trip a person actually makes: read a file, then save."""
+    arriving = transfer.dumps({"get_profile": True, "search_vouchers": True})
+
+    browser.post("/permissions", {"action": "policy-import", "bundle": arriving})
+    browser.post(
+        "/permissions",
+        {"action": "save", "tool": ["get_profile", "search_vouchers"]},
+    )
+
+    assert transfer.parse(
+        installation.settings.policy_file().read_text(encoding="utf-8")
+    ) == {name: name in ("get_profile", "search_vouchers") for name in known_tools()}

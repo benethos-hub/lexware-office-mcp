@@ -372,12 +372,14 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   second policy: loading one fills in the checkboxes, and nothing reaches
   `tools.json` until save is pressed. Profiles live in `tool_profiles.json`
   beside the policy file they belong to.
-- **Profiles can be carried to another installation.** One JSON file with
-  the saved profiles, downloaded from the permissions page and read back
-  there. **Profiles only** — no settings, no permissions and no API key, so
-  an import adds to what you can choose from and changes nothing about what
-  the server currently offers. It says what it added and what it
-  overwrote.
+- **A policy file can be downloaded and read back in.** The download is
+  `tools.json` as it stands, with no wrapper around it, so it works on
+  another installation with or without this interface — and a file written
+  by `--tools` reads here. Reading one only ticks the boxes: saving is still
+  a separate press. A tool the file does not mention stays **off** and the
+  page says how many those are, which is what `--tools sync` does on the
+  command line. Nothing else travels: not the settings, not the profiles,
+  and not the API key.
 - **The API key can be entered without a text editor**, checked against the
   API before it is written, and never displayed, logged or exported. The
   interface says which file it writes to, creating it and its directory if

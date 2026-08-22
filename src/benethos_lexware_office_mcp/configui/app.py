@@ -44,7 +44,8 @@ DEFAULT_PORT = 8770
 _SESSION_COOKIE = "lxo_config"
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
-_EXPORT_NAME = "lexware-office-mcp-profile.json"
+# The name the file has on disk, so a download can simply replace one.
+_EXPORT_NAME = "tools.json"
 
 
 class ConfigServer(ThreadingHTTPServer):
@@ -298,11 +299,11 @@ class Handler(BaseHTTPRequestHandler):
         if action == "profile-delete":
             self._delete_profile(form)
             return
-        if action == "profile-export":
+        if action == "policy-export":
             self._export()
             return
-        if action == "profile-import":
-            self._import_profiles(form, chosen)
+        if action == "policy-import":
+            self._import_policy(form, chosen)
             return
         if action != "save":
             self._not_found()
@@ -396,22 +397,24 @@ class Handler(BaseHTTPRequestHandler):
             kind="good" if gone else "bad",
         )
 
-    # --- carrying the profiles ------------------------------------------
+    # --- carrying the policy file ----------------------------------------
 
     def _export(self) -> None:
-        """The saved profiles as a download. Nothing else travels."""
-        document = transfer.build(self.installation.profiles.all(), version=__version__)
-        self._download(transfer.dumps(document).encode("utf-8"), _EXPORT_NAME)
+        """The policy file as a download, byte for byte what is on disk."""
+        self._download(
+            transfer.dumps(self.installation.policy.as_map()).encode("utf-8"),
+            _EXPORT_NAME,
+        )
 
-    def _import_profiles(self, form: dict[str, list[str]], chosen: list[str]) -> None:
-        """Add profiles from a file. No permission changes, so no preview.
+    def _import_policy(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+        """Read a policy file into the form. Saving is still a separate act.
 
-        A profile is a list of names to choose from later. Nothing here
-        reaches `tools.json`, which is what makes this safe to apply straight
-        away - unlike the configuration bundle this replaced, which could
-        have switched tools on for an account it was never written for.
+        The rule is the one `--tools sync` follows: a tool the file does not
+        name stays **off**, because that is what an unmentioned tool means
+        everywhere else in this project. A file written before a tool existed
+        therefore leaves it switched off rather than guessing, and how many
+        those are is said out loud instead of being left to be noticed.
         """
-        inst = self.installation
         text = form.get("bundle", [""])[0]
         try:
             arriving = transfer.parse(text)
@@ -420,27 +423,34 @@ class Handler(BaseHTTPRequestHandler):
                 pages.permissions, str(exc), kind="bad", flags=_flags(chosen)
             )
             return
-        try:
-            overwritten = inst.profiles.merge(arriving)
-        except OSError as exc:
-            self._page_with(
-                pages.permissions,
-                f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-                flags=_flags(chosen),
+
+        known = known_tools()
+        flags = {name: arriving.get(name, False) for name in known}
+        newer = sorted(name for name in known if name not in arriving)
+        unknown = sorted(name for name in arriving if name not in known)
+
+        on = sum(flags.values())
+        text_out = (
+            f"Rechtedatei eingelesen, {on} von {len(known)} Tools angehakt. "
+            "Geschrieben ist noch nichts — dafür unten auf „Rechte speichern“."
+        )
+        if newer:
+            text_out += (
+                f" {len(newer)} Tools nennt die Datei nicht und bleiben "
+                "deshalb aus: " + ", ".join(newer) + "."
             )
-            return
-        added = sorted(name for name in arriving if name not in overwritten)
-        parts = [f"{len(arriving)} Profile eingelesen"]
-        if added:
-            parts.append("neu: " + ", ".join(added))
-        if overwritten:
-            parts.append("überschrieben: " + ", ".join(overwritten))
-        self._page_with(
-            pages.permissions,
-            ". ".join(parts) + ". An den Rechten ändert das nichts.",
-            kind="good",
-            flags=_flags(chosen),
+        if unknown:
+            text_out += (
+                f" Übergangen, weil es sie hier nicht gibt: {', '.join(unknown)}."
+            )
+        self._send(
+            200,
+            pages.permissions(
+                self.installation,
+                csrf=self._session,
+                message=note(esc(text_out)),
+                flags=flags,
+            ),
         )
 
     # --- one small convenience ---------------------------------------------

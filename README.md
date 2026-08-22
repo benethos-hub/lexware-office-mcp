@@ -283,11 +283,14 @@ record later.
 
 Profiles live here too. Save the current selection under a name, load it
 later. Loading only fills the boxes: nothing reaches `tools.json` until you
-press save. They are stored in `tool_profiles.json` beside the policy file,
-and they can be downloaded as one JSON file and read back on another
-installation — **profiles only**, no settings, no key, and no permissions,
-so an import adds to what you can choose from and changes nothing about what
-the server currently offers.
+press save. They are stored in `tool_profiles.json` beside the policy file.
+
+The **policy file itself** can be downloaded and read back in from the same
+page — the file as it is, so it works on another installation with or
+without this interface, and a `tools.json` written by `--tools` reads here.
+Reading one only ticks the boxes; saving is still a separate press. A tool
+the file does not mention stays **off** and the page says how many those
+are, which is what `--tools sync` does on the command line.
 
 Two things worth knowing. It **binds `127.0.0.1` and nothing else** — the
 pages have no password, which is only defensible while they cannot be reached

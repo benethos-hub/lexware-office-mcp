@@ -373,33 +373,32 @@ def test_without_profiles_the_bar_explains_itself(inst: Installation) -> None:
 # -- carrying the profiles -------------------------------------------------
 
 
-def test_the_profiles_can_be_taken_along(inst: Installation) -> None:
-    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+def test_the_policy_file_can_be_taken_along(inst: Installation) -> None:
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
 
     body = text(pages.permissions(inst))
 
-    assert 'value="profile-export"' in body
-    assert 'value="profile-import"' in body
-    assert "Ohne Zugangsdaten" in body
+    assert 'value="policy-export"' in body
+    assert 'value="policy-import"' in body
+    assert "tools sync" in body
 
 
-def test_nothing_is_offered_for_export_before_there_is_one(
+def test_there_is_nothing_to_download_before_a_file_exists(
     inst: Installation,
 ) -> None:
     body = text(pages.permissions(inst))
 
-    assert 'value="profile-export"' not in body
-    assert "Noch nichts zu exportieren" in body
+    assert 'value="policy-export"' not in body
+    assert "keine Rechtedatei zum Herunterladen" in body
+    assert 'value="policy-import"' in body  # reading one in still makes sense
 
 
-def test_the_page_no_longer_carries_the_configuration_bundle(
-    inst: Installation,
-) -> None:
-    """Settings and permissions do not travel. Only profiles do.
+def test_nothing_but_the_policy_file_travels(inst: Installation) -> None:
+    """Neither the settings nor the profiles are carried any more.
 
-    The bundle that carried everything also carried `LXO_MCP_TOOL_POLICY`,
-    an absolute path describing one machine, and an import writing it would
-    have pointed the target at a policy file that does not exist there.
+    The settings bundle carried `LXO_MCP_TOOL_POLICY`, an absolute path
+    describing one machine, and an import writing it would have pointed the
+    target at a policy file that does not exist there.
     """
     for render in (pages.overview, pages.credentials, pages.permissions):
         body = text(render(inst))
