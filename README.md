@@ -255,7 +255,7 @@ uvx benethos-lexware-office-mcp --help
 ```json
 {
   "mcpServers": {
-    "lexware-office": {
+    "benethos-lexware-office-mcp": {
       "command": "uvx",
       "args": ["benethos-lexware-office-mcp"]
     }
