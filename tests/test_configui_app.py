@@ -271,6 +271,53 @@ def test_a_profile_is_saved_from_the_current_selection(
     assert not installation.settings.policy_file().exists()
 
 
+def test_a_name_that_is_taken_is_refused_rather_than_overwritten(
+    browser: Browser, installation: Installation
+) -> None:
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    _, body, _ = browser.post(
+        "/permissions",
+        {
+            "action": "profile-save",
+            "profile_name": "nur   lesen",
+            "tool": ["create_voucher"],
+        },
+    )
+
+    assert "schon ein Profil" in note(body)
+    assert "Nur Lesen" in note(body)
+    assert list(installation.profiles.all()) == ["Nur Lesen"]
+    assert installation.profiles.all()["Nur Lesen"].tools == ("get_profile",)
+
+
+def test_the_selected_profile_can_be_overwritten_on_purpose(
+    browser: Browser, installation: Installation
+) -> None:
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    _, body, _ = browser.post(
+        "/permissions",
+        {
+            "action": "profile-overwrite",
+            "profile": "Nur Lesen",
+            "tool": ["create_voucher"],
+        },
+    )
+
+    assert installation.profiles.all()["Nur Lesen"].tools == ("create_voucher",)
+    assert "überschrieben" in note(body)
+    assert not installation.settings.policy_file().exists()
+
+
+def test_overwriting_a_profile_that_is_not_there(browser: Browser) -> None:
+    _, body, _ = browser.post(
+        "/permissions", {"action": "profile-overwrite", "profile": "weg"}
+    )
+
+    assert "Kein Profil" in note(body)
+
+
 def test_a_profile_without_a_name_is_refused(browser: Browser) -> None:
     _, body, _ = browser.post(
         "/permissions", {"action": "profile-save", "profile_name": "  "}

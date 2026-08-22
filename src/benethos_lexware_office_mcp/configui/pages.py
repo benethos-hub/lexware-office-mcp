@@ -493,6 +493,8 @@ def _profile_bar(inst: Installation) -> str:
             f'<div class="grow"><label class="fld">Gespeichertes Profil</label>'
             f'<select name="profile">{options}</select></div>'
             '<button type="submit" name="action" value="load">Laden</button>'
+            '<button type="submit" name="action" value="profile-overwrite">'
+            "Mit aktueller Auswahl überschreiben</button>"
             '<button type="submit" name="action" value="profile-delete">'
             "Löschen</button>"
         )
@@ -507,15 +509,16 @@ def _profile_bar(inst: Installation) -> str:
   <h3>Profile</h3>
   <p class="hint">Ein Profil ist eine benannte Auswahl, keine zweite
      Rechtedatei. Laden füllt nur die Haken — geschrieben wird erst mit
-     „Rechte speichern".</p>
+     „Rechte speichern". Ein vorhandenes Profil wird oben überschrieben,
+     nicht durch einen zweiten Eintrag mit demselben Namen.</p>
   <div class="row">
     {chooser}
   </div>
   <div class="row" style="margin-top:.6rem">
-    <div class="grow"><label class="fld">Aktuelle Auswahl sichern als</label>
+    <div class="grow"><label class="fld">Aktuelle Auswahl als neues Profil</label>
       <input type="text" name="profile_name" maxlength="60"
              placeholder="z. B. Steuerberater, nur lesend"></div>
-    <button type="submit" name="action" value="profile-save">Profil sichern</button>
+    <button type="submit" name="action" value="profile-save">Neu anlegen</button>
   </div>
 </div>
 """

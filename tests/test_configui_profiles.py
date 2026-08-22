@@ -69,6 +69,33 @@ def test_a_name_is_tidied_and_required(store: ProfileStore) -> None:
         store.save("x" * 61, ["get_profile"], KNOWN)
 
 
+def test_a_duplicate_is_found_whatever_the_spelling(store: ProfileStore) -> None:
+    """ "nur lesend" beside "Nur lesend" is one profile to everybody but a dict.
+
+    The list sorts case-insensitively, so the two would sit next to each
+    other looking identical.
+    """
+    store.save("Nur lesend", ["get_profile"], KNOWN)
+
+    for spelling in ("Nur lesend", "nur lesend", "NUR LESEND", "  Nur   lesend "):
+        found = store.find(spelling)
+        assert found is not None and found.name == "Nur lesend"
+
+
+def test_a_name_nobody_has_taken_is_not_a_duplicate(store: ProfileStore) -> None:
+    store.save("Nur lesend", ["get_profile"], KNOWN)
+
+    assert store.find("Alles") is None
+
+
+def test_a_click_on_the_list_still_matches_exactly(store: ProfileStore) -> None:
+    """`get` takes a value the page produced, so it needs no leniency."""
+    store.save("Nur lesend", ["get_profile"], KNOWN)
+
+    assert store.get("Nur lesend") is not None
+    assert store.get("nur lesend") is None
+
+
 def test_saving_the_same_name_replaces_it(store: ProfileStore) -> None:
     store.save("Profil", ["get_profile"], KNOWN)
     store.save("Profil", ["create_voucher"], KNOWN)

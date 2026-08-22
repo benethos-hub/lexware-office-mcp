@@ -361,6 +361,7 @@ def test_saved_profiles_are_offered(inst: Installation) -> None:
 
     assert "Nur Lesen" in body
     assert 'value="profile-delete"' in body
+    assert 'value="profile-overwrite"' in body
 
 
 def test_without_profiles_the_bar_explains_itself(inst: Installation) -> None:

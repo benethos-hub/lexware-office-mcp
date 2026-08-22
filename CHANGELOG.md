@@ -371,7 +371,9 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   dem Testkonto" are one click apart. A profile is a convenience and never a
   second policy: loading one fills in the checkboxes, and nothing reaches
   `tools.json` until save is pressed. Profiles live in `tool_profiles.json`
-  beside the policy file they belong to.
+  beside the policy file they belong to. Creating one under a name that is
+  already taken is refused — case and spacing do not make a second profile —
+  and replacing one is its own button beside the list.
 - **A policy file can be downloaded and read back in.** The download is
   `tools.json` as it stands, with no wrapper around it, so it works on
   another installation with or without this interface — and a file written

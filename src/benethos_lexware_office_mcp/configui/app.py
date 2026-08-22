@@ -296,6 +296,9 @@ class Handler(BaseHTTPRequestHandler):
         if action == "profile-save":
             self._save_profile(form, chosen)
             return
+        if action == "profile-overwrite":
+            self._overwrite_profile(form, chosen)
+            return
         if action == "profile-delete":
             self._delete_profile(form)
             return
@@ -361,9 +364,26 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, body)
 
     def _save_profile(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+        """Create a profile under a new name, and only under a new one.
+
+        A name that is already taken is refused rather than silently
+        replacing what is there. Case and spacing do not distinguish two
+        profiles: "nur lesend" beside "Nur lesend" is a duplicate a person
+        cannot tell apart in the list, which sorts case-insensitively.
+        Overwriting has a button of its own.
+        """
         inst = self.installation
         name = (form.get("profile_name", [""])[0]).strip()
-        existed = name in inst.profiles.all()
+        clash = inst.profiles.find(name)
+        if clash is not None:
+            self._page_with(
+                pages.permissions,
+                f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
+                "auswählen und überschreiben, oder einen anderen Namen nehmen.",
+                kind="bad",
+                flags=_flags(chosen),
+            )
+            return
         try:
             profile = inst.profiles.save(name, chosen, known_tools())
         except ProfileError as exc:
@@ -379,10 +399,39 @@ class Handler(BaseHTTPRequestHandler):
                 flags=_flags(chosen),
             )
             return
-        verb = "überschrieben" if existed else "gespeichert"
         self._page_with(
             pages.permissions,
-            f"Profil {profile.name} {verb}, {len(profile.tools)} Tools. "
+            f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
+            "Die Rechtedatei selbst ist unverändert.",
+            kind="good",
+            flags=_flags(chosen),
+        )
+
+    def _overwrite_profile(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+        """Replace the selected profile with what is ticked right now."""
+        inst = self.installation
+        name = (form.get("profile", [""])[0]).strip()
+        if inst.profiles.get(name) is None:
+            self._page_with(
+                pages.permissions,
+                f"Kein Profil namens {name}.",
+                kind="bad",
+                flags=_flags(chosen),
+            )
+            return
+        try:
+            profile = inst.profiles.save(name, chosen, known_tools())
+        except OSError as exc:
+            self._page_with(
+                pages.permissions,
+                f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
+                kind="bad",
+                flags=_flags(chosen),
+            )
+            return
+        self._page_with(
+            pages.permissions,
+            f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
             "Die Rechtedatei selbst ist unverändert.",
             kind="good",
             flags=_flags(chosen),

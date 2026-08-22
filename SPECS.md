@@ -772,6 +772,14 @@ things that do bind a record. Worth noticing for its own sake — the same
 overstatement was in the tool descriptions until 2026-08-21 and was corrected
 there, then written again here from memory rather than from section 5.
 
+**Creating a profile and overwriting one are two buttons, not one.** A name
+that is already taken is refused rather than silently replacing what is
+there, and the match ignores case and spacing: "nur lesend" beside "Nur
+lesend" is one profile to everybody except a dictionary, and the list sorts
+case-insensitively, so the two would sit next to each other looking
+identical. Replacing a profile is done by selecting it and pressing the
+button that says so.
+
 **Profiles are a convenience, never a second policy.** A profile is a named
 list of enabled tool names, stored in `tool_profiles.json` beside the policy
 file it belongs to. Loading one fills in the checkboxes and stops there — the

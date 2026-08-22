@@ -124,13 +124,29 @@ class ProfileStore:
         return {name: found[name] for name in sorted(found, key=str.casefold)}
 
     def get(self, name: str) -> Profile | None:
+        """The profile with exactly this name, for a value from the page."""
         return self.all().get(name.strip())
 
-    def save(self, name: str, tools: Iterable[str], known: Iterable[str]) -> Profile:
-        """Write a profile, replacing one of the same name.
+    def find(self, name: str) -> Profile | None:
+        """The profile a person would call by this name, or ``None``.
 
-        Replacing without asking is the caller's business to warn about: the
-        interface asks, and a script that calls this has already decided.
+        Case and spacing are ignored, because "Nur lesend" and "nur lesend"
+        are one profile to everybody except a dictionary. Used to catch a
+        duplicate before one is created, not to decide what a click on the
+        list meant - that has the exact name to hand.
+        """
+        wanted = " ".join(name.split()).casefold()
+        for profile in self.all().values():
+            if profile.name.casefold() == wanted:
+                return profile
+        return None
+
+    def save(self, name: str, tools: Iterable[str], known: Iterable[str]) -> Profile:
+        """Write a profile, replacing one of exactly the same name.
+
+        Replacing without asking is the caller's business to prevent: the
+        interface checks with :meth:`find` first and offers overwriting as
+        its own button, and a script that calls this has already decided.
 
         ``known`` is every tool that exists right now, recorded so that a
         later version can tell "switched off" from "did not exist yet".
