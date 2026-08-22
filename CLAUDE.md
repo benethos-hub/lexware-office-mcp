@@ -183,6 +183,8 @@ measurement of what the whole list costs.
   (CI checks `ruff format --check`).
 - Types: `uv run mypy`.
 - Lockfile in step with `pyproject.toml`: `uv lock --check`.
+- The coverage badge in the README is **static** on purpose, so nothing
+  updates it. Re-read the percentage below and adjust it whenever it moves.
 - Coverage floor 80%:
   `uv run pytest --cov=benethos_lexware_office_mcp --cov-fail-under=80`.
   Add `--no-sync` while a client is running this server from the checkout:
