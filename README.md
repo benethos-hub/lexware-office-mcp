@@ -33,13 +33,14 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.1.0, the first release.**
-> The server runs over stdio and handles contacts, vouchers and documents:
-> find them, read them, create them, change them, see what is still unpaid,
-> download a PDF and upload a receipt. `get_profile` answers which account
-> is connected. Every tool in the table below is built, and each was
-> exercised against a live account. An HTTP transport, a container image and
-> a Compose file are what 0.2.0 is for. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
+> **Status: 0.1.0 is on PyPI, and this checkout is ahead of it.**
+> The server handles contacts, vouchers and documents: find them, read them,
+> create them, change them, see what is still unpaid, download a PDF and
+> upload a receipt. `get_profile` answers which account is connected. Every
+> tool in the table below is built, and each was exercised against a live
+> account. It speaks stdio, and here - before the 0.2.0 release that will
+> carry them to PyPI - a streamable-HTTP transport behind a bearer token,
+> with a container image and a Compose file to go with it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
 > technical specification and the roadmap.
 
 ## Why this exists
