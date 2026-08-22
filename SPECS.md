@@ -1,10 +1,9 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0 in progress.** Every tool of section 8 is built, tested and
-> exercised against a live account, and so is every module of section 4,
-> including the configuration interface of section 7.1. What holds a release
-> back is CI, which does not exist, and packing the settings sample into the
-> wheel — the roadmap in section 16 says which is which.
+> **Status: 0.1.0, the first release.** Every tool of section 8 is built,
+> tested and exercised against a live account, and so is every module of
+> section 4, including the configuration interface of section 7.1. The
+> roadmap in section 16 says what 0.2.0 is for.
 > Sections marked **(to verify)** rest on the public documentation and must be
 > confirmed against the live API before the corresponding code is written.
 > Only one such marker is left. Facts already checked against a live account
@@ -1850,8 +1849,8 @@ except the event subscriptions, which section 2 rules out. The configuration
 question of section 16.1 is answered too: `setup` serves the interface
 described in section 7.1. Nothing on the API side is outstanding.
 
-**What stands between here and 0.1.0 is not code**, and it is best done in
-this order:
+**What stood between here and 0.1.0 was not code**, and it was done in this
+order:
 
 1. ~~**A public repository.**~~ **Done 2026-08-22:**
    `github.com/benethos-hub/lexware-office-mcp`. `main` is protected and can
@@ -1883,8 +1882,9 @@ this order:
    sample moved into the package as `env.sample`, so it is installed with the
    code instead of sitting beside it, and `--settings-sample` prints it.
    Building the wheel now finds it among thirty-nine files. See section 16.1.
-4. **Publication to PyPI**, which is what makes the installation instructions
-   in the README true for someone who has not cloned the repository.
+4. ~~**Publication to PyPI**~~, which is what makes the installation
+   instructions in the README true for someone who has not cloned the
+   repository.
    `.github/workflows/publish.yml` does it from a published release over
    Trusted Publishing, so no token is stored here. It needs a pending
    publisher on PyPI first, whose five fields the workflow header spells out.
@@ -1904,7 +1904,7 @@ suggested they were.
 
 | Release | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **feature complete, unreleased** — every part of it is built and exercised against a live account. The four items above are what is left, and none of them is a feature. |
+| 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
 | 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **next**, once 0.1.0 is out |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
