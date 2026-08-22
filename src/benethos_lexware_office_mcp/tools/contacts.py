@@ -215,10 +215,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     ) -> dict[str, Any]:
         """Create a new customer or vendor in the account.
 
-        Writes real accounting data. Confirm the organization with
-        `get_profile` first, and search the name with `search_contacts`:
-        Lexware allows a second contact with the same name, and later
-        documents then attach to either at random. One API call.
+        Writes real accounting data, and **the API cannot take it back**:
+        there is no call that deletes a contact, though the web app does.
+        Confirm the organization with `get_profile` first, and search the
+        name with `search_contacts`: Lexware allows a second contact with the
+        same name, and later documents then attach to either at random. One
+        API call.
 
         Returns the id and version, not the record. Lexware assigns the
         customer and vendor numbers, so read the contact back to see them.

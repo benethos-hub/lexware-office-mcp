@@ -114,7 +114,7 @@ One tool deletes, and it is the only one:
 
 | Tool | What it does | Status |
 |---|---|---|
-| `delete_article` | Remove an article for good. Takes `confirm: true`, and sends nothing without it | **built** |
+| `delete_article` | Remove an article. The API cannot bring it back. Takes `confirm: true`, and sends nothing without it | **built** |
 
 It is the only member of the `--tools irreversible` step so far, so that step
 is the only way to switch it on. An article is also the only thing this API

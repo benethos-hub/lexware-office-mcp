@@ -300,8 +300,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         if not confirm:
             raise ValidationError(
-                "delete_article deletes the record for good. Pass confirm=true "
-                "once you are sure, or read it first with get_article."
+                "delete_article removes the record and the API cannot bring "
+                "it back. Pass confirm=true once you are sure, or read it "
+                "first with get_article."
             )
         await provider.get().delete_article(article_id)
         return {"deleted": article_id}

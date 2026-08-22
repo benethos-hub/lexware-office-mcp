@@ -106,9 +106,10 @@ new HTTP call goes in `client.py`, never in a tool function.
    the group it belongs to, `effect` for a write tool, and `permanence` when
    what it writes cannot be removed through the API: `"app"` when only the
    web app can delete it, `"books"` when it is a bookkeeping record that can
-   later be bound by a Festschreibung. Neither means the record is
-   permanent at the moment it is written - see SPECS.md section 9.2. That is metadata for whoever writes the policy file, never a
-   permission: the file alone decides. A new tool is **off** until the file
+   later be bound by a Festschreibung. Neither says the record is permanent
+   at the moment it is written, see SPECS.md section 9.2. All of it is
+   metadata for whoever writes the policy file, never a permission: the file
+   alone decides. A new tool is **off** until the file
    names it, so run `--tools` after adding one, or it will not appear.
 6. Record its API call cost in the tool table in SPECS.md section 8.
 7. Add offline tests. Never hit the network in the suite.
@@ -130,7 +131,9 @@ with what.
 - what it costs in API calls
 - when to use it instead of a neighbouring tool, and what to fetch first
 - how to read the result where that is not obvious from the schema
-- what cannot be undone
+- what the API cannot take back, which is not the same as what cannot be
+  undone: this server speaks for one interface, and the web app usually has
+  a way. Say what this tool's caller can and cannot reach.
 
 **Leave out:**
 

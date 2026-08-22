@@ -40,9 +40,12 @@ different deployment shape), scraping any undocumented endpoint, storing
 business data beyond a local download directory, and multi-tenant hosting where
 one server instance serves several Lexware accounts.
 
-**Deliberately gated rather than excluded:** finalizing a document, booking a
-voucher, and deleting an article. These are irreversible in the product and are
-governed by the permission model in section 9.
+**Deliberately gated rather than excluded:** finalizing a document and
+deleting an article. Both need a decision from the account owner rather than
+from a model, and both are governed by the permission model in section 9.
+Booking a voucher stood here too until 2026-08-21, when it turned out to be
+something this API cannot do at all - see section 5, which measures the
+absence of every state transition.
 
 ## 3. Naming
 
@@ -244,7 +247,8 @@ section 2.
   voucher lists that id in its `files` afterwards. Measured 2026-08-21. No
   voucher is created, which is the whole difference from `/v1/files` — and
   since a voucher cannot be deleted, choosing the wrong one of the two leaves
-  a record behind for good. There is no way to detach a file either.
+  a voucher behind that the API cannot remove. There is no way to detach a
+  file either.
 - **The ceiling is 5 MiB inclusive.** 5,242,880 bytes is accepted, one byte
   more is refused with `max_file_size_exceeded`. The tool checks this before
   spending a request.
@@ -748,7 +752,7 @@ showing them is honest. Once a file exists the boxes follow it, including a
 file that deliberately enables nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
-around 2,028 characters per tool, sent on every request for the life of the
+around 2,032 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible.
@@ -817,14 +821,14 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **50,700
-characters**, around 2,028 each. Roughly 13,000 to 15,000 tokens, estimated
+compact JSON a `tools/list` answer is, twenty-five tools come to **50,805
+characters**, around 2,032 each. Roughly 13,000 to 15,000 tokens, estimated
 at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 33,469 | 66% |
-| Tool descriptions, the part under a ceiling | 10,787 | 21% |
+| Tool descriptions, the part under a ceiling | 10,890 | 21% |
 | Output schemas | 4,340 | 9% |
 | Names, titles and the rest | ~2,092 | 4% |
 
@@ -920,7 +924,9 @@ yet.
   caller's decision: what the tool does, what it costs in API calls, when to
   use it instead of a neighbouring tool, what to fetch first (the `version`
   before an update), how to read a result the schema does not explain, and
-  what cannot be undone. Design reasoning stays in this document, where it is
+  what the API cannot take back - which is not the same as what cannot be
+  undone, since the web app usually has a way and this server can only speak
+  for the interface it uses. Design reasoning stays in this document, where it is
   paid for once. **Under 700 characters**, which is a ceiling a rewrite into
   explanation will cross rather than a limit on wording — the fix when one
   grows past it is to move a paragraph here. Not enforced by a test on
@@ -1128,7 +1134,7 @@ in doubt which account the permissions being granted apply to.
 
 **It shows what each tool costs in context, which nothing else here does.** A
 tool that is on is sent to the model on every single request, description and
-schemas alike, and section 8 measures that at around 2,028 characters per
+schemas alike, and section 8 measures that at around 2,032 characters per
 tool with `create_sales_document` at more than double. The page carries a
 per-row figure and a running total that follows the checkboxes, so a policy
 can be chosen against a budget rather than against a guess. Characters are

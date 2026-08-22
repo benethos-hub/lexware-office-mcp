@@ -68,8 +68,9 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   tax type and lines, each line naming the posting category it books to. The
   totals are added up from the lines unless you state them. Pass `unchecked`
   to record an entry that still needs review instead of booking it straight
-  away. Costs one API call that is never
-  retried, and **cannot be undone**: the API has no way to delete a voucher.
+  away. Costs one API call that is never retried, and **the API cannot take
+  it back**: there is no call here that deletes a voucher, so correcting one
+  is a job for the web app.
 - **`update_voucher`** — change a recorded voucher. As with `update_contact`,
   only the fields you name change and the rest is carried over, at the cost of
   a second API call. Enable it in `tools.json` first.
@@ -152,10 +153,8 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   tool tells the assistant to set that **only when you asked for the document
   to be issued** — never on its own initiative. Finalizing assigns the
   consecutive number, and the API cannot take that back.
-- **A draft unless you say otherwise.** `finalize` issues the document
-  instead, which assigns its number for good and cannot be undone, so it
-  needs `confirm: true` beside it. `preceding_sales_voucher_id` follows an
-  existing document along the quotation to invoice chain.
+- **`preceding_sales_voucher_id` follows an existing document** along the
+  quotation to invoice chain, and a dunning needs one.
 - **What each kind needs is checked before a request is spent**, and the
   message names the field: `shipping_date` for an invoice, order
   confirmation and delivery note, `expiration_date` for a quotation,
@@ -166,7 +165,7 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 - **`attach_file_to_voucher`** — hang a scan on a voucher that is already
   there. `upload_file` cannot do this: it creates a **new** voucher for every
   file, and a voucher cannot be deleted through the API, so picking the wrong
-  one of the two leaves a record behind for good. Same four file types and
+  one of the two leaves a voucher behind that the API cannot remove. Same four file types and
   the same 5 MiB ceiling, checked before a request is spent. The answer is
   the new file id, which `download_file` reads back. Costs one API call that
   is never retried, and an attachment cannot be removed either.
@@ -179,7 +178,8 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   there is: a template cannot be created, changed or run through the API.
 - **The article catalogue, all five tools.** `search_articles` lists them,
   `get_article` reads one in full, `create_article` adds one,
-  `update_article` changes one, and `delete_article` removes one for good.
+  `update_article` changes one, and `delete_article` removes one — the API
+  cannot bring it back.
 - **`search_articles` has no search by title**, deliberately. The endpoint
   filters on article number, barcode and kind, matches both strings in full,
   and **ignores** any other parameter instead of refusing it — so a `query`
@@ -191,23 +191,11 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   drops the other, so a new net price is never sent beside a stale gross one.
   `update_article` costs two API calls and needs the `version`, like the
   other updates.
-- **`delete_article` is the first tool that cannot be undone.** It takes
+- **`delete_article` is the first tool that destroys a record.** It takes
   `confirm: true` and sends nothing without it, and the article is removed
-  rather than archived. It is also the first member of the `--tools
-  irreversible` step: until now that preset wrote the same flags as
-  `--tools write`.
-- **`--tools irreversible` says what it actually covers.** The help text
-  promised "deleting, booking and finalizing". Booking is not something this
-  API can do at all — it has no state transitions, so a voucher's status is
-  set when it is created or never — and finalizing is a parameter on creating
-  a document rather than an operation on one. Deleting an article is the only
-  irreversible thing there is, and the step now says so.
-- **The write tools no longer say "cannot be undone".** They say the API
-  cannot take it back and that correcting it is a job for the web app, which
-  is what is actually true: this server can only speak for the interface it
-  uses, and most records can still be deleted in the web application unless
-  they are locked for bookkeeping or the invoice has been sent. The old
-  wording claimed something about the whole product.
+  rather than archived — the API cannot bring it back. It is the only member
+  of the `--tools irreversible` step, and the only thing this API can delete
+  at all.
 - **`--tools sync`** — complete the policy file without deciding anything.
   Every tool the file does not mention is added as `false`, every flag already
   there is written back unchanged, and **nothing is ever switched on**. That
@@ -223,12 +211,6 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   showed no details now reads `price: NOTNULL type: NOTNULL unitName:
   NOTEMPTY`. A stale `version` reported in that shape is recognized as a
   conflict too.
-- **`--tools write` now says what it does not promise.** Nothing that preset
-  enables deletes a record, but `create_voucher` and `upload_file` leave a
-  bookkeeping voucher behind that the API cannot remove, and only the web app
-  can correct. The `irreversible` step is about `delete`, `book` and
-  `finalize`, which no tool carries yet, so it was not the place a reader
-  would have found this out.
 - **`get_master_data`** — read one of the four lists an account is configured
   with: countries, payment conditions, posting categories or print layouts.
   Costs one API call. Two of them are long — a live account holds 257
@@ -336,7 +318,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
 - **Writing that file:** `--tools read-only` enables the reading tools,
   `--tools write` adds creating and changing, `--tools irreversible` adds
   deleting, `--tools sync` writes in tools an upgrade brought without
-  switching any of them on, and `--tools show` only reports.
+  switching any of them on, and `--tools show` only reports. **`write` does
+  not mean undoable**: nothing in it deletes a record, but `create_voucher`,
+  `upload_file`, `attach_file_to_voucher` and `create_sales_document` all
+  leave records the API cannot remove afterwards.
   `--tools-file` says which file, and works with every preset. A preset
   overwrites, so it starts a file rather than updating one, and a target that
   is a directory or cannot be written is refused with a message rather than a
