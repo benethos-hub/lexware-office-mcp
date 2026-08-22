@@ -661,6 +661,25 @@ still meets it.
   a loopback port is. **`--host` and `--port` serve whichever of the two
   listening things this process is**, the transport or the configuration
   interface of section 7.1, since a process is never both.
+- **A changed settings file ends the process** when
+  `LXO_MCP_EXIT_ON_CONFIG_CHANGE` says so, which the image sets and nothing
+  else does. Settings are read once, at startup: the key goes into a
+  long-lived client and the one rate limiter of section 10.1 hangs off it, so
+  rebuilding that in place would mean moving state between two clients.
+  Ending instead hands the problem to whatever started the process, and a
+  fresh one reads everything again - which is what lets a key saved in a
+  browser reach a running server. Off by default, because ending is the whole
+  of it where nothing restarts it.
+
+  The watch compares a **hash of the content**, not a timestamp: the
+  configuration interface rewrites the whole file on every save, changed or
+  not. Two further rules were bought with defects. The baseline is taken
+  *after* a generated bearer token has been written, or the process would
+  restart on its own first act. And a difference has to **survive a second
+  look** one interval later before it counts, because a save truncates before
+  it writes and a poll landing inside that window reads an empty file - CI
+  caught exactly that, as a rewrite of identical content ending the process
+  for nothing.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).

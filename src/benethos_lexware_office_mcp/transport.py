@@ -182,12 +182,21 @@ def watch_for_change(
     """
     baseline = _fingerprint(path)
     while not stop.wait(poll):
-        if _fingerprint(path) != baseline:
-            log.info(
-                "%s changed, ending this process so it is started again", path.name
-            )
-            on_change()
+        if _fingerprint(path) == baseline:
+            continue
+        # Saving is a truncate followed by a write, so a poll landing inside
+        # one reads an empty or half-written file and sees a change that is
+        # not there. Look once more before acting: a rewrite of identical
+        # content - which is what the interface does on every save, changed
+        # or not - is back to the baseline by then, while a real change stays
+        # changed and costs one extra interval.
+        if stop.wait(poll):
             return
+        if _fingerprint(path) == baseline:
+            continue
+        log.info("%s changed, ending this process so it is started again", path.name)
+        on_change()
+        return
 
 
 def run_http(

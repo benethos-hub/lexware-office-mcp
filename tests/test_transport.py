@@ -273,6 +273,62 @@ def test_a_file_that_appears_later_counts_as_a_change(tmp_path: Path) -> None:
     watcher.join(timeout=5)
 
 
+def test_a_file_caught_mid_save_is_not_a_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A save truncates before it writes, and a poll can land in between.
+
+    CI caught this as a failing rewrite test: the empty read counted as a
+    change and the process ended for nothing. Driven through the fingerprint
+    rather than through a real write, because a race reproduced by timing is
+    a test that passes when the machine is busy.
+    """
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
+    settled = "the-content"
+    reads = iter([settled, "", settled] + [settled] * 20)
+    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads))
+
+    ended = threading.Event()
+    stop = threading.Event()
+    watcher = threading.Thread(
+        target=transport.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01},
+        daemon=True,
+    )
+    watcher.start()
+    assert not ended.wait(0.3)
+
+    stop.set()
+    watcher.join(timeout=5)
+    assert not ended.is_set()
+
+
+def test_a_change_that_stays_changed_still_ends_the_process(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The confirming look costs one interval, it does not swallow the change."""
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
+    reads = iter(["before", "after"] + ["after"] * 20)
+    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads))
+
+    ended = threading.Event()
+    stop = threading.Event()
+    watcher = threading.Thread(
+        target=transport.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01},
+        daemon=True,
+    )
+    watcher.start()
+
+    assert ended.wait(5)
+    stop.set()
+    watcher.join(timeout=5)
+
+
 def test_ending_on_a_change_is_off_unless_asked_for() -> None:
     """Outside a container nothing would start it again, so it must not end."""
     assert load_settings({}).exit_on_config_change is False
