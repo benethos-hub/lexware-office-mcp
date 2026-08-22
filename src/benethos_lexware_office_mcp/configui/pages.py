@@ -298,9 +298,10 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
 
 <h2>Einstellungen</h2>
 <p class="hint">Leer bedeutet: der eingebaute Standard gilt. Der Platzhalter
-   zeigt ihn. Die Rechtedatei steht bewusst nicht hier — welche gemeint ist,
-   entscheidet der Aufruf, und sie zu wechseln würde dieser Oberfläche den
-   Boden unter den Füßen wegziehen.</p>
+   zeigt ihn. <code>LXO_MCP_TOOL_POLICY</code> steht nicht hier — welche
+   Rechtedatei diese Oberfläche bearbeitet, steht beim Start fest und ist auf
+   der Übersicht zu sehen. Ein Wert, den man hier ändern kann, ohne dass sich
+   auf dieser Seite etwas ändert, wäre eine Falle.</p>
 <form method="post" action="/settings">{_csrf(csrf)}
   {fields}
   <p><button type="submit">Einstellungen speichern</button></p>
