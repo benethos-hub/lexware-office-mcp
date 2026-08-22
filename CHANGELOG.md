@@ -413,6 +413,13 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   and leave the file to stderr and the configuration interface, which is
   where somebody can actually change it. A download still answers with the
   path it wrote to, since that is what the call was for.
+- **The setup instructions no longer put the API key in your client's
+  configuration.** They showed it in an `env` block, which works and is the
+  worse of the two places: that file belongs to another program, is readable
+  in the client's own settings view, travels to the next machine with the
+  rest of that configuration, and is the one people paste into a forum when
+  something will not start. The key belongs in the `.env`, which the
+  configuration interface writes without ever showing it back to you.
 - `README.md` and `LICENSE` (MIT).
 
 ### Not yet

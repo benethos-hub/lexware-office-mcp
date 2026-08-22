@@ -1422,6 +1422,17 @@ These rules are absolute for this repository.
 
 - Real API keys live only in `.env` files that are gitignored. Never in code,
   documentation, tests, commit messages or memory files.
+- **Nothing this project writes ever recommends putting the key in a client's
+  configuration file.** An MCP client will happily pass one through an `env`
+  block, and the README showed that until 2026-08-22. It is the worse of the
+  two places by some way: the file belongs to another program, which decides
+  where it lives and when it rewrites it, it is readable in that client's own
+  settings view, it travels to the next machine with the rest of that
+  client's configuration, and it is the file people paste into a forum when
+  an MCP setup will not start. The `.env` is documented here, synced by
+  nothing, and written by the configuration interface without the key ever
+  being displayed. Neither is a secret store, and the documentation says so
+  rather than implying the `.env` is safe.
 - Real tenant, organization, contact and voucher IDs never appear in versioned
   files. Documentation uses placeholders.
 - **No filesystem path of the host machine is handed to the client.** Every

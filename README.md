@@ -62,7 +62,10 @@ The server points at a real accounting system, so the defaults are cautious.
 - The file is checked twice, once when the tool list is built and again when a
   call arrives, so a stale tool list on the client cannot slip past it.
 - The API key is never logged, never returned in a tool result, and redacted
-  from error messages.
+  from error messages. **It belongs in the `.env` and nowhere else** — not in
+  your client's configuration file, which another program owns and rewrites,
+  and which is the one people screenshot when they ask for help. Nor does any
+  path from your machine reach the assistant.
 
 ## Tools
 
@@ -233,15 +236,27 @@ involved:
 {
   "mcpServers": {
     "lexware-office": {
-      "command": "C:\path\to\lexware-office-mcp\.venv\Scripts\python.exe",
-      "args": ["-m", "benethos_lexware_office_mcp"],
-      "env": {
-        "LXO_MCP_API_KEY": "<your api key>"
-      }
+      "command": "C:/path/to/lexware-office-mcp/.venv/Scripts/python.exe",
+      "args": ["-m", "benethos_lexware_office_mcp"]
     }
   }
 }
 ```
+
+**No key in there, on purpose.** The server finds it in the `.env`. A client's
+configuration file is the wrong place for a credential: it is not yours —
+another program owns it, decides where it lives and when it rewrites it. It is
+the file people screenshot when they ask for help with an MCP setup, it is
+readable in the client's own settings view, and it travels to the next machine
+with the rest of that client's configuration. The `.env` is at least a file
+this project documents, that nothing syncs on your behalf, and that the
+configuration interface writes without ever showing the key back to you.
+
+That `.env` is already the part worth being careful with. It holds a
+credential for a live accounting system, so keep it out of version control,
+out of shared folders and out of backups other people can read. When you stop
+using the server, delete it **and revoke the key** under Extensions, Public
+API — revoking is the only step that actually ends access.
 
 Restart Claude Desktop fully — quit it from the tray rather than closing the
 window — so the tool list is reloaded.
