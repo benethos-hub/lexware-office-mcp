@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
 
 > **Disclaimer**
 >
@@ -22,7 +22,7 @@
 >   or legal advice.** Do not rely on it for filings, audits, or your
 >   bookkeeping obligations.
 > - Provided "as is", without warranty. Intended for personal and professional
->   use at your own risk. See [LICENSE](LICENSE).
+>   use at your own risk. See [LICENSE](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE).
 > - For **commercial use**, review Lexware's API terms and your own retention
 >   and documentation duties.
 
@@ -39,7 +39,7 @@ them for you.
 > download a PDF and upload a receipt. `get_profile` answers which account
 > is connected. Every tool in the table below is built, and each was
 > exercised against a live account. An HTTP transport, a container image and
-> a Compose file are what 0.2.0 is for. See [SPECS.md](SPECS.md) for the full
+> a Compose file are what 0.2.0 is for. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
 > technical specification and the roadmap.
 
 ## Why this exists
@@ -92,7 +92,7 @@ without a restart.
 ## Tools
 
 **Built** means it works today. The rest are specified in
-[SPECS.md](SPECS.md) and not implemented yet.
+[SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) and not implemented yet.
 
 Read tools:
 
@@ -201,8 +201,11 @@ rejected if it is not one.
 
 ## Requirements
 
-- Python 3.11 or newer. Installing pulls in the MCP SDK, httpx,
-  platformdirs and pypdfium2, the last of these to render PDF pages
+- [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
+  its own Python and the `uvx` command every example below uses
+- Python 3.11 or newer, if you would rather bring your own. Installing pulls
+  in the MCP SDK, httpx, platformdirs and pypdfium2, the last of these to
+  render PDF pages
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 
@@ -223,41 +226,36 @@ cut access if anything looks wrong.
 
 ## Installation
 
-With [uv](https://docs.astral.sh/uv/):
+**1. Install uv**, if you have not already — the
+[uv installation page](https://docs.astral.sh/uv/getting-started/installation/)
+covers every platform. It brings `uvx`, and that is the only thing needed
+here.
+
+**2. Configure the server.** Nothing has to be installed for this: `uvx`
+fetches the package and runs it.
 
 ```bash
-uv tool install benethos-lexware-office-mcp
-```
-
-uv installs the command into its own tool directory, which is **not on the
-`PATH` of a fresh install** — it says so when it finishes. Run
-`uv tool update-shell` and open a new terminal, or call the executable by the
-path uv printed.
-
-Then configure it in a browser:
-
-```bash
-benethos-lexware-office-mcp setup
+uvx benethos-lexware-office-mcp setup
 ```
 
 That opens the interface described under
 [Configuring it in a browser](#configuring-it-in-a-browser): key, settings and
 one checkbox per tool. Everything it does can also be done by hand — start a
-settings file with `benethos-lexware-office-mcp --settings-sample >
+settings file with `uvx benethos-lexware-office-mcp --settings-sample >
 config/.env`, put the key in it, and use `--tools` as described below.
 
 Check that it works:
 
 ```bash
-benethos-lexware-office-mcp --help
+uvx benethos-lexware-office-mcp --help
 ```
 
-Then point Claude Desktop at it in `claude_desktop_config.json`:
+**3. Point Claude Desktop at it** in `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "lexware-office": {
+    "benethos-lexware-office-mcp": {
       "command": "uvx",
       "args": ["benethos-lexware-office-mcp"]
     }
@@ -275,6 +273,15 @@ the package up by name. Two things worth knowing about that entry:
   one your terminal has — some GUI clients pass a reduced environment. If the
   server does not start, put the absolute path to `uvx` in `command`, and
   restart the client fully rather than reloading it.
+
+**Would rather have a command of your own?**
+`uv tool install benethos-lexware-office-mcp` gives you
+`benethos-lexware-office-mcp` without the `uvx` in front, which is worth it if
+you change permissions from the command line often. It buys nothing else: the
+same version can be pinned either way, and a warm start differs by tens of
+milliseconds. One thing to know — uv installs it into its own tool directory,
+which is **not on the `PATH` of a fresh install**. It says so when it
+finishes. Run `uv tool update-shell` and open a new terminal.
 
 **From the sources instead**, to develop or to run something unreleased:
 
@@ -305,13 +312,17 @@ out of shared folders and out of backups other people can read. When you stop
 using the server, delete it **and revoke the key** under Extensions, Public
 API — revoking is the only step that actually ends access.
 
-Restart Claude Desktop fully — quit it from the tray rather than closing the
-window — so the tool list is reloaded.
+**4. Restart Claude Desktop fully** — quit it from the tray rather than
+closing the window. That is for the configuration file you just edited, which
+a client reads once at startup, and it is what a changed setting in the `.env`
+needs too — the server reads those at startup as well. It is **not** needed
+for permissions: change those later and the running client is told, see
+[Switching individual tools off](#switching-individual-tools-off).
 
 ## Configuring it in a browser
 
 ```bash
-benethos-lexware-office-mcp setup
+uvx benethos-lexware-office-mcp setup
 ```
 
 Three pages on `127.0.0.1`, closed with Ctrl+C. They write the same files the
@@ -381,7 +392,7 @@ One JSON file decides what this server offers, and nothing else does. Either
 tick the boxes under `setup` above, or start the file with
 
 ```
-benethos-lexware-office-mcp --tools read-only
+uvx benethos-lexware-office-mcp --tools read-only
 ```
 
 which writes every tool into `tools.json`, reading ones on and the rest off,
@@ -569,15 +580,15 @@ It reads your account and writes nothing to it. The server it builds gets the
 `read-only` preset, so the writing tools are not there to be called at all. It
 prints what it checked, what the account had nothing for, and what failed, and
 it masks record ids so the report can be pasted somewhere. `pytest` never runs
-it. See [SPECS.md](SPECS.md) section 14.1 for why a live check is not a gate.
+it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) section 14.1 for why a live check is not a gate.
 
 Contributions and issues are welcome once the first release is out. Until
-then, [SPECS.md](SPECS.md) is the place where design decisions are recorded,
+then, [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) is the place where design decisions are recorded,
 including the open questions still to be resolved against the live API.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE).
 
 ## Trademarks and affiliation
 
