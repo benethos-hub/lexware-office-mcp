@@ -51,7 +51,12 @@ services:
       # /config/.env changes, and `restart: unless-stopped` brings it back with
       # the new ones - which is what makes configuring in the browser enough.
       LXO_MCP_EXIT_ON_CONFIG_CHANGE: "1"
-      LXO_MCP_LOG_LEVEL: INFO
+      # Nothing else belongs here. A variable set in this block is a real
+      # environment variable and therefore beats the config volume, so a
+      # setting pinned by habit rather than by need is one the configuration
+      # interface can no longer change. The log level was here and is not any
+      # more: INFO is the default anyway, and now `LXO_MCP_LOG_LEVEL` in
+      # /config/.env does what it says.
     volumes:
       # The .env, the policy file and the saved permission profiles.
       - config:/config
