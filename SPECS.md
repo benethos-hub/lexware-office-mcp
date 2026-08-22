@@ -641,13 +641,23 @@ still meets it.
 - **0.1.0 is stdio only.** `MCPServer.run()` with the default stdio
   transport, launched as a subprocess by the client. This is the entire
   transport surface of the first releases, by explicit decision.
-- **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with
-  `--host`, `--port`, `--path`, `--allowed-hosts`, `--allowed-origins`. The HTTP
-  transport also needs its own authentication in
-  front of the API key, because anyone who can reach the port can otherwise
-  spend the account owner's credentials. A static bearer token checked by the
-  server, plus the SDK's DNS-rebinding `Host`/`Origin` guard, is the intended
-  minimum. Until that is built, HTTP stays unavailable rather than insecure.
+- **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with `--host`,
+  `--port`, `--path` and `--allowed-hosts`, in `transport.py`. **The bearer
+  token is required, not offered**: an HTTP transport without
+  `LXO_MCP_BEARER_TOKEN` refuses to start, because anyone who can reach the
+  port can otherwise spend the account owner's credentials. It is one shared
+  secret compared in constant time — the server speaks for one account and has
+  no user to authorize, so an OAuth flow would be machinery for a case that
+  does not exist. The SDK's DNS-rebinding `Host`/`Origin` guard sits on top of
+  it, with the loopback names always kept and `--allowed-hosts` adding a
+  container or proxy name to them. There is no `--allowed-origins`: an origin
+  is derived from each allowed host, which is the only shape that has come up.
+
+  Neither guard makes the port safe on a network. They make it survivable on a
+  machine shared with other processes, which is what a container published on
+  a loopback port is. **`--host` and `--port` serve whichever of the two
+  listening things this process is**, the transport or the configuration
+  interface of section 7.1, since a process is never both.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).

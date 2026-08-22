@@ -29,11 +29,13 @@ from . import __version__, configui, resources
 from .client import ClientProvider
 from .config import (
     LOG_LEVELS,
+    TRANSPORTS,
     Settings,
     download_dir,
     load_settings,
     settings_sample,
 )
+from .errors import ConfigError
 from .policy import (
     Preset,
     ToolPolicy,
@@ -43,6 +45,7 @@ from .policy import (
     set_active_policy,
 )
 from .tools import register_tools
+from .transport import require_bearer, run_http
 
 logger = logging.getLogger(__name__)
 
@@ -367,11 +370,44 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         ),
     )
     parser.add_argument(
+        "--transport",
+        choices=TRANSPORTS,
+        default=defaults.transport,
+        help="how a client reaches this server (default: %(default)s)",
+    )
+    # --host and --port serve whichever of the two things this process is:
+    # the HTTP transport, or the configuration interface. A process is never
+    # both, and one pair of names is easier to remember than two.
+    parser.add_argument(
+        "--host",
+        metavar="ADDR",
+        help=(
+            "address to bind, for an HTTP transport or for setup. Anything "
+            "but a loopback address is reachable from outside this machine"
+        ),
+    )
+    parser.add_argument(
         "--port",
         type=int,
-        default=configui.DEFAULT_PORT,
         metavar="N",
-        help="setup only: which local port to serve on (default: %(default)s)",
+        help=(
+            f"port to bind (default: {defaults.http_port} for a transport, "
+            f"{configui.DEFAULT_PORT} for setup)"
+        ),
+    )
+    parser.add_argument(
+        "--path",
+        metavar="PATH",
+        default=defaults.http_path,
+        help="URL path the HTTP transport serves on (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--allowed-hosts",
+        metavar="LIST",
+        help=(
+            "comma-separated Host values to accept besides loopback, for a "
+            "container or a proxy, for example lexware-office-mcp:8770"
+        ),
     )
     parser.add_argument(
         "--no-browser",
@@ -509,7 +545,8 @@ def main(argv: list[str] | None = None) -> None:
         configui.start(
             settings,
             configui.target_env_file(named_env),
-            port=args.port,
+            host=args.host or configui.DEFAULT_HOST,
+            port=args.port or configui.DEFAULT_PORT,
             open_browser=not args.no_browser,
         )
         return
@@ -518,9 +555,64 @@ def main(argv: list[str] | None = None) -> None:
         _tools_command(args.tools, settings)
         return
 
+    # The command line outranks the environment for the transport, the same
+    # way --tools-file does: each is a decision about this one run.
+    settings = dataclasses.replace(
+        settings,
+        transport=args.transport,
+        http_host=args.host or settings.http_host,
+        http_port=args.port or settings.http_port,
+        http_path=args.path,
+        allowed_hosts=_host_list(args.allowed_hosts) or settings.allowed_hosts,
+    )
+
+    if settings.transport != "stdio":
+        try:
+            require_bearer(settings)
+        except ConfigError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(2) from None
+
     server = build_server(settings)
     _report_what_is_enabled(settings)
-    server.run()
+
+    if settings.transport == "stdio":
+        server.run()
+        return
+
+    _report_where_it_listens(settings)
+    run_http(server, settings)
+
+
+def _host_list(raw: str | None) -> tuple[str, ...]:
+    """Split a comma-separated ``--allowed-hosts`` value, ignoring blanks."""
+    if not raw:
+        return ()
+    return tuple(part for part in (piece.strip() for piece in raw.split(",")) if part)
+
+
+def _report_where_it_listens(settings: Settings) -> None:
+    """Say on stderr what is being served and to whom.
+
+    A bind address is the one setting where being told what happened matters
+    more than being told what to type: 0.0.0.0 in a container is right, and
+    on a laptop it is a mistake nobody meant to make.
+    """
+    log = logging.getLogger(__name__)
+    log.info(
+        "%s on http://%s:%s%s, bearer token required",
+        settings.transport,
+        settings.http_host,
+        settings.http_port,
+        settings.http_path,
+    )
+    if settings.http_host not in ("127.0.0.1", "localhost", "::1"):
+        log.warning(
+            "Bound to %s, so this port is reachable from outside this machine. "
+            "In a container that is what the published port is for. Anywhere "
+            "else, the bearer token is the only thing in the way.",
+            settings.http_host,
+        )
 
 
 def _report_what_is_enabled(settings: Settings) -> None:

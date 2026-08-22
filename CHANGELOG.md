@@ -13,7 +13,23 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **An HTTP transport**, `--transport streamable-http` or `sse`, beside the
+  stdio one that stays the default. `--host`, `--port`, `--path` and
+  `--allowed-hosts` configure it, or `LXO_MCP_TRANSPORT`, `LXO_MCP_HTTP_HOST`,
+  `LXO_MCP_HTTP_PORT`, `LXO_MCP_HTTP_PATH` and `LXO_MCP_ALLOWED_HOSTS`.
+- **A bearer token in front of it, which is not optional.** Every HTTP request
+  must carry `Authorization: Bearer <token>` from `LXO_MCP_BEARER_TOKEN`, and
+  without one the server refuses to start an HTTP transport at all. stdio is
+  untouched: there the client owns the process and nothing else can reach it.
+  The SDK's DNS-rebinding guard checks `Host` and `Origin` on top, with the
+  loopback names always allowed and `--allowed-hosts` adding a container or a
+  proxy name.
+- **`setup` can bind an address other than loopback**, with `--host`. A
+  container has to: a process on the container's own loopback cannot be
+  reached through a published port. It says on stderr when it binds anything
+  else, because the pages still have no login.
 
 ## [0.1.0] - 2026-08-22
 
