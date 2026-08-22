@@ -18,14 +18,16 @@ of a shared install directory is not a property this server should have.
 
 The invocation beats the installation, so 2 and 3 sit above 4.
 
-``config/.env.sample`` documents every setting and is the file to copy. No
-secret is ever read from a versioned file.
+The settings sample ships inside the package, so an installed copy documents
+its own settings. :func:`settings_sample` reads it, and ``--settings-sample``
+prints it. No secret is ever read from a versioned file.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 
 from platformdirs import user_cache_dir, user_config_dir
@@ -40,6 +42,7 @@ __all__ = [
     "config_dir",
     "download_dir",
     "load_settings",
+    "settings_sample",
 ]
 
 APP_NAME = "benethos-lexware-office-mcp"
@@ -82,6 +85,17 @@ DEFAULT_LOG_LEVEL = "INFO"
 # says what this installation is allowed to do, which is a property of the
 # machine and the account, not of the code.
 TOOL_POLICY_NAME = "tools.json"
+
+# The sample lives in the package rather than beside it, so that a wheel
+# carries its own documentation of the settings. A file outside the package
+# directory is not installed, which is how the ten settings once existed only
+# in the README.
+SAMPLE_NAME = "env.sample"
+
+
+def settings_sample() -> str:
+    """The commented sample listing every setting, as shipped."""
+    return (resources.files(__package__) / SAMPLE_NAME).read_text(encoding="utf-8")
 
 
 def config_dir() -> Path:

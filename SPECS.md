@@ -700,7 +700,8 @@ installed package is not a property this server should have. The invocation
 outranks the installation, which is why the working directory sits above it.
 
 No secret is ever read from a versioned file. `config/.env` is gitignored and
-`config/.env.sample`, which is committed, holds no key.
+The settings sample, which is committed and ships inside the package, holds
+no key.
 
 ### 7.1 The configuration interface
 
@@ -1853,12 +1854,10 @@ this order:
    `.github/dependabot.yml` asks weekly about the dependency ranges and the
    pinned actions. None of it has ever run: a workflow needs a repository,
    which is why this sits behind the item above.
-3. **`config/.env.sample` inside the wheel**, verified missing by building
-   one on 2026-08-22: thirty-eight files, and the sample is not among them.
-   An installed copy therefore has no local documentation of the settings at
-   all, while `config.py` and `--help` both name the sample as the file to
-   copy. See section 16.1, where this is the last of the four directions
-   still open.
+3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
+   sample moved into the package as `env.sample`, so it is installed with the
+   code instead of sitting beside it, and `--settings-sample` prints it.
+   Building the wheel now finds it among thirty-nine files. See section 16.1.
 4. **Publication to PyPI**, which is what makes the installation instructions
    in the README true for someone who has not cloned the repository.
 
@@ -1894,9 +1893,10 @@ is answerable to.
 **What was wrong**
 
 - A user installing from PyPI gets **no sample**. The wheel packs the package
-  directory only, and `config/.env.sample` sits beside it, so the ten settings
-  exist only in the README. Verified by building the wheel: 38 files as of
-  2026-08-22, none of them the sample.
+  directory only, and `config/.env.sample` sat beside it, so the ten settings
+  existed only in the README. Verified by building the wheel: 38 files as of
+  2026-08-22, none of them the sample. **Fixed the same day** by moving the
+  sample into the package.
 - There is **no way to create the file**. The only location that works for an
   installed package is the per-user config directory, and neither the
   directory nor the file is created by anything. A user would have to make
@@ -1910,10 +1910,10 @@ is answerable to.
 **The four directions, and what became of them**
 
 - **Ship the sample in the wheel** and name its target path in the error
-  message. **Still open**, and the one piece of this not yet done. The
-  interface makes it less urgent — a person who runs `setup` never needs the
-  sample — but a wheel that does not carry its own documentation of the
-  settings is still worth fixing.
+  message. **Done**, though not by shipping a file beside the package: it
+  moved *into* the package, which is the only place an installer copies from.
+  `--settings-sample` prints it, so no path from the server's machine has to
+  be named to hand it over.
 - **A command that writes the file**, creating the directory and refusing to
   overwrite an existing one. **Superseded.** The interface writes it, and
   writes it by merging rather than by overwriting, which is what the

@@ -67,7 +67,7 @@ def test_the_real_package_resolves_to_this_repository() -> None:
     assert found is not None
     assert found.name == "config"
     assert (found.parent / "pyproject.toml").is_file()
-    assert (found / ".env.sample").is_file()
+    assert (found.parent / "src" / "benethos_lexware_office_mcp").is_dir()
 
 
 def test_the_checkout_is_read_when_the_working_directory_is_elsewhere(

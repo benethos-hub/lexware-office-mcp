@@ -244,8 +244,8 @@ uv run benethos-lexware-office-mcp setup
 That opens the interface described under
 [Configuring it in a browser](#configuring-it-in-a-browser): key, settings and
 one checkbox per tool. Everything it does can also be done by hand — copy
-`config/.env.sample` to `config/.env`, put the key in it, and use `--tools` as
-described below.
+`benethos-lexware-office-mcp --settings-sample > config/.env`, put the key in
+it, and use `--tools` as described below.
 
 Check that it works:
 

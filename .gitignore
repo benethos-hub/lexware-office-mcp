@@ -29,8 +29,6 @@ config/tools.json
 tool_profiles.json
 config/tool_profiles.json
 
-# ...but the committed sample stays visible.
-!config/.env.sample
 
 # IDE / OS
 .vscode/

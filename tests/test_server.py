@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp import __version__, policy
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.config import Settings, settings_sample
 from benethos_lexware_office_mcp.server import build_server, main
 
 
@@ -138,3 +138,24 @@ def test_a_named_env_file_configures_the_server(
     main(["--env-file", str(env_file), "--log-level", "ERROR"])
 
     assert seen[0].page_size == 13
+
+
+def test_the_settings_sample_can_be_printed_without_any_configuration(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An installed copy has no `config/` beside it, so this is how it is read."""
+    main(["--settings-sample"])
+
+    printed = capsys.readouterr().out
+    assert printed == settings_sample()
+    assert "LXO_MCP_API_KEY" in printed
+
+
+def test_printing_the_sample_starts_no_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    """It is an action, like --version, not a way to configure a run."""
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.server.build_server",
+        lambda settings: pytest.fail("the server was built"),
+    )
+
+    main(["--settings-sample"])

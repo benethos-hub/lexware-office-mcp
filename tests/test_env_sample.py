@@ -1,4 +1,4 @@
-"""The committed `config/.env.sample`, and where a `.env` is looked for.
+"""The settings sample that ships in the package, and the `.env` search.
 
 The sample is documentation that can go stale, so these tests treat it as
 code: it must parse, it must leave the safe defaults in place, and it must
@@ -14,9 +14,15 @@ from benethos_lexware_office_mcp.config import (
     _env_lookup,
     _parse_env_file,
     load_settings,
+    settings_sample,
 )
 
-SAMPLE = Path(__file__).resolve().parents[1] / "config" / ".env.sample"
+SAMPLE = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "benethos_lexware_office_mcp"
+    / "env.sample"
+)
 
 # Every variable `load_settings` looks up. Adding one here without adding it to
 # the sample fails the drift test below.
@@ -38,6 +44,15 @@ def test_the_sample_is_committed() -> None:
     assert SAMPLE.is_file()
 
 
+def test_the_sample_ships_with_the_package() -> None:
+    """A wheel has no `config/` beside it, so this is the only copy a user gets."""
+    assert settings_sample() == SAMPLE.read_text(encoding="utf-8")
+
+
+def test_the_sample_says_how_to_get_it_out_of_an_installed_copy() -> None:
+    assert "--settings-sample" in settings_sample()
+
+
 def test_only_the_api_key_is_active_everything_else_is_commented() -> None:
     assert _parse_env_file(SAMPLE) == {"LXO_MCP_API_KEY": ""}
 
@@ -54,7 +69,7 @@ def test_copying_the_sample_enables_nothing_by_itself() -> None:
 
 
 def test_sample_documents_every_setting_the_loader_reads() -> None:
-    mentioned = set(re.findall(r"LXO_MCP_[A-Z_]+", SAMPLE.read_text(encoding="utf-8")))
+    mentioned = set(re.findall(r"LXO_MCP_[A-Z_]+", settings_sample()))
     assert SETTINGS <= mentioned, f"missing from the sample: {SETTINGS - mentioned}"
 
 
@@ -64,7 +79,7 @@ def test_sample_holds_no_key() -> None:
 
 
 def test_sample_warns_that_the_copy_holds_a_credential() -> None:
-    text = SAMPLE.read_text(encoding="utf-8")
+    text = settings_sample()
     assert "credential" in text
     assert "version control" in text
 
