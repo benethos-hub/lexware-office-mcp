@@ -13,7 +13,11 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
-Nothing has been released yet. This section describes what 0.1.0 will contain.
+Nothing yet.
+
+## [0.1.0] - 2026-08-22
+
+The first release. Everything below is what it contains.
 
 ### Added
 
@@ -276,9 +280,12 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   `LXO_MCP_TIMEOUT`, `LXO_MCP_RATE`, `LXO_MCP_BURST`, `LXO_MCP_PAGE_SIZE` and
   `LXO_MCP_LOG_LEVEL`. Values are validated when they are read, so a page size
   the API would refuse fails at startup rather than mid-conversation.
-- **`config/.env.sample`** — a commented sample listing every setting with its
-  default and the reasoning behind it. Copy it to `config/.env` and fill in the
-  key. That copy is gitignored, the sample is committed and holds no key.
+- **A settings sample that ships with the package** — a commented list of
+  every setting with its default and the reasoning behind it. It is installed
+  with the code rather than left beside it, so a copy from PyPI documents its
+  own settings, and **`--settings-sample`** prints it:
+  `benethos-lexware-office-mcp --settings-sample > config/.env`. The copy is
+  gitignored, the sample holds no key.
 - **Rate limiting that matches the account, not the endpoint.** The Lexware
   limit of two requests per second covers the whole API at once, so the server
   keeps a single token bucket that every request passes, retries included. It
@@ -428,3 +435,6 @@ Every documented endpoint this API offers is covered except event
 subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
+
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/benethos-hub/lexware-office-mcp/releases/tag/v0.1.0

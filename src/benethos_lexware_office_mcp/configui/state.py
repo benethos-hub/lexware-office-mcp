@@ -30,7 +30,7 @@ from .render import (
 
 __all__ = ["SETTING_KEYS", "Installation"]
 
-# Every setting a person may see, in the order config/.env.sample introduces
+# Every setting a person may see, in the order the settings sample introduces
 # them. The key is first because it is the one that has to be there.
 SETTING_KEYS: tuple[str, ...] = (
     "LXO_MCP_API_KEY",

@@ -1,13 +1,10 @@
 # Unofficial Lexware Office MCP Server
 
 [![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
+[![PyPI](https://img.shields.io/pypi/v/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
+[![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-
-<!-- A PyPI version badge belongs here once the package is published, along
-     with the Python badge read from the release rather than written by hand.
-     Neither can be added before then: both would show a broken image. -->
 
 > **Disclaimer**
 >
@@ -36,14 +33,14 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.1.0 in progress, not published yet.**
+> **Status: 0.1.0, the first release.**
 > The server runs over stdio and handles contacts, vouchers and documents:
 > find them, read them, create them, change them, see what is still unpaid,
 > download a PDF and upload a receipt. `get_profile` answers which account
 > is connected. Every tool in the table below is built, and each was
-> exercised against a live account. There is no PyPI release yet, so
-> installation means cloning the repository. See [SPECS.md](SPECS.md) for
-> the full technical specification and the roadmap.
+> exercised against a live account. An HTTP transport, a container image and
+> a Compose file are what 0.2.0 is for. See [SPECS.md](SPECS.md) for the full
+> technical specification and the roadmap.
 
 ## Why this exists
 
@@ -226,47 +223,59 @@ cut access if anything looks wrong.
 
 ## Installation
 
-There is no PyPI release yet, so this means cloning the repository. With
-[uv](https://docs.astral.sh/uv/):
+With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/benethos-hub/lexware-office-mcp
-cd lexware-office-mcp
-uv sync
+uv tool install benethos-lexware-office-mcp
 ```
 
 Then configure it in a browser:
 
 ```bash
-uv run benethos-lexware-office-mcp setup
+benethos-lexware-office-mcp setup
 ```
 
 That opens the interface described under
 [Configuring it in a browser](#configuring-it-in-a-browser): key, settings and
 one checkbox per tool. Everything it does can also be done by hand — copy
-`config/.env.sample` to `config/.env`, put the key in it, and use `--tools` as
-described below.
+`benethos-lexware-office-mcp --settings-sample > config/.env`, put the key in
+it, and use `--tools` as described below.
 
 Check that it works:
 
 ```bash
-uv run benethos-lexware-office-mcp --help
+benethos-lexware-office-mcp --help
 ```
 
-Then point Claude Desktop at it in `claude_desktop_config.json`. Use the
-interpreter from the virtual environment directly, so no generated launcher is
-involved:
+Then point Claude Desktop at it in `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "lexware-office": {
-      "command": "C:/path/to/lexware-office-mcp/.venv/Scripts/python.exe",
-      "args": ["-m", "benethos_lexware_office_mcp"]
+      "command": "uvx",
+      "args": ["benethos-lexware-office-mcp"]
     }
   }
 }
 ```
+
+No path from your machine appears in there, which is the point: `uvx` looks
+the package up by name.
+
+**From the sources instead**, to develop or to run something unreleased:
+
+```bash
+git clone https://github.com/benethos-hub/lexware-office-mcp
+cd lexware-office-mcp
+uv sync
+uv run benethos-lexware-office-mcp setup
+```
+
+A client then needs the interpreter of that checkout's virtual environment,
+`command` pointing at `.venv/Scripts/python.exe` on Windows or
+`.venv/bin/python` elsewhere, with `args` of `["-m",
+"benethos_lexware_office_mcp"]`.
 
 **No key in there, on purpose.** The server finds it in the `.env`. A client's
 configuration file is the wrong place for a credential: it is not yours —
@@ -292,31 +301,32 @@ window — so the tool list is reloaded.
 benethos-lexware-office-mcp setup
 ```
 
-Three pages on `127.0.0.1`, in German, closed with Ctrl+C. They write the same
-files the command line does, so you can use either or both.
+Three pages on `127.0.0.1`, closed with Ctrl+C. They write the same files the
+command line does, so you can use either or both. The screens are in German,
+because Lexware Office is sold for German companies only, and each is named
+below by what it does with its label in brackets.
 
-**Übersicht** — which `.env` and which `tools.json` are actually in effect,
-what every setting resolves to and where that value came from, whether each
-file exists yet, how many tools are on and what they cost. A connection test
-on the button, never on page load.
+**Overview** (`Übersicht`) — which `.env` and which `tools.json` are actually
+in effect, what every setting resolves to and where that value came from,
+whether each file exists yet, how many tools are on and what they cost. A
+connection test on the button, never on page load.
 
-**Zugangsdaten** — the API key, checked against the API before it is saved
-unless you say otherwise, and the settings that are not secret. The key is
-never shown back to you, never logged and never exported. If an environment
-variable is setting it, the page says so, because that would override
-whatever you save.
+**Credentials** (`Zugangsdaten`) — the API key, checked against the API before
+it is saved unless you say otherwise, and the settings that are not secret. The
+key is never shown back to you, never logged and never exported. If an
+environment variable is setting it, the page says so, because that would
+override whatever you save.
 
-**Rechte** — one checkbox per tool, grouped, with the presets as buttons. On
-a fresh installation with no policy file yet, the reading tools come
-pre-ticked as a starting point — a proposal in a form, not a permission:
+**Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
+as buttons. On a fresh installation with no policy file yet, the reading tools
+come pre-ticked as a starting point — a proposal in a form, not a permission:
 there is still no file and therefore still no tool until you press save, and
-the page says so.
-Each row carries what that tool costs the assistant in context, and the total
-follows your ticks: every enabled tool is sent to the model on **every**
-request, so switching one on is a budget decision as well as a permission
-one. Writing tools are marked, and the ones whose result the API cannot take
-back are marked separately: `nur App` for a contact, which Lexware Office
-deletes without ceremony, and `nur App · Buchhaltung` for a record that
+the page says so. Each row carries what that tool costs the assistant in
+context, and the total follows your ticks: every enabled tool is sent to the
+model on **every** request, so switching one on is a budget decision as well as
+a permission one. Writing tools are marked, and the ones whose result the API
+cannot take back are marked separately: `nur App` for a contact, which Lexware
+Office deletes without ceremony, and `nur App · Buchhaltung` for a record that
 enters the books. Neither means it is stuck — nothing is festgeschrieben when
 it is created, and a legend on the page names the four things that do bind a
 record later.

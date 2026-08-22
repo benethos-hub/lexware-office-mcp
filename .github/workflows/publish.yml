@@ -1,0 +1,71 @@
+name: Publish
+
+# Builds the sdist and the wheel and uploads them to PyPI when a GitHub
+# release is published. Nothing else triggers it: a version may be uploaded
+# to PyPI exactly once, so a run that is not tied to a release tag has no
+# version it could legitimately claim.
+#
+# Authentication is Trusted Publishing, which exchanges the workflow's OIDC
+# identity for a short-lived token. **No API token is stored anywhere in this
+# repository**, which matters for a project whose whole subject is not
+# leaving credentials lying around.
+#
+# One-time setup on PyPI, by the account that will own the project. Under
+# "Publishing" add a pending publisher with exactly:
+#
+#     PyPI project name: benethos-lexware-office-mcp
+#     Owner:             benethos-hub
+#     Repository:        lexware-office-mcp
+#     Workflow filename: publish.yml
+#     Environment:       pypi
+#
+# All five have to match or the upload is refused, and the environment below
+# is the one it names.
+#
+# The release process itself is in SPECS.md section 16.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  pypi-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/benethos-lexware-office-mcp
+    permissions:
+      id-token: write # Trusted Publishing, in place of a stored token
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      # The wheel is what a user installs, and it has been wrong before: the
+      # settings sample lived beside the package and was never packed. Assert
+      # it is in there rather than finding out from a bug report.
+      - name: The wheel carries what it is supposed to
+        run: |
+          python - <<'PY'
+          import pathlib, zipfile
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          expected = [
+              "benethos_lexware_office_mcp/env.sample",
+              "benethos_lexware_office_mcp/server.py",
+          ]
+          missing = [n for n in expected if n not in names]
+          assert not missing, f"{wheel.name} is missing {missing}"
+          print(f"OK: {wheel.name}, {len(names)} files")
+          PY
+
+      - name: Publish to PyPI (Trusted Publishing)
+        run: uv publish --trusted-publishing always

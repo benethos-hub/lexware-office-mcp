@@ -132,7 +132,7 @@ def test_the_page_carries_no_external_reference(inst: Installation) -> None:
     )
 
 
-# -- Übersicht --------------------------------------------------------------
+# -- overview ---------------------------------------------------------------
 
 
 def test_the_overview_never_prints_the_key(inst: Installation) -> None:
@@ -274,7 +274,7 @@ def test_an_environment_variable_outranking_a_file_is_marked(
     assert "aus: Umgebung" in text(pages.overview(inst))
 
 
-# -- Zugangsdaten -----------------------------------------------------------
+# -- credentials ------------------------------------------------------------
 
 
 def test_the_credentials_page_says_where_it_would_write(inst: Installation) -> None:
@@ -301,7 +301,7 @@ def test_the_policy_path_cannot_be_edited_here(inst: Installation) -> None:
     assert 'name="LXO_MCP_API_KEY"' not in body  # the key has its own field
 
 
-# -- Rechte -----------------------------------------------------------------
+# -- permissions ------------------------------------------------------------
 
 
 def test_every_tool_has_a_checkbox(inst: Installation) -> None:

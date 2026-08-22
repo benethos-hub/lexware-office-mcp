@@ -27,7 +27,13 @@ from mcp.server.mcpserver import MCPServer
 
 from . import __version__, configui, resources
 from .client import ClientProvider
-from .config import LOG_LEVELS, Settings, download_dir, load_settings
+from .config import (
+    LOG_LEVELS,
+    Settings,
+    download_dir,
+    load_settings,
+    settings_sample,
+)
 from .policy import (
     Preset,
     ToolPolicy,
@@ -286,7 +292,7 @@ settings and the API key:
 
   Everything else is configuration, read from a .env file found the same way
   the policy file is, or from real environment variables, which win.
-  config/.env.sample lists every setting and what it does.
+  --settings-sample prints a commented list of every setting.
 
   --env-file names one instead of searching, and pairs with --tools-file so
   that one client entry has its own account and its own permissions:
@@ -308,6 +314,11 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--version", action="version", version=__version__, help="print the version"
+    )
+    parser.add_argument(
+        "--settings-sample",
+        action="store_true",
+        help="print the commented settings sample and exit",
     )
     parser.add_argument(
         "command",
@@ -489,6 +500,10 @@ def main(argv: list[str] | None = None) -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    if args.settings_sample:
+        print(settings_sample(), end="")
+        return
 
     if args.command == "setup":
         configui.start(

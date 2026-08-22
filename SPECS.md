@@ -1,10 +1,9 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.1.0 in progress.** Every tool of section 8 is built, tested and
-> exercised against a live account, and so is every module of section 4,
-> including the configuration interface of section 7.1. What holds a release
-> back is CI, which does not exist, and packing the settings sample into the
-> wheel — the roadmap in section 16 says which is which.
+> **Status: 0.1.0, the first release.** Every tool of section 8 is built,
+> tested and exercised against a live account, and so is every module of
+> section 4, including the configuration interface of section 7.1. The
+> roadmap in section 16 says what 0.2.0 is for.
 > Sections marked **(to verify)** rest on the public documentation and must be
 > confirmed against the live API before the corresponding code is written.
 > Only one such marker is left. Facts already checked against a live account
@@ -667,6 +666,20 @@ still meets it.
 - **Entry points:** `python -m benethos_lexware_office_mcp` or the
   `benethos-lexware-office-mcp` console script.
 - **Python:** 3.11 to 3.14, all in the CI matrix.
+- **3.14 changed how annotations reach a schema, measured 2026-08-22.** One
+  parameter carries a description built at startup, because the default it
+  states is configurable, and the finished annotation is attached after the
+  definition - `from __future__ import annotations` would otherwise turn it
+  into source text the SDK evaluates in module scope, where the per-process
+  value does not exist. Up to 3.13 the wrapper `classify` returns and the
+  function it wraps shared one annotations dictionary, so editing one reached
+  the other, which is the function `inspect.signature` arrives at. Under PEP
+  649 they no longer do: annotations are computed on demand from
+  `__annotate__`, the wrapper materializes a dictionary of its own, and the
+  original goes on answering from its source text. Both are set now, by
+  replacing the dictionary rather than editing it, which drops `__annotate__`
+  and leaves one answer for every reader. The offline suite is identical on
+  every version and caught none of it - the matrix did.
 
 ## 7. Configuration
 
@@ -700,7 +713,8 @@ installed package is not a property this server should have. The invocation
 outranks the installation, which is why the working directory sits above it.
 
 No secret is ever read from a versioned file. `config/.env` is gitignored and
-`config/.env.sample`, which is committed, holds no key.
+The settings sample, which is committed and ships inside the package, holds
+no key.
 
 ### 7.1 The configuration interface
 
@@ -731,9 +745,9 @@ would be a second copy of a rule that lives in the code.
 
 | Page | What it answers |
 |---|---|
-| Übersicht | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
-| Zugangsdaten | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
-| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
+| Overview (`Übersicht`) | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
+| Credentials (`Zugangsdaten`) | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
+| Permissions (`Rechte`) | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in
@@ -1191,7 +1205,7 @@ setting. The third
 step exists separately because deleting is its own decision — reachable, but
 only by naming it rather than by choosing the largest option. Everything it prints goes to stderr,
 because it shares an entry point with the server and stdout carries the
-JSON-RPC stream. The graphical version is the Rechte page of section 7.1:
+JSON-RPC stream. The graphical version is the permissions page of section 7.1:
 a table grouped by domain, one toggle per row, `read` and `write` marked,
 irreversible effects flagged, permanent ones flagged separately, and the
 connected organization shown at the top from `get_profile` — so it is never
@@ -1835,32 +1849,49 @@ except the event subscriptions, which section 2 rules out. The configuration
 question of section 16.1 is answered too: `setup` serves the interface
 described in section 7.1. Nothing on the API side is outstanding.
 
-**What stands between here and 0.1.0 is not code**, and it is best done in
-this order:
+**What stood between here and 0.1.0 was not code**, and it was done in this
+order:
 
-1. **A public repository**, which does not exist yet. While it does not,
-   `main` is written directly and a finished branch is merged locally. Once
-   it exists the merge goes through a pull request instead, which is also
-   what CI needs something to run against.
-2. **CI**, written and waiting for somewhere to run. `.github/workflows/ci.yml`
-   holds three jobs: `lint` (`ruff check`, the format check, `mypy` and
-   `uv lock --check`), `test` across the Python matrix of section 6 with the
-   coverage floor, and `fresh-install`, which builds the wheel, installs it
-   with no lockfile involved and asserts that an installation without a policy
-   file offers no tools at all - the rule of section 9.2, which no offline
-   test reaches because every one of them writes a policy file first. Every
-   job passes with no key, no network and no account, see section 14.1.
+1. ~~**A public repository.**~~ **Done 2026-08-22:**
+   `github.com/benethos-hub/lexware-office-mcp`. `main` is protected and can
+   only be reached through a pull request whose six checks are green, for the
+   owner as well. Merges are squash or rebase, the history stays linear, and a
+   merged branch deletes itself. Nothing is written to `main` directly any
+   more.
+2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds three
+   jobs: `lint` (`ruff check`, the format check, `mypy` and `uv lock --check`),
+   `test` across the Python matrix of section 6 with the coverage floor, and
+   `fresh-install`, which builds the wheel, installs it with no lockfile
+   involved and asserts that an installation without a policy file offers no
+   tools at all - the rule of section 9.2, which no offline test reaches
+   because every one of them writes a policy file first. Every job passes with
+   no key, no network and no account, see section 14.1.
    `.github/dependabot.yml` asks weekly about the dependency ranges and the
-   pinned actions. None of it has ever run: a workflow needs a repository,
-   which is why this sits behind the item above.
-3. **`config/.env.sample` inside the wheel**, verified missing by building
-   one on 2026-08-22: thirty-eight files, and the sample is not among them.
-   An installed copy therefore has no local documentation of the settings at
-   all, while `config.py` and `--help` both name the sample as the file to
-   copy. See section 16.1, where this is the last of the four directions
-   still open.
-4. **Publication to PyPI**, which is what makes the installation instructions
-   in the README true for someone who has not cloned the repository.
+   pinned actions.
+
+   **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
+   where a parameter description had silently disappeared from a tool schema.
+   See section 6 for what changed in Python and why the workaround it broke
+   was there.
+
+   **A new job is not required by itself.** The six that block a merge are
+   listed in the branch protection, so a job added later - `docker` with
+   0.2.0, or a Python version added to the matrix - runs, may fail, and still
+   lets the merge through until it is added to that list as well.
+3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
+   sample moved into the package as `env.sample`, so it is installed with the
+   code instead of sitting beside it, and `--settings-sample` prints it.
+   Building the wheel now finds it among thirty-nine files. See section 16.1.
+4. ~~**Publication to PyPI**~~, which is what makes the installation
+   instructions in the README true for someone who has not cloned the
+   repository.
+   `.github/workflows/publish.yml` does it from a published release over
+   Trusted Publishing, so no token is stored here. It needs a pending
+   publisher on PyPI first, whose five fields the workflow header spells out.
+   **The release itself:** a `release/X.Y.Z` branch that moves the CHANGELOG
+   `[Unreleased]` section to a numbered one with its compare links and brings
+   the README's installation instructions in line, then a tag and a GitHub
+   release on the merged commit, which is what triggers the upload.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
@@ -1873,7 +1904,7 @@ suggested they were.
 
 | Release | Content | State |
 |---|---|---|
-| 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **feature complete, unreleased** — every part of it is built and exercised against a live account. The four items above are what is left, and none of them is a feature. |
+| 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
 | 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **next**, once 0.1.0 is out |
 | later | event subscriptions, if a deployment shape ever justifies them — they need an address to be called back at, which a stdio server has not got | undecided |
 
@@ -1894,9 +1925,10 @@ is answerable to.
 **What was wrong**
 
 - A user installing from PyPI gets **no sample**. The wheel packs the package
-  directory only, and `config/.env.sample` sits beside it, so the ten settings
-  exist only in the README. Verified by building the wheel: 38 files as of
-  2026-08-22, none of them the sample.
+  directory only, and `config/.env.sample` sat beside it, so the ten settings
+  existed only in the README. Verified by building the wheel: 38 files as of
+  2026-08-22, none of them the sample. **Fixed the same day** by moving the
+  sample into the package.
 - There is **no way to create the file**. The only location that works for an
   installed package is the per-user config directory, and neither the
   directory nor the file is created by anything. A user would have to make
@@ -1910,10 +1942,10 @@ is answerable to.
 **The four directions, and what became of them**
 
 - **Ship the sample in the wheel** and name its target path in the error
-  message. **Still open**, and the one piece of this not yet done. The
-  interface makes it less urgent — a person who runs `setup` never needs the
-  sample — but a wheel that does not carry its own documentation of the
-  settings is still worth fixing.
+  message. **Done**, though not by shipping a file beside the package: it
+  moved *into* the package, which is the only place an installer copies from.
+  `--settings-sample` prints it, so no path from the server's machine has to
+  be named to hand it over.
 - **A command that writes the file**, creating the directory and refusing to
   overwrite an existing one. **Superseded.** The interface writes it, and
   writes it by merging rather than by overwriting, which is what the
@@ -1923,7 +1955,7 @@ is answerable to.
   tool, and permission profiles with an export that carries them to another
   machine.
 - **A read-only diagnostic** as a smaller version of the same idea. **Built
-  as the Übersicht page** rather than as a separate command: every candidate
+  as the overview page** rather than as a separate command: every candidate
   file, whether it exists, which value won and where it came from, without
   ever printing the key.
 
