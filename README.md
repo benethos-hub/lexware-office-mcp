@@ -1,13 +1,10 @@
 # Unofficial Lexware Office MCP Server
 
 [![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
+[![PyPI](https://img.shields.io/pypi/v/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
+[![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-
-<!-- A PyPI version badge belongs here once the package is published, along
-     with the Python badge read from the release rather than written by hand.
-     Neither can be added before then: both would show a broken image. -->
 
 > **Disclaimer**
 >
@@ -36,14 +33,14 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.1.0 in progress, not published yet.**
+> **Status: 0.1.0, the first release.**
 > The server runs over stdio and handles contacts, vouchers and documents:
 > find them, read them, create them, change them, see what is still unpaid,
 > download a PDF and upload a receipt. `get_profile` answers which account
 > is connected. Every tool in the table below is built, and each was
-> exercised against a live account. There is no PyPI release yet, so
-> installation means cloning the repository. See [SPECS.md](SPECS.md) for
-> the full technical specification and the roadmap.
+> exercised against a live account. An HTTP transport, a container image and
+> a Compose file are what 0.2.0 is for. See [SPECS.md](SPECS.md) for the full
+> technical specification and the roadmap.
 
 ## Why this exists
 
@@ -226,19 +223,16 @@ cut access if anything looks wrong.
 
 ## Installation
 
-There is no PyPI release yet, so this means cloning the repository. With
-[uv](https://docs.astral.sh/uv/):
+With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/benethos-hub/lexware-office-mcp
-cd lexware-office-mcp
-uv sync
+uv tool install benethos-lexware-office-mcp
 ```
 
 Then configure it in a browser:
 
 ```bash
-uv run benethos-lexware-office-mcp setup
+benethos-lexware-office-mcp setup
 ```
 
 That opens the interface described under
@@ -250,23 +244,38 @@ it, and use `--tools` as described below.
 Check that it works:
 
 ```bash
-uv run benethos-lexware-office-mcp --help
+benethos-lexware-office-mcp --help
 ```
 
-Then point Claude Desktop at it in `claude_desktop_config.json`. Use the
-interpreter from the virtual environment directly, so no generated launcher is
-involved:
+Then point Claude Desktop at it in `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "lexware-office": {
-      "command": "C:/path/to/lexware-office-mcp/.venv/Scripts/python.exe",
-      "args": ["-m", "benethos_lexware_office_mcp"]
+      "command": "uvx",
+      "args": ["benethos-lexware-office-mcp"]
     }
   }
 }
 ```
+
+No path from your machine appears in there, which is the point: `uvx` looks
+the package up by name.
+
+**From the sources instead**, to develop or to run something unreleased:
+
+```bash
+git clone https://github.com/benethos-hub/lexware-office-mcp
+cd lexware-office-mcp
+uv sync
+uv run benethos-lexware-office-mcp setup
+```
+
+A client then needs the interpreter of that checkout's virtual environment,
+`command` pointing at `.venv/Scripts/python.exe` on Windows or
+`.venv/bin/python` elsewhere, with `args` of `["-m",
+"benethos_lexware_office_mcp"]`.
 
 **No key in there, on purpose.** The server finds it in the `.env`. A client's
 configuration file is the wrong place for a credential: it is not yours —

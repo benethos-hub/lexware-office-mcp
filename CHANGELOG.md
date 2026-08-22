@@ -13,7 +13,11 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
-Nothing has been released yet. This section describes what 0.1.0 will contain.
+Nothing yet.
+
+## [0.1.0] - 2026-08-22
+
+The first release. Everything below is what it contains.
 
 ### Added
 
@@ -431,3 +435,6 @@ Every documented endpoint this API offers is covered except event
 subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
+
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/benethos-hub/lexware-office-mcp/releases/tag/v0.1.0
