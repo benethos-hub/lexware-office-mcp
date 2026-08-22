@@ -506,6 +506,15 @@ that cannot be written.
 Measured by posting to each type in turn. Nothing was finalized, so what the
 account gained is drafts, which the web app can still delete.
 
+**Finalizing is the account owner's decision, and the tool description says
+so.** Creating a draft is a reversible convenience. Issuing a document
+assigns the consecutive number and puts it into the account's numbering, and
+a model doing that because it seemed helpful is the failure mode worth
+naming. The rule sits in three places on purpose: in the description above
+the call, in the `finalize` parameter's own description, and in the refusal a
+call without `confirm` gets back — a model that reads only one of the three
+still meets it.
+
 - **Each kind insists on one thing of its own**, beyond the common body of
   `voucherDate`, `address`, `lineItems`, `totalPrice` and `taxConditions`:
   - `invoice`, `order-confirmation` and `delivery-note` want
@@ -739,7 +748,7 @@ showing them is honest. Once a file exists the boxes follow it, including a
 file that deliberately enables nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
-around 2,025 characters per tool, sent on every request for the life of the
+around 2,028 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible.
@@ -808,14 +817,14 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **50,630
-characters**, around 2,025 each. Roughly 13,000 to 15,000 tokens, estimated
+compact JSON a `tools/list` answer is, twenty-five tools come to **50,700
+characters**, around 2,028 each. Roughly 13,000 to 15,000 tokens, estimated
 at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 33,469 | 66% |
-| Tool descriptions, the part under a ceiling | 10,729 | 21% |
+| Tool descriptions, the part under a ceiling | 10,787 | 21% |
 | Output schemas | 4,340 | 9% |
 | Names, titles and the rest | ~2,092 | 4% |
 
@@ -1119,7 +1128,7 @@ in doubt which account the permissions being granted apply to.
 
 **It shows what each tool costs in context, which nothing else here does.** A
 tool that is on is sent to the model on every single request, description and
-schemas alike, and section 8 measures that at around 2,025 characters per
+schemas alike, and section 8 measures that at around 2,028 characters per
 tool with `create_sales_document` at more than double. The page carries a
 per-row figure and a running total that follows the checkboxes, so a policy
 can be chosen against a budget rather than against a guess. Characters are

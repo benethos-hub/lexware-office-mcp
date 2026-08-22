@@ -148,7 +148,10 @@ Nothing has been released yet. This section describes what 0.1.0 will contain.
   that is never retried. Line items carry the price on the side the
   document's tax type names, may quote an article by id, and a `text` line
   carries no price. The totals are left to the API, which adds the document
-  up from its lines.
+  up from its lines. It writes a **draft** unless `finalize` is set, and the
+  tool tells the assistant to set that **only when you asked for the document
+  to be issued** — never on its own initiative. Finalizing assigns the
+  consecutive number, and the API cannot take that back.
 - **A draft unless you say otherwise.** `finalize` issues the document
   instead, which assigns its number for good and cannot be undone, so it
   needs `confirm: true` beside it. `preceding_sales_voucher_id` follows an

@@ -257,8 +257,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             bool,
             Field(
                 description=(
-                    "Issue it instead of drafting it. Needs confirm, and "
-                    "cannot be reversed."
+                    "Issue it instead of drafting it. Only when the user "
+                    "asked for that. Needs confirm."
                 )
             ),
         ] = False,
@@ -273,8 +273,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         might have gone through has to be checked with `search_vouchers`.
 
         A draft can still be edited or deleted in the web app. `finalize`
-        issues it instead, assigning the number for good.
-        That **cannot be undone**, so it needs `confirm` as well.
+        issues it instead and the API cannot take that back. Set it **only
+        when the user asked to issue the document**, never on your own
+        initiative. It needs `confirm` too.
 
         Each kind wants one thing of its own: `shipping_date` for an invoice,
         order confirmation and delivery note, `expiration_date` for a
@@ -284,9 +285,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         if finalize and not confirm:
             raise ValidationError(
-                "finalize issues the document for good, and the API cannot "
-                "take it back. Pass confirm=true as well, or leave finalize "
-                "unset to create a draft that can still be changed."
+                "finalize issues the document and the API cannot take it "
+                "back. Use it only when the user asked to issue the document, "
+                "and pass confirm=true as well. Leaving finalize unset creates "
+                "a draft that can still be changed."
             )
         if document_type in SHIPPING_REQUIRED and shipping_date is None:
             raise ValidationError(

@@ -523,14 +523,33 @@ async def test_a_down_payment_invoice_cannot_be_created() -> None:
     await provider.aclose()
 
 
-async def test_the_creating_description_names_what_cannot_be_undone() -> None:
+async def test_the_creating_description_says_finalize_is_the_users_call() -> None:
+    """Issuing a document is a decision, not a way of being helpful.
+
+    The description is the only place a model reads this before it acts, so
+    the rule has to be there rather than only in the repository's docs.
+    """
     handler = Scripted()
     server, provider = server_for(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["create_sales_document"].description or ""
 
-    assert "cannot be undone" in description.lower()
+    assert "only" in description.lower()
+    assert "user asked" in description.lower()
+    assert "cannot take that back" in description.lower()
     assert "draft" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
+    await provider.aclose()
+
+
+async def test_the_finalize_parameter_repeats_the_rule_where_it_is_set() -> None:
+    """A model reads the parameter, not only the prose above it."""
+    handler = Scripted()
+    server, provider = server_for(handler)
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    schema = tools["create_sales_document"].input_schema
+
+    assert "asked for that" in schema["properties"]["finalize"]["description"]
     await provider.aclose()
