@@ -229,6 +229,11 @@ With [uv](https://docs.astral.sh/uv/):
 uv tool install benethos-lexware-office-mcp
 ```
 
+uv installs the command into its own tool directory, which is **not on the
+`PATH` of a fresh install** — it says so when it finishes. Run
+`uv tool update-shell` and open a new terminal, or call the executable by the
+path uv printed.
+
 Then configure it in a browser:
 
 ```bash
@@ -237,9 +242,9 @@ benethos-lexware-office-mcp setup
 
 That opens the interface described under
 [Configuring it in a browser](#configuring-it-in-a-browser): key, settings and
-one checkbox per tool. Everything it does can also be done by hand — copy
-`benethos-lexware-office-mcp --settings-sample > config/.env`, put the key in
-it, and use `--tools` as described below.
+one checkbox per tool. Everything it does can also be done by hand — start a
+settings file with `benethos-lexware-office-mcp --settings-sample >
+config/.env`, put the key in it, and use `--tools` as described below.
 
 Check that it works:
 
@@ -261,7 +266,15 @@ Then point Claude Desktop at it in `claude_desktop_config.json`:
 ```
 
 No path from your machine appears in there, which is the point: `uvx` looks
-the package up by name.
+the package up by name. Two things worth knowing about that entry:
+
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.1.0"]`.
+  Without a pin, `uvx` takes the newest release it can resolve, and a client
+  restart is enough to change what it runs.
+- **`uvx` has to be on the `PATH` the client uses**, which is not always the
+  one your terminal has — some GUI clients pass a reduced environment. If the
+  server does not start, put the absolute path to `uvx` in `command`, and
+  restart the client fully rather than reloading it.
 
 **From the sources instead**, to develop or to run something unreleased:
 
