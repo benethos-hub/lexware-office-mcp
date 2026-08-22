@@ -4,10 +4,12 @@ Rendering is kept apart from serving on purpose: nothing here reads a request,
 writes a file or reaches the network, so every page can be rendered in a test
 by handing it an installation and reading the HTML back.
 
-The reading order is the order of the navigation. **Übersicht** answers what
-this installation is and which files it uses, **Zugangsdaten** is where the
-key and the settings are entered, and **Rechte** is the point of the whole
-thing — including the saved profiles and the policy file itself, which can be
+The reading order is the order of the navigation, and the three are named
+here as the routes name them, not as the screen labels them: **overview**
+(`Übersicht`) answers what this installation is and which files it uses,
+**credentials** (`Zugangsdaten`) is where the key and the settings are
+entered, and **permissions** (`Rechte`) is the point of the whole thing —
+including the saved profiles and the policy file itself, which can be
 downloaded and read back from there.
 """
 
@@ -110,7 +112,7 @@ def _cost_note(characters: int) -> str:
     return f"{_de(characters)} Zeichen, rund {_de(estimate_tokens(characters))} Token"
 
 
-# --- Übersicht -------------------------------------------------------------
+# --- overview --------------------------------------------------------------
 
 
 def _resolved(inst: Installation) -> dict[str, str]:
@@ -248,7 +250,7 @@ def _files_table(inst: Installation) -> str:
     return f"<table><tr><th>Datei</th><th>Pfad</th><th>Zustand</th></tr>{cells}</table>"
 
 
-# --- Zugangsdaten ----------------------------------------------------------
+# --- credentials -----------------------------------------------------------
 
 
 def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
@@ -321,7 +323,7 @@ def _placeholder(inst: Installation, key: str) -> str:
     return _resolved(inst).get(key, "")
 
 
-# --- Rechte ----------------------------------------------------------------
+# --- permissions -----------------------------------------------------------
 
 
 def permissions(

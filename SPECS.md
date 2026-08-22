@@ -745,9 +745,9 @@ would be a second copy of a rule that lives in the code.
 
 | Page | What it answers |
 |---|---|
-| Übersicht | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
-| Zugangsdaten | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
-| Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
+| Overview (`Übersicht`) | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
+| Credentials (`Zugangsdaten`) | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
+| Permissions (`Rechte`) | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in
@@ -1205,7 +1205,7 @@ setting. The third
 step exists separately because deleting is its own decision — reachable, but
 only by naming it rather than by choosing the largest option. Everything it prints goes to stderr,
 because it shares an entry point with the server and stdout carries the
-JSON-RPC stream. The graphical version is the Rechte page of section 7.1:
+JSON-RPC stream. The graphical version is the permissions page of section 7.1:
 a table grouped by domain, one toggle per row, `read` and `write` marked,
 irreversible effects flagged, permanent ones flagged separately, and the
 connected organization shown at the top from `get_profile` — so it is never
@@ -1955,7 +1955,7 @@ is answerable to.
   tool, and permission profiles with an export that carries them to another
   machine.
 - **A read-only diagnostic** as a smaller version of the same idea. **Built
-  as the Übersicht page** rather than as a separate command: every candidate
+  as the overview page** rather than as a separate command: every candidate
   file, whether it exists, which value won and where it came from, without
   ever printing the key.
 

@@ -301,31 +301,32 @@ window — so the tool list is reloaded.
 benethos-lexware-office-mcp setup
 ```
 
-Three pages on `127.0.0.1`, in German, closed with Ctrl+C. They write the same
-files the command line does, so you can use either or both.
+Three pages on `127.0.0.1`, closed with Ctrl+C. They write the same files the
+command line does, so you can use either or both. The screens are in German,
+because Lexware Office is sold for German companies only, and each is named
+below by what it does with its label in brackets.
 
-**Übersicht** — which `.env` and which `tools.json` are actually in effect,
-what every setting resolves to and where that value came from, whether each
-file exists yet, how many tools are on and what they cost. A connection test
-on the button, never on page load.
+**Overview** (`Übersicht`) — which `.env` and which `tools.json` are actually
+in effect, what every setting resolves to and where that value came from,
+whether each file exists yet, how many tools are on and what they cost. A
+connection test on the button, never on page load.
 
-**Zugangsdaten** — the API key, checked against the API before it is saved
-unless you say otherwise, and the settings that are not secret. The key is
-never shown back to you, never logged and never exported. If an environment
-variable is setting it, the page says so, because that would override
-whatever you save.
+**Credentials** (`Zugangsdaten`) — the API key, checked against the API before
+it is saved unless you say otherwise, and the settings that are not secret. The
+key is never shown back to you, never logged and never exported. If an
+environment variable is setting it, the page says so, because that would
+override whatever you save.
 
-**Rechte** — one checkbox per tool, grouped, with the presets as buttons. On
-a fresh installation with no policy file yet, the reading tools come
-pre-ticked as a starting point — a proposal in a form, not a permission:
+**Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
+as buttons. On a fresh installation with no policy file yet, the reading tools
+come pre-ticked as a starting point — a proposal in a form, not a permission:
 there is still no file and therefore still no tool until you press save, and
-the page says so.
-Each row carries what that tool costs the assistant in context, and the total
-follows your ticks: every enabled tool is sent to the model on **every**
-request, so switching one on is a budget decision as well as a permission
-one. Writing tools are marked, and the ones whose result the API cannot take
-back are marked separately: `nur App` for a contact, which Lexware Office
-deletes without ceremony, and `nur App · Buchhaltung` for a record that
+the page says so. Each row carries what that tool costs the assistant in
+context, and the total follows your ticks: every enabled tool is sent to the
+model on **every** request, so switching one on is a budget decision as well as
+a permission one. Writing tools are marked, and the ones whose result the API
+cannot take back are marked separately: `nur App` for a contact, which Lexware
+Office deletes without ceremony, and `nur App · Buchhaltung` for a record that
 enters the books. Neither means it is stuck — nothing is festgeschrieben when
 it is created, and a legend on the page names the four things that do bind a
 record later.
