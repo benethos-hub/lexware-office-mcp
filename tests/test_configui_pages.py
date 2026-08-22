@@ -201,6 +201,32 @@ def test_the_files_in_use_are_named_with_their_state(inst: Installation) -> None
     assert "vorhanden" in body  # the .env
 
 
+def test_the_overview_offers_the_matching_client_arguments(
+    inst: Installation,
+) -> None:
+    """The one direction in which the two processes can be brought together.
+
+    The interface cannot see what the client passes to the server, so it says
+    what to put there instead.
+    """
+    body = text(pages.overview(inst))
+
+    assert "Andere Dateien bearbeiten" in body
+    assert "--tools-file" in body
+    assert str(inst.settings.policy_file()) in body.replace("\\\\", "\\")
+    assert "liest diese Merkdatei nie" in body
+
+
+def test_a_remembered_path_is_not_called_a_command_line_one(
+    inst: Installation,
+) -> None:
+    from benethos_lexware_office_mcp.configui.pins import Pins
+
+    inst.pins = Pins(tools_file=inst.settings.policy_file())
+
+    assert "aus: gemerkt" in text(pages.overview(inst))
+
+
 def test_a_value_from_the_command_line_is_not_called_a_default(
     inst: Installation,
 ) -> None:

@@ -20,6 +20,7 @@ __all__ = [
     "ENV_SOURCE",
     "FILE_SOURCE",
     "OTHER_FILE_SOURCE",
+    "PIN_SOURCE",
     "esc",
     "note",
     "page",
@@ -32,6 +33,9 @@ __all__ = [
 # account. See config.py for the full precedence.
 ENV_SOURCE = "Umgebung"
 CLI_SOURCE = "Aufruf"
+# Written down for this interface once and read back on every start. Only the
+# interface, never the server - see pins.py.
+PIN_SOURCE = "gemerkt"
 FILE_SOURCE = "Datei"
 # The value applies, but it comes from a .env other than the one this
 # interface writes to. Typing over it here would appear to work and change
@@ -142,7 +146,7 @@ def source_badge(source: str, detail: str = "") -> str:
     answers "which file?" for the one person who asks, without putting a
     hundred characters of Windows path into every row.
     """
-    loud = source in (ENV_SOURCE, OTHER_FILE_SOURCE, CLI_SOURCE)
+    loud = source in (ENV_SOURCE, OTHER_FILE_SOURCE, CLI_SOURCE, PIN_SOURCE)
     css = "src env" if loud else "src"
     title = f' title="{esc(detail)}"' if detail else ""
     return f'<span class="{css}"{title}>aus: {esc(source)}</span>'

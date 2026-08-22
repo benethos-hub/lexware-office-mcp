@@ -24,6 +24,7 @@ import sys
 import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -32,6 +33,7 @@ from ..config import ConfigError, load_settings
 from ..envfile import update_env_file
 from ..policy import known_tools
 from . import pages, probe, transfer
+from .pins import Pins, write_pins
 from .profiles import ProfileError
 from .render import esc, note, page
 from .state import API_KEY, EDITABLE_KEYS, Installation
@@ -165,6 +167,7 @@ class Handler(BaseHTTPRequestHandler):
             "/check": self._check,
             "/credentials": self._save_key,
             "/settings": self._save_settings,
+            "/files": self._retarget,
             "/permissions": self._permissions,
         }
         action = routes.get(path)
@@ -282,6 +285,44 @@ class Handler(BaseHTTPRequestHandler):
         self._page_with(
             pages.credentials,
             f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.",
+            kind="good",
+        )
+
+    def _retarget(self, form: dict[str, list[str]]) -> None:
+        """Work on other files from here on, and remember the choice.
+
+        Neither file has to exist: naming one that does not is how a fresh
+        installation gets its first `.env`, and the overview says which of
+        them are there.
+        """
+        inst = self.installation
+        env_raw = (form.get("env_file", [""])[0]).strip()
+        tools_raw = (form.get("tools_file", [""])[0]).strip()
+        if not env_raw:
+            self._page_with(pages.overview, "Ohne .env-Pfad geht es nicht.", kind="bad")
+            return
+        env_path = Path(env_raw).expanduser()
+        tools_path = Path(tools_raw).expanduser() if tools_raw else None
+        for path in (env_path, tools_path):
+            if path is not None and path.exists() and not path.is_file():
+                self._page_with(
+                    pages.overview, f"Das ist keine Datei: {path}", kind="bad"
+                )
+                return
+        try:
+            remembered = write_pins(Pins(env_file=env_path, tools_file=tools_path))
+        except OSError as exc:
+            self._page_with(
+                pages.overview,
+                f"Konnte die Merkdatei nicht schreiben: {exc.strerror or exc}",
+                kind="bad",
+            )
+            return
+        inst.retarget(env_path, tools_path)
+        self._page_with(
+            pages.overview,
+            f"Diese Oberfläche bearbeitet jetzt {env_path} und "
+            f"{inst.settings.policy_file()}. Gemerkt in {remembered}.",
             kind="good",
         )
 

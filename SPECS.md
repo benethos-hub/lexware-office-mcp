@@ -100,7 +100,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
-| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` the export bundle, `pages` the four screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `pins` which files the interface works on, `profiles` named sets of permissions, `transfer` the export bundle, `pages` the four screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
@@ -735,10 +735,29 @@ would be a second copy of a rule that lives in the code.
 | Zugangsdaten | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
 | Rechte | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
 
-**Five answers to "where did this value come from", not three.** A real
-environment variable, the command line for the one setting it can name, the
-`.env` this interface writes to, *another* `.env` the search also reads, and
-the built-in default. The fourth exists because typing over such a value here
+**The interface cannot see the arguments the server was started with**, and
+that is the one thing about this split that bites. A client entry usually
+carries `--env-file` and `--tools-file`, `setup` is started separately, and
+without help it searches for its own files — silently the wrong ones. So the
+two paths can be written down once, in `setup.json` in the per-user
+configuration directory, and used on every later start. A named argument
+still wins over what is remembered, and the search still applies when neither
+says anything.
+
+That file **points the interface and nothing else**. The server resolves its
+own policy file and never reads it: a pointer that could redirect the policy
+being enforced would be a second gate beside `tools.json`, and section 9.2
+has one. It also lives at a fixed path rather than being searched for, since a
+pointer that has to be found first would need a pointer of its own.
+
+The overview also offers the client entry that would make the server agree —
+the only direction in which the two processes can be brought together from
+here.
+
+**Six answers to "where did this value come from", not three.** A real
+environment variable, the command line for the one setting it can name, a
+path remembered in `setup.json`, the `.env` this interface writes to,
+*another* `.env` the search also reads, and the built-in default. The fourth exists because typing over such a value here
 would appear to work and change nothing.
 
 **With no policy file the boxes open on read-only.** A blank form is a poor

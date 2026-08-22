@@ -16,6 +16,7 @@ The modules, in the order they depend on each other:
 - ``state`` — which files apply and where each value came from
 - ``cost`` — what a tool costs in the model's context, measured once
 - ``probe`` — the one API call this interface makes, on request
+- ``pins`` — which files this interface works on, remembered between runs
 - ``profiles`` — named sets of permissions
 - ``transfer`` — the profile export, and reading one back
 - ``pages`` — the three screens, pure functions from state to bytes
@@ -28,20 +29,43 @@ from pathlib import Path
 
 from ..config import Settings, resolve_config_file
 from .app import DEFAULT_PORT, serve
+from .pins import read_pins
 from .state import Installation
 
-__all__ = ["DEFAULT_PORT", "Installation", "start", "target_env_file"]
+__all__ = [
+    "DEFAULT_PORT",
+    "Installation",
+    "start",
+    "target_env_file",
+    "target_policy_file",
+]
 
 
 def target_env_file(named: Path | None = None, cwd: Path | None = None) -> Path:
     """The ``.env`` this interface writes to.
 
-    A file named on the command line, or else the one the search would read —
-    and when there is none anywhere, the per-user configuration directory,
-    which is where an installed copy should create one. It does not have to
-    exist yet: creating it is half of what this interface is for.
+    Three answers, highest first: a file named on the command line, the one
+    remembered in ``setup.json`` from a previous run, and otherwise whatever
+    the search would read — which is the per-user configuration directory
+    when there is nothing anywhere. It does not have to exist yet: creating
+    it is half of what this interface is for.
     """
-    return named if named is not None else resolve_config_file(".env", cwd)
+    if named is not None:
+        return named
+    remembered = read_pins().env_file
+    return remembered if remembered is not None else resolve_config_file(".env", cwd)
+
+
+def target_policy_file(named: Path | None = None) -> Path | None:
+    """The policy file this interface edits, when something says which.
+
+    ``None`` means nobody has said, and the settings decide as they always
+    do. Only the interface reads this: the server resolves its own policy
+    file and never consults the pointers.
+    """
+    if named is not None:
+        return named
+    return read_pins().tools_file
 
 
 def start(
@@ -54,6 +78,9 @@ def start(
 ) -> None:
     """Serve the interface until interrupted."""
     installation = Installation(
-        settings=settings, env_path=env_path, cwd=cwd or Path.cwd()
+        settings=settings,
+        env_path=env_path,
+        cwd=cwd or Path.cwd(),
+        pins=read_pins(),
     )
     serve(installation, port=port, open_browser=open_browser)

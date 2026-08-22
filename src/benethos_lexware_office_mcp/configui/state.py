@@ -19,6 +19,7 @@ from pathlib import Path
 from ..config import Settings, config_candidates, load_settings
 from ..envfile import read_env_file
 from ..policy import ToolPolicy
+from .pins import Pins
 from .profiles import ProfileStore, profile_file
 from .render import (
     CLI_SOURCE,
@@ -26,6 +27,7 @@ from .render import (
     ENV_SOURCE,
     FILE_SOURCE,
     OTHER_FILE_SOURCE,
+    PIN_SOURCE,
 )
 
 __all__ = ["SETTING_KEYS", "Installation"]
@@ -65,6 +67,7 @@ class Installation:
     settings: Settings
     env_path: Path
     cwd: Path = field(default_factory=Path.cwd)
+    pins: Pins = field(default_factory=Pins)
 
     def __post_init__(self) -> None:
         # What `--tools-file` said, kept so that a later reload cannot lose
@@ -119,15 +122,23 @@ class Installation:
         return merged
 
     def source_of(self, key: str) -> str:
-        """Which of the five places this value actually comes from."""
+        """Where this value actually comes from, in the order that decides.
+
+        A file is asked before the command line for one reason: the policy
+        path lands in the settings whether it came from ``--tools-file`` or
+        from ``LXO_MCP_TOOL_POLICY`` in a file, and calling the second one
+        "Aufruf" would be wrong.
+        """
         if os.environ.get(key, "").strip():
             return ENV_SOURCE
-        if key == POLICY_KEY and self.settings.tool_policy_path is not None:
-            return CLI_SOURCE
         supplier = self.source_file(key)
-        if supplier is None:
-            return DEFAULT_SOURCE
-        return FILE_SOURCE if supplier == self.env_path else OTHER_FILE_SOURCE
+        if supplier is not None:
+            return FILE_SOURCE if supplier == self.env_path else OTHER_FILE_SOURCE
+        if key == POLICY_KEY and self.settings.tool_policy_path is not None:
+            if self.settings.tool_policy_path == self.pins.tools_file:
+                return PIN_SOURCE
+            return CLI_SOURCE
+        return DEFAULT_SOURCE
 
     def source_file(self, key: str) -> Path | None:
         """The ``.env`` that supplies this value, if a file does.
@@ -146,10 +157,25 @@ class Installation:
         """A tooltip for the badge: which file, or which variable."""
         if self.shadowed(key):
             return f"Umgebungsvariable {key}"
-        if key == POLICY_KEY and self.settings.tool_policy_path is not None:
-            return "Mit --tools-file auf der Kommandozeile benannt."
         supplier = self.source_file(key)
-        return str(supplier) if supplier is not None else ""
+        if supplier is not None:
+            return str(supplier)
+        if key == POLICY_KEY and self.settings.tool_policy_path is not None:
+            if self.settings.tool_policy_path == self.pins.tools_file:
+                return "Für diese Oberfläche gemerkt, siehe Übersicht."
+            return "Mit --tools-file auf der Kommandozeile benannt."
+        return ""
+
+    def retarget(self, env_path: Path, policy_path: Path | None) -> None:
+        """Work on these files from now on, and remember them.
+
+        Only this interface moves. The server resolves its own policy file
+        and never reads the pointers - see `pins.py`.
+        """
+        self.env_path = env_path
+        self.pins = Pins(env_file=env_path, tools_file=policy_path)
+        self._named_policy = policy_path
+        self.reload()
 
     def shadowed(self, key: str) -> bool:
         """Whether writing this key here would have no effect.
