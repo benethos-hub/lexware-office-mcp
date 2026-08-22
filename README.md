@@ -223,33 +223,23 @@ cut access if anything looks wrong.
 
 ## Installation
 
-With [uv](https://docs.astral.sh/uv/):
+**Nothing has to be installed.** With
+[uv](https://docs.astral.sh/uv/), `uvx` fetches the package and runs it:
 
 ```bash
-uv tool install benethos-lexware-office-mcp
-```
-
-uv installs the command into its own tool directory, which is **not on the
-`PATH` of a fresh install** — it says so when it finishes. Run
-`uv tool update-shell` and open a new terminal, or call the executable by the
-path uv printed.
-
-Then configure it in a browser:
-
-```bash
-benethos-lexware-office-mcp setup
+uvx benethos-lexware-office-mcp setup
 ```
 
 That opens the interface described under
 [Configuring it in a browser](#configuring-it-in-a-browser): key, settings and
 one checkbox per tool. Everything it does can also be done by hand — start a
-settings file with `benethos-lexware-office-mcp --settings-sample >
+settings file with `uvx benethos-lexware-office-mcp --settings-sample >
 config/.env`, put the key in it, and use `--tools` as described below.
 
 Check that it works:
 
 ```bash
-benethos-lexware-office-mcp --help
+uvx benethos-lexware-office-mcp --help
 ```
 
 Then point Claude Desktop at it in `claude_desktop_config.json`:
@@ -275,6 +265,15 @@ the package up by name. Two things worth knowing about that entry:
   one your terminal has — some GUI clients pass a reduced environment. If the
   server does not start, put the absolute path to `uvx` in `command`, and
   restart the client fully rather than reloading it.
+
+**Would rather have a command of your own?**
+`uv tool install benethos-lexware-office-mcp` gives you
+`benethos-lexware-office-mcp` without the `uvx` in front, which is worth it if
+you change permissions from the command line often. It buys nothing else: the
+same version can be pinned either way, and a warm start differs by tens of
+milliseconds. One thing to know — uv installs it into its own tool directory,
+which is **not on the `PATH` of a fresh install**. It says so when it
+finishes. Run `uv tool update-shell` and open a new terminal.
 
 **From the sources instead**, to develop or to run something unreleased:
 
@@ -311,7 +310,7 @@ window — so the tool list is reloaded.
 ## Configuring it in a browser
 
 ```bash
-benethos-lexware-office-mcp setup
+uvx benethos-lexware-office-mcp setup
 ```
 
 Three pages on `127.0.0.1`, closed with Ctrl+C. They write the same files the
@@ -381,7 +380,7 @@ One JSON file decides what this server offers, and nothing else does. Either
 tick the boxes under `setup` above, or start the file with
 
 ```
-benethos-lexware-office-mcp --tools read-only
+uvx benethos-lexware-office-mcp --tools read-only
 ```
 
 which writes every tool into `tools.json`, reading ones on and the rest off,
