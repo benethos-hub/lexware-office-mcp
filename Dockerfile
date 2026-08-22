@@ -45,6 +45,12 @@ FROM python:3.13-slim AS runtime
 #
 # The API key is not baked in either. It belongs in /config/.env, which the
 # configuration interface writes - see the `setup` profile in compose.yaml.
+#
+# The build warns `SecretsUsedInArgOrEnv` about LXO_MCP_GENERATE_BEARER_TOKEN.
+# That rule matches the name, and the value here is 1: it asks the server to
+# make a token, it is not one. The warning stays rather than being switched
+# off, because the rule would then also stop watching for the mistake it is
+# meant to catch - an actual key written into this file.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
