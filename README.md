@@ -460,10 +460,44 @@ interface groups and marks by. It never decides a call: only the file does.
 
 ## Configuration
 
-Settings come from a `.env` file, found the same way the policy file is, or
-from real environment variables, which win over it. `--env-file PATH` names
-one instead of searching, and pairs with `--tools-file` so that one entry in a
-client's configuration carries its own account and its own permissions:
+### Where a value comes from, and which one wins
+
+Six sources, **lowest first** — a later one overrides an earlier one:
+
+1. the built-in default
+2. `.env` in the per-user configuration directory
+3. `config/.env` of the checkout the server runs from, if it runs from one
+4. `config/.env` and then `.env` in the working directory
+5. the file `--env-file` names, which is read **after** all of those rather
+   than instead of them: it was named rather than found, so it outranks them
+6. **a real environment variable**, which beats every file
+
+The last one is the one that surprises people. A setting exported in your
+shell, put in a client's `env` block, or pinned in a Compose file **cannot be
+changed by editing a `.env`** — not by hand, and not through `setup`. The
+value is written, the file is correct, and nothing happens.
+
+The configuration interface says so rather than letting you find out: each
+setting carries a badge naming its source, and one that an environment
+variable is holding is marked as such. When something you saved seems to be
+ignored, that badge is the answer.
+
+**In a container this is not an edge case.** `compose.yaml` pins the
+transport, the bind address, the port and the allowed hosts as real
+environment variables, because those belong to the container rather than to
+the installation inside it. Everything else — the API key, the HTTP token,
+the limits — is left to the config volume, which is what makes the
+configuration interface able to change it.
+
+The same order applies to the policy file, and `LXO_MCP_TOOL_POLICY` and
+`--tools-file` name one directly. The interface pins whichever file it found
+when it started, so the page cannot swap its own subject out from under you.
+
+### Naming the files
+
+`--env-file PATH` names a settings file instead of searching, and pairs with
+`--tools-file` so that one entry in a client's configuration carries its own
+account and its own permissions:
 
 ```json
 "args": ["--env-file", "/path/to/test.env",
@@ -473,9 +507,9 @@ client's configuration carries its own account and its own permissions:
 A path that does not exist is refused rather than quietly falling back to the
 search — except under `setup`, which exists partly to create one.
 
-`setup` writes this file for you and shows which of the sources below each
-value is coming from, which is the quickest way to answer "why is this
-setting being ignored".
+`setup` writes this file for you.
+
+### The settings
 
 | Variable | Meaning | Default |
 |---|---|---|
@@ -490,6 +524,14 @@ setting being ignored".
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default | `10` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
+| `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
+| `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport | — |
+| `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport | `127.0.0.1` |
+| `LXO_MCP_HTTP_PORT` | Port to bind | `8770` |
+| `LXO_MCP_HTTP_PATH` | URL path the transport serves on | `/mcp` |
+| `LXO_MCP_ALLOWED_HOSTS` | `Host` values to accept besides loopback, comma separated | — |
+| `LXO_MCP_GENERATE_BEARER_TOKEN` | Make a token at startup if none is set and write it to the settings file | off |
+| `LXO_MCP_EXIT_ON_CONFIG_CHANGE` | End the process when the settings file changes, for something that restarts it | off |
 
 Every setting above is in use. `LXO_MCP_PAGE_SIZE` is capped at 250, which is
 the lowest page size any endpoint accepts, and a larger value is refused at
