@@ -675,11 +675,13 @@ still meets it.
   configuration interface rewrites the whole file on every save, changed or
   not. Two further rules were bought with defects. The baseline is taken
   *after* a generated bearer token has been written, or the process would
-  restart on its own first act. And a difference has to **survive a second
-  look** one interval later before it counts, because a save truncates before
-  it writes and a poll landing inside that window reads an empty file - CI
-  caught exactly that, as a rewrite of identical content ending the process
-  for nothing.
+  restart on its own first act. And **only a value that two reads in a row
+  agree on counts as a state at all**, at both ends of the comparison: a save
+  truncates before it writes, so a poll landing inside one reads an empty
+  file, and a watch that started during a save would otherwise hold that
+  emptiness as its baseline and end the process over the file coming back.
+  CI found it, as a rewrite of identical content ending the process for
+  nothing - a race that needs a loaded machine, which a developer's is not.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).

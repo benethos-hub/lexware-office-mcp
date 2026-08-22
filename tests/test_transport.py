@@ -197,14 +197,16 @@ def test_a_changed_settings_file_ends_the_process(tmp_path: Path) -> None:
     env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
     ended = threading.Event()
     stop = threading.Event()
+    looking = threading.Event()
 
     watcher = threading.Thread(
         target=transport.watch_for_change,
         args=(env, ended.set),
-        kwargs={"stop": stop, "poll": 0.01},
+        kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
     )
     watcher.start()
+    assert looking.wait(5), "the watch never took its baseline"
     env.write_text("LXO_MCP_API_KEY=second\n", encoding="utf-8")
 
     assert ended.wait(5), "the change was not noticed"
@@ -217,14 +219,16 @@ def test_an_untouched_file_ends_nothing(tmp_path: Path) -> None:
     env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
     ended = threading.Event()
     stop = threading.Event()
+    looking = threading.Event()
 
     watcher = threading.Thread(
         target=transport.watch_for_change,
         args=(env, ended.set),
-        kwargs={"stop": stop, "poll": 0.01},
+        kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
     )
     watcher.start()
+    assert looking.wait(5), "the watch never took its baseline"
     assert not ended.wait(0.2)
 
     stop.set()
@@ -238,14 +242,16 @@ def test_the_same_content_written_again_is_not_a_change(tmp_path: Path) -> None:
     env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
     ended = threading.Event()
     stop = threading.Event()
+    looking = threading.Event()
 
     watcher = threading.Thread(
         target=transport.watch_for_change,
         args=(env, ended.set),
-        kwargs={"stop": stop, "poll": 0.01},
+        kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
     )
     watcher.start()
+    assert looking.wait(5), "the watch never took its baseline"
     env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
     assert not ended.wait(0.2)
 
@@ -258,14 +264,16 @@ def test_a_file_that_appears_later_counts_as_a_change(tmp_path: Path) -> None:
     env = tmp_path / ".env"
     ended = threading.Event()
     stop = threading.Event()
+    looking = threading.Event()
 
     watcher = threading.Thread(
         target=transport.watch_for_change,
         args=(env, ended.set),
-        kwargs={"stop": stop, "poll": 0.01},
+        kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
     )
     watcher.start()
+    assert looking.wait(5), "the watch never took its baseline"
     env.write_text("LXO_MCP_API_KEY=written-now\n", encoding="utf-8")
 
     assert ended.wait(5)
@@ -286,18 +294,22 @@ def test_a_file_caught_mid_save_is_not_a_change(
     env = tmp_path / ".env"
     env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
     settled = "the-content"
-    reads = iter([settled, "", settled] + [settled] * 20)
-    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads))
+    # Two agreeing reads, then the emptiness in the middle of a save, then the
+    # same content back. Every read after the list is the settled one.
+    reads = iter([settled, settled, "", settled])
+    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads, settled))
 
     ended = threading.Event()
     stop = threading.Event()
+    looking = threading.Event()
     watcher = threading.Thread(
         target=transport.watch_for_change,
         args=(env, ended.set),
-        kwargs={"stop": stop, "poll": 0.01},
+        kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
     )
     watcher.start()
+    assert looking.wait(5), "the watch never took its baseline"
     assert not ended.wait(0.3)
 
     stop.set()
@@ -308,21 +320,23 @@ def test_a_file_caught_mid_save_is_not_a_change(
 def test_a_change_that_stays_changed_still_ends_the_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The confirming look costs one interval, it does not swallow the change."""
+    """Waiting for the file to settle costs an interval, it swallows nothing."""
     env = tmp_path / ".env"
     env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
-    reads = iter(["before", "after"] + ["after"] * 20)
-    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads))
+    reads = iter(["before", "before", "after"])
+    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads, "after"))
 
     ended = threading.Event()
     stop = threading.Event()
+    looking = threading.Event()
     watcher = threading.Thread(
         target=transport.watch_for_change,
         args=(env, ended.set),
-        kwargs={"stop": stop, "poll": 0.01},
+        kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
     )
     watcher.start()
+    assert looking.wait(5), "the watch never took its baseline"
 
     assert ended.wait(5)
     stop.set()

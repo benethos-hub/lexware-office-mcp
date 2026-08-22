@@ -170,6 +170,7 @@ def watch_for_change(
     *,
     stop: threading.Event,
     poll: float = CONFIG_POLL_SECONDS,
+    ready: threading.Event | None = None,
 ) -> None:
     """Call ``on_change`` once the file differs from what it said at the start.
 
@@ -179,24 +180,54 @@ def watch_for_change(
     mean moving state between two clients. Ending the process instead hands
     the problem to whatever started it, and a fresh one reads everything
     again. Nothing calls this unless something is there to restart it.
+
+    ``ready`` is set once the file this is measured against has been read.
+    Nothing in the server passes it: it exists so that a test can write to the
+    file knowing the watch is already looking at it, rather than racing the
+    thread it just started and calling whichever won a property of the code.
     """
-    baseline = _fingerprint(path)
-    while not stop.wait(poll):
-        if _fingerprint(path) == baseline:
-            continue
-        # Saving is a truncate followed by a write, so a poll landing inside
-        # one reads an empty or half-written file and sees a change that is
-        # not there. Look once more before acting: a rewrite of identical
-        # content - which is what the interface does on every save, changed
-        # or not - is back to the baseline by then, while a real change stays
-        # changed and costs one extra interval.
-        if stop.wait(poll):
-            return
-        if _fingerprint(path) == baseline:
-            continue
-        log.info("%s changed, ending this process so it is started again", path.name)
-        on_change()
+    settled, baseline = _settled(path, stop=stop, poll=poll)
+    if not settled:
         return
+    if ready is not None:
+        ready.set()
+    while True:
+        settled, current = _settled(path, stop=stop, poll=poll)
+        if not settled:
+            return
+        if current != baseline:
+            log.info(
+                "%s changed, ending this process so it is started again", path.name
+            )
+            on_change()
+            return
+
+
+def _settled(
+    path: Path, *, stop: threading.Event, poll: float
+) -> tuple[bool, str | None]:
+    """The file's content once it has stopped moving.
+
+    Saving truncates before it writes, so a single read can catch an empty or
+    half-written file and call it a state. Two reads in a row that agree is a
+    state, a read that disagrees with the one before it is a save in progress.
+
+    Both ends of the comparison need this. The interface rewrites the whole
+    file on every save, changed or not, so the difference the watch looks for
+    is often only the momentary emptiness in the middle of one - and a watch
+    started while a save was in flight would otherwise take that emptiness as
+    the baseline and end the process over the file coming back.
+
+    Returns ``(False, None)`` when asked to stop, which is the only reason it
+    gives up.
+    """
+    seen = _fingerprint(path)
+    while not stop.wait(poll):
+        again = _fingerprint(path)
+        if again == seen:
+            return True, seen
+        seen = again
+    return False, None
 
 
 def run_http(
