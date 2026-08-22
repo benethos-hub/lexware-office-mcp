@@ -226,20 +226,10 @@ cut access if anything looks wrong.
 
 ## Installation
 
-**1. Install uv**, if you have not already. It comes with `uvx`, and it is the
-only thing this needs — see the
+**1. Install uv**, if you have not already — the
 [uv installation page](https://docs.astral.sh/uv/getting-started/installation/)
-for every method:
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-```powershell
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+covers every platform. It brings `uvx`, and that is the only thing needed
+here.
 
 **2. Configure the server.** Nothing has to be installed for this: `uvx`
 fetches the package and runs it.
@@ -323,7 +313,11 @@ using the server, delete it **and revoke the key** under Extensions, Public
 API — revoking is the only step that actually ends access.
 
 **4. Restart Claude Desktop fully** — quit it from the tray rather than
-closing the window — so the tool list is reloaded.
+closing the window. That is for the configuration file you just edited, which
+a client reads once at startup, and it is what a changed setting in the `.env`
+needs too — the server reads those at startup as well. It is **not** needed
+for permissions: change those later and the running client is told, see
+[Switching individual tools off](#switching-individual-tools-off).
 
 ## Configuring it in a browser
 
