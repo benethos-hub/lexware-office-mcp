@@ -52,6 +52,10 @@ housekeeping are out of scope here — design decisions live in
   empty one: blank means unchanged for the API key, whose field is blank by
   design, but the token field shows what is in force, so blank there could
   only mean a server that stops serving.
+- **The package declares its types** (PEP 561). Code that imports this
+  package now gets its annotations checked instead of skipped - a type
+  checker ignores every annotation in an installed package that carries no
+  `py.typed` marker, however completely it is annotated.
 - **The image is published**, so a container no longer means cloning this
   repository and building one. A release pushes
   `ghcr.io/benethos-hub/lexware-office-mcp` for `linux/amd64` and
