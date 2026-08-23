@@ -606,8 +606,12 @@ The token it generated for itself is in the config volume, which is where you
 read it from:
 
 ```bash
-docker exec lexware-office-mcp cat /config/.env
+docker exec lexware-office-mcp grep LXO_MCP_BEARER_TOKEN /config/.env
 ```
+
+That one line rather than the whole file: once a key has been entered, the
+API key sits in there too, and it has no business scrolling through a
+terminal you might screenshot.
 
 The configuration interface is the same image with its other command, pointed
 at the same volume:
