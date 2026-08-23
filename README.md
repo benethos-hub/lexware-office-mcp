@@ -580,7 +580,13 @@ Use `:0.2.0` instead of `:latest` to pin a version.
 ```bash
 docker compose up -d                      # the server, on 127.0.0.1:8770
 docker compose --profile setup up -d      # add the configuration interface
+docker compose rm -f -s setup             # take the interface away again
 ```
+
+**Not `docker compose --profile setup down`.** That is the whole project: it
+takes the server down with it. `rm -f -s setup` stops and removes the one
+service and leaves the server running. `docker compose stop setup` also works
+and keeps the stopped container around for next time.
 
 As shipped, `compose.yaml` builds from this checkout. Two commented lines in
 each of its two services switch it to the published image, and that file is
@@ -615,17 +621,32 @@ docker run --rm -d --name lexware-office-mcp-setup \
         --env-file /config/.env --tools-file /config/tools.json
 ```
 
+It was started with `--rm`, so stopping it is also the end of it:
+
+```bash
+docker stop lexware-office-mcp-setup
+```
+
 **`--restart unless-stopped` is not decoration here.** The container ends its
 process when the settings file changes, which is what carries a saved setting
 into a running server. With no restart policy it ends and stays ended.
 
-### Either way
+### Turn the interface off when you are done
 
-Open <http://127.0.0.1:8771/>, enter the key, tick the tools, then stop the
-interface again — `docker compose --profile setup down`, or
-`docker stop lexware-office-mcp-setup`. It is meant to run for the minutes it
-is needed rather than permanently, because it has no login and it takes an
-API key.
+Open <http://127.0.0.1:8771/>, enter the key, tick the tools — and then stop
+it. **Nothing stops it for you.** It has no login, it accepts an API key, and
+it will happily keep serving that page for as long as the machine is up.
+
+```bash
+docker compose rm -f -s setup             # Compose
+docker stop lexware-office-mcp-setup      # a single container
+docker ps --filter name=setup             # nothing listed means it is off
+```
+
+The server is meant to run. The interface is meant to run for the minutes you
+are configuring in it, which is why a plain `docker compose up` leaves it out
+and why it has no restart policy: once stopped, it stays stopped until you
+ask for it again.
 
 **Nothing has to be prepared first.** On its first start the server makes a
 bearer token, writes it into the config volume and says so — the interface
