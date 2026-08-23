@@ -1990,9 +1990,11 @@ order:
 6. **What the build reaches for stays on a floating tag**, decided
    2026-08-23. The base image is `python:3.14-slim`, the uv binary comes from
    `ghcr.io/astral-sh/uv:0.12`, and the workflow actions are pinned by major
-   version. All three follow their line rather than a digest, which means a
-   security fix arrives without anyone acting - and that a build from today
-   is not bit-for-bit the build from last week. Pinning digests reverses that
+   version - except `astral-sh/setup-uv`, which carries a full version because
+   it stopped publishing floating tags with its v8, so `@v10` resolves to
+   nothing and fails a job before it starts. These follow their line rather
+   than a digest, which means a security fix arrives without anyone acting -
+   and that a build from today is not bit-for-bit the build from last week. Pinning digests reverses that
    trade: reproducible, and every patch waits for a pull request. For an image
    that holds an accounting credential, arriving patches are worth more than
    reproducible bytes, and nothing here needs a byte-identical rebuild to

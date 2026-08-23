@@ -63,7 +63,7 @@ jobs:
       # identity that uploads to PyPI, and a restored cache is one more thing
       # that would have to be trusted. It installs almost nothing anyway.
       - name: Install uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Build sdist and wheel
         run: uv build
