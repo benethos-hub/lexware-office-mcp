@@ -511,9 +511,11 @@ async def test_a_create_never_offers_to_set_the_status() -> None:
     """The API refuses a POST that carries one, whatever it says.
 
     Measured on 2026-08-23 against three voucher types with everything else
-    valid: `voucherStatus: invalid_value`, every time. The tool used to take
-    an `unchecked` flag for it, so every call that set it failed. There is no
-    way through this API to record a voucher for review.
+    valid: `voucherStatus: invalid_value`, every time. It was accepted on
+    2026-08-20 and the vouchers it made are still in the test account, so this
+    is the upstream moving rather than a parameter that never worked - which
+    is exactly what an offline suite cannot notice. `upload_file` still files
+    a document as unchecked, so the state is reachable, just not from here.
     """
     server, _provider = server_for(Scripted((201, WRITTEN)))
     schema = {tool.name: tool.input_schema for tool in await server.list_tools()}[

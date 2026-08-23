@@ -593,14 +593,24 @@ still meets it.
 - **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
   answers 404, so a wrong entry has to be corrected in the web app. It is
   booked as `open` the moment it is created.
-- **A POST cannot ask for a status, and `unchecked` is not a way in.**
-  **Measured 2026-08-23** against `salesinvoice`, `purchaseinvoice` and
-  `salescreditnote`, each with a valid number, date, tax type and line: every
-  one refused with `voucherStatus: invalid_value`. This document claimed the
-  opposite from 2026-08-20 and the tool carried an `unchecked` flag for it, so
-  every call that set the flag failed. The claim was almost certainly read off
-  the **voucher list filter**, which does accept `unchecked` — a different
-  endpoint answering a different question. Removed in 0.2.2.
+- **A POST can no longer ask for a status. This one changed under us.**
+  **Measured 2026-08-20:** `voucherStatus: unchecked` was accepted, and five
+  vouchers created that day still sit in the test account saying so, one of
+  them remarked "ueber create_voucher angelegt". **Measured again 2026-08-23:**
+  the same call is refused with `voucherStatus: invalid_value`, across
+  `salesinvoice`, `purchaseinvoice` and `salescreditnote`, each with a valid
+  number, date, tax type and line. Three days, no change on this side.
+
+  This is the drift section 14.1 exists for: the offline suite mocks HTTP and
+  stayed green throughout, and only a live call could see it. The `unchecked`
+  parameter is removed in 0.2.2 because a parameter that fails every time is
+  worse than an absent one. If the API accepts it again, it can come back —
+  the payload builder is the only place that would change.
+
+  **The state itself is still reachable, just not this way.** `upload_file`
+  creates a `purchaseinvoice` in `unchecked`, verified 2026-08-23 by reading
+  back the voucher an upload had just made. Recording a receipt for review is
+  what that endpoint is for.
 - **Every voucher type requires `voucherNumber`. Measured 2026-08-23**, all
   four: without it the POST is refused with `voucherNumber: missing_entity`.
   The parameter was optional and is now required, so the schema refuses the
@@ -615,7 +625,15 @@ still meets it.
   validation failure arrives as **406**.
 - **Payment information exists only once a voucher is booked.** Asking for an
   `unchecked` one is refused with "No payment information for this
-  voucher/voucher type".
+  voucher/voucher type", and a draft sales document with "No payment
+  information for this invoice in draft" — the wording names the state.
+- **`paymentStatus` is its own vocabulary, not the voucher status again.**
+  **Measured 2026-08-23** by asking every voucher in the test account: the
+  answers were `openRevenue` for money owed to the account and `openExpense`
+  for money it owes, where the voucher list calls both of them `open` or
+  `overdue`. There is no plain `open` on this side. A caller matching payment
+  answers against the list vocabulary would match nothing, which is why
+  `get_payments` passes the value through untouched.
 
 ### Document semantics that shape the tools
 
@@ -939,14 +957,14 @@ exposed one tool per path.
 **What the tool list actually costs, measured 2026-08-21, again on
 2026-08-22 with the annotations below, and again on 2026-08-23 after
 `create_voucher` lost a parameter that could not work.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **52,012
-characters**, around 2,080 each. Roughly 13,000 to 15,000 tokens, estimated at
+compact JSON a `tools/list` answer is, twenty-five tools come to **52,091
+characters**, around 2,084 each. Roughly 13,000 to 15,000 tokens, estimated at
 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 33,274 | 64% |
-| Tool descriptions, the part under a ceiling | 10,887 | 21% |
+| Tool descriptions, the part under a ceiling | 10,965 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,115 | 2% |
 | Names, titles and the rest | ~2,092 | 4% |

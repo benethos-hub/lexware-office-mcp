@@ -17,11 +17,14 @@ housekeeping are out of scope here — design decisions live in
 
 ### Removed
 
-- **`create_voucher` no longer takes `unchecked`.** It could not work: the API
-  refuses any voucher creation that names a status, so every call that set the
-  flag failed with `voucherStatus: invalid_value`. Measured against three
-  voucher types on 2026-08-23. There is no way through this API to record a
-  bookkeeping voucher for review - it is booked as it is created.
+- **`create_voucher` no longer takes `unchecked`.** The API stopped accepting
+  it. It worked on 2026-08-20 and on 2026-08-23 the same call is refused with
+  `voucherStatus: invalid_value`, across three voucher types - so every call
+  setting the flag now fails. A voucher is booked as it is created and no
+  status can be asked for.
+
+  To record a receipt for review rather than book it, use `upload_file`: it
+  files the document as an unchecked purchase invoice, which still works.
 
 ### Changed
 

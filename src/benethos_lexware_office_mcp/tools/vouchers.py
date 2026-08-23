@@ -342,8 +342,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
         Every line needs a posting category **id**, from `get_master_data`
         with kind 'posting-categories'. Totals are added up from the lines
-        unless stated. It is booked immediately, and there is no way through
-        this API to park one for review.
+        unless stated. It is booked immediately and no status can be asked
+        for. To record a receipt for review instead, use `upload_file`, which
+        files it as an unchecked purchase invoice.
         """
         body = voucher_body(
             voucher_type=voucher_type,
