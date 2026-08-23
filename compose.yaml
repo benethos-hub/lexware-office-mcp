@@ -2,15 +2,20 @@
 # in a browser without a terminal.
 #
 #   docker compose up -d                     start the server
-#   docker compose --profile setup up        add the configuration interface
-#   docker compose --profile setup down      take it away again
+#   docker compose --profile setup up -d     add the configuration interface
+#   docker compose rm -f -s setup            take the interface away again
 #   docker compose logs -f                   follow what it says
 #   docker compose down                      stop everything
+#
+# `rm -f -s setup` rather than `--profile setup down`: down is the whole
+# project and takes the server with it, which is not what "close the settings
+# page" should mean.
 #
 # The configuration interface is behind a profile on purpose. It has no login,
 # it accepts an API key, and it is needed for minutes rather than months. A
 # profile is not started by a plain `up`, so leaving it out of the file would
-# be the only stronger statement.
+# be the only stronger statement. **Nothing stops it for you** - no restart
+# policy brings it back, and no command removes it unless you run one.
 
 name: benethos-lexware-office-mcp
 
@@ -66,8 +71,10 @@ services:
 
   # Started by name, never by a plain `up`:
   #   docker compose --profile setup up -d
-  # Then open http://127.0.0.1:8771/, enter the key, tick the tools, and stop
-  # it again. The server notices the changed file and restarts itself.
+  # Then open http://127.0.0.1:8771/, enter the key, tick the tools. The
+  # server notices the changed file and restarts itself. Then put this one
+  # away again, by hand, because nothing else will:
+  #   docker compose rm -f -s setup
   setup:
     profiles: ["setup"]
     # The same image as above, serving its other command. Switch it the same
