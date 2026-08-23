@@ -15,6 +15,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [0.2.2] - 2026-08-23
 
+### Changed
+
+- **The package now says Beta rather than Alpha** on the package index. What
+  it claims is that the surface has stopped moving: twenty-five tools built
+  and each exercised against a live account, two transports, a container
+  image, and every release so far additive or a correction. It is not a claim
+  that this is an official Lexware product, which it is not, or that a
+  release cannot break something.
+
 ### Fixed
 
 - **`--env-file` now reads that file and no other.** Its help has always said
