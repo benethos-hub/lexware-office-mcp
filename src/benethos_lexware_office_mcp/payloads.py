@@ -267,7 +267,6 @@ def voucher_body(
     total_gross_amount: float | None = None,
     total_tax_amount: float | None = None,
     remark: str | None = None,
-    voucher_status: str | None = None,
 ) -> dict[str, Any]:
     """Build the body for creating or updating a bookkeeping voucher.
 
@@ -278,6 +277,12 @@ def voucher_body(
     them. That is arithmetic, not invention: the API rejects totals that do
     not match the lines, and a caller who does state them has theirs sent
     unchanged and checked upstream.
+
+    **No ``voucherStatus`` is ever sent.** A POST carrying one is refused with
+    ``voucherStatus: invalid_value``, measured on 2026-08-23 across three
+    voucher types, and a PUT carrying one is refused the same way - which is
+    what :data:`VOUCHER_PUT_DROP` strips out of the record being merged. The
+    state a voucher is created in is the API's to decide.
     """
     body: dict[str, Any] = (
         {k: v for k, v in base.items() if k not in VOUCHER_PUT_DROP}
@@ -292,7 +297,6 @@ def voucher_body(
     _set(body, "shippingDate", shipping_date)
     _set(body, "taxType", tax_type)
     _set(body, "remark", remark)
-    _set(body, "voucherStatus", voucher_status)
 
     if contact_id is not None:
         body["contactId"] = contact_id

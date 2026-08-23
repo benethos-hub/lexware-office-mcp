@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.2.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.2.2.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -492,9 +492,10 @@ nothing could be created or changed:
 - **A sales document cannot be changed, finalized or deleted after creation.**
   `?finalize=true` is a parameter on the creation, not an operation on a
   draft. A draft is edited or removed in the web app or not at all.
-- **A bookkeeping voucher cannot be booked.** Its status is set when it is
-  created — `unchecked` or nothing — and a PUT that echoes `voucherStatus` is
-  refused outright, which is the same fact seen from the other side.
+- **A bookkeeping voucher cannot be booked, and it cannot be parked either.**
+  The API sets the status itself and refuses any request that names one:
+  `voucherStatus: invalid_value`, on a POST as much as on a PUT. What a
+  voucher is created as is not the caller's to decide.
 - **Only an article can be deleted**, which makes `delete` the one
   irreversible effect this API offers and the only member of the
   `irreversible` preset there will be until the API grows.
@@ -590,9 +591,30 @@ still meets it.
 - **`sort` accepts only the voucher date**, ascending or descending. Anything
   else is refused with "parameter 'sort' is invalid".
 - **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
-  answers 404, so a wrong entry has to be corrected in the web app. Creating
-  one without `voucherStatus` books it as `open` immediately, and
-  `voucherStatus: unchecked` is the way to record one that still needs review.
+  answers 404, so a wrong entry has to be corrected in the web app. It is
+  booked as `open` the moment it is created.
+- **A POST can no longer ask for a status. This one changed under us.**
+  **Measured 2026-08-20:** `voucherStatus: unchecked` was accepted, and five
+  vouchers created that day still sit in the test account saying so, one of
+  them remarked "ueber create_voucher angelegt". **Measured again 2026-08-23:**
+  the same call is refused with `voucherStatus: invalid_value`, across
+  `salesinvoice`, `purchaseinvoice` and `salescreditnote`, each with a valid
+  number, date, tax type and line. Three days, no change on this side.
+
+  This is the drift section 14.1 exists for: the offline suite mocks HTTP and
+  stayed green throughout, and only a live call could see it. The `unchecked`
+  parameter is removed in 0.2.2 because a parameter that fails every time is
+  worse than an absent one. If the API accepts it again, it can come back —
+  the payload builder is the only place that would change.
+
+  **The state itself is still reachable, just not this way.** `upload_file`
+  creates a `purchaseinvoice` in `unchecked`, verified 2026-08-23 by reading
+  back the voucher an upload had just made. Recording a receipt for review is
+  what that endpoint is for.
+- **Every voucher type requires `voucherNumber`. Measured 2026-08-23**, all
+  four: without it the POST is refused with `voucherNumber: missing_entity`.
+  The parameter was optional and is now required, so the schema refuses the
+  call before it costs anything.
 - **A PUT must not echo `voucherStatus`.** Unlike a contact, which accepts its
   read-only fields and ignores them, a voucher is refused outright with
   `voucherStatus: invalid_value`. `payloads.VOUCHER_PUT_DROP` is what strips
@@ -603,7 +625,15 @@ still meets it.
   validation failure arrives as **406**.
 - **Payment information exists only once a voucher is booked.** Asking for an
   `unchecked` one is refused with "No payment information for this
-  voucher/voucher type".
+  voucher/voucher type", and a draft sales document with "No payment
+  information for this invoice in draft" — the wording names the state.
+- **`paymentStatus` is its own vocabulary, not the voucher status again.**
+  **Measured 2026-08-23** by asking every voucher in the test account: the
+  answers were `openRevenue` for money owed to the account and `openExpense`
+  for money it owes, where the voucher list calls both of them `open` or
+  `overdue`. There is no plain `open` on this side. A caller matching payment
+  answers against the list vocabulary would match nothing, which is why
+  `get_payments` passes the value through untouched.
 
 ### Document semantics that shape the tools
 
@@ -924,18 +954,19 @@ every request, so a wide surface is paid for continuously. Related endpoints
 are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
-**What the tool list actually costs, measured 2026-08-21 and again on
-2026-08-22 with the annotations below.** Serialized as the compact JSON a
-`tools/list` answer is, twenty-five tools come to **52,221 characters**,
-around 2,089 each. Roughly 13,000 to 15,000 tokens, estimated at 3.2 to 3.8
-characters per token rather than counted with a tokenizer.
+**What the tool list actually costs, measured 2026-08-21, again on
+2026-08-22 with the annotations below, and again on 2026-08-23 after
+`create_voucher` lost a parameter that could not work.** Serialized as the
+compact JSON a `tools/list` answer is, twenty-five tools come to **52,091
+characters**, around 2,084 each. Roughly 13,000 to 15,000 tokens, estimated at
+3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,469 | 64% |
-| Tool descriptions, the part under a ceiling | 10,890 | 21% |
+| Input schemas | 33,274 | 64% |
+| Tool descriptions, the part under a ceiling | 10,965 | 21% |
 | Output schemas | 4,340 | 8% |
-| Annotations | 1,041 | 2% |
+| Annotations | 1,115 | 2% |
 | Names, titles and the rest | ~2,092 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
@@ -1020,7 +1051,7 @@ arguments cost three to four times what the simple ones do.
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and drops the side that is no longer authoritative so a new net price is never sent beside a stale gross one. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
-| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
@@ -2044,8 +2075,9 @@ suggested they were.
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
 | 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the seven checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
 | 0.2.1 | The published image on Python 3.14 | **released 2026-08-23** — no change to the package itself. The tags a user pulls, `latest` and the minor line, follow the release tag, so the base image moves only when a version number is spent on it |
+| 0.2.2 | `--env-file` reads the file it names and no other | **released 2026-08-23** — the flag had promised that in its own help since it was added and read the named file after everything the search found, so it isolated nothing. See section 6. The search behind it follows one rule now as well, which is a decision rather than the fix |
 
-**No feature release is planned between 0.2.1 and whatever a future API
+**No feature release is planned between 0.2.2 and whatever a future API
 version brings.** What was once listed as a phase of its own — booking a
 voucher, and the ZUGFeRD and XRechnung download variants — turned out on
 2026-08-21 to be one operation the API cannot perform and one that

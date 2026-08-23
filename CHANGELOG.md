@@ -13,6 +13,34 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-08-23
+
+### Removed
+
+- **`create_voucher` no longer takes `unchecked`.** The API stopped accepting
+  it. It worked on 2026-08-20 and on 2026-08-23 the same call is refused with
+  `voucherStatus: invalid_value`, across three voucher types - so every call
+  setting the flag now fails. A voucher is booked as it is created and no
+  status can be asked for.
+
+  To record a receipt for review rather than book it, use `upload_file`: it
+  files the document as an unchecked purchase invoice, which still works.
+
+### Changed
+
+- **`create_voucher` requires `voucher_number`.** The API refuses a voucher
+  without one, for all four types, with `voucherNumber: missing_entity`. It
+  was optional, so a call that omitted it spent an API request to be told no.
+  Requiring it in the schema means the caller finds out before anything is
+  sent.
+
+- **The package now says Beta rather than Alpha** on the package index. What
+  it claims is that the surface has stopped moving: twenty-five tools built
+  and each exercised against a live account, two transports, a container
+  image, and every release so far additive or a correction. It is not a claim
+  that this is an official Lexware product, which it is not, or that a
+  release cannot break something.
+
 ### Fixed
 
 - **`--env-file` now reads that file and no other.** Its help has always said
@@ -546,7 +574,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/benethos-hub/lexware-office-mcp/releases/tag/v0.1.0
