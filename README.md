@@ -92,8 +92,8 @@ without a restart.
 
 ## Tools
 
-**Built** means it works today. The rest are specified in
-[SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) and not implemented yet.
+Every tool below is built and was exercised against a live account. None of
+them is enabled until the policy file names it.
 
 Read tools:
 
@@ -747,9 +747,10 @@ prints what it checked, what the account had nothing for, and what failed, and
 it masks record ids so the report can be pasted somewhere. `pytest` never runs
 it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) section 14.1 for why a live check is not a gate.
 
-Contributions and issues are welcome once the first release is out. Until
-then, [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) is the place where design decisions are recorded,
-including the open questions still to be resolved against the live API.
+Contributions and issues are welcome.
+[SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md)
+is where design decisions are recorded, with the reasoning and the
+measurements behind them.
 
 ## License
 
