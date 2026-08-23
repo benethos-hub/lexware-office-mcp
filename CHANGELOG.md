@@ -15,6 +15,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The container image runs Python 3.14** instead of 3.13, which is the
+  newest version this package supports and is tested against. It reaches the
+  image only — an installation from the package index uses whatever Python it
+  is installed into, unchanged at 3.11 or newer.
 - **Locked dependencies refreshed** — one patch release, `ruff` 0.16.3 to
   0.16.4. It reaches the development environment and CI only: the declared
   ranges in `pyproject.toml` are unchanged, so an installation from the
