@@ -5,7 +5,7 @@
 # carries no build tools, no lockfile and no sources.
 
 # ---- builder ---------------------------------------------------------------
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 # The uv binary from its own image, pinned to a minor line so a rebuild is
 # reproducible enough to be worth repeating.
@@ -29,7 +29,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
 # ---- runtime ---------------------------------------------------------------
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # **Why this binds 0.0.0.0.** A process on the container's own loopback cannot
 # be reached through a published port at all - Docker forwards to the
