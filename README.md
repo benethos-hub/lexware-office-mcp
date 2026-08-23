@@ -227,6 +227,12 @@ cut access if anything looks wrong.
 
 ## Installation
 
+The simplest way to run the server — no clone, no manual virtual environment,
+no `git`. `uvx` fetches and runs it on demand from
+[PyPI](https://pypi.org/project/benethos-lexware-office-mcp/) (published as
+`benethos-lexware-office-mcp`). To run it in a container instead, see
+[In a container](#in-a-container).
+
 **1. Install uv**, if you have not already — the
 [uv installation page](https://docs.astral.sh/uv/getting-started/installation/)
 covers every platform. It brings `uvx`, and that is the only thing needed
