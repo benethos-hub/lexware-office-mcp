@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **Locked dependencies refreshed** — one patch release, `ruff` 0.16.3 to
+  0.16.4. It reaches the development environment and CI only: the declared
+  ranges in `pyproject.toml` are unchanged, so an installation from the
+  package index resolves exactly as before, and the container image installs
+  without the development extra.
+
 ## [0.2.0] - 2026-08-22
 
 ### Added
