@@ -39,12 +39,23 @@ def test_the_typing_marker_sits_beside_the_code() -> None:
 VERSION_EXAMPLES = (
     # The exact pin the client configuration shows.
     ("README.md", r"benethos-lexware-office-mcp==(\d+\.\d+\.\d+)"),
-    # The image tag to pin instead of `:latest`. `:0.2` names a minor line on
-    # purpose and has two components, so it is not matched.
+    # An exact image tag in backticks. The minor line beside it has only two
+    # components, so it is not matched here - it is checked below instead.
     ("README.md", r"`:(\d+\.\d+\.\d+)`"),
+    ("compose.yaml", r"`:(\d+\.\d+\.\d+)`"),
     # The status line each document opens with.
     ("README.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
+)
+
+# The minor-line tag, which follows patch releases rather than naming one. It
+# is right for it to stay put across a patch bump and wrong for it to stay put
+# across a minor one, so it is compared against the first two components rather
+# than against the whole version. Nothing else here would notice: the tag keeps
+# resolving, it simply stops at the previous line and never sees this release.
+MINOR_LINE_EXAMPLES = (
+    ("README.md", r"`:(\d+\.\d+)`"),
+    ("compose.yaml", r"`:(\d+\.\d+)`"),
 )
 
 
@@ -63,6 +74,25 @@ def test_the_documented_version_examples_are_current(
         f"{relative_path} still shows {stale}, the package is at "
         f"{benethos_lexware_office_mcp.__version__}. Anyone copying that "
         "example uses an older release than the one they are reading about."
+    )
+
+
+@pytest.mark.parametrize(("relative_path", "pattern"), MINOR_LINE_EXAMPLES)
+def test_the_documented_minor_line_examples_are_current(
+    relative_path: str, pattern: str
+) -> None:
+    text = (REPO / relative_path).read_text(encoding="utf-8")
+    found = re.findall(pattern, text)
+
+    assert found, f"{relative_path} no longer contains {pattern!r}"
+
+    major, minor, *_ = benethos_lexware_office_mcp.__version__.split(".")
+    current = f"{major}.{minor}"
+    stale = sorted({v for v in found if v != current})
+    assert not stale, (
+        f"{relative_path} still offers {stale} as the minor line to follow, but "
+        f"the package is on {current}. That tag stops at the previous minor and "
+        "never sees this release."
     )
 
 
