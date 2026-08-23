@@ -97,37 +97,37 @@ them is enabled until the policy file names it.
 
 Read tools:
 
-| Tool | What it does | Status |
-|---|---|---|
-| `get_profile` | Company profile and connection check | **built** |
-| `search_contacts` | Find customers and vendors by name, email, number or role | **built** |
-| `get_contact` | One contact with addresses, roles and version | **built** |
-| `search_articles` | List articles, filtered by number, barcode or kind. The API offers no search by title | **built** |
-| `get_article` | One article with its price block and version | **built** |
-| `search_vouchers` | The central query — filter the voucher list by type, status, contact, date range and what is still open | **built** |
-| `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice in full | **built** |
-| `get_voucher` | Read a bookkeeping voucher, by id or by its document number | **built** |
-| `get_payments` | Payment status and open amount of a voucher | **built** |
-| `get_recurring_templates` | Templates that issue invoices on a schedule, one or a page of them | **built** |
-| `get_master_data` | Countries, payment conditions, posting categories and print layouts, with a search to narrow them | **built** |
-| `download_document` | Save the rendered PDF or XML of a sales document | **built** |
-| `download_file` | Save a stored file, such as an uploaded receipt | **built** |
-| `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link | **built** |
-| `get_deeplink` | Build a permalink to a sales document, contact or voucher in the web app, without an API call | **built** |
+| Tool | What it does |
+|---|---|
+| `get_profile` | Company profile and connection check |
+| `search_contacts` | Find customers and vendors by name, email, number or role |
+| `get_contact` | One contact with addresses, roles and version |
+| `search_articles` | List articles, filtered by number, barcode or kind. The API offers no search by title |
+| `get_article` | One article with its price block and version |
+| `search_vouchers` | The central query — filter the voucher list by type, status, contact, date range and what is still open |
+| `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice in full |
+| `get_voucher` | Read a bookkeeping voucher, by id or by its document number |
+| `get_payments` | Payment status and open amount of a voucher |
+| `get_recurring_templates` | Templates that issue invoices on a schedule, one or a page of them |
+| `get_master_data` | Countries, payment conditions, posting categories and print layouts, with a search to narrow them |
+| `download_document` | Save the rendered PDF or XML of a sales document |
+| `download_file` | Save a stored file, such as an uploaded receipt |
+| `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link |
+| `get_deeplink` | Build a permalink to a sales document, contact or voucher in the web app, without an API call |
 
 Write tools. These change real accounting records, so enable them one at a time and against an account you are willing to have changed:
 
-| Tool | What it does | Status |
-|---|---|---|
-| `create_contact` | Create a customer or vendor | **built** |
-| `update_contact` | Change one, without touching what you did not name | **built** |
-| `create_article` | Add an article to the catalogue | **built** |
-| `update_article` | Change one, without touching what you did not name | **built** |
-| `create_voucher` | Record a bookkeeping voucher | **built** |
-| `update_voucher` | Change one that is already recorded | **built** |
-| `create_sales_document` | Create an invoice, quotation, credit note, order confirmation, delivery note or dunning — a draft unless you ask for it to be issued, which the assistant may only do on your explicit instruction | **built** |
-| `upload_file` | Upload a receipt, which also creates its voucher | **built** |
-| `attach_file_to_voucher` | Hang a file on a voucher that already exists | **built** |
+| Tool | What it does |
+|---|---|
+| `create_contact` | Create a customer or vendor |
+| `update_contact` | Change one, without touching what you did not name |
+| `create_article` | Add an article to the catalogue |
+| `update_article` | Change one, without touching what you did not name |
+| `create_voucher` | Record a bookkeeping voucher |
+| `update_voucher` | Change one that is already recorded |
+| `create_sales_document` | Create an invoice, quotation, credit note, order confirmation, delivery note or dunning — a draft unless you ask for it to be issued, which the assistant may only do on your explicit instruction |
+| `upload_file` | Upload a receipt, which also creates its voucher |
+| `attach_file_to_voucher` | Hang a file on a voucher that already exists |
 
 `update_contact` and `update_voucher` cost two API calls rather than one.
 The API replaces a record instead of patching it, so the current one is read
@@ -138,9 +138,9 @@ update is refused and nothing is written.
 
 One tool deletes, and it is the only one:
 
-| Tool | What it does | Status |
-|---|---|---|
-| `delete_article` | Remove an article. The API cannot bring it back. Takes `confirm: true`, and sends nothing without it | **built** |
+| Tool | What it does |
+|---|---|
+| `delete_article` | Remove an article. The API cannot bring it back. Takes `confirm: true`, and sends nothing without it |
 
 It is the only member of the `--tools irreversible` step so far, so that step
 is the only way to switch it on. An article is also the only thing this API
