@@ -118,6 +118,12 @@ new HTTP call goes in `client.py`, never in a tool function.
    metadata for whoever writes the policy file, never a permission: the file
    alone decides. A new tool is **off** until the file
    names it, so run `--tools` after adding one, or it will not appear.
+
+   **The MCP annotations follow from this and are not written per tool.**
+   `tools/_base.py` derives `readOnlyHint`, `destructiveHint` and
+   `idempotentHint` from what you declare here, so a tool cannot tell the
+   policy file one thing and a client another. The exception is a tool that
+   answers without reaching the API: add it to `_CLOSED_WORLD` there.
 6. Record its API call cost in the tool table in SPECS.md section 8.
 7. Add offline tests. Never hit the network in the suite.
 
@@ -179,7 +185,10 @@ measurement of what the whole list costs.
 
 ## Verifying
 
-- Tests: `uv run pytest -q` (must stay green, offline).
+- Tests: `uv run pytest -q` (must stay green, offline). Among them are
+  guards that read the README: no relative link, since PyPI renders it without
+  the repository around it, the tool tables against what is registered, and
+  every quoted version against the package.
 - Lint and format: `uv run ruff check .` and `uv run ruff format .`
   (CI checks `ruff format --check`).
 - Types: `uv run mypy`.
