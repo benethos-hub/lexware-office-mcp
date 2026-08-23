@@ -492,6 +492,7 @@ async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
             "voucher_type": "salesinvoice",
             "voucher_date": "2026-08-19",
             "tax_type": "gross",
+            "voucher_number": "RE-2026-014",
             "items": [LINE],
         },
     )
@@ -506,23 +507,36 @@ async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
     await provider.aclose()
 
 
-async def test_unchecked_records_it_for_review_instead_of_booking_it() -> None:
-    handler = Scripted((201, WRITTEN))
-    server, provider = server_for(handler)
+async def test_a_create_never_offers_to_set_the_status() -> None:
+    """The API refuses a POST that carries one, whatever it says.
 
-    await server.call_tool(
-        "create_voucher",
-        {
-            "voucher_type": "salesinvoice",
-            "voucher_date": "2026-08-19",
-            "tax_type": "gross",
-            "items": [LINE],
-            "unchecked": True,
-        },
-    )
+    Measured on 2026-08-23 against three voucher types with everything else
+    valid: `voucherStatus: invalid_value`, every time. The tool used to take
+    an `unchecked` flag for it, so every call that set it failed. There is no
+    way through this API to record a voucher for review.
+    """
+    server, _provider = server_for(Scripted((201, WRITTEN)))
+    schema = {tool.name: tool.input_schema for tool in await server.list_tools()}[
+        "create_voucher"
+    ]
 
-    assert handler.body(0)["voucherStatus"] == "unchecked"
-    await provider.aclose()
+    assert "unchecked" not in schema["properties"]
+    assert "voucher_status" not in schema["properties"]
+
+
+async def test_a_voucher_number_is_required_because_the_api_insists() -> None:
+    """Absent, the API answers `voucherNumber: missing_entity`.
+
+    Measured on 2026-08-23 for all four voucher types. Requiring it in the
+    schema turns a wasted call that books nothing into an argument error the
+    caller sees before anything is sent.
+    """
+    server, _provider = server_for(Scripted((201, WRITTEN)))
+    schema = {tool.name: tool.input_schema for tool in await server.list_tools()}[
+        "create_voucher"
+    ]
+
+    assert "voucher_number" in schema["required"]
 
 
 async def test_a_create_is_never_retried() -> None:
@@ -537,6 +551,7 @@ async def test_a_create_is_never_retried() -> None:
                 "voucher_type": "salesinvoice",
                 "voucher_date": "2026-08-19",
                 "tax_type": "gross",
+                "voucher_number": "RE-2026-014",
                 "items": [LINE],
             },
         )

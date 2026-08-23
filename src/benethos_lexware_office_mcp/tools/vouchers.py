@@ -288,14 +288,16 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         ],
         items: Items,
         voucher_number: Annotated[
-            str | None,
+            str,
             Field(
+                min_length=1,
                 description=(
                     "The number on the document being recorded, for example "
-                    "the supplier's invoice number."
-                )
+                    "the supplier's invoice number. Required by the API for "
+                    "every voucher type."
+                ),
             ),
-        ] = None,
+        ],
         contact_id: Annotated[
             str | None,
             Field(
@@ -330,16 +332,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         remark: Annotated[
             str | None, Field(description="A note kept with the voucher.")
         ] = None,
-        unchecked: Annotated[
-            bool,
-            Field(
-                description=(
-                    "Record it as unchecked, for a voucher that still needs a "
-                    "human to look at it. Left false, it is recorded as open, "
-                    "which is a booked entry in the accounts."
-                )
-            ),
-        ] = False,
     ) -> dict[str, Any]:
         """Record a bookkeeping voucher in the account.
 
@@ -350,8 +342,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
         Every line needs a posting category **id**, from `get_master_data`
         with kind 'posting-categories'. Totals are added up from the lines
-        unless stated. Set `unchecked` for an entry that should wait for
-        review instead of counting immediately.
+        unless stated. It is booked immediately, and there is no way through
+        this API to park one for review.
         """
         body = voucher_body(
             voucher_type=voucher_type,
@@ -366,7 +358,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             total_gross_amount=total_gross_amount,
             total_tax_amount=total_tax_amount,
             remark=remark,
-            voucher_status="unchecked" if unchecked else None,
         )
         return dict(formatting.compact(await provider.get().create_voucher(body)))
 

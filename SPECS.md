@@ -492,9 +492,10 @@ nothing could be created or changed:
 - **A sales document cannot be changed, finalized or deleted after creation.**
   `?finalize=true` is a parameter on the creation, not an operation on a
   draft. A draft is edited or removed in the web app or not at all.
-- **A bookkeeping voucher cannot be booked.** Its status is set when it is
-  created — `unchecked` or nothing — and a PUT that echoes `voucherStatus` is
-  refused outright, which is the same fact seen from the other side.
+- **A bookkeeping voucher cannot be booked, and it cannot be parked either.**
+  The API sets the status itself and refuses any request that names one:
+  `voucherStatus: invalid_value`, on a POST as much as on a PUT. What a
+  voucher is created as is not the caller's to decide.
 - **Only an article can be deleted**, which makes `delete` the one
   irreversible effect this API offers and the only member of the
   `irreversible` preset there will be until the API grows.
@@ -590,9 +591,20 @@ still meets it.
 - **`sort` accepts only the voucher date**, ascending or descending. Anything
   else is refused with "parameter 'sort' is invalid".
 - **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
-  answers 404, so a wrong entry has to be corrected in the web app. Creating
-  one without `voucherStatus` books it as `open` immediately, and
-  `voucherStatus: unchecked` is the way to record one that still needs review.
+  answers 404, so a wrong entry has to be corrected in the web app. It is
+  booked as `open` the moment it is created.
+- **A POST cannot ask for a status, and `unchecked` is not a way in.**
+  **Measured 2026-08-23** against `salesinvoice`, `purchaseinvoice` and
+  `salescreditnote`, each with a valid number, date, tax type and line: every
+  one refused with `voucherStatus: invalid_value`. This document claimed the
+  opposite from 2026-08-20 and the tool carried an `unchecked` flag for it, so
+  every call that set the flag failed. The claim was almost certainly read off
+  the **voucher list filter**, which does accept `unchecked` — a different
+  endpoint answering a different question. Removed in 0.2.2.
+- **Every voucher type requires `voucherNumber`. Measured 2026-08-23**, all
+  four: without it the POST is refused with `voucherNumber: missing_entity`.
+  The parameter was optional and is now required, so the schema refuses the
+  call before it costs anything.
 - **A PUT must not echo `voucherStatus`.** Unlike a contact, which accepts its
   read-only fields and ignores them, a voucher is refused outright with
   `voucherStatus: invalid_value`. `payloads.VOUCHER_PUT_DROP` is what strips
@@ -924,18 +936,19 @@ every request, so a wide surface is paid for continuously. Related endpoints
 are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
-**What the tool list actually costs, measured 2026-08-21 and again on
-2026-08-22 with the annotations below.** Serialized as the compact JSON a
-`tools/list` answer is, twenty-five tools come to **52,221 characters**,
-around 2,089 each. Roughly 13,000 to 15,000 tokens, estimated at 3.2 to 3.8
-characters per token rather than counted with a tokenizer.
+**What the tool list actually costs, measured 2026-08-21, again on
+2026-08-22 with the annotations below, and again on 2026-08-23 after
+`create_voucher` lost a parameter that could not work.** Serialized as the
+compact JSON a `tools/list` answer is, twenty-five tools come to **52,012
+characters**, around 2,080 each. Roughly 13,000 to 15,000 tokens, estimated at
+3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,469 | 64% |
-| Tool descriptions, the part under a ceiling | 10,890 | 21% |
+| Input schemas | 33,274 | 64% |
+| Tool descriptions, the part under a ceiling | 10,887 | 21% |
 | Output schemas | 4,340 | 8% |
-| Annotations | 1,041 | 2% |
+| Annotations | 1,115 | 2% |
 | Names, titles and the rest | ~2,092 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
@@ -1020,7 +1033,7 @@ arguments cost three to four times what the simple ones do.
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and drops the side that is no longer authoritative so a new net price is never sent beside a stale gross one. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
-| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. `unchecked` records an entry for review instead of booking it. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |

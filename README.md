@@ -152,8 +152,8 @@ afterwards.
 
 **A bookkeeping voucher cannot be deleted through the API.** There is no
 endpoint for it, so a wrong `create_voucher` has to be corrected in the
-Lexware Office web app. Pass `unchecked` to record an entry for review
-rather than booking it straight away. The same applies to `upload_file`:
+Lexware Office web app, and it is booked the moment it is created - the
+API accepts no status on the way in. The same applies to `upload_file`:
 uploading a receipt also creates the voucher that goes with it, so it
 leaves a record behind even though its name only mentions the file.
 

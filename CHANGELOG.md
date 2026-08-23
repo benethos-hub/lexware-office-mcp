@@ -15,7 +15,21 @@ housekeeping are out of scope here — design decisions live in
 
 ## [0.2.2] - 2026-08-23
 
+### Removed
+
+- **`create_voucher` no longer takes `unchecked`.** It could not work: the API
+  refuses any voucher creation that names a status, so every call that set the
+  flag failed with `voucherStatus: invalid_value`. Measured against three
+  voucher types on 2026-08-23. There is no way through this API to record a
+  bookkeeping voucher for review - it is booked as it is created.
+
 ### Changed
+
+- **`create_voucher` requires `voucher_number`.** The API refuses a voucher
+  without one, for all four types, with `voucherNumber: missing_entity`. It
+  was optional, so a call that omitted it spent an API request to be told no.
+  Requiring it in the schema means the caller finds out before anything is
+  sent.
 
 - **The package now says Beta rather than Alpha** on the package index. What
   it claims is that the surface has stopped moving: twenty-five tools built
