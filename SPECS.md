@@ -2019,7 +2019,7 @@ suggested they were.
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
 | 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the seven checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
-| 0.2.1 | The published image on Python 3.14 | **released 2026-08-23** — no change to the package itself. The tags a user pulls, `latest` and `0.2`, follow the release tag, so the base image moves only when a version number is spent on it |
+| 0.2.1 | The published image on Python 3.14 | **released 2026-08-23** — no change to the package itself. The tags a user pulls, `latest` and the minor line, follow the release tag, so the base image moves only when a version number is spent on it |
 
 **No feature release is planned between 0.2.1 and whatever a future API
 version brings.** What was once listed as a phase of its own — booking a

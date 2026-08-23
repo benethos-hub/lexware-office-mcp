@@ -29,6 +29,11 @@ services:
     image: benethos-lexware-office-mcp:latest
     # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
     # pull_policy: always
+    #
+    # Pin a tag for anything you depend on: `:0.2.1` names one release,
+    # `:0.2` follows its patch releases. `pull_policy` decides when compose
+    # asks the registry - `always` on every `up`, `missing` only when the
+    # image is absent locally.
     container_name: benethos-lexware-office-mcp
     ports:
       # bind:host:container. Published on the loopback interface of the host,
@@ -78,7 +83,9 @@ services:
   setup:
     profiles: ["setup"]
     # The same image as above, serving its other command. Switch it the same
-    # way: comment the two lines below, uncomment the two after them.
+    # way: comment the two lines below, uncomment the two after them, and
+    # give it the same tag - two versions of one image against one volume
+    # is not a state anything here expects.
     build: .
     image: benethos-lexware-office-mcp:latest
     # image: ghcr.io/benethos-hub/lexware-office-mcp:latest

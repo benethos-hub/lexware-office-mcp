@@ -579,7 +579,10 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/lexware-office-mcp:latest
 ```
 
-Use `:0.2.1` instead of `:latest` to pin a version.
+Pin a version for anything you depend on - `:0.2.1` for an exact release,
+`:0.2` to follow its patch releases. `:latest` moves with every release, and
+`:edge` is built on demand from whatever `main` holds and is not a release at
+all.
 
 ### With Compose
 
