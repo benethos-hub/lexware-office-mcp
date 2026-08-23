@@ -83,13 +83,15 @@ services:
   setup:
     profiles: ["setup"]
     # The same image as above, serving its other command. Switch it the same
-    # way: comment the two lines below, uncomment the two after them, and
-    # give it the same tag - two versions of one image against one volume
-    # is not a state anything here expects.
+    # way: comment the two lines below, uncomment the two after them.
     build: .
     image: benethos-lexware-office-mcp:latest
     # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
     # pull_policy: always
+    #
+    # Pin the same tag as the server above: `:0.2.1` names one release, `:0.2`
+    # follows its patch releases. Two versions of one image against one volume
+    # is not a state anything here expects.
     container_name: benethos-lexware-office-mcp-setup
     command:
       - setup
