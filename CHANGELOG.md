@@ -13,16 +13,23 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
-### Changed
+### Fixed
 
-- **One `.env` applies now, never several.** The settings files used to be
-  merged key by key, so a value could arrive from a file you had not named and
-  had no reason to look at. The highest-precedence file that exists is the
-  file, and the ones below it are not read. `--env-file` names it and skips
-  the search entirely, which is what `--tools-file` has always done for the
-  policy file. A real environment variable still beats whatever the file says,
-  so a container can pass its transport settings while the key lives in the
-  mounted file.
+- **`--env-file` now reads that file and no other.** Its help has always said
+  "instead of looking for one", and it did not: the named file was read
+  *after* every file the search found, so a setting missing from it was still
+  supplied by whatever else happened to be on the machine. Pointing at a file
+  is now what it appears to be.
+
+  The search behind it follows the same rule: the highest-precedence `.env`
+  that exists is the file, and the ones below it are not read. That half was
+  deliberate before and is a decision rather than a defect - one rule for both
+  configuration files, since `--tools-file` and the policy search never
+  combined anything either.
+
+  A real environment variable still beats whatever the file says, so a
+  container can pass its transport settings while the key lives in the mounted
+  file.
 
   **This can change what your server reads.** If a setting of yours lives in a
   lower-precedence file - a per-user `.env` under a checkout that has its own,

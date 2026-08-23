@@ -690,14 +690,23 @@ still meets it.
 - **One `.env` applies, and the environment beats it.** A setting resolves as
   that one file, then the real environment, which has the last word - the
   order Docker and uvicorn use, and what lets a client override one value
-  without rewriting a file. **The files themselves do not combine**, changed
-  on 2026-08-23: they used to merge key by key, so a value could arrive from a
+  without rewriting a file. **The files themselves do not combine**, since
+  2026-08-23: they used to merge key by key, so a value could arrive from a
   file nobody had named and no page could sensibly report where it came from.
-  Naming one with `--env-file` now replaces the search, exactly as
-  `--tools-file` always did, and the search itself takes the highest candidate
-  that exists rather than layering them. The environment stays a separate
-  layer because the container depends on it: the transport settings arrive as
-  real variables while the key lives in the mounted file.
+
+  **Half of that was a defect rather than a decision.** `--env-file` was
+  documented as naming the file "instead of looking for one" from the day it
+  was added, in its own help text, in the epilog and in the table below, and
+  the code read it *after* every file the search found. So a flag whose whole
+  purpose was to make one client entry self-contained did not isolate
+  anything: a setting the named file omitted was still answered by the
+  machine. It now replaces the search, exactly as `--tools-file` always did.
+
+  The other half is a decision: the search takes the highest candidate that
+  exists rather than layering them, so both configuration files follow one
+  rule and "which file is this value from" has one answer. The environment
+  stays a separate layer because the container depends on it: the transport
+  settings arrive as real variables while the key lives in the mounted file.
   `--log-level` and `--tools-file` are the two flags that outrank the
   environment, because each is a decision about this one run. `--tools` and
   `--version` are actions rather than settings and have no equivalent at all.
@@ -1825,9 +1834,11 @@ The consequences are the point of writing this down.
   shapes. Only a live run catches that, and only someone holding an account
   can perform one. This is why statements about the API in this document carry
   **(to verify)** until a live call has confirmed them.
-- **The open questions below cannot be closed by CI.** Questions 2 and 3 need
-  write calls against a disposable test account, see section 11.1. That is a
-  deliberate act by the account owner, not something automation initiates.
+- **The open questions below could not be closed by CI**, and none of them was.
+  Each was answered by a live call, or in one case by a decision not to make
+  one: a question about write behaviour needs write calls against a disposable
+  test account, see section 11.1, which is a deliberate act by the account
+  owner rather than something automation initiates.
 
 ## 15. Conventions
 

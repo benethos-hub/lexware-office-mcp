@@ -79,12 +79,12 @@ src/benethos_lexware_office_mcp/
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
   configui/       # the local configuration interface, `setup` serves it
-                  # render, state, cost, probe, profiles, transfer,
-                  # pages, app - never part of the MCP server process
+                  # render, state, cost, probe, stamp, profiles,
+                  # transfer, pages, app - never part of the server process
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
-                  # built: diagnostics, contacts, vouchers,
+                  # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, master_data
 tests/            # offline, httpx MockTransport
   smoke.py        # read-only live check, run by hand, never collected
