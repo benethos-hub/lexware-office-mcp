@@ -13,6 +13,8 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-08-23
+
 ### Fixed
 
 - **`--env-file` now reads that file and no other.** Its help has always said
@@ -546,7 +548,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/benethos-hub/lexware-office-mcp/releases/tag/v0.1.0
