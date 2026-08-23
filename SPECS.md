@@ -687,10 +687,17 @@ still meets it.
   `--download-dir` were planned here and never built: the mode is gone with
   the tier of section 9.1, and the download directory stayed an environment
   setting because a client spawns the server and passes no arguments.
-- **Precedence is not one rule for all of them.** A setting resolves as
-  found `.env` files, then the file `--env-file` names, then the real
-  environment, which has the last word - the order Docker and uvicorn use, and
-  what lets a client override one value without rewriting a file.
+- **One `.env` applies, and the environment beats it.** A setting resolves as
+  that one file, then the real environment, which has the last word - the
+  order Docker and uvicorn use, and what lets a client override one value
+  without rewriting a file. **The files themselves do not combine**, changed
+  on 2026-08-23: they used to merge key by key, so a value could arrive from a
+  file nobody had named and no page could sensibly report where it came from.
+  Naming one with `--env-file` now replaces the search, exactly as
+  `--tools-file` always did, and the search itself takes the highest candidate
+  that exists rather than layering them. The environment stays a separate
+  layer because the container depends on it: the transport settings arrive as
+  real variables while the key lives in the mounted file.
   `--log-level` and `--tools-file` are the two flags that outrank the
   environment, because each is a decision about this one run. `--tools` and
   `--version` are actions rather than settings and have no equivalent at all.
@@ -717,7 +724,7 @@ still meets it.
 | Env var | Meaning | Default |
 |---|---|---|
 | `LXO_MCP_API_KEY` | Lexware Office API key. Required. | — |
-| — | `--env-file` names the `.env` rather than searching for one. Read after every found file and before the real environment, the order Docker and uvicorn use, so a client can still override one value without editing the file. A path that does not exist ends the process rather than falling back to the search: starting anyway would mean behaving in a way the command line appears to rule out. | search |
+| — | `--env-file` names the `.env` rather than searching for one, and nothing else is read: naming a file replaces the search exactly as `--tools-file` does. The real environment still wins over it, the order Docker and uvicorn use, so a client can override one value without editing the file. A path that does not exist ends the process rather than falling back to the search: starting anyway would mean behaving in a way the command line appears to rule out. | search |
 | `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
@@ -797,12 +804,18 @@ prints the `"args"` entry that would make the client match the files this
 interface holds, and names the other way round as well — starting `setup`
 with the same arguments.
 
-**Six answers to "where did this value come from", not three.** A real
+**Five answers to "where did this value come from", not three.** A real
 environment variable, the command line for the one setting it can name, the
-`.env` this interface writes to, *another* `.env` the search also reads, the
-search itself for a policy file nobody named, and the built-in default. The
-fourth exists because typing over such a value here would appear to work and
-change nothing, and the fifth because a resolved path is not a default.
+`.env` this interface writes to, the search itself for a policy file nobody
+named, and the built-in default. The fourth exists because a resolved path is
+not a default.
+
+There used to be a sixth — *another* `.env` the search also read — and it went
+away with the merge on 2026-08-23. One file applies now, so a neighbouring one
+cannot supply a value here. What replaced it is a statement about the whole
+file rather than about a value: when this interface is editing a `.env` that a
+server would not read, the overview says so beside the paths, because saving
+would otherwise report success for work that never reaches the server.
 
 **With no policy file the boxes open on read-only.** A blank form is a poor
 starting point for a decision, and the alternative — every box empty — reads

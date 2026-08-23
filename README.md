@@ -469,15 +469,22 @@ interface groups and marks by. It never decides a call: only the file does.
 
 ### Where a value comes from, and which one wins
 
-Six sources, **lowest first** — a later one overrides an earlier one:
+**One `.env` applies, never several.** These are the places it is looked for,
+**lowest first**, and the highest one that exists is the file — the others are
+not read:
 
-1. the built-in default
-2. `.env` in the per-user configuration directory
-3. `config/.env` of the checkout the server runs from, if it runs from one
-4. `config/.env` and then `.env` in the working directory
-5. the file `--env-file` names, which is read **after** all of those rather
-   than instead of them: it was named rather than found, so it outranks them
-6. **a real environment variable**, which beats every file
+1. `.env` in the per-user configuration directory
+2. `config/.env` of the checkout the server runs from, if it runs from one
+3. `config/.env` and then `.env` in the working directory
+
+`--env-file` names it instead, and then no search happens at all. That is the
+same rule `--tools-file` follows for the policy file, so both flags mean the
+same thing: this file, and nothing else.
+
+Two things sit outside that file, one below and one above:
+
+- the **built-in default**, for a setting no file mentions
+- **a real environment variable**, which beats whatever the file says
 
 The last one is the one that surprises people. A setting exported in your
 shell, put in a client's `env` block, or pinned in a Compose file **cannot be
