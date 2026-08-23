@@ -103,17 +103,3 @@ def test_working_directory_env_beats_the_config_directory(tmp_path: Path) -> Non
     (tmp_path / "config" / ".env").write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
     (tmp_path / ".env").write_text("LXO_MCP_PAGE_SIZE=9\n", encoding="utf-8")
     assert _env_lookup(cwd=tmp_path)["LXO_MCP_PAGE_SIZE"] == "9"
-
-
-def test_the_typing_marker_sits_beside_the_code() -> None:
-    """Without it a type checker ignores every annotation this package has.
-
-    Asserted here rather than only in the release workflow, because a file
-    that exists is not a file that ships: the sample beside this one was not
-    in the wheel until the release commit moved it in, and no test had
-    anything to say about that.
-    """
-    marker = SAMPLE.parent / "py.typed"
-
-    assert marker.is_file(), "py.typed is what makes the annotations visible"
-    assert marker.read_bytes() == b"", "PEP 561 wants the marker empty"
