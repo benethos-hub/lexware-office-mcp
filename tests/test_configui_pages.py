@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
 from benethos_lexware_office_mcp.configui.profiles import Profile
@@ -140,6 +141,46 @@ def test_the_overview_never_prints_the_key(inst: Installation) -> None:
 
     assert "secret-value-do-not-print" not in body
     assert "gesetzt" in body
+
+
+def test_the_overview_says_when_a_server_would_read_a_different_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Editing a file the server does not read saves and changes nothing.
+
+    One `.env` applies, so a higher one does not shade a value here - it
+    replaces the whole file. Without this, the page reports success for work
+    that never reaches the server.
+    """
+    edited = tmp_path / "named.env"
+    edited.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
+    higher = tmp_path / ".env"
+    higher.write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
+    monkeypatch.setattr(
+        config, "config_candidates", lambda name, cwd=None: [tmp_path / name]
+    )
+    inst = Installation(
+        settings=Settings(tool_policy_path=tmp_path / "tools.json"),
+        env_path=edited,
+        cwd=tmp_path,
+    )
+
+    assert inst.outranked_by() == higher
+    body = text(pages.overview(inst))
+    assert "andere Datei" in body
+    assert str(higher) in body
+
+
+def test_the_overview_stays_quiet_when_it_edits_the_file_that_applies(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ordinary case earns no warning."""
+    monkeypatch.setattr(
+        config, "config_candidates", lambda name, cwd=None: [tmp_path / name]
+    )
+
+    assert inst.outranked_by() is None
+    assert "andere Datei" not in text(pages.overview(inst))
 
 
 def test_a_missing_policy_file_is_explained_rather_than_shown_as_zero(

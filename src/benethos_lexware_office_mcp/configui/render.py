@@ -19,7 +19,6 @@ __all__ = [
     "DEFAULT_SOURCE",
     "ENV_SOURCE",
     "FILE_SOURCE",
-    "OTHER_FILE_SOURCE",
     "SEARCH_SOURCE",
     "esc",
     "note",
@@ -41,7 +40,6 @@ FILE_SOURCE = "Datei"
 # The value applies, but it comes from a .env other than the one this
 # interface writes to. Typing over it here would appear to work and change
 # nothing, so it gets a badge of its own rather than being called "Datei".
-OTHER_FILE_SOURCE = "andere Datei"
 DEFAULT_SOURCE = "Default"
 
 esc = escape
@@ -147,7 +145,7 @@ def source_badge(source: str, detail: str = "") -> str:
     answers "which file?" for the one person who asks, without putting a
     hundred characters of Windows path into every row.
     """
-    loud = source in (ENV_SOURCE, OTHER_FILE_SOURCE, CLI_SOURCE)
+    loud = source in (ENV_SOURCE, CLI_SOURCE)
     css = "src env" if loud else "src"
     title = f' title="{esc(detail)}"' if detail else ""
     return f'<span class="{css}"{title}>aus: {esc(source)}</span>'

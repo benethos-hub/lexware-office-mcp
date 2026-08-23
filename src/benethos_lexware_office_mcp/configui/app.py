@@ -307,7 +307,7 @@ class Handler(BaseHTTPRequestHandler):
         }
         # Validated by the same code the server uses, so a value accepted here
         # cannot be one that stops the server from starting later.
-        proposed = {**inst.searched_env(), **submitted}
+        proposed = {**inst.file_env(), **submitted}
         try:
             load_settings(env=proposed)
         except ConfigError as exc:

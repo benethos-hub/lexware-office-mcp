@@ -260,7 +260,25 @@ def _files_table(inst: Installation) -> str:
         f"<td>{'vorhanden' if path.is_file() else 'noch nicht angelegt'}</td></tr>"
         for label, path in rows
     )
-    return f"<table><tr><th>Datei</th><th>Pfad</th><th>Zustand</th></tr>{cells}</table>"
+    table = (
+        f"<table><tr><th>Datei</th><th>Pfad</th><th>Zustand</th></tr>{cells}</table>"
+    )
+    # A `.env` does not combine with the ones below it, so a higher one does
+    # not shade a value here - it replaces the file entirely. Saying so beside
+    # the paths, because saving would otherwise report success and change
+    # nothing about the server.
+    outranked = inst.outranked_by()
+    if outranked is None:
+        return table
+    return (
+        table
+        + f"""
+<p class="hint"><strong>Ein Server ohne <code>--env-file</code> liest eine
+   andere Datei:</strong> <code>{esc(str(outranked))}</code>. Es gilt immer
+   genau eine, die Werte der übrigen kommen nicht dazu. Was hier gespeichert
+   wird, erreicht diesen Server also nur, wenn er mit den Argumenten unten
+   gestartet wird.</p>"""
+    )
 
 
 # --- credentials -----------------------------------------------------------

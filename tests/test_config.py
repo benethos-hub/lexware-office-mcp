@@ -209,6 +209,93 @@ def test_a_real_environment_variable_still_wins(
     assert settings.page_size == 33
 
 
+def test_a_named_env_file_replaces_the_search_rather_than_joining_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The point of naming a file: nothing else is read.
+
+    The found file sets a value the named one is silent about. Merging would
+    let it through, and a setting would then come from a file nobody pointed
+    at - invisible on the command line that appears to decide everything.
+    """
+    found = tmp_path / "config"
+    found.mkdir()
+    (found / ".env").write_text(
+        "LXO_MCP_PAGE_SIZE=11\nLXO_MCP_TIMEOUT=99\n", encoding="utf-8"
+    )
+    named = tmp_path / "named.env"
+    named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(C.os, "environ", {})
+
+    settings = C.load_settings(cwd=tmp_path, env_file=named)
+
+    assert settings.page_size == 22
+    assert settings.timeout == C.DEFAULT_TIMEOUT
+
+
+def test_only_the_highest_found_file_applies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two files in the search, one answer. The lower one is not consulted."""
+    lower = tmp_path / "config"
+    lower.mkdir()
+    (lower / ".env").write_text(
+        "LXO_MCP_PAGE_SIZE=11\nLXO_MCP_TIMEOUT=99\n", encoding="utf-8"
+    )
+    (tmp_path / ".env").write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(C.os, "environ", {})
+
+    settings = C.load_settings(cwd=tmp_path)
+
+    assert settings.page_size == 22
+    assert settings.timeout == C.DEFAULT_TIMEOUT
+
+
+def test_the_environment_fills_in_what_the_one_file_does_not_say(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Files do not combine. The environment is a different layer and does.
+
+    This is how the container is configured: the transport settings arrive as
+    real variables while the key lives in the mounted file, so the two have to
+    be readable together.
+    """
+    named = tmp_path / "named.env"
+    named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(C.os, "environ", {"LXO_MCP_TIMEOUT": "44"})
+
+    settings = C.load_settings(cwd=tmp_path, env_file=named)
+
+    assert settings.page_size == 22
+    assert settings.timeout == 44
+
+
+def test_which_file_is_in_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The question the settings watch and the interface both ask."""
+    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    named = tmp_path / "named.env"
+
+    assert C.env_file_in_effect(cwd=tmp_path) is None
+    assert C.env_file_in_effect(cwd=tmp_path, named=named) == named
+
+    lower = tmp_path / "config"
+    lower.mkdir()
+    (lower / ".env").write_text("", encoding="utf-8")
+    assert C.env_file_in_effect(cwd=tmp_path) == lower / ".env"
+
+    (tmp_path / ".env").write_text("", encoding="utf-8")
+    assert C.env_file_in_effect(cwd=tmp_path) == tmp_path / ".env"
+
+
 def test_the_missing_key_message_names_no_path() -> None:
     """It reaches the client, and from there a model's context.
 

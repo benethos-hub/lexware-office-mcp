@@ -15,7 +15,6 @@ import pytest
 
 from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp import server as _server  # noqa: F401
-from benethos_lexware_office_mcp.configui import state as configui_state
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
 
@@ -45,7 +44,9 @@ def policy_file_off_this_machine(
 
 
 @pytest.fixture
-def no_configuration_from_this_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+def no_configuration_from_this_machine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """No ``.env`` and no environment variable belonging to the developer.
 
     The same concern as the fixture above, one level further out. Anything
@@ -54,10 +55,13 @@ def no_configuration_from_this_machine(monkeypatch: pytest.MonkeyPatch) -> None:
     the checkout's own `config/.env` is a candidate, and so is the per-user
     configuration directory.
 
-    Two references have to be replaced, because `config_candidates` is looked
-    up in the module that defines it and in the one that imported it.
+    The search is pointed at a directory that does not exist rather than
+    emptied. A candidate list has to have a first entry: that is the answer to
+    "where would a file go", which a message names when none exists yet.
     """
-    monkeypatch.setattr(config, "config_candidates", lambda name, cwd=None: [])
-    monkeypatch.setattr(configui_state, "config_candidates", lambda name, cwd=None: [])
+    nowhere = tmp_path / "no-configuration-here"
+    monkeypatch.setattr(
+        config, "config_candidates", lambda name, cwd=None: [nowhere / name]
+    )
     for key in [name for name in os.environ if name.startswith("LXO_MCP_")]:
         monkeypatch.delenv(key, raising=False)

@@ -643,6 +643,12 @@ def _env_in_effect(named: Path | None) -> Path:
 
     Pinned here for the same reason the policy file is pinned: the identity
     of the file is decided once, and only its contents are read again.
+
+    Not :func:`config.env_file_in_effect`, which answers ``None`` when no file
+    exists. The two callers here need a path either way - one watches for a
+    file appearing, the other writes a generated token into the place a file
+    belongs - and since one `.env` applies, watching that one is watching all
+    of them.
     """
     return named if named is not None else resolve_config_file(".env")
 

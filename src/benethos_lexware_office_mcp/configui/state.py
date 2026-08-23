@@ -15,7 +15,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..config import Settings, config_candidates, load_settings
+from ..config import Settings, env_file_in_effect, load_settings
 from ..envfile import read_env_file
 from ..policy import ToolPolicy
 from .profiles import ProfileStore, profile_file
@@ -24,7 +24,6 @@ from .render import (
     DEFAULT_SOURCE,
     ENV_SOURCE,
     FILE_SOURCE,
-    OTHER_FILE_SOURCE,
     SEARCH_SOURCE,
 )
 
@@ -114,26 +113,30 @@ class Installation:
 
     # --- where a value comes from ------------------------------------------
     # In the order that decides: a real environment variable, then the command
-    # line for the one setting it can name, then a .env, then the built-in
-    # default. A .env that is not the one being written gets its own answer,
-    # because typing over such a value here would appear to work and change
-    # nothing.
+    # line for the one setting it can name, then the .env, then the built-in
+    # default. One .env, not several - `outranked_by` answers the case where
+    # it is not the one a server would read, which is a statement about the
+    # whole file rather than about a value.
 
     def file_env(self) -> dict[str, str]:
         """What the file this interface writes to holds right now."""
         return read_env_file(self.env_path)
 
-    def searched_env(self) -> dict[str, str]:
-        """Every ``.env`` the search finds, merged, highest precedence last.
+    def outranked_by(self) -> Path | None:
+        """A file a server would read *instead of* the one being edited.
 
-        The environment is left out on purpose: this is what the *files* say,
-        which is the half a person can edit here.
+        One ``.env`` applies and the others are not consulted, so a higher
+        candidate does not shade a value here - it replaces the whole file.
+        Editing then works, saves, and changes nothing about the server. The
+        answer is on the overview beside the paths.
+
+        ``None`` when this interface is already working on the file the search
+        would pick, which is the ordinary case.
         """
-        merged: dict[str, str] = {}
-        for path in config_candidates(".env", self.cwd):
-            merged.update(read_env_file(path))
-        merged.update(read_env_file(self.env_path))
-        return merged
+        applies = env_file_in_effect(self.cwd)
+        if applies is None or applies == self.env_path:
+            return None
+        return applies
 
     def source_of(self, key: str) -> str:
         """Where this value comes from, in the order that decides.
@@ -146,9 +149,8 @@ class Installation:
         """
         if os.environ.get(key, "").strip():
             return ENV_SOURCE
-        supplier = self.source_file(key)
-        if supplier is not None:
-            return FILE_SOURCE if supplier == self.env_path else OTHER_FILE_SOURCE
+        if self.source_file(key) is not None:
+            return FILE_SOURCE
         if key == POLICY_KEY:
             return (
                 CLI_SOURCE
@@ -160,14 +162,14 @@ class Installation:
     def source_file(self, key: str) -> Path | None:
         """The ``.env`` that supplies this value, if a file does.
 
-        Highest precedence first, so the answer is the file that wins rather
-        than the first one that happens to mention the key.
+        There is only one it can be. The settings this page reports were
+        loaded from ``env_path`` alone, so a key it does not carry came from
+        the environment or from nowhere - never from a neighbouring file.
         """
         if self.shadowed(key):
             return None
-        for path in reversed([*config_candidates(".env", self.cwd), self.env_path]):
-            if read_env_file(path).get(key, "").strip():
-                return path
+        if read_env_file(self.env_path).get(key, "").strip():
+            return self.env_path
         return None
 
     def source_detail(self, key: str) -> str:

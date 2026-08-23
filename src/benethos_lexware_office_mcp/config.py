@@ -1,5 +1,10 @@
 """Settings resolution and credential lookup.
 
+**One ``.env`` applies, never several.** The search below picks it, and the
+files it did not pick are not read - the same rule the policy file follows. A
+real environment variable is a different layer and still wins over whatever
+that file says.
+
 Precedence, highest first:
 
 1. a real environment variable
@@ -41,6 +46,7 @@ __all__ = [
     "Settings",
     "config_dir",
     "download_dir",
+    "env_file_in_effect",
     "load_settings",
     "settings_sample",
 ]
@@ -151,10 +157,11 @@ def config_candidates(name: str, cwd: Path | None = None) -> list[Path]:
     3. ``config/`` and then the root of the current working directory, for
        running against a different account without editing anything
 
-    One order for every configuration file there is. The ``.env`` merges its
-    candidates key by key, the policy file takes the last one that exists, but
-    both look in the same places in the same sequence — which is the part a
-    person has to keep in their head.
+    One order for every configuration file there is, and one rule at the end
+    of it: the highest-precedence candidate that exists is the file, and the
+    ones below it are not consulted. Neither the ``.env`` nor the policy file
+    combines with anything — which is the part a person has to keep in their
+    head, and the reason it fits in a sentence.
     """
     here = cwd or Path.cwd()
     found = [config_dir() / name]
@@ -169,9 +176,9 @@ def config_candidates(name: str, cwd: Path | None = None) -> list[Path]:
 def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
     """The configuration file called ``name`` that actually applies.
 
-    The highest-precedence candidate that exists. When none does, the
-    per-user directory — the place to create one, and the answer a message
-    should name when a file is missing.
+    The highest-precedence candidate that exists, and the only one read. When
+    none does, the per-user directory — the place to create one, and the
+    answer a message should name when a file is missing.
     """
     candidates = config_candidates(name, cwd)
     for path in reversed(candidates):
@@ -185,21 +192,41 @@ def _flag(raw: str | None) -> bool:
     return (raw or "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def env_file_in_effect(
+    cwd: Path | None = None, named: Path | None = None
+) -> Path | None:
+    """The one ``.env`` a process started this way reads, if there is one.
+
+    ``named`` is a file somebody pointed at, so it is that file and the search
+    does not happen. Otherwise the highest-precedence candidate that exists.
+    ``None`` when no file exists at all, which is not an error: the settings
+    can come entirely from the environment.
+    """
+    if named is not None:
+        return named
+    found = resolve_config_file(".env", cwd)
+    return found if found.is_file() else None
+
+
 def _env_lookup(
     cwd: Path | None = None, env_file: Path | None = None
 ) -> dict[str, str]:
-    """Merge every source into one mapping, highest precedence last.
+    """One file, then the real environment, which has the last word.
 
-    ``env_file`` is a file somebody named rather than one that was found, so
-    it outranks all of them - but not the real environment, which stays the
-    last word. That is the order Docker and uvicorn use for the same flag, and
-    it keeps a client able to override one value without rewriting a file.
+    **The files do not combine.** The ``.env`` that applies is the one
+    :func:`env_file_in_effect` picks, exactly as the policy file is one file
+    rather than a merge of several, and for the same reason: a setting has to
+    be traceable to the file a person edited, and a value arriving from a file
+    they did not name is one they cannot see.
+
+    The environment is a different layer and does merge over the top. A
+    container passes its transport settings that way while the key lives in
+    the mounted file, so the two have to be readable together.
     """
     merged: dict[str, str] = {}
-    for path in config_candidates(".env", cwd):
-        merged.update(_parse_env_file(path))
-    if env_file is not None:
-        merged.update(_parse_env_file(env_file))
+    applies = env_file_in_effect(cwd, env_file)
+    if applies is not None:
+        merged.update(_parse_env_file(applies))
     merged.update(os.environ)
     return merged
 
