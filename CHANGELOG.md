@@ -13,6 +13,8 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-23
+
 ### Changed
 
 - **The container image runs Python 3.14** instead of 3.13, which is the
@@ -519,6 +521,7 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/benethos-hub/lexware-office-mcp/releases/tag/v0.1.0

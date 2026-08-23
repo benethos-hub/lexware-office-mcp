@@ -33,7 +33,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.2.0.**
+> **Status: 0.2.1.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt. `get_profile` answers which account is connected. Every
@@ -273,7 +273,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.2.0"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.2.1"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -579,7 +579,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/lexware-office-mcp:latest
 ```
 
-Use `:0.2.0` instead of `:latest` to pin a version.
+Use `:0.2.1` instead of `:latest` to pin a version.
 
 ### With Compose
 
