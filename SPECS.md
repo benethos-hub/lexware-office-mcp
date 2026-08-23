@@ -1931,8 +1931,8 @@ order:
    interface, which belongs behind its profile. Only `linux/amd64` is built,
    because nothing publishes a second architecture yet. Every job passes with
    no key, no network and no account, see section 14.1.
-   `.github/dependabot.yml` asks weekly about the dependency ranges and the
-   pinned actions.
+   `.github/dependabot.yml` asks weekly about the dependency ranges, the
+   pinned actions and the container base image.
 
    **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
    where a parameter description had silently disappeared from a tool schema.
@@ -1987,6 +1987,22 @@ order:
    it generated its own token and refused a request without it. Contrary to
    the documented behaviour, the package did not need a visibility switch - it
    was public from the first push.
+6. **What the build reaches for stays on a floating tag**, decided
+   2026-08-23. The base image is `python:3.14-slim`, the uv binary comes from
+   `ghcr.io/astral-sh/uv:0.12`, and the workflow actions are pinned by major
+   version. All three follow their line rather than a digest, which means a
+   security fix arrives without anyone acting - and that a build from today
+   is not bit-for-bit the build from last week. Pinning digests reverses that
+   trade: reproducible, and every patch waits for a pull request. For an image
+   that holds an accounting credential, arriving patches are worth more than
+   reproducible bytes, and nothing here needs a byte-identical rebuild to
+   prove anything.
+
+   What makes that safe to say is that all three are watched.
+   `.github/dependabot.yml` covers the declared ranges, the actions and, since
+   2026-08-23, the container base image - the one that ages silently, because
+   an out-of-date base is not a build failure but unpatched system packages
+   inside something people pull and run.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
