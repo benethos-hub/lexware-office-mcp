@@ -20,7 +20,7 @@ in [SPECS.md](../../SPECS.md) section 5.
 ## Comparing two runs
 
 ```
-git diff --no-index tests/api-shapes/shape-<older>.txt tests/api-shapes/shape-<newer>.txt
+git diff --no-index live/shapes/shape-<older>.txt live/shapes/shape-<newer>.txt
 ```
 
 A removed line is a field the API stopped sending. An added line is a new one.
@@ -38,5 +38,5 @@ before concluding anything.
 
 Field names, JSON types, and the values of the closed vocabularies
 `api_shape.py` names. **Nothing else** — no id, no name, no address, no
-amount, no date. `test_api_shapes.py` enforces the first half of that
-mechanically and the docstring of `api_shape.py` states the rule in full.
+amount, no date. `../../tests/test_api_shapes.py` enforces the first half of
+that mechanically and the docstring of `api_shape.py` states the rule in full.

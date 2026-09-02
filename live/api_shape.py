@@ -1,11 +1,12 @@
 """Record the shape of every read endpoint, so drift can be seen later.
 
-**Run by hand. Never a gate, never in CI, never collected by pytest.** Named
-without a ``test_`` prefix for the same reason as ``smoke.py``, see SPECS.md
-section 14.1.
+**Run by hand. Never a gate, never in CI, never collected by pytest.** It
+lives outside ``testpaths`` for that reason, beside ``smoke.py``, so the
+guarantee is where the file sits rather than in what it is called. See
+SPECS.md section 14.1.
 
-    uv run python tests/api_shape.py
-    uv run python tests/api_shape.py --env-file path/to/.env
+    uv run python live/api_shape.py
+    uv run python live/api_shape.py --env-file path/to/.env
 
 ``smoke.py`` asks whether the calls this server makes still work. This asks a
 different question: whether the answers still look the same. The two are not
@@ -14,7 +15,7 @@ so a field that disappeared upstream looks identical downstream, and a field
 that appeared is invisible by construction. Both are read here, before any of
 that happens.
 
-Each run writes one timestamped file into ``tests/api-shapes/``. Comparing two
+Each run writes one timestamped file into ``live/shapes/``. Comparing two
 of them is an ordinary ``diff``, which is the whole point: the alternative is
 reading dated prose in SPECS.md section 5 and hoping to notice.
 
@@ -44,7 +45,7 @@ from benethos_lexware_office_mcp.client import LexwareClient  # noqa: E402
 from benethos_lexware_office_mcp.config import load_settings  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-SHAPES = HERE / "api-shapes"
+SHAPES = HERE / "shapes"
 
 # Fields whose set of allowed values is worth recording, because a changed
 # vocabulary is drift that a type alone cannot show - which is how
@@ -121,7 +122,7 @@ class Capture:
             "# API response shapes",
             "",
             f"Taken {taken.strftime('%Y-%m-%d %H:%M UTC')} "
-            f"by tests/api_shape.py against a live account.",
+            f"by live/api_shape.py against a live account.",
             "",
             "Field names and JSON types. Values appear only for the closed "
             "vocabularies the script names,",

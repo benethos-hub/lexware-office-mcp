@@ -86,8 +86,11 @@ src/benethos_lexware_office_mcp/
     <group>.py    # one module per resource group, thin tool definitions
                   # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, master_data
-tests/            # offline, httpx MockTransport
-  smoke.py        # read-only live check, run by hand, never collected
+tests/            # offline, httpx MockTransport - the whole of the gate
+live/             # talks to a real account, run by hand, outside testpaths
+  smoke.py        # read-only live check
+  api_shape.py    # records response shapes, so drift becomes a diff
+  shapes/         # one timestamped capture per run
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
@@ -243,10 +246,11 @@ SPECS.md section 12.1.
 repository and none goes into CI, so anything automated has to pass with no
 key, no network and no account. Never write a test that reaches the API, and
 never write one that skips itself when no key is present — that reports green
-while checking nothing. Live verification belongs in `tests/smoke.py`:
+while checking nothing. Live verification belongs in `live/`, which sits
+outside `testpaths` so pytest cannot reach it whatever a file is called:
 
 ```
-uv run python tests/smoke.py
+uv run python live/smoke.py
 ```
 
 It is read-only, builds its server with the `read-only` preset so a writing
@@ -260,10 +264,10 @@ that vanished upstream looks identical downstream and a new one is invisible.
 For that there is a second manual run:
 
 ```
-uv run python tests/api_shape.py
+uv run python live/api_shape.py
 ```
 
-It writes one timestamped file per run into `tests/api-shapes/`, and comparing
+It writes one timestamped file per run into `live/shapes/`, and comparing
 two of them is a `diff`. Take one before touching anything that depends on a
 response shape, and after any suspicion that the API moved. **A capture holds
 field names and types, never a record** - no id, name, address, amount or

@@ -392,7 +392,7 @@ async def test_a_confirmed_delete_goes_through_and_says_what_it_removed() -> Non
 
 
 async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> None:
-    """Measured 2026-08-21 by the live check in `tests/smoke.py`, on its first
+    """Measured 2026-08-21 by the live check in `live/smoke.py`, on its first
     run: this endpoint refuses `size` below 25 with `size: MIN`, where every
     other list takes a page of one. The floor is in the schema, so a caller
     reading it never writes the call that fails."""

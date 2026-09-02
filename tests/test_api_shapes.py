@@ -1,6 +1,6 @@
 """The captured shapes carry no record out of the account.
 
-`api_shape.py` reads a live account and writes what it saw into a versioned
+`live/api_shape.py` reads a live account and writes what it saw into a versioned
 file. That is only safe while the file holds names and types rather than
 values, so the rule is checked here rather than left to whoever runs it.
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-SHAPES = Path(__file__).resolve().parent / "api-shapes"
+SHAPES = Path(__file__).resolve().parents[1] / "live" / "shapes"
 
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")

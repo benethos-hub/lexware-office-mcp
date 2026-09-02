@@ -2,8 +2,8 @@ name: CI
 
 # Everything here has to pass with no API key, no network to Lexware and no
 # account. No key ships with this repository and none goes into CI, so a check
-# that needs one cannot be a gate. The live check lives in tests/smoke.py and
-# is run by hand, see SPECS.md section 14.1.
+# that needs one cannot be a gate. The live checks live in live/, outside the
+# directory pytest walks, and are run by hand - see SPECS.md section 14.1.
 
 on:
   push:
@@ -63,8 +63,8 @@ jobs:
         run: uv sync --extra dev --frozen
 
       # httpx is mocked at the transport, so the suite never opens a socket.
-      # tests/smoke.py is not collected: it holds no test_* functions and is
-      # the read-only live check.
+      # Nothing that talks to Lexware is reachable from here: `testpaths` is
+      # tests/, and both live checks sit in live/.
       - name: Run tests with coverage
         run: uv run pytest -q --cov=benethos_lexware_office_mcp --cov-fail-under=80
 

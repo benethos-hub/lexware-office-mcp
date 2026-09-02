@@ -1880,12 +1880,17 @@ The consequences are the point of writing this down.
   no key, no network and no account. That is true today and stays true. A test
   that quietly skips when no key is present is not a gate, it is a hole that
   reports green.
-- **`tests/smoke.py` is run by hand and never collected by pytest.** Built
+- **`live/smoke.py` is run by hand and never collected by pytest.** Built
   2026-08-21. It takes a key from the normal configuration chain of section 7,
   refuses to start without one, calls `get_profile` first so whoever runs it
   sees which organization is about to be read, and performs **read-only**
-  calls only. `pytest` does not find it because it is not named `test_*.py`,
-  and `testpaths` is left alone rather than being taught an exception.
+  calls only. `pytest` does not find it because `testpaths` is `tests/` and
+  this file is not in it. That was a filename until 2026-09-02: the script was
+  called `smoke.py` rather than `test_smoke.py` and nothing else stood in the
+  way, so a rename would have pointed CI at a live account. Both live checks
+  moved to `live/` for that reason, which is the same argument as the one two
+  bullets down - a directory pytest does not walk is a guarantee, a name it
+  happens not to match is a convention.
 - **It cannot write, structurally.** The server it builds is handed the
   `read-only` preset of section 9, so a writing tool is not merely unused in
   the script, it is absent from the server and refused if called. The script
@@ -1918,8 +1923,8 @@ null or empty is dropped on the way to the client, so a field that disappeared
 upstream looks identical downstream, and a field that appeared is invisible by
 construction.
 
-`tests/api_shape.py` reads every readable endpoint and writes what it saw into
-a timestamped file under `tests/api-shapes/`. Field names, JSON types, and the
+`live/api_shape.py` reads every readable endpoint and writes what it saw into
+a timestamped file under `live/shapes/`. Field names, JSON types, and the
 values of a short list of closed vocabularies - `voucherStatus`, `taxType`,
 `paymentStatus` and their neighbours, because a vocabulary that moved is drift
 a type cannot show. Comparing two runs is then a `diff` rather than a reading
