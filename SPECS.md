@@ -572,6 +572,29 @@ still meets it.
 - The other two are as small as the account is: one payment condition and one
   print layout, both flagged as the organization's default.
 
+### Announced upstream, read 2026-09-02
+
+Read from the documentation rather than measured, because a removal that has
+not happened yet cannot be measured. Both fields are still served today.
+
+- **`files` on credit notes and delivery notes is going away.** The wording is
+  "(Deprecated, will be removed) The document id for the PDF version of the
+  credit note", and the same for a delivery note. The **download** is
+  unaffected: `download_document` fetches `/file` directly and never reads
+  that id. What weakens is the signal above — on those two types the absence
+  of a `files` block will stop meaning "still a draft, nothing rendered", and
+  `voucherStatus` becomes the field to read instead. It is in the answer
+  already, so no tool has to change for that to be possible.
+- **`/v1/credit-notes/{id}/document` is deprecated**, with the documentation
+  pointing at the `/file` subresource instead. Nothing to do: this server has
+  never called `/document`, for a reason measured 2026-08-21 and recorded
+  above — it costs one call more for the same bytes. The vendor has now
+  arrived at the same place.
+
+Neither is dated by Lexware, so there is no deadline to plan against. The
+capture in `live/shapes/` is what will show the day either field stops
+arriving.
+
 ### Voucher semantics, verified 2026-08-20
 
 - **"Voucher" is three things.** `/v1/voucherlist` is a read-only **index**
@@ -650,7 +673,8 @@ still meets it.
   `printLayoutId` and the `files` block, and that last absence is the reliable
   way to tell whether there is anything to download — an `open` document
   carries `files.documentFileId`, pointing at the same rendered file
-  `/file` serves.
+  `/file` serves. **On two types that signal is on borrowed time**, see
+  "Announced upstream" below.
 - **A document type that does not match the id is a 404**, measured on
   2026-08-21 by reading a real invoice id through `/v1/quotations`,
   `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one
@@ -1917,7 +1941,8 @@ The consequences are the point of writing this down.
 
 ### 14.2 A shape is recorded, so drift can be seen rather than remembered
 
-`smoke.py` asks whether the calls this server makes still work. That leaves a
+`live/smoke.py` asks whether the calls this server makes still work. That
+leaves a
 question it cannot reach: whether the answers still look the same. Everything
 null or empty is dropped on the way to the client, so a field that disappeared
 upstream looks identical downstream, and a field that appeared is invisible by
