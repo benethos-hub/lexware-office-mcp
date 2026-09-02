@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "benethos-lexware-office-mcp"
 version = "0.2.2"
-description = "Unofficial MCP server for the Lexware Office accounting API."
+description = "Unofficial MCP server for the Lexware Office accounting API — runs over stdio or HTTP."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
