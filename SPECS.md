@@ -1652,6 +1652,14 @@ status alone.
 No raw traceback ever reaches the client. Expected failures are `ToolError`
 subclasses with concise, actionable messages.
 
+**What a crash sends depends on the SDK version, and the floor stays at
+2.0.0.** A traceback never travels on either, but on 2.0.0 an unanticipated
+exception's own message does, and from 2.1 it does not. The declaration
+remains `mcp>=2.0.0,<3` rather than being raised to close that: the
+difference is a message this server never composed, in a path it does not
+expect to reach, and narrowing what an installation may resolve to costs
+more than it buys.
+
 ### 12.1 Why `ToolError` derives from the SDK's
 
 The SDK sorts a failing tool call by the **type** of what was raised. Its own

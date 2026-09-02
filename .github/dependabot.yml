@@ -14,7 +14,15 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  # The actions the workflows pin by major version.
+  # The actions the workflows use. Most follow their moving major tag, so a
+  # fix arrives without a pull request for every patch.
+  #
+  # astral-sh/setup-uv is the exception, and not by choice: it stopped
+  # publishing major tags after v7. There is no v8, v9 or v10, only exact
+  # versions, so the workflows have to name one - and an exact pin goes
+  # quietly stale while continuing to work. Checked 2026-09-02: v10.0.1 is
+  # both what is pinned and the newest release. Dependabot is what notices
+  # next time.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
