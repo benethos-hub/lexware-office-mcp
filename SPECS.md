@@ -1652,6 +1652,37 @@ status alone.
 No raw traceback ever reaches the client. Expected failures are `ToolError`
 subclasses with concise, actionable messages.
 
+### 12.1 Why `ToolError` derives from the SDK's
+
+The SDK sorts a failing tool call by the **type** of what was raised. Its own
+`ToolError` means a failure the server anticipated: the message is handed to
+the model and logged at INFO without a traceback. Anything else is a crash,
+and from mcp 2.1.0 onward the text stays on the server while the model is told
+only `Error executing tool <name>`. So the hierarchy above derives from
+`mcp.server.mcpserver.exceptions.ToolError`, and without that inheritance
+every sentence in the table would be written and none of them delivered.
+
+The `ValueError` raised for an unknown preset or a rate of zero sits on the
+other side of that line deliberately. It is a mistake in how the process was
+configured, not an answer for the model, and withholding its text is right.
+
+Measured 2026-09-02 over real stdio against mcp 2.1.1, upgrading from 2.0.0.
+The same denial arrived as:
+
+```
+2.0.0  Error executing tool get_profile: get_profile is not enabled for this
+       installation. The account owner decides that in the server's tool policy.
+2.1.1  Error executing tool get_profile
+```
+
+**What the gates did and did not catch.** Twenty-one tests failed on the
+bump, because they assert on the message text of what `MCPServer.call_tool`
+raises, and that call re-raises through the same sorting. The suite is not
+blind here. What it cannot see is anything further out: `call_tool` raises,
+while a client is answered by `_handle_call_tool`, which converts. A change
+to that conversion - the wire shape, the tool list, the annotations - passes
+every test in this repository. Section 14.2 says how to look.
+
 ## 13. Output format
 
 - Compact JSON, small by construction. A search tool returns exactly one
@@ -1870,6 +1901,44 @@ The consequences are the point of writing this down.
   one: a question about write behaviour needs write calls against a disposable
   test account, see section 11.1, which is a deliberate act by the account
   owner rather than something automation initiates.
+
+### 14.2 The SDK is the second blind spot
+
+Upstream drift is one direction a mocked suite cannot see. The other is the
+layer on the near side: the MCP SDK, which sits between this code and the
+client. The suite calls `MCPServer.call_tool` and asserts on what comes back
+or on what it raises. A client never does that. It sends JSON-RPC over stdio
+and is answered by `_handle_call_tool`, which converts a return value into a
+result and an exception into an `is_error` result. Nothing in this repository
+exercises that conversion, so a change to it is green all the way through.
+
+**When the SDK version moves, drive the server the way a client does.** Spawn
+`python -m benethos_lexware_office_mcp` with a scratch policy file and a
+placeholder key, speak `initialize`, `tools/list` and `tools/call` to it over
+its own stdin and stdout, and keep the answers. Do it once before the bump and
+once after, then diff. Three things are worth capturing:
+
+- **The tool list, byte for byte.** It is the largest thing this server sends
+  and the whole of what the model knows about it. Byte-identical is the
+  answer to want, and it is checkable: section 8 records the size.
+- **An error the server means to send.** Call a tool the policy file disables.
+  The guard refuses it before any HTTP, so the check is offline and
+  deterministic, and it travels the exact path a real failure travels.
+- **An argument the schema rejects.** That failure is raised by pydantic
+  before the handler runs and is sorted differently, so it is worth watching
+  separately from the one above.
+
+This is what the 2.0.0 to 2.1.1 bump was checked with on 2026-09-02. The list
+and the schemas came back byte-identical and the size stayed at 52,091, while
+the error path had changed underneath, see section 12.1. Neither half of that
+was predictable from the release notes alone, which is the argument for
+sending the requests.
+
+The probe is a scratch script, deliberately not a test. It spawns a process
+and speaks a wire protocol, which is slow and brittle as a gate, and what it
+guards is a decision rather than a behaviour: that the error hierarchy stays
+on the SDK's anticipated-failure side of the line. `tests/test_errors.py`
+asserts that decision directly, in a form that costs nothing to run.
 
 ## 15. Conventions
 

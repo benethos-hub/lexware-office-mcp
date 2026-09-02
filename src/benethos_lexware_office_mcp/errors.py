@@ -4,9 +4,18 @@ Every expected failure becomes a :class:`ToolError` with a short, actionable
 message. A raw traceback never reaches the client, and the API key never
 reaches an error message: :func:`redact` strips it from any text on the way
 out.
+
+**The base class is the SDK's, and that is what carries the message across.**
+See :class:`ToolError`.
 """
 
 from __future__ import annotations
+
+# The SDK sorts a failing tool call into two kinds. One it was told to expect,
+# whose message is handed to the model, and a crash, whose text stays on the
+# server and reaches the client as "Error executing tool <name>". The sorting
+# is by exception type, and this is the type that means the first kind.
+from mcp.server.mcpserver.exceptions import ToolError as AnticipatedFailure
 
 __all__ = [
     "AuthError",
@@ -46,11 +55,19 @@ def redact(text: str) -> str:
     return text
 
 
-class ToolError(Exception):
+class ToolError(AnticipatedFailure):
     """Base class for every failure reported to the client.
 
     The message is redacted on construction, so a subclass cannot leak a
     secret by interpolating one into its own text.
+
+    Deriving from the SDK's own tool error is what makes the message travel.
+    An exception of any other type is read as a crash, and the model is told
+    only which tool failed - so a hierarchy of plain :class:`Exception`
+    subclasses would write these sentences and never deliver one. The
+    :class:`ValueError` raised for a bad preset or a bad rate is on the other
+    side of that line on purpose: it is a mistake in the configuration of the
+    process, not an answer for the model.
     """
 
     def __init__(self, message: str) -> None:

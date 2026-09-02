@@ -13,6 +13,22 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Fixed
+
+- **Error messages reach the model again on MCP SDK 2.1.** The SDK sorts a
+  failing tool call by the type of what was raised: its own `ToolError` is a
+  failure the server anticipated and its message is handed to the model, while
+  anything else counts as a crash and the model is told only `Error executing
+  tool <name>`. This server's error classes derived from plain `Exception`, so
+  on 2.1 every message it sends - no API key configured, key rejected, record
+  not found, rate limit, tool not enabled for this installation - was replaced
+  by that one sentence. They now derive from the SDK's class.
+
+  This affected installations of 0.2.2 and earlier, not only this checkout:
+  the declared range is `mcp>=2.0.0,<3`, so anyone installing after the SDK's
+  2.1.0 release resolved to it and lost the messages. Measured over real stdio
+  against 2.1.1, both before and after.
+
 ## [0.2.2] - 2026-08-23
 
 ### Removed
