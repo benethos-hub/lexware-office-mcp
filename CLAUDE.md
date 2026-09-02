@@ -221,6 +221,24 @@ response shapes. Verify anything new against the live API with a read-only
 call before building on it, and mark unverified assumptions **(to verify)** in
 SPECS.md rather than stating them as fact.
 
+**Nor do they cover the SDK changing under the server.** The suite calls
+`MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and is
+answered by `_handle_call_tool`, which turns a return value into a result and
+an exception into an `is_error` result. Nothing here exercises that
+conversion. So when `mcp` moves, drive the server the way a client does -
+spawn `python -m benethos_lexware_office_mcp` against a scratch policy file,
+send `initialize`, `tools/list` and `tools/call`, and diff the answers against
+the same run on the old version. The recipe and what to capture are in
+SPECS.md section 14.2. The 2.0.0 to 2.1.1 bump is why it is written down: the
+tool list came back byte-identical while every error message this server sends
+had silently stopped reaching the model.
+
+**One rule follows from that and is easy to undo by accident.** Every class in
+`errors.py` derives from the SDK's `ToolError`, because that type is what
+marks a failure as anticipated and gets its message delivered. Raise a plain
+`Exception` subclass and the model is told only which tool failed. See
+SPECS.md section 12.1.
+
 **A live check is always a manual run, never a gate.** No key ships with the
 repository and none goes into CI, so anything automated has to pass with no
 key, no network and no account. Never write a test that reaches the API, and
