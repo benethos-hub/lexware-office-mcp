@@ -1,8 +1,15 @@
 # API response shapes
 
-One file per run of [`../api_shape.py`](../api_shape.py), named for the moment
-it was taken. Each records the shape of every readable endpoint: field names,
-their JSON types, and the values of a short list of closed vocabularies.
+One file per kept run of [`../api_shape.py`](../api_shape.py), named for the
+moment it was taken. Each records the shape of every readable endpoint: field
+names, their JSON types, and the values of a short list of closed
+vocabularies.
+
+**Not every run is worth keeping.** Two captures taken an hour apart against
+an unchanged API differ in their timestamp line and nowhere else, and a
+directory of those says nothing a single file does not. Keep one when it
+differs from the last, and one at each release so there is a marker to compare
+a later suspicion against. Delete the rest.
 
 ## Why these files exist
 
