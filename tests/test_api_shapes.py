@@ -25,7 +25,16 @@ IBAN = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
 
 
 def captures() -> list[Path]:
-    return sorted(SHAPES.glob("shape-*.txt"))
+    """Every capture, and never an empty list.
+
+    A guard that loops over nothing passes without checking anything, which
+    is the hole SPECS.md section 14.1 names: a test that reports green for
+    work it did not do. So the absence of captures fails here rather than
+    quietly disarming the three checks below.
+    """
+    found = sorted(SHAPES.glob("shape-*.txt"))
+    assert found, f"no capture in {SHAPES.name}, so nothing below checks anything"
+    return found
 
 
 def test_the_directory_explains_itself() -> None:
