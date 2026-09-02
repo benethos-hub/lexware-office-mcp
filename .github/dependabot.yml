@@ -1,9 +1,14 @@
 version: 2
 updates:
-  # The dependency ranges declared in pyproject.toml. `mcp` carries an upper
-  # bound on purpose, so a major release arrives as a pull request to look at
-  # rather than as a resolution nobody chose.
-  - package-ecosystem: "pip"
+  # `uv`, not `pip`, because uv.lock is what actually pins a version here.
+  # The pip ecosystem does not read that file, and every range in
+  # pyproject.toml is a `>=`, so pip had nothing to raise either: the newest
+  # release was already allowed by the declaration. Neither half of that is
+  # an error, and between them they kept the bot silent from the day it was
+  # configured. `mcp` carries an upper bound on purpose, so a major release
+  # arrives as a pull request to look at rather than as a resolution nobody
+  # chose.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"

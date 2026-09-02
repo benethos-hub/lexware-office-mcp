@@ -29,6 +29,17 @@ housekeeping are out of scope here — design decisions live in
   2.1.0 release resolved to it and lost the messages. Measured over real stdio
   against 2.1.1, both before and after.
 
+### Changed
+
+- **MCP SDK raised to 2.1.1**, from 2.0.0. The tool list a client receives is
+  byte-for-byte unchanged, and so is its size. Two behaviour changes come with
+  it: the error sorting above, and a crash inside a tool no longer puts the
+  exception's own text on the wire.
+
+- **Dependencies refreshed**: cryptography 50.0.1, platformdirs 4.11.7,
+  pydantic 2.13.5, and click, coverage, ruff and typer to their current
+  releases. No change to any tool, parameter or answer.
+
 ## [0.2.2] - 2026-08-23
 
 ### Removed
