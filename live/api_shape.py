@@ -256,7 +256,11 @@ async def run(env_file: Path | None) -> int:
 
     SHAPES.mkdir(parents=True, exist_ok=True)
     target = SHAPES / f"shape-{taken.strftime('%Y%m%dT%H%MZ')}.txt"
-    target.write_text(capture.render(taken), encoding="utf-8")
+    # LF, not the platform default. `.gitattributes` stores these as LF, and a
+    # capture written with CRLF makes `git diff --no-index` against a
+    # committed one report every line as changed - which is the one command
+    # this whole directory exists to support.
+    target.write_text(capture.render(taken), encoding="utf-8", newline="\n")
 
     print(f"\n{len(capture.shapes)} endpoints written to {target.name}")
     previous = sorted(p for p in SHAPES.glob("shape-*.txt") if p != target)

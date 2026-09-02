@@ -263,11 +263,14 @@ async def _checks(server: Any) -> int:
 
     async def sales_document() -> str | None:
         nonlocal sales_row
-        rows = [
-            row
-            for row in vouchers.get("vouchers") or []
-            if row.get("voucherType") == "invoice"
-        ]
+        # Asked for by type rather than filtered out of the list above. That
+        # list is the ten newest of every kind, so an account whose recent
+        # activity is bookkeeping vouchers holds invoices this check would
+        # never see - and it reported "nothing of this kind" while three of
+        # them sat in the account. A skipped check that could have run is the
+        # same hole as one that passes without looking.
+        found = await call("search_vouchers", voucher_type="invoice", size=25)
+        rows = found.get("vouchers") or []
         if not rows:
             return None
         # An issued invoice first, because only that one has been rendered and

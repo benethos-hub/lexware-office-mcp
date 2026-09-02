@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.2.2.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.2.3.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -572,6 +572,29 @@ still meets it.
 - The other two are as small as the account is: one payment condition and one
   print layout, both flagged as the organization's default.
 
+### Announced upstream, read 2026-09-02
+
+Read from the documentation rather than measured, because a removal that has
+not happened yet cannot be measured. Both fields are still served today.
+
+- **`files` on credit notes and delivery notes is going away.** The wording is
+  "(Deprecated, will be removed) The document id for the PDF version of the
+  credit note", and the same for a delivery note. The **download** is
+  unaffected: `download_document` fetches `/file` directly and never reads
+  that id. What weakens is the signal above — on those two types the absence
+  of a `files` block will stop meaning "still a draft, nothing rendered", and
+  `voucherStatus` becomes the field to read instead. It is in the answer
+  already, so no tool has to change for that to be possible.
+- **`/v1/credit-notes/{id}/document` is deprecated**, with the documentation
+  pointing at the `/file` subresource instead. Nothing to do: this server has
+  never called `/document`, for a reason measured 2026-08-21 and recorded
+  above — it costs one call more for the same bytes. The vendor has now
+  arrived at the same place.
+
+Neither is dated by Lexware, so there is no deadline to plan against. The
+capture in `live/shapes/` is what will show the day either field stops
+arriving.
+
 ### Voucher semantics, verified 2026-08-20
 
 - **"Voucher" is three things.** `/v1/voucherlist` is a read-only **index**
@@ -650,7 +673,8 @@ still meets it.
   `printLayoutId` and the `files` block, and that last absence is the reliable
   way to tell whether there is anything to download — an `open` document
   carries `files.documentFileId`, pointing at the same rendered file
-  `/file` serves.
+  `/file` serves. **On two types that signal is on borrowed time**, see
+  "Announced upstream" below.
 - **A document type that does not match the id is a 404**, measured on
   2026-08-21 by reading a real invoice id through `/v1/quotations`,
   `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one
@@ -1917,7 +1941,8 @@ The consequences are the point of writing this down.
 
 ### 14.2 A shape is recorded, so drift can be seen rather than remembered
 
-`smoke.py` asks whether the calls this server makes still work. That leaves a
+`live/smoke.py` asks whether the calls this server makes still work. That
+leaves a
 question it cannot reach: whether the answers still look the same. Everything
 null or empty is dropped on the way to the client, so a field that disappeared
 upstream looks identical downstream, and a field that appeared is invisible by
@@ -2191,8 +2216,9 @@ suggested they were.
 | 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the seven checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
 | 0.2.1 | The published image on Python 3.14 | **released 2026-08-23** — no change to the package itself. The tags a user pulls, `latest` and the minor line, follow the release tag, so the base image moves only when a version number is spent on it |
 | 0.2.2 | `--env-file` reads the file it names and no other | **released 2026-08-23** — the flag had promised that in its own help since it was added and read the named file after everything the search found, so it isolated nothing. See section 6. The search behind it follows one rule now as well, which is a decision rather than the fix |
+| 0.2.3 | Error messages reach the model again under MCP SDK 2.1 | **released 2026-09-02** — the SDK began sorting a failing tool call by the type of what was raised, and this hierarchy derived from plain `Exception`, so every sentence it sends was replaced by "Error executing tool <name>". It reached installations rather than only this checkout: the declared range already allowed 2.1. See section 12.1. The lockfile was brought current in the same release, and Dependabot had been silent since it was configured because it read `pip` rather than `uv` |
 
-**No feature release is planned between 0.2.2 and whatever a future API
+**No feature release is planned between 0.2.3 and whatever a future API
 version brings.** What was once listed as a phase of its own — booking a
 voucher, and the ZUGFeRD and XRechnung download variants — turned out on
 2026-08-21 to be one operation the API cannot perform and one that
