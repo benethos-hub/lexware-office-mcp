@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.2.2.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.2.3.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -2191,8 +2191,9 @@ suggested they were.
 | 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the seven checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
 | 0.2.1 | The published image on Python 3.14 | **released 2026-08-23** — no change to the package itself. The tags a user pulls, `latest` and the minor line, follow the release tag, so the base image moves only when a version number is spent on it |
 | 0.2.2 | `--env-file` reads the file it names and no other | **released 2026-08-23** — the flag had promised that in its own help since it was added and read the named file after everything the search found, so it isolated nothing. See section 6. The search behind it follows one rule now as well, which is a decision rather than the fix |
+| 0.2.3 | Error messages reach the model again under MCP SDK 2.1 | **released 2026-09-02** — the SDK began sorting a failing tool call by the type of what was raised, and this hierarchy derived from plain `Exception`, so every sentence it sends was replaced by "Error executing tool <name>". It reached installations rather than only this checkout: the declared range already allowed 2.1. See section 12.1. The lockfile was brought current in the same release, and Dependabot had been silent since it was configured because it read `pip` rather than `uv` |
 
-**No feature release is planned between 0.2.2 and whatever a future API
+**No feature release is planned between 0.2.3 and whatever a future API
 version brings.** What was once listed as a phase of its own — booking a
 voucher, and the ZUGFeRD and XRechnung download variants — turned out on
 2026-08-21 to be one operation the API cannot perform and one that

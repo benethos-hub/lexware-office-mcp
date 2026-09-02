@@ -30,7 +30,7 @@ services:
     # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
     # pull_policy: always
     #
-    # Pin a tag for anything you depend on: `:0.2.2` names one release,
+    # Pin a tag for anything you depend on: `:0.2.3` names one release,
     # `:0.2` follows its patch releases. `pull_policy` decides when compose
     # asks the registry - `always` on every `up`, `missing` only when the
     # image is absent locally.
@@ -89,7 +89,7 @@ services:
     # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
     # pull_policy: always
     #
-    # Pin the same tag as the server above: `:0.2.2` names one release, `:0.2`
+    # Pin the same tag as the server above: `:0.2.3` names one release, `:0.2`
     # follows its patch releases. Two versions of one image against one volume
     # is not a state anything here expects.
     container_name: benethos-lexware-office-mcp-setup
