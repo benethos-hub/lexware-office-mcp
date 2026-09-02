@@ -1689,7 +1689,7 @@ raises, and that call re-raises through the same sorting. The suite is not
 blind here. What it cannot see is anything further out: `call_tool` raises,
 while a client is answered by `_handle_call_tool`, which converts. A change
 to that conversion - the wire shape, the tool list, the annotations - passes
-every test in this repository. Section 14.2 says how to look.
+every test in this repository. Section 14.3 says how to look.
 
 ## 13. Output format
 
@@ -1880,12 +1880,17 @@ The consequences are the point of writing this down.
   no key, no network and no account. That is true today and stays true. A test
   that quietly skips when no key is present is not a gate, it is a hole that
   reports green.
-- **`tests/smoke.py` is run by hand and never collected by pytest.** Built
+- **`live/smoke.py` is run by hand and never collected by pytest.** Built
   2026-08-21. It takes a key from the normal configuration chain of section 7,
   refuses to start without one, calls `get_profile` first so whoever runs it
   sees which organization is about to be read, and performs **read-only**
-  calls only. `pytest` does not find it because it is not named `test_*.py`,
-  and `testpaths` is left alone rather than being taught an exception.
+  calls only. `pytest` does not find it because `testpaths` is `tests/` and
+  this file is not in it. That was a filename until 2026-09-02: the script was
+  called `smoke.py` rather than `test_smoke.py` and nothing else stood in the
+  way, so a rename would have pointed CI at a live account. Both live checks
+  moved to `live/` for that reason, which is the same argument as the one two
+  bullets down - a directory pytest does not walk is a guarantee, a name it
+  happens not to match is a convention.
 - **It cannot write, structurally.** The server it builds is handed the
   `read-only` preset of section 9, so a writing tool is not merely unused in
   the script, it is absent from the server and refused if called. The script
@@ -1910,7 +1915,40 @@ The consequences are the point of writing this down.
   test account, see section 11.1, which is a deliberate act by the account
   owner rather than something automation initiates.
 
-### 14.2 The SDK is the second blind spot
+### 14.2 A shape is recorded, so drift can be seen rather than remembered
+
+`smoke.py` asks whether the calls this server makes still work. That leaves a
+question it cannot reach: whether the answers still look the same. Everything
+null or empty is dropped on the way to the client, so a field that disappeared
+upstream looks identical downstream, and a field that appeared is invisible by
+construction.
+
+`live/api_shape.py` reads every readable endpoint and writes what it saw into
+a timestamped file under `live/shapes/`. Field names, JSON types, and the
+values of a short list of closed vocabularies - `voucherStatus`, `taxType`,
+`paymentStatus` and their neighbours, because a vocabulary that moved is drift
+a type cannot show. Comparing two runs is then a `diff` rather than a reading
+of the dated prose in section 5.
+
+**What a capture may hold is a rule with a test behind it.** No id, no name,
+no address, no amount, no date: those are records rather than shapes and
+section 11 keeps them out of versioned files. `tests/test_api_shapes.py`
+checks every capture for all four, because the files are long, they look alike
+and a leak in one would survive review.
+
+**A difference is not automatically drift.** These are the shapes of one
+account, so a diff also moves when the account does: an optional field no
+record happened to fill, a document type nobody had created yet. Read a diff
+for what it says about the API, then check the account before concluding.
+
+The first capture was taken 2026-09-02, covering nineteen endpoints. It found
+four fields this repository had never named - `deliveryTerms`,
+`organizationDefault`, `recurringTemplateId` and `userId` inside the `created`
+block the profile tool drops. All four are additive and nothing reads them.
+Whether they were new could not be settled, which is the argument for having
+a baseline at all rather than an argument about those four fields.
+
+### 14.3 The SDK is the second blind spot
 
 Upstream drift is one direction a mocked suite cannot see. The other is the
 layer on the near side: the MCP SDK, which sits between this code and the

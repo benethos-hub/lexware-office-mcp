@@ -754,8 +754,8 @@ is therefore always a deliberate local run with a key you supply, separate from
 the suite above and never part of it:
 
 ```
-uv run python tests/smoke.py
-uv run python tests/smoke.py --env-file path/to/.env
+uv run python live/smoke.py
+uv run python live/smoke.py --env-file path/to/.env
 ```
 
 It reads your account and writes nothing to it. The server it builds gets the
