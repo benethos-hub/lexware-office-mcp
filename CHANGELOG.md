@@ -13,6 +13,19 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP SDK raised to 2.2.0**, from 2.1.1. Over stdio nothing a client sees
+  moves: the tool list, the `initialize` answer, a delivered error message and
+  a rejected argument were captured on both versions and are byte-identical.
+
+  **Over HTTP, an idle session now expires after 30 minutes.** The SDK closes a
+  streamable-HTTP session with nothing in flight for that long, and the
+  client's next request is answered 404 and has to initialize again. A client
+  that keeps its GET stream open is not affected, and neither is stdio, which
+  has no sessions. This is the SDK's new default and it is kept: a session a
+  crashed client left behind no longer lives until the server does.
+
 ## [0.2.3] - 2026-09-02
 
 ### Fixed
