@@ -26,6 +26,11 @@ housekeeping are out of scope here — design decisions live in
   has no sessions. This is the SDK's new default and it is kept: a session a
   crashed client left behind no longer lives until the server does.
 
+- **Dependencies refreshed**: uvicorn 0.53.0, anyio 4.15.1 and sse-starlette
+  3.4.11 in the HTTP transport, pyjwt 2.14.0, plus coverage and ruff to their
+  current releases. No change to any tool, parameter or answer, and the tool
+  list a client receives is byte-identical.
+
 ## [0.2.3] - 2026-09-02
 
 ### Fixed
