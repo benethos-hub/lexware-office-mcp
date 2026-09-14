@@ -273,6 +273,39 @@ response shape, and after any suspicion that the API moved. **A capture holds
 field names and types, never a record** - no id, name, address, amount or
 date, which `tests/test_api_shapes.py` checks. See SPECS.md section 14.2.
 
+## Releasing
+
+A patch release is cheap here and has been used for an image that had merely
+fallen behind, so the list is short on purpose. In this order:
+
+1. **`uv lock --upgrade --dry-run`.** Dependabot proposes direct
+   dependencies only. Everything transitive moves when a direct bump happens
+   to drag it along, and otherwise never - and the container image is built
+   from the lockfile, so it is the one installation that inherits that
+   silence. An install from the index resolves the newest allowed versions on
+   its own. If the dry run lists anything, refresh on its own branch first,
+   with the suite and a look at the notes of whatever sits in the transport
+   or under the SDK. A security fix does not wait for this step: the bot's
+   security updates cover transitive packages too.
+2. **Live checks while an account exists.** `live/smoke.py` and
+   `live/api_shape.py`, and the capture stays as this release's marker.
+3. **The version, in every place that quotes it.** `pyproject.toml`, the
+   README's status line, pin example and exact image tag, both exact tags in
+   `compose.yaml`, the SPECS status line and a roadmap row, and the
+   changelog section with its link reference. Then `uv lock`, which carries
+   the package's own version. The guards in `tests/test_packaging.py` catch
+   most of a missed one. **The minor line `:0.2` is not touched**: it follows
+   the release tag when the image is built.
+4. **The coverage percentage**, re-read against the static badge.
+5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
+   which fires `publish.yml`.
+6. **Verify the delivered artefacts, not the build.** The PyPI simple index
+   with a cache-busting query - the JSON API lags for minutes after an upload
+   and has reported a finished release as missing. The ghcr index manifest
+   for the exact tag, the minor line and `latest`, all three on the same
+   revision. Then install the wheel into a scratch environment and pull the
+   image, and check inside each that the change the release is for is there.
+
 ## Conventions
 
 - Type hints everywhere, `from __future__ import annotations` at the top.

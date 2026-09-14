@@ -13,6 +13,8 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-14
+
 ### Changed
 
 - **MCP SDK raised to 2.2.0**, from 2.1.1. Over stdio nothing a client sees
@@ -621,7 +623,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.0...v0.2.1
