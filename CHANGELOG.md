@@ -94,6 +94,13 @@ housekeeping are out of scope here — design decisions live in
 - **`nan` and `inf` are refused as numbers.** `LXO_MCP_RATE=nan` let no
   request through ever, and `inf` switched the rate limiter off. The server
   now refuses to start with either, as it does with any other bad number.
+- **A bad setting no longer breaks `--version`, `--help` or `setup`.** The
+  server was built from the environment the moment its module was imported,
+  so one bad value ended every command with a traceback. Starting the server
+  with one now ends in a single line naming it.
+- **Each server answers to its own policy file.** There was one policy per
+  process, set by whichever server was built last, and every call guard read
+  that one.
 
 ## [0.2.4] - 2026-09-14
 

@@ -19,9 +19,9 @@ Enforcement happens at two levels, deliberately (SPECS.md section 9):
    ``list_tools``, so it never reaches the model and costs no tokens. The file
    is read as the list is built, not when the server starts, so enabling a
    tool works as immediately as disabling one.
-2. **Call.** The wrapper :func:`classify` puts around the function checks
-   again when a call arrives, so a client holding a stale tool list cannot
-   smuggle one through.
+2. **Call.** The wrapper :func:`guarded` puts around the function when it
+   is registered checks again when a call arrives, so a client holding a
+   stale tool list cannot smuggle one through.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal, TypeVar, cast
 
 from .errors import PermissionDeniedError
 
@@ -43,13 +43,12 @@ __all__ = [
     "Preset",
     "ToolMeta",
     "ToolPolicy",
-    "active_policy",
     "classify",
     "flags_from",
     "grouped_tools",
+    "guarded",
     "known_tools",
     "preset",
-    "set_active_policy",
 ]
 
 logger = logging.getLogger(__name__)
@@ -271,20 +270,44 @@ class ToolPolicy:
         )
 
 
-# The policy this process enforces. Without a file nothing is enabled, which
-# is what an installation nobody has configured should offer.
-_POLICY = ToolPolicy()
+def guarded(func: F, policy: ToolPolicy) -> F:
+    """``func``, refusing to run while ``policy`` does not enable it.
 
+    The second of the two gates: listing already leaves a disabled tool out,
+    and this catches a call from a client whose tool list predates the
+    change. Bound to one server's policy rather than to a process-wide one,
+    so two servers in one process - a test suite, the configuration
+    interface measuring costs - each answer to their own file.
+    """
+    name = func.__name__
 
-def set_active_policy(policy: ToolPolicy) -> None:
-    """Set the policy this process enforces. Called once during startup."""
-    global _POLICY
-    _POLICY = policy
+    def guard() -> None:
+        if not policy.enabled(name):
+            # No path in this message. It travels to the client and from
+            # there into a model's context, and where a file sits on
+            # somebody's disk - user name, directory layout and all - is
+            # nothing the caller can act on. The person who can act on it
+            # is at the machine, where stderr already names the file.
+            raise PermissionDeniedError(
+                f"{name} is not enabled for this installation. The account "
+                "owner decides that in the server's tool policy."
+            )
 
+    if inspect.iscoroutinefunction(func):
 
-def active_policy() -> ToolPolicy:
-    """The policy this process is enforcing."""
-    return _POLICY
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            guard()
+            return await func(*args, **kwargs)
+
+        return cast(F, async_wrapper)
+
+    @functools.wraps(func)
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        guard()
+        return func(*args, **kwargs)
+
+    return cast(F, sync_wrapper)
 
 
 def classify(
@@ -293,49 +316,17 @@ def classify(
     effect: Effect = "",
     permanence: Permanence = "",
 ) -> Callable[[F], F]:
-    """Record what a tool is, and enforce the policy on every call.
+    """Record what a tool is, for whoever writes the policy file.
 
-    The metadata is for whoever writes the file. The wrapper is the second of
-    the two gates: registration already leaves a disabled tool out, and this
-    catches a call from a client whose tool list predates the change.
+    Metadata only, and the function comes back unchanged. Enforcement is
+    :func:`guarded`, which ``register_tool`` puts around every tool with the
+    policy of the server it is registered on.
     """
 
     def decorate(func: F) -> F:
-        name = func.__name__
-        _REGISTRY[name] = ToolMeta(
+        _REGISTRY[func.__name__] = ToolMeta(
             access=access, domain=domain, effect=effect, permanence=permanence
         )
-
-        def guard() -> None:
-            if not _POLICY.enabled(name):
-                # No path in this message. It travels to the client and from
-                # there into a model's context, and where a file sits on
-                # somebody's disk - user name, directory layout and all - is
-                # nothing the caller can act on. The person who can act on it
-                # is at the machine, where stderr already names the file.
-                raise PermissionDeniedError(
-                    f"{name} is not enabled for this installation. The account "
-                    "owner decides that in the server's tool policy."
-                )
-
-        if inspect.iscoroutinefunction(func):
-
-            @functools.wraps(func)
-            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                guard()
-                return await func(*args, **kwargs)
-
-            wrapper: Any = async_wrapper
-        else:
-
-            @functools.wraps(func)
-            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                guard()
-                return func(*args, **kwargs)
-
-            wrapper = sync_wrapper
-
-        wrapper.tool_meta = _REGISTRY[name]
-        return wrapper
+        return func
 
     return decorate

@@ -780,7 +780,11 @@ arriving.
   original goes on answering from its source text. Both are set now, by
   replacing the dictionary rather than editing it, which drops `__annotate__`
   and leaves one answer for every reader. The offline suite is identical on
-  every version and caught none of it - the matrix did.
+  every version and caught none of it - the matrix did. Since 2026-09-26 the
+  call guard is put around the function when it is registered, after the
+  annotation is attached, rather than by `classify` at definition: the guard
+  answers to the policy of the server it is registered on, and there is no
+  process-wide policy any more for a second server to overwrite.
 
 ## 7. Configuration
 

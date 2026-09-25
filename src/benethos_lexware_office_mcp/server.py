@@ -40,14 +40,7 @@ from .config import (
 )
 from .envfile import update_env_file
 from .errors import ConfigError, register_secret
-from .policy import (
-    Preset,
-    ToolPolicy,
-    active_policy,
-    known_tools,
-    preset,
-    set_active_policy,
-)
+from .policy import Preset, ToolPolicy, known_tools, preset
 from .tools import register_tools
 from .transport import require_bearer, run_http
 
@@ -130,6 +123,11 @@ class PolicyServer(MCPServer):
         tools = await super().list_tools()
         return [tool for tool in tools if allowed.get(tool.name, False)]
 
+    @property
+    def policy(self) -> ToolPolicy:
+        """The file this server answers to, for listing and for every call."""
+        return self._policy
+
     def _resources_enabled(self) -> bool:
         """Whether any tool a download resource belongs to is enabled."""
         allowed = self._policy.as_map()
@@ -211,15 +209,19 @@ class PolicyServer(MCPServer):
 
 def build_server(
     settings: Settings, provider: ClientProvider | None = None
-) -> MCPServer:
-    """Create a server whose registered tools match the permission tier.
+) -> PolicyServer:
+    """Create a server that answers to the policy file ``settings`` name.
 
     ``provider`` is injectable for tests. Left out, the server builds the one
     client it is allowed to have, and every tool shares it — and with it the
     one rate limiter.
+
+    The policy belongs to the server and to nothing else. Every tool's call
+    guard is bound to it, so a second server in the same process - the
+    configuration interface measures costs with one - cannot change what the
+    first one enforces.
     """
     policy = ToolPolicy(settings.policy_file())
-    set_active_policy(policy)
     server = PolicyServer(
         name="benethos-lexware-office-mcp",
         title="Unofficial Lexware Office MCP Server",
@@ -232,9 +234,31 @@ def build_server(
     return server
 
 
-# Module-level instance so the tool surface can be inspected without starting
-# a server. See the inspect command in CLAUDE.md.
-mcp = build_server(load_settings())
+# Importing this module fills the tool registry, which the policy file, the
+# presets and the configuration interface are all written against. Tools
+# classify themselves as they are defined, and they are defined by being
+# registered - so they are registered once here, on a server that serves
+# nothing, with default settings. Default on purpose: this runs on import,
+# before `--version` or `setup` has been parsed, and a bad value in somebody's
+# environment must not stop either of them.
+register_tools(MCPServer(name="registry"), Settings(), ClientProvider(Settings()))
+
+_inspected: PolicyServer | None = None
+
+
+def __getattr__(name: str) -> Any:
+    """``server.mcp``: a server as configured here, built on first use.
+
+    For the inspect commands in CLAUDE.md, which want the tool list as this
+    machine's settings and policy file produce it. Built only when asked for,
+    since building it reads the environment.
+    """
+    if name == "mcp":
+        global _inspected
+        if _inspected is None:
+            _inspected = build_server(load_settings())
+        return _inspected
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # Written for someone reading it in a terminal for the first time. The
@@ -466,8 +490,7 @@ def _tools_command(action: str, settings: Settings) -> None:
     # registry the policy is written against. The registry is filled as the
     # tools are *defined*, so it is complete even when the file enables none
     # of them - which is the state this command exists to get out of.
-    build_server(settings)
-    policy = active_policy()
+    policy = build_server(settings).policy
 
     if action != "show":
         existed = policy.exists()
@@ -556,8 +579,18 @@ def main(argv: list[str] | None = None) -> None:
     """Console script entry point."""
     wants_setup = "setup" in (argv if argv is not None else sys.argv[1:])
     named_env = _named_env_file(argv, must_exist=not wants_setup)
-    settings = load_settings(env_file=named_env)
+    # A bad setting ends the server, in one line rather than a traceback. Not
+    # before argparse has had its turn, though: `--version` and `--help` have
+    # nothing to do with the settings, and `setup` is where one is repaired.
+    broken: ConfigError | None = None
+    try:
+        settings = load_settings(env_file=named_env)
+    except ConfigError as exc:
+        settings, broken = Settings(), exc
     args = _parse_args(argv, settings)
+    if broken is not None and args.command != "setup":
+        print(str(broken), file=sys.stderr)
+        raise SystemExit(2)
 
     # The command line wins over the environment, which wins over the search.
     # Left unset it stays None, so the search decides - and no absolute path
