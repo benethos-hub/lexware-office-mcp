@@ -740,6 +740,27 @@ async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None
     assert first.read_bytes() == b"january"
 
 
+def test_a_name_taken_between_the_check_and_the_write_is_not_overwritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another download claims the name after it looked free. The file it
+    wrote survives, and this one moves to the next name."""
+    real_open = Path.open
+
+    def racing_open(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if self.name == "invoice.pdf" and "x" in mode and not self.exists():
+            self.write_bytes(b"the other download")
+        return real_open(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", racing_open)
+
+    saved = storage.save(b"this download", "invoice.pdf", tmp_path)
+
+    assert saved.name == "invoice-2.pdf"
+    assert (tmp_path / "invoice.pdf").read_bytes() == b"the other download"
+    assert saved.read_bytes() == b"this download"
+
+
 def test_reusing_a_copy_that_already_carries_a_counter(tmp_path: Path) -> None:
     """The match may be behind a name that was itself pushed aside once."""
     storage.save(b"january", "invoice.pdf", tmp_path)

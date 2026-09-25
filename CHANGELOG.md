@@ -117,6 +117,9 @@ housekeeping are out of scope here — design decisions live in
 - **A download named like a Windows device is saved under another name.**
   `CON.pdf` or `LPT1.pdf` from the API is the console or a printer port on
   Windows, not a file, and is now saved as `_CON.pdf`.
+- **Two downloads at once can no longer overwrite each other.** A name was
+  checked and then written, so two downloads could both find it free. The
+  file is now created exclusively.
 
 ## [0.2.4] - 2026-09-14
 

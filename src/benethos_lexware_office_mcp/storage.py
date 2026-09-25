@@ -97,10 +97,16 @@ def save(content: bytes, name: str, directory: Path) -> Path:
       copies numbered up to ``-4``, which is not caution, it is litter.
     """
     for candidate in _candidates(name, directory):
-        if not candidate.exists():
-            candidate.write_bytes(content)
+        # Created exclusively rather than checked and then written: two
+        # downloads at once - the tools run concurrently - could otherwise
+        # both find a name free and the second overwrite the first.
+        try:
+            with candidate.open("xb") as out:
+                out.write(content)
             return candidate
-        if candidate.read_bytes() == content:
+        except FileExistsError:
+            pass
+        if candidate.is_file() and candidate.read_bytes() == content:
             return candidate
     # Without the directory: this message can reach the client, and where
     # downloads land on somebody's disk is not the caller's business. The
