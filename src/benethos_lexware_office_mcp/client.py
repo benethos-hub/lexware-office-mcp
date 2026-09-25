@@ -261,6 +261,9 @@ class LexwareClient:
         if accept is not None:
             headers["Accept"] = accept
         last_attempt = MAX_ATTEMPTS - 1
+        # Whether an earlier attempt may have been carried out: it timed out,
+        # lost its connection or got a 5xx. A 429 is certain not to have been.
+        maybe_done = False
 
         for attempt in range(MAX_ATTEMPTS):
             await self._bucket.acquire()
@@ -276,9 +279,10 @@ class LexwareClient:
                 )
             except httpx.TimeoutException as exc:
                 # Not a 429, so the streak the breaker counts is over. Left
-                # standing, two 429s around an hour of timeouts would trip it.
+                # standing, two 429s either side of a timeout would trip it.
                 self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
+                    maybe_done = True
                     await self._backoff(attempt)
                     continue
                 raise UpstreamError(
@@ -287,6 +291,7 @@ class LexwareClient:
             except httpx.TransportError as exc:
                 self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
+                    maybe_done = True
                     await self._backoff(attempt)
                     continue
                 raise UpstreamError(
@@ -319,12 +324,20 @@ class LexwareClient:
 
             if status >= 500:
                 if retryable and attempt < last_attempt:
+                    maybe_done = True
                     await self._backoff(attempt)
                     continue
                 raise UpstreamError(
                     f"The API returned {status} for {method} {path}.",
                     outcome_unknown=not retryable,
                 )
+
+            if status == 404 and method == "DELETE" and maybe_done:
+                # The retry of a delete finding nothing is the delete having
+                # worked: the attempt whose answer was lost removed it.
+                # Reporting 404 would tell the caller the record never
+                # existed, right after this call destroyed it.
+                return response
 
             if status >= 400:
                 raise self._client_error(response, method, path)

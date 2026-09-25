@@ -106,6 +106,9 @@ housekeeping are out of scope here — design decisions live in
 - **A timeout ends a run of rate limits.** The breaker that pauses after three
   429s in a row counted across a network failure, so two 429s either side of
   a timeout paused the server for thirty seconds.
+- **`delete_article` no longer reports a deletion it made as not found.**
+  When the first attempt's answer was lost and the retry found nothing, the
+  404 was passed on - as if the article had never existed.
 
 ## [0.2.4] - 2026-09-14
 

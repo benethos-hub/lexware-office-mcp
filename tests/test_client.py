@@ -373,6 +373,35 @@ async def test_a_transport_error_ends_the_rate_limit_streak() -> None:
     assert response.status_code == 200
 
 
+@pytest.mark.parametrize(
+    "lost",
+    [httpx.ReadTimeout("slow"), httpx.Response(502)],
+    ids=["timeout", "bad gateway"],
+)
+async def test_a_retried_delete_that_finds_nothing_has_worked(
+    lost: httpx.Response | Exception,
+) -> None:
+    """The first attempt deleted it and its answer was lost. The retry's 404
+    is the evidence, not a sign that the article never existed."""
+    async with make_client(lost, httpx.Response(404)) as client:
+        await client.delete_article("PLACEHOLDER-ARTICLE-1")
+
+        assert client.handler.calls == 2  # type: ignore[attr-defined]
+
+
+async def test_a_delete_that_finds_nothing_at_once_is_still_a_404() -> None:
+    async with make_client(httpx.Response(404)) as client:
+        with pytest.raises(NotFoundError):
+            await client.delete_article("PLACEHOLDER-ARTICLE-1")
+
+
+async def test_a_delete_retried_only_after_429_is_still_a_404() -> None:
+    """A 429 was certainly not performed, so it proves nothing about a 404."""
+    async with make_client(httpx.Response(429), httpx.Response(404)) as client:
+        with pytest.raises(NotFoundError):
+            await client.delete_article("PLACEHOLDER-ARTICLE-1")
+
+
 async def test_retry_after_is_honoured() -> None:
     slept: list[float] = []
 
