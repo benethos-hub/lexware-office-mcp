@@ -85,6 +85,10 @@ housekeeping are out of scope here — design decisions live in
   `IssueList` shape the API names it `missing_entity`, and the model was
   told to read the record again - which does not help when the request
   simply did not carry one.
+- **A file that cannot be written or read is an answer, not a crash.** A full
+  disk, a download directory owned by someone else, a locked receipt or too
+  many files of one name reached the model as a bare tool failure. The
+  download and upload tools now say what the system refused, without a path.
 
 ## [0.2.4] - 2026-09-14
 

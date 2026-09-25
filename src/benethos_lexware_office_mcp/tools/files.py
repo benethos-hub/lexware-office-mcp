@@ -9,7 +9,9 @@ wants, and as a **resource link**, which is what everyone else needs. See
 from __future__ import annotations
 
 import base64
+import contextlib
 import inspect
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
@@ -27,7 +29,7 @@ from pydantic import BaseModel, Field
 from .. import rendering, resources, storage
 from ..client import ClientProvider
 from ..config import Settings
-from ..errors import NotFoundError, ValidationError
+from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..policy import classify
 from ._base import register_tool
 from .sales_documents import RESOURCES, DocumentIdField, DocumentTypeField
@@ -294,13 +296,13 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         # that only knew the running process. The registry follows the disk
         # now too, and this stays the direct route: no list to consult, no
         # client feature to depend on.
-        found = storage.resolve(
-            uri[len(resources.SCHEME) :], storage.directory_for(settings)
-        )
-        if found is None:
-            raise NotFoundError("download", uri)
-
-        payload = found.read_bytes()
+        with _on_disk("read the download"):
+            found = storage.resolve(
+                uri[len(resources.SCHEME) :], storage.directory_for(settings)
+            )
+            if found is None:
+                raise NotFoundError("download", uri)
+            payload = found.read_bytes()
         mime = storage.content_type_for(found)
         if len(payload) > MAX_INLINE:
             raise ValidationError(
@@ -527,11 +529,11 @@ def _deliver(
     its structured content validates against that schema, so declaring the
     payload buys a real schema without giving up the content blocks.
     """
-    directory = storage.directory_for(settings)
     name = storage.suggested_name(response, fallback)
-    written = storage.save(response.content, name, directory)
-    mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
-    link = resources.publish(server, written, mime)
+    with _on_disk("save the download"):
+        written = storage.save(response.content, name, storage.directory_for(settings))
+        mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
+        link = resources.publish(server, written, mime)
 
     payload = {
         "path": str(written),
@@ -566,6 +568,20 @@ CONTENT_TYPES: dict[str, str] = {
 }
 
 
+@contextlib.contextmanager
+def _on_disk(action: str) -> Iterator[None]:
+    """Turn a failure of this machine's filesystem into an answer.
+
+    A full disk, a directory somebody else owns, a file locked by another
+    program: none of them is the caller's mistake, and none of them should
+    reach the model as a bare "Error executing tool".
+    """
+    try:
+        yield
+    except OSError as exc:
+        raise LocalFileError(action, exc) from None
+
+
 def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     """Read a local file for upload, refusing what the API would refuse.
 
@@ -573,6 +589,13 @@ def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     where one is set, the file has to resolve inside it - links followed
     first, so one placed in the directory cannot point out of it.
     """
+    with _on_disk("read the file to upload"):
+        return _read_upload_unguarded(raw_path, allowed)
+
+
+def _read_upload_unguarded(
+    raw_path: str, allowed: Path | None
+) -> tuple[bytes, str, str]:
     path = Path(raw_path).expanduser()
     if not path.is_file():
         raise ValidationError(

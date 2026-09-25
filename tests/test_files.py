@@ -1193,6 +1193,77 @@ def test_a_symbolic_link_in_the_download_directory_is_not_published(
     assert resources.publish_existing(server, tmp_path) == 1
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        PermissionError(13, "Permission denied", "/home/someone/cache/x.pdf"),
+        OSError(28, "No space left on device"),
+        FileExistsError("Too many files already named like 'x.pdf'."),
+    ],
+    ids=["denied", "full", "collisions"],
+)
+async def test_a_download_that_cannot_be_saved_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: OSError
+) -> None:
+    """A tool error with the system's reason, not a crash and never the path."""
+
+    def refuse(*_args: object) -> Path:
+        raise failure
+
+    monkeypatch.setattr(storage, "save", refuse)
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    with pytest.raises(ToolError, match="Could not save the download") as excinfo:
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    message = str(excinfo.value)
+    assert (failure.strerror or str(failure)) in message
+    assert "someone" not in message
+    await provider.aclose()
+
+
+async def test_a_download_that_cannot_be_read_back_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    def locked(_self: Path) -> bytes:
+        raise PermissionError(13, "Permission denied", str(tmp_path))
+
+    monkeypatch.setattr(Path, "read_bytes", locked)
+
+    with pytest.raises(ToolError, match="Permission denied") as excinfo:
+        await server.call_tool(
+            "read_download", {"uri": "lexware://download/invoice.pdf"}
+        )
+
+    assert str(tmp_path) not in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_a_file_that_cannot_be_read_for_upload_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = tmp_path / "receipt.pdf"
+    receipt.write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = server_for(handler, tmp_path)
+
+    def locked(_self: Path) -> bytes:
+        raise PermissionError(13, "Permission denied", str(receipt))
+
+    monkeypatch.setattr(Path, "read_bytes", locked)
+
+    with pytest.raises(ToolError, match="Could not read the file to upload"):
+        await server.call_tool("upload_file", {"path": str(receipt)})
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 async def test_building_a_server_does_not_create_a_download_directory(
     tmp_path: Path,
 ) -> None:
