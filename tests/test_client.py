@@ -358,6 +358,31 @@ async def test_retry_after_is_honoured() -> None:
     assert max(slept) >= 3.5  # 7 seconds, minus at most half from the jitter
 
 
+@pytest.mark.parametrize("seconds", ["86400", "inf", "nan", "9"])
+async def test_a_retry_after_beyond_the_cap_is_not_slept_through(seconds: str) -> None:
+    """A day, or for ever, inside a tool call is worse than an answer now."""
+    slept: list[float] = []
+
+    async def record(delay: float) -> None:
+        slept.append(delay)
+
+    handler = Recorder(
+        httpx.Response(429, headers={"Retry-After": seconds}), httpx.Response(200)
+    )
+    client = LexwareClient(
+        Settings(api_key=API_KEY),
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=record),
+        sleep=record,
+    )
+    with pytest.raises(RateLimitError, match="longer than this call waits"):
+        await client.request("GET", "/v1/profile")
+    await client.aclose()
+
+    assert handler.calls == 1
+    assert all(delay <= 8.0 for delay in slept)
+
+
 async def test_an_unparsable_retry_after_still_backs_off() -> None:
     async with make_client(
         httpx.Response(429, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}),

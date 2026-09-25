@@ -70,6 +70,10 @@ housekeeping are out of scope here — design decisions live in
   escaped as a plain exception, so the model was told only that the tool
   failed - an invitation to try again and make a second record. It now says
   the request may have been carried out and to check before retrying.
+- **A `Retry-After` longer than eight seconds ends the call instead of
+  stalling it.** The header was honoured without a limit, inside the tool
+  call: `86400` held it for a day and `inf` for ever. Up to eight seconds it
+  is still honoured, beyond that the call answers that it was rate limited.
 
 ## [0.2.4] - 2026-09-14
 

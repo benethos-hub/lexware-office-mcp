@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import random
 from types import TracebackType
 from typing import Any
@@ -739,11 +740,21 @@ class LexwareClient:
         delay = min(BACKOFF_BASE * (2**attempt), BACKOFF_CAP)
         if retry_after:
             try:
-                delay = max(delay, float(retry_after))
+                asked = float(retry_after)
             except ValueError:
                 # A Retry-After can also be an HTTP date. Falling back to the
                 # computed delay is better than failing to back off at all.
                 logger.debug("Unparsable Retry-After: %r", retry_after)
+            else:
+                # Honoured up to the cap and no further. This wait happens
+                # inside a tool call, so `86400` would hold it for a day and
+                # `inf` for ever - better to say so and let the caller decide.
+                if not math.isfinite(asked) or asked > BACKOFF_CAP:
+                    raise RateLimitError(
+                        f"Rate limited, and the API asked to wait {retry_after} "
+                        "seconds, longer than this call waits. Try again later."
+                    )
+                delay = max(delay, asked)
         # Jitter, so that several waiters do not resume in lockstep.
         await self._sleep(delay * (0.5 + random.random() / 2))
 
