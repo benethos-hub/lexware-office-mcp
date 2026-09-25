@@ -233,7 +233,12 @@ def test_an_oversized_or_nonsense_body_is_refused_unread(
             f"POST /permissions HTTP/1.1\r\nHost: {host}:{port}\r\n"
             f"Content-Length: {length}\r\n\r\n".encode()
         )
-        answer = sock.recv(200).decode("latin-1")
+        # Read to the end, so the server is not left writing into a socket
+        # this side already closed.
+        received = b""
+        while chunk := sock.recv(4096):
+            received += chunk
+        answer = received.decode("latin-1")
 
     assert answer.startswith("HTTP/1.0 413") or answer.startswith("HTTP/1.1 413")
 
