@@ -543,7 +543,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
-| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default | `10` |
+| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default, at most 100 | `10` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
 | `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport | — |

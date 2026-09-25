@@ -44,6 +44,7 @@ from .errors import ConfigError, register_secret
 
 __all__ = [
     "DEFAULT_PDF_PAGES",
+    "MAX_PDF_PAGES",
     "MAX_PAGE_SIZE",
     "Settings",
     "config_dir",
@@ -86,6 +87,11 @@ MAX_PAGE_SIZE = 250
 # page size there is no upstream limit to derive one from, and a caller can
 # still override it per call.
 DEFAULT_PDF_PAGES = 10
+
+# The most pages one read_download renders, whatever the call asks for. At
+# roughly two thousand tokens a page this is already far past any context
+# worth spending, and it bounds the CPU a single call can take.
+MAX_PDF_PAGES = 100
 
 DEFAULT_LOG_LEVEL = "INFO"
 
@@ -398,7 +404,10 @@ def load_settings(
             maximum=MAX_PAGE_SIZE,
         ),
         pdf_pages=_as_int(
-            get("PDF_PAGES"), DEFAULT_PDF_PAGES, name="LXO_MCP_PDF_PAGES"
+            get("PDF_PAGES"),
+            DEFAULT_PDF_PAGES,
+            name="LXO_MCP_PDF_PAGES",
+            maximum=MAX_PDF_PAGES,
         ),
         tool_policy_path=(
             Path(policy_raw).expanduser()

@@ -8,6 +8,7 @@ wants, and as a **resource link**, which is what everyone else needs. See
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import contextlib
 import inspect
@@ -28,7 +29,7 @@ from pydantic import BaseModel, Field
 
 from .. import rendering, resources, storage
 from ..client import ClientProvider
-from ..config import Settings
+from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..policy import classify
 from ._base import register_tool
@@ -139,10 +140,11 @@ def max_pages_field(default: int) -> Any:
         Field(
             description=(
                 "For a PDF, how many pages to render from the front. "
-                f"Defaults to {default}. Pass null for every page, and expect "
-                "roughly two thousand tokens per page."
+                f"Defaults to {default}. Pass null for every page, up to "
+                f"{MAX_PDF_PAGES}, and expect roughly two thousand tokens per page."
             ),
             ge=1,
+            le=MAX_PDF_PAGES,
         ),
     ]
 
@@ -191,7 +193,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         rather than stored.
         """
         response = await provider.get().file(file_id, MIME[file_format])
-        return _deliver(
+        return await _deliver(
             response,
             server,
             settings,
@@ -217,7 +219,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         response = await provider.get().document_file(
             RESOURCES[document_type], document_id, MIME[file_format]
         )
-        return _deliver(
+        return await _deliver(
             response,
             server,
             settings,
@@ -296,21 +298,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         # that only knew the running process. The registry follows the disk
         # now too, and this stays the direct route: no list to consult, no
         # client feature to depend on.
-        with _on_disk("read the download"):
-            found = storage.resolve(
-                uri[len(resources.SCHEME) :], storage.directory_for(settings)
-            )
-            if found is None:
-                raise NotFoundError("download", uri)
-            payload = found.read_bytes()
-        mime = storage.content_type_for(found)
-        if len(payload) > MAX_INLINE:
-            raise ValidationError(
-                f"{uri} is {len(payload) / 1024 / 1024:.1f} MiB, too much to "
-                "put in an answer. It is on disk already, so use the path the "
-                "download reported."
-            )
-        return _inline(uri, payload, mime, max_pages)
+        pages = MAX_PDF_PAGES if max_pages is None else min(max_pages, MAX_PDF_PAGES)
+        # Reading and rendering run in a worker thread. Rendering a long PDF
+        # takes seconds of CPU, and on the event loop every other call this
+        # server is answering would wait for it.
+        return await asyncio.to_thread(_load_inline, uri, settings, pages)
 
     # The page default is configurable, so both the schema and the description
     # have to state the value this process actually uses rather than a number
@@ -354,7 +346,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. An XML file is treated as
         an XRechnung.
         """
-        content, name, content_type = _read_upload(path, settings.upload_path)
+        content, name, content_type = await asyncio.to_thread(
+            _read_upload, path, settings.upload_path
+        )
         return dict(await provider.get().upload_file(content, name, content_type))
 
     @classify("write", "files", "create", permanence="books")
@@ -392,7 +386,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. The answer is the new file
         id, which `download_file` reads back.
         """
-        content, name, content_type = _read_upload(path, settings.upload_path)
+        content, name, content_type = await asyncio.to_thread(
+            _read_upload, path, settings.upload_path
+        )
         return dict(
             await provider.get().attach_file(voucher_id, content, name, content_type)
         )
@@ -426,6 +422,25 @@ def permalink(
     # Encoded whole: the id comes from the model, and a slash, `?` or `#` in
     # it would otherwise make a link to some other page of the app.
     return f"{base}/permalink/{resource}/{action}/{quote(target_id, safe='')}"
+
+
+def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
+    """Find a download, read it and build the answer. Blocking, run in a thread."""
+    with _on_disk("read the download"):
+        found = storage.resolve(
+            uri[len(resources.SCHEME) :], storage.directory_for(settings)
+        )
+        if found is None:
+            raise NotFoundError("download", uri)
+        payload = found.read_bytes()
+    mime = storage.content_type_for(found)
+    if len(payload) > MAX_INLINE:
+        raise ValidationError(
+            f"{uri} is {len(payload) / 1024 / 1024:.1f} MiB, too much to "
+            "put in an answer. It is on disk already, so use the path the "
+            "download reported."
+        )
+    return _inline(uri, payload, mime, max_pages)
 
 
 def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -> Any:
@@ -510,7 +525,7 @@ def _rendered(
     )
 
 
-def _deliver(
+async def _deliver(
     response: Any,
     server: MCPServer,
     settings: Settings,
@@ -531,7 +546,7 @@ def _deliver(
     """
     name = storage.suggested_name(response, fallback)
     with _on_disk("save the download"):
-        written = storage.save(response.content, name, storage.directory_for(settings))
+        written = await asyncio.to_thread(_save, response.content, name, settings)
         mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
         link = resources.publish(server, written, mime)
 
@@ -566,6 +581,11 @@ CONTENT_TYPES: dict[str, str] = {
     ".jpeg": "image/jpeg",
     ".xml": "application/xml",
 }
+
+
+def _save(content: bytes, name: str, settings: Settings) -> Path:
+    """Write a download to disk. Blocking, run in a thread."""
+    return storage.save(content, name, storage.directory_for(settings))
 
 
 @contextlib.contextmanager

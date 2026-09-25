@@ -84,6 +84,7 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
         {"LXO_MCP_RATE": "nan"},
         {"LXO_MCP_RATE": "inf"},
         {"LXO_MCP_TIMEOUT": "inf"},
+        {"LXO_MCP_PDF_PAGES": "101"},
         # The key travels to this address, so never in the clear.
         {"LXO_MCP_BASE_URL": "http://api.lexware.io"},
         {"LXO_MCP_BASE_URL": "api.lexware.io"},

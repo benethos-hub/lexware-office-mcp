@@ -120,6 +120,13 @@ housekeeping are out of scope here — design decisions live in
 - **Two downloads at once can no longer overwrite each other.** A name was
   checked and then written, so two downloads could both find it free. The
   file is now created exclusively.
+- **Rendering a PDF no longer holds up every other call.** `read_download`
+  rendered on the event loop, so a long document stalled the whole server
+  for as long as it took. Rendering and file access now run in a worker
+  thread.
+- **`read_download` renders at most 100 pages.** `max_pages` accepts up to
+  100, `null` means every page up to that, and `LXO_MCP_PDF_PAGES` above 100
+  is refused. `pages` and `pagesShown` still say what was left out.
 
 ## [0.2.4] - 2026-09-14
 

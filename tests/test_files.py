@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import struct
+import threading
 import zlib
 from pathlib import Path
 from typing import Any
@@ -1006,6 +1007,57 @@ def test_padding_at_the_end_of_a_row_is_not_part_of_the_image() -> None:
     png = rendering._png(pixels, 1, 2, 3, stride=4)
 
     assert zlib.decompress(_idat(png)) == b"\x00\x01\x02\x03\x00\x04\x05\x06"
+
+
+async def test_rendering_runs_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seconds of CPU on the loop would hold every other call up."""
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server, provider = server_for(Recorder(), tmp_path)
+    real = rendering.pdf_pages_as_png
+    seen: list[int] = []
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        seen.append(threading.get_ident())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rendering, "pdf_pages_as_png", recording)
+
+    await server.call_tool("read_download", {"uri": "lexware://download/invoice.pdf"})
+
+    assert seen and seen[0] != threading.get_ident()
+    await provider.aclose()
+
+
+async def test_every_page_means_at_most_the_ceiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """null renders every page there is, up to MAX_PDF_PAGES and no further."""
+    from benethos_lexware_office_mcp.tools import files as files_tools
+
+    monkeypatch.setattr(files_tools, "MAX_PDF_PAGES", 2)
+    (tmp_path / "long.pdf").write_bytes(make_pdf(pages=3))
+    server, provider = server_for(Recorder(), tmp_path)
+
+    result = await server.call_tool(
+        "read_download", {"uri": "lexware://download/long.pdf", "max_pages": None}
+    )
+
+    summary = result.structured_content or {}
+    assert (summary["pages"], summary["pagesShown"]) == (3, 2)
+    await provider.aclose()
+
+
+async def test_asking_for_more_than_the_ceiling_is_refused(tmp_path: Path) -> None:
+    server, provider = server_for(Recorder(), tmp_path)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "read_download",
+            {"uri": "lexware://download/x.pdf", "max_pages": DEFAULT_PDF_PAGES * 100},
+        )
+    await provider.aclose()
 
 
 def test_asking_for_more_pages_than_there_are_is_not_an_error() -> None:
