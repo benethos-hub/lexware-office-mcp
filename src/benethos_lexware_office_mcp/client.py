@@ -30,6 +30,7 @@ import math
 import random
 from types import TracebackType
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -62,6 +63,20 @@ BACKOFF_CAP = 8.0
 # harder is what turns a transient limit into a permanently blocked key.
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 30.0
+
+
+def _segment(value: str) -> str:
+    """One id as one path segment, whatever it contains.
+
+    Ids come from the model. Put into a path as they stand, a slash, ``?`` or
+    ``#`` in one would reach another endpoint - ``x/../../articles/y`` turns
+    an update of a contact into one of an article. Percent-encoding keeps a
+    slash inside the segment, and ``.``, ``..`` and an empty id, which
+    encoding leaves as they are and a URL then resolves, are refused.
+    """
+    if value.strip() in ("", ".", ".."):
+        raise ValidationError(f"{value!r} is not an id. Take one from a search.")
+    return quote(value, safe="")
 
 
 def _page_params(page: int, size: int, **filters: Any) -> dict[str, Any]:
@@ -422,7 +437,7 @@ class LexwareClient:
     async def contact(self, contact_id: str) -> dict[str, Any]:
         """``GET /v1/contacts/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/contacts/{contact_id}"), "contacts"
+            await self.get_json(f"/v1/contacts/{_segment(contact_id)}"), "contacts"
         )
 
     async def create_contact(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -446,7 +461,10 @@ class LexwareClient:
         change fail instead of being overwritten.
         """
         return await self._send_json(
-            "PUT", f"/v1/contacts/{contact_id}", json=body, endpoint="contacts"
+            "PUT",
+            f"/v1/contacts/{_segment(contact_id)}",
+            json=body,
+            endpoint="contacts",
         )
 
     # -- vouchers ---------------------------------------------------------
@@ -494,7 +512,7 @@ class LexwareClient:
     async def voucher(self, voucher_id: str) -> dict[str, Any]:
         """``GET /v1/vouchers/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/vouchers/{voucher_id}"), "vouchers"
+            await self.get_json(f"/v1/vouchers/{_segment(voucher_id)}"), "vouchers"
         )
 
     async def vouchers_by_number(self, voucher_number: str) -> dict[str, Any]:
@@ -517,7 +535,7 @@ class LexwareClient:
         Takes the id of the **voucher**, not of a payment.
         """
         return _expect_object(
-            await self.get_json(f"/v1/payments/{voucher_id}"), "payments"
+            await self.get_json(f"/v1/payments/{_segment(voucher_id)}"), "payments"
         )
 
     async def create_voucher(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -535,7 +553,10 @@ class LexwareClient:
         ``version`` that was read.
         """
         return await self._send_json(
-            "PUT", f"/v1/vouchers/{voucher_id}", json=body, endpoint="vouchers"
+            "PUT",
+            f"/v1/vouchers/{_segment(voucher_id)}",
+            json=body,
+            endpoint="vouchers",
         )
 
     # -- articles ---------------------------------------------------------
@@ -569,7 +590,7 @@ class LexwareClient:
     async def article(self, article_id: str) -> dict[str, Any]:
         """``GET /v1/articles/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/articles/{article_id}"), "articles"
+            await self.get_json(f"/v1/articles/{_segment(article_id)}"), "articles"
         )
 
     async def create_article(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -588,7 +609,10 @@ class LexwareClient:
         a contact answers 406.
         """
         return await self._send_json(
-            "PUT", f"/v1/articles/{article_id}", json=body, endpoint="articles"
+            "PUT",
+            f"/v1/articles/{_segment(article_id)}",
+            json=body,
+            endpoint="articles",
         )
 
     async def delete_article(self, article_id: str) -> None:
@@ -598,7 +622,7 @@ class LexwareClient:
         record is gone rather than archived, and a second delete of the same
         id is a 404.
         """
-        await self.request("DELETE", f"/v1/articles/{article_id}")
+        await self.request("DELETE", f"/v1/articles/{_segment(article_id)}")
 
     # -- recurring templates ----------------------------------------------
 
@@ -624,7 +648,7 @@ class LexwareClient:
     async def recurring_template(self, template_id: str) -> dict[str, Any]:
         """``GET /v1/recurring-templates/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/recurring-templates/{template_id}"),
+            await self.get_json(f"/v1/recurring-templates/{_segment(template_id)}"),
             "recurring-templates",
         )
 
@@ -680,7 +704,7 @@ class LexwareClient:
         does not exist.
         """
         return _expect_object(
-            await self.get_json(f"/v1/{resource}/{document_id}"), resource
+            await self.get_json(f"/v1/{resource}/{_segment(document_id)}"), resource
         )
 
     # -- files ------------------------------------------------------------
@@ -702,7 +726,7 @@ class LexwareClient:
         Asking for ``application/xml`` when the file is a PDF is a 404 rather
         than a 406.
         """
-        return await self.download(f"/v1/files/{file_id}", accept)
+        return await self.download(f"/v1/files/{_segment(file_id)}", accept)
 
     async def document_file(
         self, resource: str, document_id: str, accept: str | None = None
@@ -713,7 +737,9 @@ class LexwareClient:
         PDF and ``Content-Disposition`` carries the document's own name. A
         bookkeeping voucher answers this path with 404, and a draft with 409.
         """
-        return await self.download(f"/v1/{resource}/{document_id}/file", accept)
+        return await self.download(
+            f"/v1/{resource}/{_segment(document_id)}/file", accept
+        )
 
     async def upload_file(
         self, content: bytes, filename: str, content_type: str
@@ -748,7 +774,7 @@ class LexwareClient:
         """
         return await self._send_json(
             "POST",
-            f"/v1/vouchers/{voucher_id}/files",
+            f"/v1/vouchers/{_segment(voucher_id)}/files",
             files={"file": (filename, content, content_type)},
             endpoint="voucher files",
         )

@@ -56,6 +56,11 @@ housekeeping are out of scope here — design decisions live in
   `get_deeplink` encodes the id, so a slash or `?` in it can no longer point
   the link at another page of the web app. The HTTP transport closes a
   websocket before accepting it and passes no scope but `lifespan` unguarded.
+- **An id can no longer steer a request to another endpoint.** Ids were put
+  into request paths as the model sent them, so `x/../../articles/y` could
+  turn an update of a contact into one of an article, and the same for a
+  delete. Every id is now percent-encoded into its own path segment, and
+  `.`, `..` or an empty id is refused before any request.
 - **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
   server refuses to start otherwise, and the configuration interface refuses
   to save one.

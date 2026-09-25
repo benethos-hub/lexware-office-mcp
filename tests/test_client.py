@@ -132,6 +132,40 @@ async def test_an_unreadable_answer_to_a_write_is_an_unknown_outcome(
     assert client.handler.calls == 1  # type: ignore[attr-defined]
 
 
+@pytest.mark.parametrize(
+    ("call", "expected"),
+    [
+        (
+            lambda c: c.update_contact("x/../../articles/y", {}),
+            b"/v1/contacts/x%2F..%2F..%2Farticles%2Fy",
+        ),
+        (lambda c: c.delete_article("a?b#c"), b"/v1/articles/a%3Fb%23c"),
+        (lambda c: c.voucher("v/files"), b"/v1/vouchers/v%2Ffiles"),
+        (
+            lambda c: c.document_file("invoices", "../contacts"),
+            b"/v1/invoices/..%2Fcontacts/file",
+        ),
+    ],
+    ids=["put", "delete", "get", "download"],
+)
+async def test_an_id_stays_inside_its_path_segment(call: Any, expected: bytes) -> None:
+    """Ids come from the model. A slash in one must not reach another path."""
+    async with make_client(httpx.Response(200, json={})) as client:
+        await call(client)
+        sent = client.handler.requests[0]  # type: ignore[attr-defined]
+
+    assert sent.url.raw_path == expected
+
+
+@pytest.mark.parametrize("bad", ["", " ", ".", ".."])
+async def test_an_id_that_a_url_would_resolve_away_is_refused(bad: str) -> None:
+    async with make_client() as client:
+        with pytest.raises(ValidationError, match="not an id"):
+            await client.delete_article(bad)
+
+        assert client.handler.calls == 0  # type: ignore[attr-defined]
+
+
 # -- error mapping --------------------------------------------------------
 
 
