@@ -101,6 +101,8 @@ housekeeping are out of scope here — design decisions live in
 - **Each server answers to its own policy file.** There was one policy per
   process, set by whichever server was built last, and every call guard read
   that one.
+- **Downloading an unchanged document again no longer logs a warning** on
+  stderr every time.
 
 ## [0.2.4] - 2026-09-14
 

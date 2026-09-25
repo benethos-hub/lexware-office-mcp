@@ -31,6 +31,7 @@ started and nothing downloaded since. That is what ``read_download`` is for.
 
 from __future__ import annotations
 
+import weakref
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
@@ -51,6 +52,10 @@ SCHEME = "lexware://download/"
 GATING_TOOLS = ("download_file", "download_document", "read_download")
 
 DEFAULT_TYPE = "application/octet-stream"
+
+# Which URIs each server already carries. Weak, so a server built and dropped
+# - the suite builds hundreds - takes its entry with it.
+_published: weakref.WeakKeyDictionary[MCPServer, set[str]] = weakref.WeakKeyDictionary()
 
 
 def uri_for(name: str) -> str:
@@ -91,16 +96,22 @@ def publish(server: MCPServer, path: Path, mime_type: str) -> ResourceLink:
     uri = uri_for(path.name)
     size = path.stat().st_size
 
-    server.add_resource(
-        FunctionResource(
-            uri=uri,
-            name=path.name,
-            title=path.name,
-            description="Downloaded from Lexware Office by this server.",
-            mime_type=kind,
-            fn=lambda: _read(path),
+    # A download of an unchanged document lands on the file already there,
+    # and the SDK logs a warning for every URI registered twice. Asking it
+    # first would mean reading its private registry, so this keeps its own.
+    published = _published.setdefault(server, set())
+    if uri not in published:
+        server.add_resource(
+            FunctionResource(
+                uri=uri,
+                name=path.name,
+                title=path.name,
+                description="Downloaded from Lexware Office by this server.",
+                mime_type=kind,
+                fn=lambda: _read(path),
+            )
         )
-    )
+        published.add(uri)
     return ResourceLink(
         type="resource_link",
         uri=uri,

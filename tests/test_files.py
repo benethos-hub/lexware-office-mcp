@@ -695,6 +695,20 @@ async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
     await provider.aclose()
 
 
+async def test_the_same_document_twice_logs_no_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The SDK warns for every URI registered twice, once per repeat."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    for _ in range(3):
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert "already exists" not in caplog.text
+    await provider.aclose()
+
+
 async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:
     """The other half of the rule: nothing is ever overwritten."""
     directory = tmp_path
