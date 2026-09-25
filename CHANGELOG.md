@@ -60,6 +60,12 @@ housekeeping are out of scope here — design decisions live in
   server refuses to start otherwise, and the configuration interface refuses
   to save one.
 
+### Fixed
+
+- **`read_download` rendered PDF pages with red and blue swapped.** PDFium
+  hands out BGR and the PNG declared RGB, so the red stamp on a dunning
+  letter came out blue.
+
 ## [0.2.4] - 2026-09-14
 
 ### Changed

@@ -81,7 +81,9 @@ def pdf_pages_as_png(
             page = document[index]
             width_pt, height_pt = page.get_size()
             longest = max(width_pt, height_pt) or 1
-            bitmap = page.render(scale=max_edge / longest)
+            # PDFium renders BGR unless told otherwise, and a PNG is RGB: without
+            # rev_byteorder every red stamp on a dunning letter came out blue.
+            bitmap = page.render(scale=max_edge / longest, rev_byteorder=True)
             try:
                 pages.append(
                     RenderedPage(
@@ -91,6 +93,7 @@ def pdf_pages_as_png(
                             bitmap.width,
                             bitmap.height,
                             bitmap.n_channels,
+                            stride=bitmap.stride,
                         ),
                         width=bitmap.width,
                         height=bitmap.height,
@@ -103,8 +106,19 @@ def pdf_pages_as_png(
         document.close()
 
 
-def _png(pixels: bytes, width: int, height: int, channels: int) -> bytes:
+def _png(
+    pixels: bytes,
+    width: int,
+    height: int,
+    channels: int,
+    *,
+    stride: int | None = None,
+) -> bytes:
     """Encode raw pixel rows as a PNG.
+
+    ``pixels`` must already be in RGB order. ``stride`` is the length of one
+    row in the buffer, which may exceed ``width * channels`` by padding that
+    is not part of the image.
 
     Every row carries filter type 0, which measured smaller than the
     alternatives on rendered pages. See the module docstring.
@@ -113,11 +127,12 @@ def _png(pixels: bytes, width: int, height: int, channels: int) -> bytes:
     if colour_type is None:
         raise ValueError(f"Cannot encode {channels} channels as PNG.")
 
-    stride = width * channels
+    row_bytes = width * channels
+    step = stride or row_bytes
     raw = bytearray()
     for row in range(height):
         raw.append(0)
-        raw += pixels[row * stride : (row + 1) * stride]
+        raw += pixels[row * step : row * step + row_bytes]
 
     header = struct.pack(">IIBBBBB", width, height, 8, colour_type, 0, 0, 0)
     return (

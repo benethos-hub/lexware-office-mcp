@@ -10,6 +10,8 @@ ceiling is 5 MiB exactly.
 from __future__ import annotations
 
 import base64
+import struct
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +30,7 @@ API_KEY = "test-key-0123456789"
 FILE_ID = "PLACEHOLDER-FILE-1"
 
 
-def make_pdf(pages: int = 1) -> bytes:
+def make_pdf(pages: int = 1, stream: bytes | None = None) -> bytes:
     """A real PDF with real glyphs, built here rather than checked in.
 
     The stub that used to stand in for one was never a valid document. It was
@@ -36,7 +38,7 @@ def make_pdf(pages: int = 1) -> bytes:
     the moment the server started rendering it, which is exactly the kind of
     fixture that hides a feature not working.
     """
-    stream = (
+    stream = stream or (
         b"BT /F1 12 Tf 1 0 0 1 60 760 Tm (Rechnung RE-2026-0142) Tj "
         b"0 -20 Td (Gesamtbetrag 2.200,91 EUR) Tj ET"
     )
@@ -912,6 +914,43 @@ async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> N
     assert len([b for b in result.content if b.type == "image"]) == 2
     assert "first 2" in result.content[0].text
     await provider.aclose()
+
+
+def test_red_is_rendered_red() -> None:
+    """PDFium hands out BGR by default. Written into an RGB PNG unchanged,
+    the red stamp on a dunning letter arrived blue."""
+    red_page = make_pdf(stream=b"1 0 0 rg 0 0 595 842 re f")
+
+    pages, _ = rendering.pdf_pages_as_png(red_page, max_edge=40)
+
+    png = pages[0].png
+    ihdr = png[16:29]
+    width, _height, _depth, colour_type = struct.unpack(">IIBB", ihdr[:10])
+    assert colour_type == 2  # RGB
+    rows = zlib.decompress(_idat(png))
+    first_pixel = rows[1:4]  # after the row's filter byte
+    assert first_pixel == b"\xff\x00\x00", first_pixel
+    assert len(rows) == (1 + width * 3) * pages[0].height
+
+
+def _idat(png: bytes) -> bytes:
+    data, offset = b"", 8
+    while offset < len(png):
+        (length,) = struct.unpack(">I", png[offset : offset + 4])
+        tag = png[offset + 4 : offset + 8]
+        if tag == b"IDAT":
+            data += png[offset + 8 : offset + 8 + length]
+        offset += 12 + length
+    return data
+
+
+def test_padding_at_the_end_of_a_row_is_not_part_of_the_image() -> None:
+    """A bitmap row can be longer than its pixels. Two 1x1 rows padded to 4."""
+    pixels = b"\x01\x02\x03\xee" + b"\x04\x05\x06\xee"
+
+    png = rendering._png(pixels, 1, 2, 3, stride=4)
+
+    assert zlib.decompress(_idat(png)) == b"\x00\x01\x02\x03\x00\x04\x05\x06"
 
 
 def test_asking_for_more_pages_than_there_are_is_not_an_error() -> None:
