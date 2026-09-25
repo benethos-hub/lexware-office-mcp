@@ -10,6 +10,7 @@ from __future__ import annotations
 import http.cookiejar
 import json
 import re
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -210,6 +211,31 @@ def test_no_page_is_cached(browser: Browser) -> None:
     """They show the bearer token and name the company."""
     assert browser.get("/credentials")[2]["Cache-Control"] == "no-store"
     assert browser.get("/export")[2]["Cache-Control"] == "no-store"
+
+
+def test_no_page_can_be_framed_or_sniffed(browser: Browser) -> None:
+    headers = browser.get("/permissions")[2]
+
+    assert headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "same-origin"
+
+
+@pytest.mark.parametrize("length", ["999999999999", "-5", "many"])
+def test_an_oversized_or_nonsense_body_is_refused_unread(
+    browser: Browser, length: str
+) -> None:
+    """Reading what a Content-Length claims would be the whole attack."""
+    host, port = browser.base.removeprefix("http://").split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(
+            f"POST /permissions HTTP/1.1\r\nHost: {host}:{port}\r\n"
+            f"Content-Length: {length}\r\n\r\n".encode()
+        )
+        answer = sock.recv(200).decode("latin-1")
+
+    assert answer.startswith("HTTP/1.0 413") or answer.startswith("HTTP/1.1 413")
 
 
 def test_a_page_on_another_loopback_port_is_refused(browser: Browser) -> None:

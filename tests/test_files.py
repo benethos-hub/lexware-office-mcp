@@ -306,6 +306,20 @@ async def test_the_edit_action_and_the_configured_base_are_used(
     )
 
 
+async def test_an_id_cannot_steer_the_link_elsewhere() -> None:
+    """The id comes from the model. A slash or a `?` must stay inside it."""
+    server = build_server(Settings(api_key=API_KEY))
+
+    result = await server.call_tool(
+        "get_deeplink", {"target": "invoice", "target_id": "../../settings?x=1#y"}
+    )
+
+    assert result.structured_content is not None
+    assert result.structured_content["url"].endswith(
+        "/permalink/invoices/view/..%2F..%2Fsettings%3Fx%3D1%23y"
+    )
+
+
 async def test_a_contact_always_opens_on_its_one_page(tmp_path: Path) -> None:
     """Verified 2026-08-21: the app answers `contacts/edit/{id}` with a 404.
 

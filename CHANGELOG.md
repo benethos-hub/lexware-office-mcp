@@ -50,6 +50,12 @@ housekeeping are out of scope here — design decisions live in
   extension. With the setting, a file has to resolve inside that directory
   or is refused before any request. Unset, nothing changes, and the README
   now says so plainly.
+- **Smaller hardening.** The configuration interface refuses a form body over
+  1 MiB or with a nonsense `Content-Length` without reading it, and sends
+  headers that keep its pages out of frames and out of `Referer`.
+  `get_deeplink` encodes the id, so a slash or `?` in it can no longer point
+  the link at another page of the web app. The HTTP transport closes a
+  websocket before accepting it and passes no scope but `lifespan` unguarded.
 - **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
   server refuses to start otherwise, and the configuration interface refuses
   to save one.

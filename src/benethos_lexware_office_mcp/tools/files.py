@@ -12,6 +12,7 @@ import base64
 import inspect
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import (
@@ -420,7 +421,9 @@ def permalink(
     resource = LINK_RESOURCES[target]
     if target == "contact":
         action = "view"
-    return f"{base}/permalink/{resource}/{action}/{target_id}"
+    # Encoded whole: the id comes from the model, and a slash, `?` or `#` in
+    # it would otherwise make a link to some other page of the app.
+    return f"{base}/permalink/{resource}/{action}/{quote(target_id, safe='')}"
 
 
 def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -> Any:

@@ -47,6 +47,10 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 
 _SESSION_COOKIE = "lxo_config"
+
+# The largest form this interface accepts. An imported policy file is the
+# biggest thing any of them carries, and that is a few kilobytes.
+MAX_BODY = 1024 * 1024
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 # The name the file has on disk, so a download can simply replace one.
@@ -126,25 +130,31 @@ class Handler(BaseHTTPRequestHandler):
                 "SameSite=Strict; HttpOnly",
             )
 
-    def _send(self, status: int, body: bytes, content_type: str = "text/html") -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+    def _common_headers(self, body: bytes) -> None:
         self.send_header("Content-Length", str(len(body)))
         # The pages show the bearer token and name the files and the company.
         # None of that belongs in a browser cache.
         self.send_header("Cache-Control", "no-store")
+        # No other page may frame these and trick a click out of someone, no
+        # content type is guessed, and no address leaves in a Referer.
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "same-origin")
         self._cookie_header()
         self.end_headers()
+
+    def _send(self, status: int, body: bytes, content_type: str = "text/html") -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+        self._common_headers(body)
         self.wfile.write(body)
 
     def _download(self, body: bytes, filename: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self._cookie_header()
-        self.end_headers()
+        self._common_headers(body)
         self.wfile.write(body)
 
     def _not_found(self) -> None:
@@ -233,14 +243,26 @@ class Handler(BaseHTTPRequestHandler):
             self._not_found()
 
     def do_POST(self) -> None:  # noqa: N802 - the stdlib names it
-        self._session = self._session_token()
+        self._session = ""
         path = urlparse(self.path).path
-        # Read the body first whatever happens, or the connection stalls.
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        form = parse_qs(self.rfile.read(length).decode("utf-8"))
+        # Read the body first whatever happens, or the connection stalls -
+        # but only up to a size no form here comes near. A larger claim is
+        # refused unread and the connection closed, since reading it would
+        # be exactly what the claim was for.
+        try:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            length = -1
+        if not 0 <= length <= MAX_BODY:
+            self.close_connection = True
+            self._send(413, page("Zu groß", "<p>Diese Anfrage ist zu groß.</p>"))
+            return
+        raw = self.rfile.read(length).decode("utf-8", errors="replace")
+        form = parse_qs(raw)
         if not self._host_ok():
             self._wrong_host()
             return
+        self._session = self._session_token()
 
         routes = {
             "/check": self._check,

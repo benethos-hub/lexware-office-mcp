@@ -127,6 +127,27 @@ async def test_a_lifespan_message_passes_through_unguarded() -> None:
     assert scope["reached"] == [True]
 
 
+@pytest.mark.parametrize("kind", ["websocket", "something-new"])
+async def test_no_other_scope_gets_past_the_guard(kind: str) -> None:
+    """Only lifespan is waved through. A websocket with the right token or
+    without one is closed before it is accepted, since nothing serves one."""
+    scope: dict[str, Any] = {
+        "type": kind,
+        "headers": [(b"authorization", f"Bearer {TOKEN}".encode())],
+        "reached": [],
+    }
+    sent: list[dict[str, Any]] = []
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    await transport.bearer_middleware(_inner, TOKEN)(scope, None, send)
+
+    assert scope["reached"] == []
+    if kind == "websocket":
+        assert sent == [{"type": "websocket.close", "code": 1008}]
+
+
 def test_the_allowlist_keeps_the_loopback_entries() -> None:
     """Naming a container host must not lock the machine itself out."""
     security = transport.transport_security(("lexware-office-mcp:8770",))
