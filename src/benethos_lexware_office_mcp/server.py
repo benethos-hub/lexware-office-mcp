@@ -257,8 +257,9 @@ the configuration interface:
   per tool with what it costs the model in context. It writes the same files
   this command line does, so the two can be used interchangeably.
 
-  Loopback only, with no way to bind anything else. The pages have no login,
-  because they cannot be reached from another machine.
+  Binds 127.0.0.1. The pages have no login, so they answer only when a
+  browser addresses them as 127.0.0.1 or localhost. --host exists for a
+  container, where the loopback of the host publishes the port.
 
   --port and --no-browser belong to it. --env-file and --tools-file say which
   files it edits, and unlike everywhere else the .env does not have to exist

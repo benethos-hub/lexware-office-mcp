@@ -33,6 +33,11 @@ housekeeping are out of scope here — design decisions live in
   the API base URL at its own host and have the connection test send the key
   there. Now `Origin` has to name this page's host and port, and only a token
   this process issued counts.
+- **The configuration interface answers only to a loopback name.** A page
+  whose `Host` is not `127.0.0.1`, `localhost` or `::1` is refused, so DNS
+  rebinding cannot read the pages - bearer token included - and a `--host
+  0.0.0.0` bind outside a container does not answer the network. Every
+  response carries `Cache-Control: no-store`.
 - **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
   server refuses to start otherwise, and the configuration interface refuses
   to save one.

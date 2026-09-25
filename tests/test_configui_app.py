@@ -182,6 +182,36 @@ def test_a_wrong_token_is_refused(browser: Browser) -> None:
     assert "Sicherheitstoken" in body
 
 
+@pytest.mark.parametrize("host", ["attacker.example:8770", "192.168.1.20:8770", ""])
+def test_a_page_addressed_by_another_name_is_refused(
+    browser: Browser, host: str
+) -> None:
+    """DNS rebinding: a foreign name pointed at 127.0.0.1 reads as its own
+    origin, so the name the browser used has to be a loopback one."""
+    request = urllib.request.Request(browser.base + "/credentials")
+    request.add_header("Host", host)
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "127.0.0.1" in body
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1:9999", "[::1]:8771"])
+def test_any_loopback_name_and_port_is_answered(browser: Browser, host: str) -> None:
+    """A container publishes under a port of its own choosing."""
+    request = urllib.request.Request(browser.base + "/")
+    request.add_header("Host", host)
+
+    assert browser._open(request)[0] == 200
+
+
+def test_no_page_is_cached(browser: Browser) -> None:
+    """They show the bearer token and name the company."""
+    assert browser.get("/credentials")[2]["Cache-Control"] == "no-store"
+    assert browser.get("/export")[2]["Cache-Control"] == "no-store"
+
+
 def test_a_page_on_another_loopback_port_is_refused(browser: Browser) -> None:
     """Loopback is not enough: any local program serves from loopback."""
     port = int(browser.base.rsplit(":", 1)[1])

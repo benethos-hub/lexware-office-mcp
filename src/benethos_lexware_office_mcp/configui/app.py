@@ -130,6 +130,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        # The pages show the bearer token and name the files and the company.
+        # None of that belongs in a browser cache.
+        self.send_header("Cache-Control", "no-store")
         self._cookie_header()
         self.end_headers()
         self.wfile.write(body)
@@ -139,6 +142,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self._cookie_header()
         self.end_headers()
         self.wfile.write(body)
@@ -148,6 +152,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _deny(self, reason: str) -> None:
         self._send(403, page("Abgelehnt", f'<p class="err">{esc(reason)}</p>'))
+
+    def _host_ok(self) -> bool:
+        """Whether the browser addressed this page by a loopback name.
+
+        Checked on every request, reading ones included. A page elsewhere can
+        point a name it controls at 127.0.0.1 - DNS rebinding - and then read
+        these pages as its own origin, bearer token and all. Its ``Host`` is
+        still its own name, so refusing anything but loopback closes that.
+        It also keeps a ``--host 0.0.0.0`` bind from answering a machine on
+        the network, which would reach it by an address of this one.
+        The port is not compared, so a container published under a different
+        port still works.
+        """
+        target = _host_and_port(self.headers.get("Host", ""))
+        return target is not None and target[0] in _LOOPBACK
 
     def _origin_ok(self) -> bool:
         """Whether a state-changing request came from this page.
@@ -185,7 +204,20 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- routing -----------------------------------------------------------
 
+    def _wrong_host(self) -> None:
+        self._send(
+            403,
+            page(
+                "Abgelehnt",
+                '<p class="err">Diese Seite ist nur als 127.0.0.1 oder '
+                "localhost erreichbar.</p>",
+            ),
+        )
+
     def do_GET(self) -> None:  # noqa: N802 - the stdlib names it
+        if not self._host_ok():
+            self._wrong_host()
+            return
         self._session = self._session_token()
         path = urlparse(self.path).path
         inst = self.installation
@@ -206,6 +238,9 @@ class Handler(BaseHTTPRequestHandler):
         # Read the body first whatever happens, or the connection stalls.
         length = int(self.headers.get("Content-Length", 0) or 0)
         form = parse_qs(self.rfile.read(length).decode("utf-8"))
+        if not self._host_ok():
+            self._wrong_host()
+            return
 
         routes = {
             "/check": self._check,
@@ -676,7 +711,8 @@ def serve(
     if host not in _LOOPBACK:
         print(
             f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
-            "aus erreichbar. Die Seiten haben keine Anmeldung.",
+            "aus erreichbar. Die Seiten haben keine Anmeldung und antworten "
+            "nur, wenn sie als 127.0.0.1 oder localhost aufgerufen werden.",
             file=sys.stderr,
         )
     print(f".env:    {installation.env_path}", file=sys.stderr)

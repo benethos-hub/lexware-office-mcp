@@ -828,9 +828,17 @@ stdio and stdout belongs to the protocol. This is a separate command, started
 by a person, that stops when they are done. The two share their configuration
 modules and nothing else.
 
-**Loopback only, with no option to bind anything else.** The pages have no
-login, which is defensible exactly as long as they cannot be reached from
-another machine — so the choice is refused rather than defaulted. Every
+**Loopback by default, and loopback names only.** The pages have no login,
+which is defensible exactly as long as they cannot be reached from another
+machine. `--host` can bind another address, because a container has to: a
+process on the container's own loopback cannot be reached through a
+published port, and there the host-side publish on `127.0.0.1` is what keeps
+it local. Whatever is bound, **a request is answered only if its `Host` names
+`127.0.0.1`, `localhost` or `::1`.** That refuses a machine on the network
+reaching a careless `0.0.0.0` bind, and DNS rebinding - a page elsewhere
+pointing a name it owns at this machine and reading the pages, bearer token
+included, as its own origin. Every response carries `Cache-Control:
+no-store` for the same token. Every
 state-changing request is guarded twice, because a page in another tab must
 not be able to rewrite credentials or permissions: the `Origin` or `Referer`
 has to name the loopback host **and port** the request went to, and a random
