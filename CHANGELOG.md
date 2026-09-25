@@ -109,6 +109,11 @@ housekeeping are out of scope here — design decisions live in
 - **`delete_article` no longer reports a deletion it made as not found.**
   When the first attempt's answer was lost and the retry found nothing, the
   404 was passed on - as if the article had never existed.
+- **`read_download` finds a file under the name it is listed by.** A file
+  put into the download directory by hand, such as `my invoice.pdf`, was
+  offered as a resource under its own name and then looked up under a
+  sanitized one, so it could be listed but not read. A percent-encoded name
+  is found too.
 
 ## [0.2.4] - 2026-09-14
 

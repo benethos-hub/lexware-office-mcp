@@ -1162,6 +1162,36 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
     await provider.aclose()
 
 
+@pytest.mark.parametrize(
+    "uri",
+    ["lexware://download/my invoice.pdf", "lexware://download/my%20invoice.pdf"],
+)
+async def test_a_file_put_there_by_hand_is_readable_under_the_name_listed(
+    tmp_path: Path, uri: str
+) -> None:
+    """Listed under its own name, it has to be found under that name too."""
+    (tmp_path / "my invoice.pdf").write_bytes(PDF)
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    listed = await server.list_resources()
+    assert [str(r.uri) for r in listed] == ["lexware://download/my invoice.pdf"]
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    assert (result.structured_content or {})["deliveredAs"] == "pages"
+    await provider.aclose()
+
+
+@pytest.mark.parametrize("name", ["../outside.pdf", "..%2Foutside.pdf", ".."])
+def test_resolve_never_leaves_the_directory(tmp_path: Path, name: str) -> None:
+    inside = tmp_path / "downloads"
+    inside.mkdir()
+    (tmp_path / "outside.pdf").write_bytes(PDF)
+
+    assert storage.resolve(name, inside) is None
+
+
 async def test_downloads_are_not_resources_while_no_download_tool_is_on(
     tmp_path: Path,
 ) -> None:
