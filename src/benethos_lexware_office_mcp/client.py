@@ -333,6 +333,31 @@ class LexwareClient:
         except ValueError as exc:
             raise UpstreamError(f"GET {path} returned a malformed body.") from exc
 
+    async def _send_json(
+        self, method: str, path: str, *, endpoint: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Send a write and decode the object it answers with.
+
+        The request was accepted by the time a body is read, so a body that
+        is not a JSON object - empty, HTML from a proxy, a truncated stream -
+        is not a failed write. It is a write whose result nobody saw, and it
+        is reported as one: a plain ``ValueError`` here would reach the model
+        as "Error executing tool" and invite the very retry that makes a
+        second record.
+        """
+        response = await self.request(method, path, **kwargs)
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict):
+            raise UpstreamError(
+                f"{method} {path} was accepted with {response.status_code}, but "
+                f"the {endpoint} endpoint's answer could not be read.",
+                outcome_unknown=True,
+            )
+        return payload
+
     # -- endpoints --------------------------------------------------------
 
     async def profile(self) -> dict[str, Any]:
@@ -386,8 +411,9 @@ class LexwareClient:
         ``{id, resourceUri, createdDate, updatedDate, version}``. The record
         itself has to be read back if the caller wants to see it.
         """
-        response = await self.request("POST", "/v1/contacts", json=body)
-        return _expect_object(response.json(), "contacts")
+        return await self._send_json(
+            "POST", "/v1/contacts", json=body, endpoint="contacts"
+        )
 
     async def update_contact(
         self, contact_id: str, body: dict[str, Any]
@@ -398,8 +424,9 @@ class LexwareClient:
         carry the ``version`` that was read, which is what makes a concurrent
         change fail instead of being overwritten.
         """
-        response = await self.request("PUT", f"/v1/contacts/{contact_id}", json=body)
-        return _expect_object(response.json(), "contacts")
+        return await self._send_json(
+            "PUT", f"/v1/contacts/{contact_id}", json=body, endpoint="contacts"
+        )
 
     # -- vouchers ---------------------------------------------------------
 
@@ -474,8 +501,9 @@ class LexwareClient:
 
     async def create_voucher(self, body: dict[str, Any]) -> dict[str, Any]:
         """``POST /v1/vouchers``. One API call, never retried."""
-        response = await self.request("POST", "/v1/vouchers", json=body)
-        return _expect_object(response.json(), "vouchers")
+        return await self._send_json(
+            "POST", "/v1/vouchers", json=body, endpoint="vouchers"
+        )
 
     async def update_voucher(
         self, voucher_id: str, body: dict[str, Any]
@@ -485,8 +513,9 @@ class LexwareClient:
         As with contacts the body replaces the record and has to carry the
         ``version`` that was read.
         """
-        response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
-        return _expect_object(response.json(), "vouchers")
+        return await self._send_json(
+            "PUT", f"/v1/vouchers/{voucher_id}", json=body, endpoint="vouchers"
+        )
 
     # -- articles ---------------------------------------------------------
 
@@ -524,8 +553,9 @@ class LexwareClient:
 
     async def create_article(self, body: dict[str, Any]) -> dict[str, Any]:
         """``POST /v1/articles``. One API call, never retried."""
-        response = await self.request("POST", "/v1/articles", json=body)
-        return _expect_object(response.json(), "articles")
+        return await self._send_json(
+            "POST", "/v1/articles", json=body, endpoint="articles"
+        )
 
     async def update_article(
         self, article_id: str, body: dict[str, Any]
@@ -536,8 +566,9 @@ class LexwareClient:
         read. Verified 2026-08-21: a stale one is refused with **409**, where
         a contact answers 406.
         """
-        response = await self.request("PUT", f"/v1/articles/{article_id}", json=body)
-        return _expect_object(response.json(), "articles")
+        return await self._send_json(
+            "PUT", f"/v1/articles/{article_id}", json=body, endpoint="articles"
+        )
 
     async def delete_article(self, article_id: str) -> None:
         """``DELETE /v1/articles/{id}``. One API call, and it cannot be undone.
@@ -611,10 +642,13 @@ class LexwareClient:
             params["finalize"] = "true"
         if preceding_sales_voucher_id is not None:
             params["precedingSalesVoucherId"] = preceding_sales_voucher_id
-        response = await self.request(
-            "POST", f"/v1/{resource}", json=body, params=params or None
+        return await self._send_json(
+            "POST",
+            f"/v1/{resource}",
+            json=body,
+            params=params or None,
+            endpoint=resource,
         )
-        return _expect_object(response.json(), resource)
 
     async def sales_document(self, resource: str, document_id: str) -> dict[str, Any]:
         """``GET /v1/{resource}/{id}``. One API call.
@@ -671,13 +705,13 @@ class LexwareClient:
         only store a file, it also creates the bookkeeping voucher the file
         belongs to, which is why this is a write in every sense.
         """
-        response = await self.request(
+        return await self._send_json(
             "POST",
             "/v1/files",
             files={"file": (filename, content, content_type)},
             data={"type": "voucher"},
+            endpoint="files",
         )
-        return _expect_object(response.json(), "files")
 
     async def attach_file(
         self, voucher_id: str, content: bytes, filename: str, content_type: str
@@ -691,12 +725,12 @@ class LexwareClient:
         documentation writes it singular and gives it a GET, and neither
         exists.
         """
-        response = await self.request(
+        return await self._send_json(
             "POST",
             f"/v1/vouchers/{voucher_id}/files",
             files={"file": (filename, content, content_type)},
+            endpoint="voucher files",
         )
-        return _expect_object(response.json(), "voucher files")
 
     # -- internals --------------------------------------------------------
 

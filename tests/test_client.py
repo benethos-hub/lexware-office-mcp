@@ -92,6 +92,46 @@ async def test_a_malformed_body_is_reported_rather_than_raised_raw() -> None:
             await client.get_json("/v1/profile")
 
 
+WRITES = [
+    ("create_contact", ({},)),
+    ("update_contact", ("PLACEHOLDER-CONTACT-1", {})),
+    ("create_voucher", ({},)),
+    ("update_voucher", ("PLACEHOLDER-VOUCHER-1", {})),
+    ("create_article", ({},)),
+    ("update_article", ("PLACEHOLDER-ARTICLE-1", {})),
+    ("create_sales_document", ("invoices", {})),
+    ("upload_file", (b"%PDF", "r.pdf", "application/pdf")),
+    ("attach_file", ("PLACEHOLDER-VOUCHER-1", b"%PDF", "r.pdf", "application/pdf")),
+]
+
+
+@pytest.mark.parametrize(("method", "args"), WRITES, ids=[w[0] for w in WRITES])
+@pytest.mark.parametrize(
+    "answer",
+    [
+        httpx.Response(201, content=b""),
+        httpx.Response(200, text="<html>proxy</html>"),
+        httpx.Response(200, json=["not", "an", "object"]),
+    ],
+    ids=["empty", "html", "list"],
+)
+async def test_an_unreadable_answer_to_a_write_is_an_unknown_outcome(
+    method: str, args: tuple[Any, ...], answer: httpx.Response
+) -> None:
+    """The write went through. What it created is what nobody saw.
+
+    A raw ValueError reached the model as "Error executing tool" and nothing
+    else, which reads like a failure worth retrying - a second record.
+    """
+    async with make_client(answer) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await getattr(client, method)(*args)
+
+    assert excinfo.value.outcome_unknown
+    assert "Check whether the record exists" in str(excinfo.value)
+    assert client.handler.calls == 1  # type: ignore[attr-defined]
+
+
 # -- error mapping --------------------------------------------------------
 
 

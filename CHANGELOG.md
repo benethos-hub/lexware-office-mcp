@@ -65,6 +65,11 @@ housekeeping are out of scope here — design decisions live in
 - **`read_download` rendered PDF pages with red and blue swapped.** PDFium
   hands out BGR and the PNG declared RGB, so the red stamp on a dunning
   letter came out blue.
+- **A write whose answer cannot be read is reported as an unknown outcome.**
+  An empty, HTML or non-object body on a successful create, update or upload
+  escaped as a plain exception, so the model was told only that the tool
+  failed - an invitation to try again and make a second record. It now says
+  the request may have been carried out and to check before retrying.
 
 ## [0.2.4] - 2026-09-14
 
