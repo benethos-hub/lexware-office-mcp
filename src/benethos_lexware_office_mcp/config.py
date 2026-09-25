@@ -34,6 +34,7 @@ import os
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from platformdirs import user_cache_dir, user_config_dir
 
@@ -243,6 +244,20 @@ def _as_float(raw: str | None, fallback: float, *, name: str) -> float:
     return value
 
 
+def _https_url(raw: str | None, fallback: str, *, name: str) -> str:
+    """A base URL, which has to be ``https://``.
+
+    The API key travels to ``LXO_MCP_BASE_URL`` in a header on every request,
+    so a plain ``http://`` address would send it in the clear, and one that is
+    no URL at all would send it wherever the client makes of it.
+    """
+    value = (raw or fallback).rstrip("/")
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ConfigError(f"{name} must be an https:// address, got {value!r}.")
+    return value
+
+
 def _as_int(
     raw: str | None,
     fallback: int,
@@ -358,8 +373,10 @@ def load_settings(
 
     return Settings(
         api_key=api_key,
-        base_url=(get("BASE_URL") or DEFAULT_BASE_URL).rstrip("/"),
-        app_base_url=(get("APP_BASE_URL") or DEFAULT_APP_BASE_URL).rstrip("/"),
+        base_url=_https_url(get("BASE_URL"), DEFAULT_BASE_URL, name="LXO_MCP_BASE_URL"),
+        app_base_url=_https_url(
+            get("APP_BASE_URL"), DEFAULT_APP_BASE_URL, name="LXO_MCP_APP_BASE_URL"
+        ),
         download_path=Path(raw_download) if raw_download else None,
         timeout=_as_float(get("TIMEOUT"), DEFAULT_TIMEOUT, name="LXO_MCP_TIMEOUT"),
         rate=_as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),

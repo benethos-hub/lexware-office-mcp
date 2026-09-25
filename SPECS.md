@@ -833,8 +833,16 @@ login, which is defensible exactly as long as they cannot be reached from
 another machine — so the choice is refused rather than defaulted. Every
 state-changing request is guarded twice, because a page in another tab must
 not be able to rewrite credentials or permissions: the `Origin` or `Referer`
-has to be loopback, and a random token from a `SameSite=Strict` cookie has to
-come back in the form.
+has to name the loopback host **and port** the request went to, and a random
+token from a `SameSite=Strict` cookie has to come back in the form. The port
+matters because loopback alone admits any local program's page, and the token
+has to be one this process issued, because cookies are not scoped by port: a
+page on another local port can set the cookie to a value of its choosing and
+put the same value in its form.
+
+The API base URLs must be `https://`. The key travels to `LXO_MCP_BASE_URL` on
+every request, so the page cannot be used to point it somewhere in the clear,
+and `load_settings` refuses the same for the server.
 
 **The pages are German.** This is the only surface a person reads, and
 Lexware Office is sold for German companies only — its own help centre rules

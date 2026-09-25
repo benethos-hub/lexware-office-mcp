@@ -182,6 +182,42 @@ def test_a_wrong_token_is_refused(browser: Browser) -> None:
     assert "Sicherheitstoken" in body
 
 
+def test_a_page_on_another_loopback_port_is_refused(browser: Browser) -> None:
+    """Loopback is not enough: any local program serves from loopback."""
+    port = int(browser.base.rsplit(":", 1)[1])
+    token = browser.token()
+    request = urllib.request.Request(
+        browser.base + "/permissions",
+        data=urlencode({"action": "save", "_csrf": token}).encode("utf-8"),
+    )
+    request.add_header("Origin", f"http://127.0.0.1:{port + 1}")
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "Origin" in body
+
+
+def test_a_planted_cookie_is_not_a_session(browser: Browser) -> None:
+    """Cookies ignore the port, so another local page can set this one.
+
+    The value it picks then appears both as the cookie and in the form, and
+    the two match - which is why matching is not enough on its own.
+    """
+    planted = "chosen-by-another-page"
+    request = urllib.request.Request(
+        browser.base + "/permissions",
+        data=urlencode({"action": "save", "_csrf": planted}).encode("utf-8"),
+    )
+    request.add_header("Origin", browser.base)
+    request.add_header("Cookie", f"lxo_config={planted}")
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "Sicherheitstoken" in body
+
+
 def test_a_missing_token_is_refused(browser: Browser) -> None:
     assert browser.post("/permissions", {"action": "save"}, csrf=None)[0] == 403
 

@@ -26,6 +26,16 @@ housekeeping are out of scope here — design decisions live in
   nothing. Now they answer only while `download_file`, `download_document`
   or `read_download` is on, and a symbolic link in the directory is never
   published.
+- **The configuration interface checks the port and issues its own tokens.**
+  A form post was accepted from any loopback page, and the session cookie was
+  accepted whatever its value. Because cookies are not scoped by port, a page
+  served by another local program could set the cookie, submit a form, point
+  the API base URL at its own host and have the connection test send the key
+  there. Now `Origin` has to name this page's host and port, and only a token
+  this process issued counts.
+- **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
+  server refuses to start otherwise, and the configuration interface refuses
+  to save one.
 
 ## [0.2.4] - 2026-09-14
 

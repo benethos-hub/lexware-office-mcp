@@ -71,6 +71,10 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
         {"LXO_MCP_BURST": "0"},
         {"LXO_MCP_TIMEOUT": "-1"},
         {"LXO_MCP_PAGE_SIZE": "251"},
+        # The key travels to this address, so never in the clear.
+        {"LXO_MCP_BASE_URL": "http://api.lexware.io"},
+        {"LXO_MCP_BASE_URL": "api.lexware.io"},
+        {"LXO_MCP_APP_BASE_URL": "http://app.lexware.de"},
     ],
 )
 def test_invalid_values_are_rejected(env: dict[str, str]) -> None:

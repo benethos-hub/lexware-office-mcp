@@ -15,8 +15,9 @@ and the server says so on stderr when it does.
 
 State-changing requests are guarded twice, because they rewrite credentials
 and permissions and a page in another tab must not be able to trigger one:
-the ``Origin`` or ``Referer`` has to be loopback, and a random token from a
-``SameSite=Strict`` cookie has to come back in the form.
+the ``Origin`` or ``Referer`` has to be this very page, loopback host and port
+both, and a random token from a ``SameSite=Strict`` cookie has to come back in
+the form - a token this process issued, not merely one the cookie carries.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from __future__ import annotations
 import dataclasses
 import secrets
 import sys
+import threading
 import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -52,9 +54,31 @@ _EXPORT_NAME = "tools.json"
 
 
 class ConfigServer(ThreadingHTTPServer):
-    """A server that knows which installation its handlers are editing."""
+    """A server that knows which installation its handlers are editing.
+
+    It also remembers every session token it has handed out. A cookie is
+    accepted only if it is one of those: cookies are not scoped by port, so a
+    page on any other loopback port can set ``lxo_config`` to a value of its
+    choosing and put the same value in a form. A token only this process
+    could have made is one such a page cannot know.
+    """
 
     installation: Installation
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.sessions: set[str] = set()
+        self._sessions_lock = threading.Lock()
+
+    def issue_session(self) -> str:
+        token = secrets.token_urlsafe(32)
+        with self._sessions_lock:
+            self.sessions.add(token)
+        return token
+
+    def knows_session(self, token: str) -> bool:
+        with self._sessions_lock:
+            return token in self.sessions
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -68,7 +92,11 @@ class Handler(BaseHTTPRequestHandler):
 
     @property
     def installation(self) -> Installation:
-        return self.server.installation  # type: ignore[attr-defined]
+        return self.config_server.installation
+
+    @property
+    def config_server(self) -> ConfigServer:
+        return self.server  # type: ignore[return-value]
 
     # --- plumbing ----------------------------------------------------------
 
@@ -82,10 +110,12 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - a malformed cookie is not our problem
             pass
         morsel = jar.get(_SESSION_COOKIE)
-        if morsel and morsel.value:
+        if morsel and morsel.value and self.config_server.knows_session(morsel.value):
             self._fresh_cookie = None
             return str(morsel.value)
-        self._fresh_cookie = secrets.token_urlsafe(32)
+        # No cookie, or one this process never issued - planted by another
+        # page, or left over from an earlier run. Either way a new one.
+        self._fresh_cookie = self.config_server.issue_session()
         return self._fresh_cookie
 
     def _cookie_header(self) -> None:
@@ -125,14 +155,27 @@ class Handler(BaseHTTPRequestHandler):
         A request without ``Origin`` and without ``Referer`` is refused:
         every current browser sends one on a form post, so its absence means
         the request was not made by one.
+
+        **The port counts.** Loopback alone would admit a page served by any
+        other program on this machine. The source has to name the very host
+        and port this request was sent to, which is what the ``Host`` header
+        says - compared to that rather than to the bound port, so a container
+        published under another port still works.
         """
         source = self.headers.get("Origin") or self.headers.get("Referer")
         if not source:
             return False
         parsed = urlparse(source)
-        if parsed.scheme not in ("http", "https"):
+        if parsed.scheme != "http":
             return False
-        return (parsed.hostname or "").lower() in _LOOPBACK
+        target = _host_and_port(self.headers.get("Host", ""))
+        if target is None or target[0] not in _LOOPBACK:
+            return False
+        try:
+            origin = ((parsed.hostname or "").lower(), parsed.port or 80)
+        except ValueError:
+            return False
+        return origin == target
 
     def _csrf_ok(self, form: dict[str, list[str]]) -> bool:
         if self._fresh_cookie:
@@ -594,6 +637,16 @@ class Handler(BaseHTTPRequestHandler):
                 **extra,
             ),
         )
+
+
+def _host_and_port(header: str) -> tuple[str, int] | None:
+    """A ``Host`` header as a lower-case name and a port, or ``None``."""
+    try:
+        parsed = urlparse(f"//{header.strip()}")
+        name, port = (parsed.hostname or "").lower(), parsed.port or 80
+    except ValueError:
+        return None
+    return (name, port) if name else None
 
 
 def _flags(chosen: list[str]) -> dict[str, bool]:
