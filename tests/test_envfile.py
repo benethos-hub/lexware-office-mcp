@@ -32,6 +32,29 @@ def test_reads_the_forms_a_person_writes(tmp_path: Path) -> None:
     }
 
 
+def test_a_byte_order_mark_does_not_hide_the_first_key(tmp_path: Path) -> None:
+    """Notepad writes one, and it used to become part of LXO_MCP_API_KEY."""
+    path = tmp_path / ".env"
+    path.write_bytes(b"\xef\xbb\xbfLXO_MCP_API_KEY=from-notepad\nLXO_MCP_RATE=1\n")
+
+    assert read_env_file(path) == {
+        "LXO_MCP_API_KEY": "from-notepad",
+        "LXO_MCP_RATE": "1",
+    }
+
+
+def test_updating_a_file_with_a_byte_order_mark_rewrites_its_first_key(
+    tmp_path: Path,
+) -> None:
+    """Not a second LXO_MCP_API_KEY appended below the hidden one."""
+    path = tmp_path / ".env"
+    path.write_bytes(b"\xef\xbb\xbfLXO_MCP_API_KEY=old\n")
+
+    update_env_file(path, {"LXO_MCP_API_KEY": "new"})
+
+    assert path.read_bytes() == b"LXO_MCP_API_KEY=new\n"
+
+
 def test_a_missing_file_is_empty_rather_than_an_error(tmp_path: Path) -> None:
     assert read_env_file(tmp_path / "absent.env") == {}
 

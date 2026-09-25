@@ -28,10 +28,14 @@ def read_env_file(path: Path) -> dict[str, str]:
     Supports ``KEY=value``, ``export KEY=value``, ``#`` comments and quoted
     values. Anything else is ignored rather than raising, because a malformed
     line in a config file must not stop the server from starting.
+
+    Read as ``utf-8-sig``: Windows editors put a byte order mark in front of
+    the first line, and read as plain UTF-8 it became part of the first key,
+    so ``LXO_MCP_API_KEY`` on line one was simply not there.
     """
     values: dict[str, str] = {}
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except OSError:
         return values
     for raw in text.splitlines():
@@ -121,7 +125,7 @@ def _replace(path: Path, content: bytes) -> None:
 
 def _existing_lines(path: Path) -> list[str]:
     try:
-        return path.read_text(encoding="utf-8").splitlines()
+        return path.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return []
 

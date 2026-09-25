@@ -74,6 +74,10 @@ housekeeping are out of scope here — design decisions live in
   stalling it.** The header was honoured without a limit, inside the tool
   call: `86400` held it for a day and `inf` for ever. Up to eight seconds it
   is still honoured, beyond that the call answers that it was rate limited.
+- **A `.env` saved with a byte order mark is read correctly.** Windows
+  editors write one, and it became part of the first key, so an
+  `LXO_MCP_API_KEY` on line one was not found. A rewrite through the
+  configuration interface drops the mark.
 
 ## [0.2.4] - 2026-09-14
 
