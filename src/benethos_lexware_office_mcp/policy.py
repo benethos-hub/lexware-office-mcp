@@ -45,6 +45,7 @@ __all__ = [
     "ToolPolicy",
     "active_policy",
     "classify",
+    "flags_from",
     "grouped_tools",
     "known_tools",
     "preset",
@@ -161,6 +162,28 @@ def preset(kind: Preset) -> dict[str, bool]:
     raise ValueError(f"Unknown preset: {kind!r}")
 
 
+def flags_from(data: dict[Any, Any], source: str = "tool policy") -> dict[str, bool]:
+    """Read flags from a parsed policy file. Only JSON ``true`` switches on.
+
+    ``bool()`` would have been the obvious reading and is the wrong one:
+    ``"false"`` is a non-empty string and therefore true, so a hand-written
+    ``"create_voucher": "false"`` would have enabled the very tool it meant to
+    refuse. Anything that is not the literal ``true`` is off, and a value that
+    is not a boolean at all is named on stderr so the mistake is found.
+    """
+    flags: dict[str, bool] = {}
+    for key, value in data.items():
+        if not isinstance(value, bool):
+            logger.warning(
+                "%s: %r is %r, which is not true or false - reading it as false.",
+                source,
+                key,
+                value,
+            )
+        flags[str(key)] = value is True
+    return flags
+
+
 class ToolPolicy:
     """The flags this installation runs under.
 
@@ -196,7 +219,7 @@ class ToolPolicy:
         if not isinstance(data, dict):
             logger.warning("Tool policy %s is not an object, ignoring it.", self._path)
             return {}
-        return {str(key): bool(value) for key, value in data.items()}
+        return flags_from(data, source=str(self._path))
 
     def enabled(self, name: str) -> bool:
         """Whether ``name`` may be listed and called.

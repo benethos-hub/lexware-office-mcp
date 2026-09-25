@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Security
+
+- **Only JSON `true` enables a tool in the policy file.** A value was read
+  with `bool()`, so `"create_voucher": "false"` - a non-empty string -
+  switched the tool on. Anything but `true` is now off, and a value that is
+  not a boolean is named on stderr. The configuration interface reads an
+  imported file by the same rule.
+
 ## [0.2.4] - 2026-09-14
 
 ### Changed

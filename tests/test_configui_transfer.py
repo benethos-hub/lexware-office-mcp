@@ -74,12 +74,16 @@ def test_a_file_that_is_not_a_policy_is_refused_in_one_sentence(
         transfer.parse(text)
 
 
-def test_a_value_that_is_not_a_boolean_is_read_as_one() -> None:
-    """The server does the same, so a stricter reader would refuse files that
-    work: `ToolPolicy` puts `bool()` around whatever it finds."""
-    assert transfer.parse('{"get_profile": 1, "create_voucher": null}') == {
+def test_only_json_true_switches_a_tool_on() -> None:
+    """The same rule the server reads by, so `"false"` is not truthy here."""
+    assert transfer.parse(
+        '{"get_profile": true, "create_voucher": "false", "delete_article": 1,'
+        ' "list_contacts": null}'
+    ) == {
         "get_profile": True,
         "create_voucher": False,
+        "delete_article": False,
+        "list_contacts": False,
     }
 
 

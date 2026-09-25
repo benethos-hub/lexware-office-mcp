@@ -140,6 +140,28 @@ def test_the_gate_works_on_a_plain_function_too(restore_policy: object) -> None:
         sample_sync_tool()
 
 
+@pytest.mark.parametrize("value", ['"false"', '"true"', "1", '"yes"', "null", "[]"])
+def test_only_json_true_enables_a_tool(tmp_path, caplog, value: str) -> None:
+    """`bool("false")` is true, so a coercing reader would enable what the
+    file meant to refuse. Anything but the literal `true` is off, and said."""
+    path = tmp_path / "tools.json"
+    path.write_text(f'{{"create_voucher": {value}}}', encoding="utf-8")
+
+    assert not ToolPolicy(path).enabled("create_voucher")
+    assert "create_voucher" in caplog.text
+
+
+def test_json_true_and_false_are_read_without_a_warning(tmp_path, caplog) -> None:
+    path = tmp_path / "tools.json"
+    path.write_text('{"get_profile": true, "create_voucher": false}', encoding="utf-8")
+
+    policy = ToolPolicy(path)
+
+    assert policy.enabled("get_profile")
+    assert not policy.enabled("create_voucher")
+    assert caplog.text == ""
+
+
 def test_the_refusal_names_the_tool_but_never_a_path(
     restore_policy: object,
 ) -> None:
