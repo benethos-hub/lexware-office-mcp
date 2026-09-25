@@ -8,8 +8,11 @@ arrives, and that the policy alone answers "may this run".
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
+from benethos_lexware_office_mcp import policy as policy_module
 from benethos_lexware_office_mcp.errors import PermissionDeniedError
 from benethos_lexware_office_mcp.policy import (
     ToolMeta,
@@ -26,6 +29,20 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def registry_left_as_found() -> Iterator[None]:
+    """The sample tools below classify themselves into the one registry.
+
+    Left there, they turned up in every later test that compares the
+    registry with what a server registers - `test_annotations.py` failed
+    whenever it ran after this file, which alphabetical order hid.
+    """
+    saved = dict(policy_module._REGISTRY)
+    yield
+    policy_module._REGISTRY.clear()
+    policy_module._REGISTRY.update(saved)
 
 
 class Everything(ToolPolicy):
