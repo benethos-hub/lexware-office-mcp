@@ -1577,6 +1577,27 @@ it read. If the first attempt succeeded, the version has moved on and the retry
 fails with 409 rather than applying the change twice. Optimistic locking makes
 the retry self-protecting.
 
+**Why a DELETE retried into a 404 has succeeded.** A second delete of the same
+article is a 404, measured 2026-08-21. So when an attempt timed out, lost its
+connection or got a 5xx and the retry then finds nothing, the likeliest reading
+is that the first attempt removed it - and passing the 404 on would tell the
+caller the article never existed, right after this call destroyed it. The
+client returns success in that one case. A 404 after nothing but a 429 stays a
+404, since a 429 is certain not to have been performed.
+
+**Why `Retry-After` is honoured only up to eight seconds.** The wait happens
+inside a tool call. A header of `86400` held the call for a day and `inf` for
+ever, so a value beyond `BACKOFF_CAP`, or one that is not a finite number,
+ends the call at once with a `RateLimitError` that says so. A value within the
+cap is honoured as before.
+
+**Why an unreadable answer to a write is an unknown outcome.** A 2xx means the
+write was accepted. A body that then is not a JSON object - empty, HTML from a
+proxy, a cut-off stream - leaves the caller not knowing what was created, which
+is the same position as a lost response. It is reported the same way, as an
+`UpstreamError` whose message says the outcome is unknown, and never as a bare
+decoding error that would read like a failure worth retrying.
+
 Open question 2 is what would change this table: if the API offers an
 idempotency key, POST could be retried safely and the asymmetry would
 disappear.
@@ -1669,7 +1690,8 @@ depended on.
 | 404 | `NotFoundError` | resource type and the ID that was asked for |
 | 409 | `ConflictError` | version mismatch or locked state, naming the current version so the caller can re-read and retry |
 | 429 | `RateLimitError` | after retries are exhausted, with the wait hint |
-| 5xx, network | `UpstreamError` | short, no traceback |
+| 5xx, network | `UpstreamError` | short, no traceback. On a POST, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
+| — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query
@@ -1688,6 +1710,8 @@ sends no `version` at all names the same field. Violations that mean "absent"
 - `NOTNULL`, `NOTEMPTY`, `NOTBLANK` - are therefore left out of that signal,
 so a caller who forgot a field is told to send it rather than to re-read a
 record that was never the problem. Measured 2026-08-21 on `PUT /v1/articles`.
+The `IssueList` shape says the same thing in `i18nKey` as `missing_entity`,
+and is read the same way.
 
 **Which status a stale version arrives as depends on the resource.** A
 contact answers 406 naming `version`, an article answers **409**. Both end as
