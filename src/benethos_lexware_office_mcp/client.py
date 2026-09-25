@@ -139,7 +139,9 @@ def _detail_text(body: dict[str, Any]) -> str:
 # A field that was simply left out. Naming it is not the same as saying
 # something is wrong with the value that was sent, and the difference decides
 # whether `version` means "you did not send one" or "yours is out of date".
-_ABSENT = ("NOTNULL", "NOTEMPTY", "NOTBLANK")
+# The `details` shape says so in `violation`, the `IssueList` shape in
+# `i18nKey`, which is where `missing_entity` arrives.
+_ABSENT = ("NOTNULL", "NOTEMPTY", "NOTBLANK", "MISSING_ENTITY")
 
 
 def _issue_sources(body: dict[str, Any]) -> set[str]:
@@ -159,7 +161,8 @@ def _issue_sources(body: dict[str, Any]) -> set[str]:
         for issue in _issues(body)
         if isinstance(issue, dict)
         and (issue.get("source") or issue.get("field"))
-        and str(issue.get("violation") or "").upper() not in _ABSENT
+        and str(issue.get("violation") or issue.get("i18nKey") or "").upper()
+        not in _ABSENT
     }
 
 

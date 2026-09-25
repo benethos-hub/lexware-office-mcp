@@ -220,6 +220,24 @@ async def test_a_version_that_was_never_sent_is_not_a_stale_one() -> None:
     assert "changed since" not in str(excinfo.value)
 
 
+async def test_a_missing_version_in_the_issue_list_shape_is_not_a_stale_one() -> None:
+    """The same absence in the other shape: `i18nKey`, not `violation`."""
+    body = {
+        "IssueList": [
+            {
+                "i18nKey": "missing_entity",
+                "source": "version",
+                "type": "validation_failure",
+            }
+        ]
+    }
+    async with make_client(httpx.Response(406, json=body)) as client:
+        with pytest.raises(ValidationError) as excinfo:
+            await client.request("PUT", "/v1/contacts/abc", json={})
+    assert "version: missing_entity" in str(excinfo.value)
+    assert "changed since" not in str(excinfo.value)
+
+
 async def test_a_stale_version_tells_the_caller_to_re_read() -> None:
     """Verified 2026-08-20: a stale version is a 406 naming `version`."""
     body = {"IssueList": [{"source": "version", "type": "validation_failure"}]}

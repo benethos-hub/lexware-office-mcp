@@ -81,6 +81,10 @@ housekeeping are out of scope here — design decisions live in
 - **A setting that appears twice in the `.env` is rewritten everywhere.** The
   configuration interface replaced the first occurrence while the server
   reads the last, so a key reported as checked and saved was never used.
+- **A missing `version` is no longer reported as a changed record.** In the
+  `IssueList` shape the API names it `missing_entity`, and the model was
+  told to read the record again - which does not help when the request
+  simply did not carry one.
 
 ## [0.2.4] - 2026-09-14
 
