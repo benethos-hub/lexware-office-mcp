@@ -176,6 +176,26 @@ def test_unusual_characters_are_replaced() -> None:
     assert name.endswith(".pdf")
 
 
+@pytest.mark.parametrize(
+    "name", ["CON.pdf", "con.pdf", "NUL", "com1.xml", "LPT9.pdf", "aux.tar.gz"]
+)
+def test_a_windows_device_name_is_not_used_as_is(name: str) -> None:
+    """On Windows `CON.pdf` is the console, not a file."""
+    cleaned = storage.suggested_name(
+        response_with(f'attachment; filename="{name}"'), "f.pdf"
+    )
+
+    assert cleaned.split(".")[0].upper() not in storage._DEVICES
+    assert cleaned.endswith(name)
+
+
+def test_a_name_that_merely_starts_like_a_device_is_left_alone() -> None:
+    name = storage.suggested_name(
+        response_with('attachment; filename="CONTRACT.pdf"'), "f.pdf"
+    )
+    assert name == "CONTRACT.pdf"
+
+
 def test_a_useless_filename_falls_back_to_the_callers_own() -> None:
     assert storage.suggested_name(
         response_with('attachment; filename=".."'), "f.pdf"

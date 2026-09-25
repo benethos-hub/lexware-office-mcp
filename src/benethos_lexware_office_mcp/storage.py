@@ -34,6 +34,13 @@ _FILENAME = re.compile(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', re.IGNORECASE)
 
 MAX_NAME = 120
 
+# Names Windows reserves for devices, with or without an extension.
+_DEVICES = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    | {f"COM{n}" for n in range(10)}
+    | {f"LPT{n}" for n in range(10)}
+)
+
 
 def directory_for(settings: Settings) -> Path:
     """Where this server writes downloads, created if it is not there yet."""
@@ -70,7 +77,12 @@ def _safe_name(raw: str) -> str:
     cleaned = _UNSAFE.sub("_", without_path).strip("._")
     if cleaned in {"", ".", ".."}:
         return ""
-    return cleaned[:MAX_NAME]
+    cleaned = cleaned[:MAX_NAME]
+    # On Windows `CON.pdf` is the console, whatever the extension, and
+    # writing to it writes nowhere a file can be found again.
+    if cleaned.split(".")[0].upper() in _DEVICES:
+        cleaned = f"_{cleaned}"[:MAX_NAME]
+    return cleaned
 
 
 def save(content: bytes, name: str, directory: Path) -> Path:

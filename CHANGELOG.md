@@ -114,6 +114,9 @@ housekeeping are out of scope here — design decisions live in
   offered as a resource under its own name and then looked up under a
   sanitized one, so it could be listed but not read. A percent-encoded name
   is found too.
+- **A download named like a Windows device is saved under another name.**
+  `CON.pdf` or `LPT1.pdf` from the API is the console or a printer port on
+  Windows, not a file, and is now saved as `_CON.pdf`.
 
 ## [0.2.4] - 2026-09-14
 
