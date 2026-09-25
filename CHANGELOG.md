@@ -20,6 +20,12 @@ housekeeping are out of scope here — design decisions live in
   switched the tool on. Anything but `true` is now off, and a value that is
   not a boolean is named on stderr. The configuration interface reads an
   imported file by the same rule.
+- **Downloads are resources only while a download tool is enabled.** Every
+  file in the download directory was listed and readable over
+  `resources/list` and `resources/read` even with a policy that enabled
+  nothing. Now they answer only while `download_file`, `download_document`
+  or `read_download` is on, and a symbolic link in the directory is never
+  published.
 
 ## [0.2.4] - 2026-09-14
 

@@ -25,6 +25,7 @@ from typing import Any, cast
 
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 
 from . import __version__, configui, resources
 from .client import ClientProvider
@@ -128,6 +129,24 @@ class PolicyServer(MCPServer):
         allowed = self._policy.as_map()
         tools = await super().list_tools()
         return [tool for tool in tools if allowed.get(tool.name, False)]
+
+    def _resources_enabled(self) -> bool:
+        """Whether any tool a download resource belongs to is enabled."""
+        allowed = self._policy.as_map()
+        return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
+
+    async def list_resources(self) -> list[Any]:
+        # Registered at startup from whatever is on disk, but offered only
+        # under the same file that decides the tools: with every download
+        # tool off, the files they left behind are not a way around that.
+        if not self._resources_enabled():
+            return []
+        return await super().list_resources()
+
+    async def read_resource(self, uri: Any, context: Any = None) -> Any:
+        if not self._resources_enabled():
+            raise ResourceNotFoundError(f"Unknown resource: {uri}")
+        return await super().read_resource(uri, context)
 
     async def _handle_list_tools(self, ctx: Any, params: Any) -> Any:
         """Answer the request, and keep the session it arrived on.

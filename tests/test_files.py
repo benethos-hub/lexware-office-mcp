@@ -15,11 +15,12 @@ from typing import Any
 
 import httpx
 import pytest
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
 
-from benethos_lexware_office_mcp import rendering, storage
+from benethos_lexware_office_mcp import rendering, resources, storage
 from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import DEFAULT_PDF_PAGES, Settings
+from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
 
@@ -1024,6 +1025,51 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
     assert (result.structured_content or {})["deliveredAs"] == "pages"
     assert any(b.type == "image" for b in result.content)
     await provider.aclose()
+
+
+async def test_downloads_are_not_resources_while_no_download_tool_is_on(
+    tmp_path: Path,
+) -> None:
+    """The policy file decides the resources too, not only the tools.
+
+    Before, every file in the download directory was listed and readable even
+    with a policy that enabled nothing at all.
+    """
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    policy = tmp_path.parent / f"{tmp_path.name}-only-profile.json"
+    policy.write_text('{"get_profile": true}', encoding="utf-8")
+    settings = Settings(
+        api_key=API_KEY, download_path=tmp_path, tool_policy_path=policy
+    )
+    server = build_server(settings)
+
+    assert await server.list_resources() == []
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/invoice.pdf")
+
+    policy.write_text('{"read_download": true}', encoding="utf-8")
+
+    assert [r.name for r in await server.list_resources()] == ["invoice.pdf"]
+
+
+def test_every_gating_tool_is_a_tool() -> None:
+    """A misspelt name here would quietly keep the resources off for good."""
+    assert set(resources.GATING_TOOLS) <= set(known_tools())
+
+
+def test_a_symbolic_link_in_the_download_directory_is_not_published(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.txt"
+    outside.write_text("not a download", encoding="utf-8")
+    try:
+        (tmp_path / "link.pdf").symlink_to(outside)
+    except OSError:
+        pytest.skip("this account may not create symbolic links")
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server = build_server(Settings(api_key=API_KEY))
+
+    assert resources.publish_existing(server, tmp_path) == 1
 
 
 async def test_building_a_server_does_not_create_a_download_directory(

@@ -34,14 +34,21 @@ from __future__ import annotations
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ResourceError
 from mcp.server.mcpserver.resources import FunctionResource
 from mcp.types import ResourceLink
 
 from . import storage
 
-__all__ = ["SCHEME", "publish", "publish_existing", "uri_for"]
+__all__ = ["GATING_TOOLS", "SCHEME", "publish", "publish_existing", "uri_for"]
 
 SCHEME = "lexware://download/"
+
+# The tools a download resource belongs to. A resource is a way of handing out
+# a file one of them produced, so it is reachable exactly while at least one of
+# them is enabled - never as a side door that outlives the policy switching
+# them all off.
+GATING_TOOLS = ("download_file", "download_document", "read_download")
 
 DEFAULT_TYPE = "application/octet-stream"
 
@@ -58,12 +65,15 @@ def publish_existing(server: MCPServer, directory: Path) -> int:
     still resolves. The directory is not created here: a server that has never
     downloaded anything has nothing to publish, and building one to list its
     tools should not leave a directory behind.
+
+    A symbolic link is skipped. Nothing this server writes is one, so a link
+    in the directory was put there by someone else and could point anywhere.
     """
     if not directory.is_dir():
         return 0
     count = 0
     for path in sorted(directory.iterdir()):
-        if path.is_file():
+        if path.is_file() and not path.is_symlink():
             publish(server, path, storage.content_type_for(path))
             count += 1
     return count
@@ -88,7 +98,7 @@ def publish(server: MCPServer, path: Path, mime_type: str) -> ResourceLink:
             title=path.name,
             description="Downloaded from Lexware Office by this server.",
             mime_type=kind,
-            fn=lambda: path.read_bytes(),
+            fn=lambda: _read(path),
         )
     )
     return ResourceLink(
@@ -100,6 +110,13 @@ def publish(server: MCPServer, path: Path, mime_type: str) -> ResourceLink:
         mime_type=kind,
         size=size,
     )
+
+
+def _read(path: Path) -> bytes:
+    """The file's bytes, unless it has been swapped for a link since."""
+    if path.is_symlink():
+        raise ResourceError(f"{path.name} is no longer a downloaded file.")
+    return path.read_bytes()
 
 
 def _plain(mime_type: str) -> str:
