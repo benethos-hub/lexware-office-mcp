@@ -89,6 +89,11 @@ housekeeping are out of scope here — design decisions live in
   disk, a download directory owned by someone else, a locked receipt or too
   many files of one name reached the model as a bare tool failure. The
   download and upload tools now say what the system refused, without a path.
+- **`LXO_MCP_DOWNLOAD_DIR` expands `~`**, as `LXO_MCP_TOOL_POLICY` always
+  did. `~/Belege` created a folder literally named `~`.
+- **`nan` and `inf` are refused as numbers.** `LXO_MCP_RATE=nan` let no
+  request through ever, and `inf` switched the rate limiter off. The server
+  now refuses to start with either, as it does with any other bad number.
 
 ## [0.2.4] - 2026-09-14
 

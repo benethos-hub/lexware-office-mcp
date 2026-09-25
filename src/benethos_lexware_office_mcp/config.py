@@ -30,6 +30,7 @@ prints it. No secret is ever read from a versioned file.
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from importlib import resources
@@ -239,6 +240,11 @@ def _as_float(raw: str | None, fallback: float, *, name: str) -> float:
         value = float(raw)
     except ValueError:
         raise ConfigError(f"{name} must be a number, got {raw!r}.") from None
+    # float() takes "nan" and "inf". A nan rate makes every wait nan, so no
+    # request is ever let through, and an infinite one switches the limiter
+    # off - neither is a number anybody meant.
+    if not math.isfinite(value):
+        raise ConfigError(f"{name} must be a finite number, got {raw!r}.")
     if value <= 0:
         raise ConfigError(f"{name} must be greater than zero, got {value}.")
     return value
@@ -378,7 +384,7 @@ def load_settings(
         app_base_url=_https_url(
             get("APP_BASE_URL"), DEFAULT_APP_BASE_URL, name="LXO_MCP_APP_BASE_URL"
         ),
-        download_path=Path(raw_download) if raw_download else None,
+        download_path=Path(raw_download).expanduser() if raw_download else None,
         upload_path=(
             Path(upload_raw).expanduser() if (upload_raw := get("UPLOAD_DIR")) else None
         ),
