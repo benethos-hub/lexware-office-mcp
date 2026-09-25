@@ -355,6 +355,24 @@ async def test_repeated_rate_limiting_trips_the_breaker() -> None:
     assert "whole account" in str(excinfo.value)
 
 
+async def test_a_transport_error_ends_the_rate_limit_streak() -> None:
+    """The breaker counts consecutive 429s. A timeout between them is not
+    one, and without the reset two 429s either side of it tripped it."""
+    async with make_client(
+        httpx.Response(429),
+        httpx.Response(429),
+        httpx.ConnectTimeout("slow"),
+        httpx.Response(429),
+        httpx.Response(200, json={}),
+    ) as client:
+        with pytest.raises(UpstreamError):
+            await client.request("GET", "/v1/profile")
+
+        response = await client.request("GET", "/v1/profile")
+
+    assert response.status_code == 200
+
+
 async def test_retry_after_is_honoured() -> None:
     slept: list[float] = []
 

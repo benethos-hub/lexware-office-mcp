@@ -103,6 +103,9 @@ housekeeping are out of scope here — design decisions live in
   that one.
 - **Downloading an unchanged document again no longer logs a warning** on
   stderr every time.
+- **A timeout ends a run of rate limits.** The breaker that pauses after three
+  429s in a row counted across a network failure, so two 429s either side of
+  a timeout paused the server for thirty seconds.
 
 ## [0.2.4] - 2026-09-14
 

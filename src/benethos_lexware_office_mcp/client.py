@@ -275,6 +275,9 @@ class LexwareClient:
                     headers=headers,
                 )
             except httpx.TimeoutException as exc:
+                # Not a 429, so the streak the breaker counts is over. Left
+                # standing, two 429s around an hour of timeouts would trip it.
+                self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
                     await self._backoff(attempt)
                     continue
@@ -282,6 +285,7 @@ class LexwareClient:
                     f"{method} {path} timed out.", outcome_unknown=not retryable
                 ) from exc
             except httpx.TransportError as exc:
+                self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
                     await self._backoff(attempt)
                     continue
