@@ -78,6 +78,9 @@ housekeeping are out of scope here — design decisions live in
   editors write one, and it became part of the first key, so an
   `LXO_MCP_API_KEY` on line one was not found. A rewrite through the
   configuration interface drops the mark.
+- **A setting that appears twice in the `.env` is rewritten everywhere.** The
+  configuration interface replaced the first occurrence while the server
+  reads the last, so a key reported as checked and saved was never used.
 
 ## [0.2.4] - 2026-09-14
 

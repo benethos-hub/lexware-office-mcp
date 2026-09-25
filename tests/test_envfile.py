@@ -55,6 +55,21 @@ def test_updating_a_file_with_a_byte_order_mark_rewrites_its_first_key(
     assert path.read_bytes() == b"LXO_MCP_API_KEY=new\n"
 
 
+def test_a_key_that_appears_twice_is_rewritten_both_times(tmp_path: Path) -> None:
+    """The reader takes the last occurrence. Rewriting only the first meant
+    the interface reported a checked key the server never read."""
+    path = tmp_path / ".env"
+    path.write_text(
+        "LXO_MCP_API_KEY=first\n# later\nLXO_MCP_API_KEY=second\n", encoding="utf-8"
+    )
+
+    update_env_file(path, {"LXO_MCP_API_KEY": "new"})
+
+    assert read_env_file(path) == {"LXO_MCP_API_KEY": "new"}
+    assert "first" not in path.read_text(encoding="utf-8")
+    assert "second" not in path.read_text(encoding="utf-8")
+
+
 def test_a_missing_file_is_empty_rather_than_an_error(tmp_path: Path) -> None:
     assert read_env_file(tmp_path / "absent.env") == {}
 

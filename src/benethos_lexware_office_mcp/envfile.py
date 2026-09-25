@@ -74,15 +74,21 @@ def update_env_file(path: Path, updates: dict[str, str]) -> None:
                 f"{name} contains a line break, which a .env cannot hold. "
                 "Nothing was written."
             )
-    remaining = dict(updates)
+    # Every occurrence of a key is rewritten, not only the first. The reader
+    # takes the last one, so replacing the first alone wrote a value the
+    # interface then reported as checked and the server never read.
+    written: set[str] = set()
     lines: list[str] = []
     for raw in _existing_lines(path):
         key, _ = _split(raw)
-        if key and key in remaining:
-            lines.append(f"{key}={remaining.pop(key)}")
+        if key and key in updates:
+            lines.append(f"{key}={updates[key]}")
+            written.add(key)
         else:
             lines.append(raw)
-    lines.extend(f"{key}={value}" for key, value in remaining.items())
+    lines.extend(
+        f"{key}={value}" for key, value in updates.items() if key not in written
+    )
     _replace(path, ("\n".join(lines) + "\n").encode("utf-8"))
 
 
