@@ -780,7 +780,11 @@ arriving.
   original goes on answering from its source text. Both are set now, by
   replacing the dictionary rather than editing it, which drops `__annotate__`
   and leaves one answer for every reader. The offline suite is identical on
-  every version and caught none of it - the matrix did.
+  every version and caught none of it - the matrix did. Since 2026-09-26 the
+  call guard is put around the function when it is registered, after the
+  annotation is attached, rather than by `classify` at definition: the guard
+  answers to the policy of the server it is registered on, and there is no
+  process-wide policy any more for a second server to overwrite.
 
 ## 7. Configuration
 
@@ -792,7 +796,8 @@ arriving.
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
-| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway. | `10` |
+| `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. | unset, anywhere |
+| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. Upstream holds 4, measured. | `2` |
@@ -828,13 +833,29 @@ stdio and stdout belongs to the protocol. This is a separate command, started
 by a person, that stops when they are done. The two share their configuration
 modules and nothing else.
 
-**Loopback only, with no option to bind anything else.** The pages have no
-login, which is defensible exactly as long as they cannot be reached from
-another machine — so the choice is refused rather than defaulted. Every
+**Loopback by default, and loopback names only.** The pages have no login,
+which is defensible exactly as long as they cannot be reached from another
+machine. `--host` can bind another address, because a container has to: a
+process on the container's own loopback cannot be reached through a
+published port, and there the host-side publish on `127.0.0.1` is what keeps
+it local. Whatever is bound, **a request is answered only if its `Host` names
+`127.0.0.1`, `localhost` or `::1`.** That refuses a machine on the network
+reaching a careless `0.0.0.0` bind, and DNS rebinding - a page elsewhere
+pointing a name it owns at this machine and reading the pages, bearer token
+included, as its own origin. Every response carries `Cache-Control:
+no-store` for the same token. Every
 state-changing request is guarded twice, because a page in another tab must
 not be able to rewrite credentials or permissions: the `Origin` or `Referer`
-has to be loopback, and a random token from a `SameSite=Strict` cookie has to
-come back in the form.
+has to name the loopback host **and port** the request went to, and a random
+token from a `SameSite=Strict` cookie has to come back in the form. The port
+matters because loopback alone admits any local program's page, and the token
+has to be one this process issued, because cookies are not scoped by port: a
+page on another local port can set the cookie to a value of its choosing and
+put the same value in its form.
+
+The API base URLs must be `https://`. The key travels to `LXO_MCP_BASE_URL` on
+every request, so the page cannot be used to point it somewhere in the clear,
+and `load_settings` refuses the same for the server.
 
 **The pages are German.** This is the only surface a person reads, and
 Lexware Office is sold for German companies only — its own help centre rules

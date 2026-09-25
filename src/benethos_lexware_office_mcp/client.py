@@ -26,9 +26,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import random
 from types import TracebackType
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -61,6 +63,20 @@ BACKOFF_CAP = 8.0
 # harder is what turns a transient limit into a permanently blocked key.
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 30.0
+
+
+def _segment(value: str) -> str:
+    """One id as one path segment, whatever it contains.
+
+    Ids come from the model. Put into a path as they stand, a slash, ``?`` or
+    ``#`` in one would reach another endpoint - ``x/../../articles/y`` turns
+    an update of a contact into one of an article. Percent-encoding keeps a
+    slash inside the segment, and ``.``, ``..`` and an empty id, which
+    encoding leaves as they are and a URL then resolves, are refused.
+    """
+    if value.strip() in ("", ".", ".."):
+        raise ValidationError(f"{value!r} is not an id. Take one from a search.")
+    return quote(value, safe="")
 
 
 def _page_params(page: int, size: int, **filters: Any) -> dict[str, Any]:
@@ -138,7 +154,9 @@ def _detail_text(body: dict[str, Any]) -> str:
 # A field that was simply left out. Naming it is not the same as saying
 # something is wrong with the value that was sent, and the difference decides
 # whether `version` means "you did not send one" or "yours is out of date".
-_ABSENT = ("NOTNULL", "NOTEMPTY", "NOTBLANK")
+# The `details` shape says so in `violation`, the `IssueList` shape in
+# `i18nKey`, which is where `missing_entity` arrives.
+_ABSENT = ("NOTNULL", "NOTEMPTY", "NOTBLANK", "MISSING_ENTITY")
 
 
 def _issue_sources(body: dict[str, Any]) -> set[str]:
@@ -158,7 +176,8 @@ def _issue_sources(body: dict[str, Any]) -> set[str]:
         for issue in _issues(body)
         if isinstance(issue, dict)
         and (issue.get("source") or issue.get("field"))
-        and str(issue.get("violation") or "").upper() not in _ABSENT
+        and str(issue.get("violation") or issue.get("i18nKey") or "").upper()
+        not in _ABSENT
     }
 
 
@@ -257,6 +276,9 @@ class LexwareClient:
         if accept is not None:
             headers["Accept"] = accept
         last_attempt = MAX_ATTEMPTS - 1
+        # Whether an earlier attempt may have been carried out: it timed out,
+        # lost its connection or got a 5xx. A 429 is certain not to have been.
+        maybe_done = False
 
         for attempt in range(MAX_ATTEMPTS):
             await self._bucket.acquire()
@@ -271,14 +293,20 @@ class LexwareClient:
                     headers=headers,
                 )
             except httpx.TimeoutException as exc:
+                # Not a 429, so the streak the breaker counts is over. Left
+                # standing, two 429s either side of a timeout would trip it.
+                self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
+                    maybe_done = True
                     await self._backoff(attempt)
                     continue
                 raise UpstreamError(
                     f"{method} {path} timed out.", outcome_unknown=not retryable
                 ) from exc
             except httpx.TransportError as exc:
+                self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
+                    maybe_done = True
                     await self._backoff(attempt)
                     continue
                 raise UpstreamError(
@@ -311,12 +339,20 @@ class LexwareClient:
 
             if status >= 500:
                 if retryable and attempt < last_attempt:
+                    maybe_done = True
                     await self._backoff(attempt)
                     continue
                 raise UpstreamError(
                     f"The API returned {status} for {method} {path}.",
                     outcome_unknown=not retryable,
                 )
+
+            if status == 404 and method == "DELETE" and maybe_done:
+                # The retry of a delete finding nothing is the delete having
+                # worked: the attempt whose answer was lost removed it.
+                # Reporting 404 would tell the caller the record never
+                # existed, right after this call destroyed it.
+                return response
 
             if status >= 400:
                 raise self._client_error(response, method, path)
@@ -332,6 +368,31 @@ class LexwareClient:
             return response.json()
         except ValueError as exc:
             raise UpstreamError(f"GET {path} returned a malformed body.") from exc
+
+    async def _send_json(
+        self, method: str, path: str, *, endpoint: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Send a write and decode the object it answers with.
+
+        The request was accepted by the time a body is read, so a body that
+        is not a JSON object - empty, HTML from a proxy, a truncated stream -
+        is not a failed write. It is a write whose result nobody saw, and it
+        is reported as one: a plain ``ValueError`` here would reach the model
+        as "Error executing tool" and invite the very retry that makes a
+        second record.
+        """
+        response = await self.request(method, path, **kwargs)
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict):
+            raise UpstreamError(
+                f"{method} {path} was accepted with {response.status_code}, but "
+                f"the {endpoint} endpoint's answer could not be read.",
+                outcome_unknown=True,
+            )
+        return payload
 
     # -- endpoints --------------------------------------------------------
 
@@ -376,7 +437,7 @@ class LexwareClient:
     async def contact(self, contact_id: str) -> dict[str, Any]:
         """``GET /v1/contacts/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/contacts/{contact_id}"), "contacts"
+            await self.get_json(f"/v1/contacts/{_segment(contact_id)}"), "contacts"
         )
 
     async def create_contact(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -386,8 +447,9 @@ class LexwareClient:
         ``{id, resourceUri, createdDate, updatedDate, version}``. The record
         itself has to be read back if the caller wants to see it.
         """
-        response = await self.request("POST", "/v1/contacts", json=body)
-        return _expect_object(response.json(), "contacts")
+        return await self._send_json(
+            "POST", "/v1/contacts", json=body, endpoint="contacts"
+        )
 
     async def update_contact(
         self, contact_id: str, body: dict[str, Any]
@@ -398,8 +460,12 @@ class LexwareClient:
         carry the ``version`` that was read, which is what makes a concurrent
         change fail instead of being overwritten.
         """
-        response = await self.request("PUT", f"/v1/contacts/{contact_id}", json=body)
-        return _expect_object(response.json(), "contacts")
+        return await self._send_json(
+            "PUT",
+            f"/v1/contacts/{_segment(contact_id)}",
+            json=body,
+            endpoint="contacts",
+        )
 
     # -- vouchers ---------------------------------------------------------
 
@@ -446,7 +512,7 @@ class LexwareClient:
     async def voucher(self, voucher_id: str) -> dict[str, Any]:
         """``GET /v1/vouchers/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/vouchers/{voucher_id}"), "vouchers"
+            await self.get_json(f"/v1/vouchers/{_segment(voucher_id)}"), "vouchers"
         )
 
     async def vouchers_by_number(self, voucher_number: str) -> dict[str, Any]:
@@ -469,13 +535,14 @@ class LexwareClient:
         Takes the id of the **voucher**, not of a payment.
         """
         return _expect_object(
-            await self.get_json(f"/v1/payments/{voucher_id}"), "payments"
+            await self.get_json(f"/v1/payments/{_segment(voucher_id)}"), "payments"
         )
 
     async def create_voucher(self, body: dict[str, Any]) -> dict[str, Any]:
         """``POST /v1/vouchers``. One API call, never retried."""
-        response = await self.request("POST", "/v1/vouchers", json=body)
-        return _expect_object(response.json(), "vouchers")
+        return await self._send_json(
+            "POST", "/v1/vouchers", json=body, endpoint="vouchers"
+        )
 
     async def update_voucher(
         self, voucher_id: str, body: dict[str, Any]
@@ -485,8 +552,12 @@ class LexwareClient:
         As with contacts the body replaces the record and has to carry the
         ``version`` that was read.
         """
-        response = await self.request("PUT", f"/v1/vouchers/{voucher_id}", json=body)
-        return _expect_object(response.json(), "vouchers")
+        return await self._send_json(
+            "PUT",
+            f"/v1/vouchers/{_segment(voucher_id)}",
+            json=body,
+            endpoint="vouchers",
+        )
 
     # -- articles ---------------------------------------------------------
 
@@ -519,13 +590,14 @@ class LexwareClient:
     async def article(self, article_id: str) -> dict[str, Any]:
         """``GET /v1/articles/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/articles/{article_id}"), "articles"
+            await self.get_json(f"/v1/articles/{_segment(article_id)}"), "articles"
         )
 
     async def create_article(self, body: dict[str, Any]) -> dict[str, Any]:
         """``POST /v1/articles``. One API call, never retried."""
-        response = await self.request("POST", "/v1/articles", json=body)
-        return _expect_object(response.json(), "articles")
+        return await self._send_json(
+            "POST", "/v1/articles", json=body, endpoint="articles"
+        )
 
     async def update_article(
         self, article_id: str, body: dict[str, Any]
@@ -536,8 +608,12 @@ class LexwareClient:
         read. Verified 2026-08-21: a stale one is refused with **409**, where
         a contact answers 406.
         """
-        response = await self.request("PUT", f"/v1/articles/{article_id}", json=body)
-        return _expect_object(response.json(), "articles")
+        return await self._send_json(
+            "PUT",
+            f"/v1/articles/{_segment(article_id)}",
+            json=body,
+            endpoint="articles",
+        )
 
     async def delete_article(self, article_id: str) -> None:
         """``DELETE /v1/articles/{id}``. One API call, and it cannot be undone.
@@ -546,7 +622,7 @@ class LexwareClient:
         record is gone rather than archived, and a second delete of the same
         id is a 404.
         """
-        await self.request("DELETE", f"/v1/articles/{article_id}")
+        await self.request("DELETE", f"/v1/articles/{_segment(article_id)}")
 
     # -- recurring templates ----------------------------------------------
 
@@ -572,7 +648,7 @@ class LexwareClient:
     async def recurring_template(self, template_id: str) -> dict[str, Any]:
         """``GET /v1/recurring-templates/{id}``. One API call."""
         return _expect_object(
-            await self.get_json(f"/v1/recurring-templates/{template_id}"),
+            await self.get_json(f"/v1/recurring-templates/{_segment(template_id)}"),
             "recurring-templates",
         )
 
@@ -611,10 +687,13 @@ class LexwareClient:
             params["finalize"] = "true"
         if preceding_sales_voucher_id is not None:
             params["precedingSalesVoucherId"] = preceding_sales_voucher_id
-        response = await self.request(
-            "POST", f"/v1/{resource}", json=body, params=params or None
+        return await self._send_json(
+            "POST",
+            f"/v1/{resource}",
+            json=body,
+            params=params or None,
+            endpoint=resource,
         )
-        return _expect_object(response.json(), resource)
 
     async def sales_document(self, resource: str, document_id: str) -> dict[str, Any]:
         """``GET /v1/{resource}/{id}``. One API call.
@@ -625,7 +704,7 @@ class LexwareClient:
         does not exist.
         """
         return _expect_object(
-            await self.get_json(f"/v1/{resource}/{document_id}"), resource
+            await self.get_json(f"/v1/{resource}/{_segment(document_id)}"), resource
         )
 
     # -- files ------------------------------------------------------------
@@ -647,7 +726,7 @@ class LexwareClient:
         Asking for ``application/xml`` when the file is a PDF is a 404 rather
         than a 406.
         """
-        return await self.download(f"/v1/files/{file_id}", accept)
+        return await self.download(f"/v1/files/{_segment(file_id)}", accept)
 
     async def document_file(
         self, resource: str, document_id: str, accept: str | None = None
@@ -658,7 +737,9 @@ class LexwareClient:
         PDF and ``Content-Disposition`` carries the document's own name. A
         bookkeeping voucher answers this path with 404, and a draft with 409.
         """
-        return await self.download(f"/v1/{resource}/{document_id}/file", accept)
+        return await self.download(
+            f"/v1/{resource}/{_segment(document_id)}/file", accept
+        )
 
     async def upload_file(
         self, content: bytes, filename: str, content_type: str
@@ -671,13 +752,13 @@ class LexwareClient:
         only store a file, it also creates the bookkeeping voucher the file
         belongs to, which is why this is a write in every sense.
         """
-        response = await self.request(
+        return await self._send_json(
             "POST",
             "/v1/files",
             files={"file": (filename, content, content_type)},
             data={"type": "voucher"},
+            endpoint="files",
         )
-        return _expect_object(response.json(), "files")
 
     async def attach_file(
         self, voucher_id: str, content: bytes, filename: str, content_type: str
@@ -691,12 +772,12 @@ class LexwareClient:
         documentation writes it singular and gives it a GET, and neither
         exists.
         """
-        response = await self.request(
+        return await self._send_json(
             "POST",
-            f"/v1/vouchers/{voucher_id}/files",
+            f"/v1/vouchers/{_segment(voucher_id)}/files",
             files={"file": (filename, content, content_type)},
+            endpoint="voucher files",
         )
-        return _expect_object(response.json(), "voucher files")
 
     # -- internals --------------------------------------------------------
 
@@ -705,11 +786,21 @@ class LexwareClient:
         delay = min(BACKOFF_BASE * (2**attempt), BACKOFF_CAP)
         if retry_after:
             try:
-                delay = max(delay, float(retry_after))
+                asked = float(retry_after)
             except ValueError:
                 # A Retry-After can also be an HTTP date. Falling back to the
                 # computed delay is better than failing to back off at all.
                 logger.debug("Unparsable Retry-After: %r", retry_after)
+            else:
+                # Honoured up to the cap and no further. This wait happens
+                # inside a tool call, so `86400` would hold it for a day and
+                # `inf` for ever - better to say so and let the caller decide.
+                if not math.isfinite(asked) or asked > BACKOFF_CAP:
+                    raise RateLimitError(
+                        f"Rate limited, and the API asked to wait {retry_after} "
+                        "seconds, longer than this call waits. Try again later."
+                    )
+                delay = max(delay, asked)
         # Jitter, so that several waiters do not resume in lockstep.
         await self._sleep(delay * (0.5 + random.random() / 2))
 

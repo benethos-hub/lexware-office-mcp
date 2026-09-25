@@ -92,6 +92,80 @@ async def test_a_malformed_body_is_reported_rather_than_raised_raw() -> None:
             await client.get_json("/v1/profile")
 
 
+WRITES = [
+    ("create_contact", ({},)),
+    ("update_contact", ("PLACEHOLDER-CONTACT-1", {})),
+    ("create_voucher", ({},)),
+    ("update_voucher", ("PLACEHOLDER-VOUCHER-1", {})),
+    ("create_article", ({},)),
+    ("update_article", ("PLACEHOLDER-ARTICLE-1", {})),
+    ("create_sales_document", ("invoices", {})),
+    ("upload_file", (b"%PDF", "r.pdf", "application/pdf")),
+    ("attach_file", ("PLACEHOLDER-VOUCHER-1", b"%PDF", "r.pdf", "application/pdf")),
+]
+
+
+@pytest.mark.parametrize(("method", "args"), WRITES, ids=[w[0] for w in WRITES])
+@pytest.mark.parametrize(
+    "answer",
+    [
+        httpx.Response(201, content=b""),
+        httpx.Response(200, text="<html>proxy</html>"),
+        httpx.Response(200, json=["not", "an", "object"]),
+    ],
+    ids=["empty", "html", "list"],
+)
+async def test_an_unreadable_answer_to_a_write_is_an_unknown_outcome(
+    method: str, args: tuple[Any, ...], answer: httpx.Response
+) -> None:
+    """The write went through. What it created is what nobody saw.
+
+    A raw ValueError reached the model as "Error executing tool" and nothing
+    else, which reads like a failure worth retrying - a second record.
+    """
+    async with make_client(answer) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await getattr(client, method)(*args)
+
+    assert excinfo.value.outcome_unknown
+    assert "Check whether the record exists" in str(excinfo.value)
+    assert client.handler.calls == 1  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("call", "expected"),
+    [
+        (
+            lambda c: c.update_contact("x/../../articles/y", {}),
+            b"/v1/contacts/x%2F..%2F..%2Farticles%2Fy",
+        ),
+        (lambda c: c.delete_article("a?b#c"), b"/v1/articles/a%3Fb%23c"),
+        (lambda c: c.voucher("v/files"), b"/v1/vouchers/v%2Ffiles"),
+        (
+            lambda c: c.document_file("invoices", "../contacts"),
+            b"/v1/invoices/..%2Fcontacts/file",
+        ),
+    ],
+    ids=["put", "delete", "get", "download"],
+)
+async def test_an_id_stays_inside_its_path_segment(call: Any, expected: bytes) -> None:
+    """Ids come from the model. A slash in one must not reach another path."""
+    async with make_client(httpx.Response(200, json={})) as client:
+        await call(client)
+        sent = client.handler.requests[0]  # type: ignore[attr-defined]
+
+    assert sent.url.raw_path == expected
+
+
+@pytest.mark.parametrize("bad", ["", " ", ".", ".."])
+async def test_an_id_that_a_url_would_resolve_away_is_refused(bad: str) -> None:
+    async with make_client() as client:
+        with pytest.raises(ValidationError, match="not an id"):
+            await client.delete_article(bad)
+
+        assert client.handler.calls == 0  # type: ignore[attr-defined]
+
+
 # -- error mapping --------------------------------------------------------
 
 
@@ -177,6 +251,24 @@ async def test_a_version_that_was_never_sent_is_not_a_stale_one() -> None:
         with pytest.raises(ValidationError) as excinfo:
             await client.request("PUT", "/v1/articles/abc", json={})
     assert "version: NOTNULL" in str(excinfo.value)
+    assert "changed since" not in str(excinfo.value)
+
+
+async def test_a_missing_version_in_the_issue_list_shape_is_not_a_stale_one() -> None:
+    """The same absence in the other shape: `i18nKey`, not `violation`."""
+    body = {
+        "IssueList": [
+            {
+                "i18nKey": "missing_entity",
+                "source": "version",
+                "type": "validation_failure",
+            }
+        ]
+    }
+    async with make_client(httpx.Response(406, json=body)) as client:
+        with pytest.raises(ValidationError) as excinfo:
+            await client.request("PUT", "/v1/contacts/abc", json={})
+    assert "version: missing_entity" in str(excinfo.value)
     assert "changed since" not in str(excinfo.value)
 
 
@@ -297,6 +389,53 @@ async def test_repeated_rate_limiting_trips_the_breaker() -> None:
     assert "whole account" in str(excinfo.value)
 
 
+async def test_a_transport_error_ends_the_rate_limit_streak() -> None:
+    """The breaker counts consecutive 429s. A timeout between them is not
+    one, and without the reset two 429s either side of it tripped it."""
+    async with make_client(
+        httpx.Response(429),
+        httpx.Response(429),
+        httpx.ConnectTimeout("slow"),
+        httpx.Response(429),
+        httpx.Response(200, json={}),
+    ) as client:
+        with pytest.raises(UpstreamError):
+            await client.request("GET", "/v1/profile")
+
+        response = await client.request("GET", "/v1/profile")
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "lost",
+    [httpx.ReadTimeout("slow"), httpx.Response(502)],
+    ids=["timeout", "bad gateway"],
+)
+async def test_a_retried_delete_that_finds_nothing_has_worked(
+    lost: httpx.Response | Exception,
+) -> None:
+    """The first attempt deleted it and its answer was lost. The retry's 404
+    is the evidence, not a sign that the article never existed."""
+    async with make_client(lost, httpx.Response(404)) as client:
+        await client.delete_article("PLACEHOLDER-ARTICLE-1")
+
+        assert client.handler.calls == 2  # type: ignore[attr-defined]
+
+
+async def test_a_delete_that_finds_nothing_at_once_is_still_a_404() -> None:
+    async with make_client(httpx.Response(404)) as client:
+        with pytest.raises(NotFoundError):
+            await client.delete_article("PLACEHOLDER-ARTICLE-1")
+
+
+async def test_a_delete_retried_only_after_429_is_still_a_404() -> None:
+    """A 429 was certainly not performed, so it proves nothing about a 404."""
+    async with make_client(httpx.Response(429), httpx.Response(404)) as client:
+        with pytest.raises(NotFoundError):
+            await client.delete_article("PLACEHOLDER-ARTICLE-1")
+
+
 async def test_retry_after_is_honoured() -> None:
     slept: list[float] = []
 
@@ -316,6 +455,31 @@ async def test_retry_after_is_honoured() -> None:
     await client.aclose()
 
     assert max(slept) >= 3.5  # 7 seconds, minus at most half from the jitter
+
+
+@pytest.mark.parametrize("seconds", ["86400", "inf", "nan", "9"])
+async def test_a_retry_after_beyond_the_cap_is_not_slept_through(seconds: str) -> None:
+    """A day, or for ever, inside a tool call is worse than an answer now."""
+    slept: list[float] = []
+
+    async def record(delay: float) -> None:
+        slept.append(delay)
+
+    handler = Recorder(
+        httpx.Response(429, headers={"Retry-After": seconds}), httpx.Response(200)
+    )
+    client = LexwareClient(
+        Settings(api_key=API_KEY),
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=record),
+        sleep=record,
+    )
+    with pytest.raises(RateLimitError, match="longer than this call waits"):
+        await client.request("GET", "/v1/profile")
+    await client.aclose()
+
+    assert handler.calls == 1
+    assert all(delay <= 8.0 for delay in slept)
 
 
 async def test_an_unparsable_retry_after_still_backs_off() -> None:

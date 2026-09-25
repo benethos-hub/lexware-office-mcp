@@ -13,6 +13,126 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Security
+
+- **Only JSON `true` enables a tool in the policy file.** A value was read
+  with `bool()`, so `"create_voucher": "false"` - a non-empty string -
+  switched the tool on. Anything but `true` is now off, and a value that is
+  not a boolean is named on stderr. The configuration interface reads an
+  imported file by the same rule.
+- **Downloads are resources only while a download tool is enabled.** Every
+  file in the download directory was listed and readable over
+  `resources/list` and `resources/read` even with a policy that enabled
+  nothing. Now they answer only while `download_file`, `download_document`
+  or `read_download` is on, and a symbolic link in the directory is never
+  published.
+- **The configuration interface checks the port and issues its own tokens.**
+  A form post was accepted from any loopback page, and the session cookie was
+  accepted whatever its value. Because cookies are not scoped by port, a page
+  served by another local program could set the cookie, submit a form, point
+  the API base URL at its own host and have the connection test send the key
+  there. Now `Origin` has to name this page's host and port, and only a token
+  this process issued counts.
+- **The configuration interface answers only to a loopback name.** A page
+  whose `Host` is not `127.0.0.1`, `localhost` or `::1` is refused, so DNS
+  rebinding cannot read the pages - bearer token included - and a `--host
+  0.0.0.0` bind outside a container does not answer the network. Every
+  response carries `Cache-Control: no-store`.
+- **A line break in a setting is refused rather than written.** A value
+  carrying `%0A` from a form ended its line in the `.env`, and what followed
+  became a setting of its own - `LXO_MCP_API_KEY` included, unchecked. The
+  `.env` is now written to a temporary file and moved into place, and a new
+  one is created readable by its owner only. An existing file keeps its
+  permissions.
+- **New setting `LXO_MCP_UPLOAD_DIR`: the one directory the upload tools may
+  read from.** `upload_file` and `attach_file_to_voucher` take a path from
+  the model and read any file the process can read with an accepted
+  extension. With the setting, a file has to resolve inside that directory
+  or is refused before any request. Unset, nothing changes, and the README
+  now says so plainly.
+- **Smaller hardening.** The configuration interface refuses a form body over
+  1 MiB or with a nonsense `Content-Length` without reading it, and sends
+  headers that keep its pages out of frames and out of `Referer`.
+  `get_deeplink` encodes the id, so a slash or `?` in it can no longer point
+  the link at another page of the web app. The HTTP transport closes a
+  websocket before accepting it and passes no scope but `lifespan` unguarded.
+- **An id can no longer steer a request to another endpoint.** Ids were put
+  into request paths as the model sent them, so `x/../../articles/y` could
+  turn an update of a contact into one of an article, and the same for a
+  delete. Every id is now percent-encoded into its own path segment, and
+  `.`, `..` or an empty id is refused before any request.
+- **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
+  server refuses to start otherwise, and the configuration interface refuses
+  to save one.
+
+### Fixed
+
+- **`read_download` rendered PDF pages with red and blue swapped.** PDFium
+  hands out BGR and the PNG declared RGB, so the red stamp on a dunning
+  letter came out blue.
+- **A write whose answer cannot be read is reported as an unknown outcome.**
+  An empty, HTML or non-object body on a successful create, update or upload
+  escaped as a plain exception, so the model was told only that the tool
+  failed - an invitation to try again and make a second record. It now says
+  the request may have been carried out and to check before retrying.
+- **A `Retry-After` longer than eight seconds ends the call instead of
+  stalling it.** The header was honoured without a limit, inside the tool
+  call: `86400` held it for a day and `inf` for ever. Up to eight seconds it
+  is still honoured, beyond that the call answers that it was rate limited.
+- **A `.env` saved with a byte order mark is read correctly.** Windows
+  editors write one, and it became part of the first key, so an
+  `LXO_MCP_API_KEY` on line one was not found. A rewrite through the
+  configuration interface drops the mark.
+- **A setting that appears twice in the `.env` is rewritten everywhere.** The
+  configuration interface replaced the first occurrence while the server
+  reads the last, so a key reported as checked and saved was never used.
+- **A missing `version` is no longer reported as a changed record.** In the
+  `IssueList` shape the API names it `missing_entity`, and the model was
+  told to read the record again - which does not help when the request
+  simply did not carry one.
+- **A file that cannot be written or read is an answer, not a crash.** A full
+  disk, a download directory owned by someone else, a locked receipt or too
+  many files of one name reached the model as a bare tool failure. The
+  download and upload tools now say what the system refused, without a path.
+- **`LXO_MCP_DOWNLOAD_DIR` expands `~`**, as `LXO_MCP_TOOL_POLICY` always
+  did. `~/Belege` created a folder literally named `~`.
+- **`nan` and `inf` are refused as numbers.** `LXO_MCP_RATE=nan` let no
+  request through ever, and `inf` switched the rate limiter off. The server
+  now refuses to start with either, as it does with any other bad number.
+- **A bad setting no longer breaks `--version`, `--help` or `setup`.** The
+  server was built from the environment the moment its module was imported,
+  so one bad value ended every command with a traceback. Starting the server
+  with one now ends in a single line naming it.
+- **Each server answers to its own policy file.** There was one policy per
+  process, set by whichever server was built last, and every call guard read
+  that one.
+- **Downloading an unchanged document again no longer logs a warning** on
+  stderr every time.
+- **A timeout ends a run of rate limits.** The breaker that pauses after three
+  429s in a row counted across a network failure, so two 429s either side of
+  a timeout paused the server for thirty seconds.
+- **`delete_article` no longer reports a deletion it made as not found.**
+  When the first attempt's answer was lost and the retry found nothing, the
+  404 was passed on - as if the article had never existed.
+- **`read_download` finds a file under the name it is listed by.** A file
+  put into the download directory by hand, such as `my invoice.pdf`, was
+  offered as a resource under its own name and then looked up under a
+  sanitized one, so it could be listed but not read. A percent-encoded name
+  is found too.
+- **A download named like a Windows device is saved under another name.**
+  `CON.pdf` or `LPT1.pdf` from the API is the console or a printer port on
+  Windows, not a file, and is now saved as `_CON.pdf`.
+- **Two downloads at once can no longer overwrite each other.** A name was
+  checked and then written, so two downloads could both find it free. The
+  file is now created exclusively.
+- **Rendering a PDF no longer holds up every other call.** `read_download`
+  rendered on the event loop, so a long document stalled the whole server
+  for as long as it took. Rendering and file access now run in a worker
+  thread.
+- **`read_download` renders at most 100 pages.** `max_pages` accepts up to
+  100, `null` means every page up to that, and `LXO_MCP_PDF_PAGES` above 100
+  is refused. `pages` and `pagesShown` still say what was left out.
+
 ## [0.2.4] - 2026-09-14
 
 ### Changed

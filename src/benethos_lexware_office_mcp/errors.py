@@ -21,6 +21,7 @@ __all__ = [
     "AuthError",
     "ConfigError",
     "ConflictError",
+    "LocalFileError",
     "NotFoundError",
     "PermissionDeniedError",
     "RateLimitError",
@@ -117,6 +118,22 @@ class ConflictError(ToolError):
 
 class RateLimitError(ToolError):
     """The rate limit was hit and retrying did not clear it (HTTP 429)."""
+
+
+class LocalFileError(ToolError):
+    """A file on this machine could not be read or written.
+
+    Carries the operating system's reason and never the path: the one a
+    caller supplied it already knows, and the download directory describes
+    this machine rather than anything the caller can act on.
+    """
+
+    def __init__(self, action: str, exc: OSError) -> None:
+        # strerror is the plain reason ("Permission denied"). Without one the
+        # exception was raised here with a message of its own, which is safe
+        # to pass on - unless it names a file, which only the OS does.
+        reason = exc.strerror or (str(exc) if exc.filename is None else "")
+        super().__init__(f"Could not {action}: {reason or 'the system refused'}.")
 
 
 class UpstreamError(ToolError):

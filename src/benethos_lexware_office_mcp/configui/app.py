@@ -15,8 +15,9 @@ and the server says so on stderr when it does.
 
 State-changing requests are guarded twice, because they rewrite credentials
 and permissions and a page in another tab must not be able to trigger one:
-the ``Origin`` or ``Referer`` has to be loopback, and a random token from a
-``SameSite=Strict`` cookie has to come back in the form.
+the ``Origin`` or ``Referer`` has to be this very page, loopback host and port
+both, and a random token from a ``SameSite=Strict`` cookie has to come back in
+the form - a token this process issued, not merely one the cookie carries.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from __future__ import annotations
 import dataclasses
 import secrets
 import sys
+import threading
 import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -45,6 +47,10 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 
 _SESSION_COOKIE = "lxo_config"
+
+# The largest form this interface accepts. An imported policy file is the
+# biggest thing any of them carries, and that is a few kilobytes.
+MAX_BODY = 1024 * 1024
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 # The name the file has on disk, so a download can simply replace one.
@@ -52,9 +58,31 @@ _EXPORT_NAME = "tools.json"
 
 
 class ConfigServer(ThreadingHTTPServer):
-    """A server that knows which installation its handlers are editing."""
+    """A server that knows which installation its handlers are editing.
+
+    It also remembers every session token it has handed out. A cookie is
+    accepted only if it is one of those: cookies are not scoped by port, so a
+    page on any other loopback port can set ``lxo_config`` to a value of its
+    choosing and put the same value in a form. A token only this process
+    could have made is one such a page cannot know.
+    """
 
     installation: Installation
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.sessions: set[str] = set()
+        self._sessions_lock = threading.Lock()
+
+    def issue_session(self) -> str:
+        token = secrets.token_urlsafe(32)
+        with self._sessions_lock:
+            self.sessions.add(token)
+        return token
+
+    def knows_session(self, token: str) -> bool:
+        with self._sessions_lock:
+            return token in self.sessions
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -68,7 +96,11 @@ class Handler(BaseHTTPRequestHandler):
 
     @property
     def installation(self) -> Installation:
-        return self.server.installation  # type: ignore[attr-defined]
+        return self.config_server.installation
+
+    @property
+    def config_server(self) -> ConfigServer:
+        return self.server  # type: ignore[return-value]
 
     # --- plumbing ----------------------------------------------------------
 
@@ -82,10 +114,12 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - a malformed cookie is not our problem
             pass
         morsel = jar.get(_SESSION_COOKIE)
-        if morsel and morsel.value:
+        if morsel and morsel.value and self.config_server.knows_session(morsel.value):
             self._fresh_cookie = None
             return str(morsel.value)
-        self._fresh_cookie = secrets.token_urlsafe(32)
+        # No cookie, or one this process never issued - planted by another
+        # page, or left over from an earlier run. Either way a new one.
+        self._fresh_cookie = self.config_server.issue_session()
         return self._fresh_cookie
 
     def _cookie_header(self) -> None:
@@ -96,21 +130,31 @@ class Handler(BaseHTTPRequestHandler):
                 "SameSite=Strict; HttpOnly",
             )
 
+    def _common_headers(self, body: bytes) -> None:
+        self.send_header("Content-Length", str(len(body)))
+        # The pages show the bearer token and name the files and the company.
+        # None of that belongs in a browser cache.
+        self.send_header("Cache-Control", "no-store")
+        # No other page may frame these and trick a click out of someone, no
+        # content type is guessed, and no address leaves in a Referer.
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "same-origin")
+        self._cookie_header()
+        self.end_headers()
+
     def _send(self, status: int, body: bytes, content_type: str = "text/html") -> None:
         self.send_response(status)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self._cookie_header()
-        self.end_headers()
+        self._common_headers(body)
         self.wfile.write(body)
 
     def _download(self, body: bytes, filename: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-        self.send_header("Content-Length", str(len(body)))
-        self._cookie_header()
-        self.end_headers()
+        self._common_headers(body)
         self.wfile.write(body)
 
     def _not_found(self) -> None:
@@ -119,20 +163,48 @@ class Handler(BaseHTTPRequestHandler):
     def _deny(self, reason: str) -> None:
         self._send(403, page("Abgelehnt", f'<p class="err">{esc(reason)}</p>'))
 
+    def _host_ok(self) -> bool:
+        """Whether the browser addressed this page by a loopback name.
+
+        Checked on every request, reading ones included. A page elsewhere can
+        point a name it controls at 127.0.0.1 - DNS rebinding - and then read
+        these pages as its own origin, bearer token and all. Its ``Host`` is
+        still its own name, so refusing anything but loopback closes that.
+        It also keeps a ``--host 0.0.0.0`` bind from answering a machine on
+        the network, which would reach it by an address of this one.
+        The port is not compared, so a container published under a different
+        port still works.
+        """
+        target = _host_and_port(self.headers.get("Host", ""))
+        return target is not None and target[0] in _LOOPBACK
+
     def _origin_ok(self) -> bool:
         """Whether a state-changing request came from this page.
 
         A request without ``Origin`` and without ``Referer`` is refused:
         every current browser sends one on a form post, so its absence means
         the request was not made by one.
+
+        **The port counts.** Loopback alone would admit a page served by any
+        other program on this machine. The source has to name the very host
+        and port this request was sent to, which is what the ``Host`` header
+        says - compared to that rather than to the bound port, so a container
+        published under another port still works.
         """
         source = self.headers.get("Origin") or self.headers.get("Referer")
         if not source:
             return False
         parsed = urlparse(source)
-        if parsed.scheme not in ("http", "https"):
+        if parsed.scheme != "http":
             return False
-        return (parsed.hostname or "").lower() in _LOOPBACK
+        target = _host_and_port(self.headers.get("Host", ""))
+        if target is None or target[0] not in _LOOPBACK:
+            return False
+        try:
+            origin = ((parsed.hostname or "").lower(), parsed.port or 80)
+        except ValueError:
+            return False
+        return origin == target
 
     def _csrf_ok(self, form: dict[str, list[str]]) -> bool:
         if self._fresh_cookie:
@@ -142,7 +214,20 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- routing -----------------------------------------------------------
 
+    def _wrong_host(self) -> None:
+        self._send(
+            403,
+            page(
+                "Abgelehnt",
+                '<p class="err">Diese Seite ist nur als 127.0.0.1 oder '
+                "localhost erreichbar.</p>",
+            ),
+        )
+
     def do_GET(self) -> None:  # noqa: N802 - the stdlib names it
+        if not self._host_ok():
+            self._wrong_host()
+            return
         self._session = self._session_token()
         path = urlparse(self.path).path
         inst = self.installation
@@ -158,11 +243,26 @@ class Handler(BaseHTTPRequestHandler):
             self._not_found()
 
     def do_POST(self) -> None:  # noqa: N802 - the stdlib names it
-        self._session = self._session_token()
+        self._session = ""
         path = urlparse(self.path).path
-        # Read the body first whatever happens, or the connection stalls.
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        form = parse_qs(self.rfile.read(length).decode("utf-8"))
+        # Read the body first whatever happens, or the connection stalls -
+        # but only up to a size no form here comes near. A larger claim is
+        # refused unread and the connection closed, since reading it would
+        # be exactly what the claim was for.
+        try:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            length = -1
+        if not 0 <= length <= MAX_BODY:
+            self.close_connection = True
+            self._send(413, page("Zu groß", "<p>Diese Anfrage ist zu groß.</p>"))
+            return
+        raw = self.rfile.read(length).decode("utf-8", errors="replace")
+        form = parse_qs(raw)
+        if not self._host_ok():
+            self._wrong_host()
+            return
+        self._session = self._session_token()
 
         routes = {
             "/check": self._check,
@@ -227,12 +327,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             update_env_file(inst.env_path, {API_KEY: key})
-        except OSError as exc:
-            self._page_with(
-                pages.credentials,
-                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-            )
+        except (OSError, ValueError) as exc:
+            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
             return
         inst.reload()
         suffix = (
@@ -277,12 +373,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             update_env_file(inst.env_path, {BEARER_KEY: token})
-        except OSError as exc:
-            self._page_with(
-                pages.credentials,
-                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-            )
+        except (OSError, ValueError) as exc:
+            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
             return
 
         inst.reload()
@@ -322,12 +414,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             update_env_file(inst.env_path, submitted)
-        except OSError as exc:
-            self._page_with(
-                pages.credentials,
-                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-            )
+        except (OSError, ValueError) as exc:
+            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
             return
         inst.reload()
         self._page_with(
@@ -596,6 +684,23 @@ class Handler(BaseHTTPRequestHandler):
         )
 
 
+def _env_write_failed(inst: Installation, exc: OSError | ValueError) -> str:
+    """Why the .env was not written. A refused value is quoted, not translated."""
+    if isinstance(exc, ValueError):
+        return f"Nicht gespeichert: {exc}"
+    return f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}"
+
+
+def _host_and_port(header: str) -> tuple[str, int] | None:
+    """A ``Host`` header as a lower-case name and a port, or ``None``."""
+    try:
+        parsed = urlparse(f"//{header.strip()}")
+        name, port = (parsed.hostname or "").lower(), parsed.port or 80
+    except ValueError:
+        return None
+    return (name, port) if name else None
+
+
 def _flags(chosen: list[str]) -> dict[str, bool]:
     return {name: name in chosen for name in known_tools()}
 
@@ -623,7 +728,8 @@ def serve(
     if host not in _LOOPBACK:
         print(
             f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
-            "aus erreichbar. Die Seiten haben keine Anmeldung.",
+            "aus erreichbar. Die Seiten haben keine Anmeldung und antworten "
+            "nur, wenn sie als 127.0.0.1 oder localhost aufgerufen werden.",
             file=sys.stderr,
         )
     print(f".env:    {installation.env_path}", file=sys.stderr)

@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 
+from ..policy import flags_from
+
 __all__ = ["TransferError", "dumps", "parse"]
 
 
@@ -41,10 +43,10 @@ def dumps(flags: dict[str, bool]) -> str:
 def parse(text: str) -> dict[str, bool]:
     """Read a policy file, or explain in one sentence why it is not one.
 
-    Every value is taken as a flag, because that is how the server reads the
-    file too: :meth:`ToolPolicy._stored` puts ``bool()`` around whatever it
-    finds, and a reader that was stricter than the thing it feeds would refuse
-    files that work.
+    Every value is read the way the server reads it, through
+    :func:`~benethos_lexware_office_mcp.policy.flags_from`: only JSON ``true``
+    switches a tool on, so ``"false"`` or ``1`` arrive as off rather than as
+    whatever ``bool()`` would have made of them.
     """
     try:
         data = json.loads(text)
@@ -56,4 +58,4 @@ def parse(text: str) -> dict[str, bool]:
         )
     if not data:
         raise TransferError("Die Datei nennt kein einziges Tool.")
-    return {str(name): bool(flag) for name, flag in data.items()}
+    return flags_from(data, source="imported policy file")

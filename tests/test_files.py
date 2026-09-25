@@ -10,16 +10,20 @@ ceiling is 5 MiB exactly.
 from __future__ import annotations
 
 import base64
+import struct
+import threading
+import zlib
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
 
-from benethos_lexware_office_mcp import rendering, storage
+from benethos_lexware_office_mcp import rendering, resources, storage
 from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import DEFAULT_PDF_PAGES, Settings
+from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
 
@@ -27,7 +31,7 @@ API_KEY = "test-key-0123456789"
 FILE_ID = "PLACEHOLDER-FILE-1"
 
 
-def make_pdf(pages: int = 1) -> bytes:
+def make_pdf(pages: int = 1, stream: bytes | None = None) -> bytes:
     """A real PDF with real glyphs, built here rather than checked in.
 
     The stub that used to stand in for one was never a valid document. It was
@@ -35,7 +39,7 @@ def make_pdf(pages: int = 1) -> bytes:
     the moment the server started rendering it, which is exactly the kind of
     fixture that hides a feature not working.
     """
-    stream = (
+    stream = stream or (
         b"BT /F1 12 Tf 1 0 0 1 60 760 Tm (Rechnung RE-2026-0142) Tj "
         b"0 -20 Td (Gesamtbetrag 2.200,91 EUR) Tj ET"
     )
@@ -173,6 +177,26 @@ def test_unusual_characters_are_replaced() -> None:
     assert name.endswith(".pdf")
 
 
+@pytest.mark.parametrize(
+    "name", ["CON.pdf", "con.pdf", "NUL", "com1.xml", "LPT9.pdf", "aux.tar.gz"]
+)
+def test_a_windows_device_name_is_not_used_as_is(name: str) -> None:
+    """On Windows `CON.pdf` is the console, not a file."""
+    cleaned = storage.suggested_name(
+        response_with(f'attachment; filename="{name}"'), "f.pdf"
+    )
+
+    assert cleaned.split(".")[0].upper() not in storage._DEVICES
+    assert cleaned.endswith(name)
+
+
+def test_a_name_that_merely_starts_like_a_device_is_left_alone() -> None:
+    name = storage.suggested_name(
+        response_with('attachment; filename="CONTRACT.pdf"'), "f.pdf"
+    )
+    assert name == "CONTRACT.pdf"
+
+
 def test_a_useless_filename_falls_back_to_the_callers_own() -> None:
     assert storage.suggested_name(
         response_with('attachment; filename=".."'), "f.pdf"
@@ -305,6 +329,20 @@ async def test_the_edit_action_and_the_configured_base_are_used(
     )
 
 
+async def test_an_id_cannot_steer_the_link_elsewhere() -> None:
+    """The id comes from the model. A slash or a `?` must stay inside it."""
+    server = build_server(Settings(api_key=API_KEY))
+
+    result = await server.call_tool(
+        "get_deeplink", {"target": "invoice", "target_id": "../../settings?x=1#y"}
+    )
+
+    assert result.structured_content is not None
+    assert result.structured_content["url"].endswith(
+        "/permalink/invoices/view/..%2F..%2Fsettings%3Fx%3D1%23y"
+    )
+
+
 async def test_a_contact_always_opens_on_its_one_page(tmp_path: Path) -> None:
     """Verified 2026-08-21: the app answers `contacts/edit/{id}` with a 404.
 
@@ -372,6 +410,74 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
     assert b"voucher" in sent
     assert result.structured_content is not None
     assert result.structured_content["voucherId"] == "PLACEHOLDER-VOUCHER-9"
+    await provider.aclose()
+
+
+def upload_server(
+    handler: Recorder, tmp_path: Path, allowed: Path
+) -> tuple[Any, ClientProvider]:
+    settings = Settings(api_key=API_KEY, download_path=tmp_path, upload_path=allowed)
+    provider = ClientProvider(
+        settings,
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
+    return build_server(settings, provider), provider
+
+
+@pytest.mark.parametrize("tool", ["upload_file", "attach_file_to_voucher"])
+async def test_an_upload_outside_the_upload_directory_is_refused(
+    tmp_path: Path, tool: str
+) -> None:
+    """The model names the path, so this setting decides what can leave."""
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    elsewhere = tmp_path / "private.pdf"
+    elsewhere.write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    arguments = {"path": str(elsewhere), "voucher_id": "PLACEHOLDER-VOUCHER-1"}
+    if tool == "upload_file":
+        del arguments["voucher_id"]
+    with pytest.raises(ToolError, match="LXO_MCP_UPLOAD_DIR") as excinfo:
+        await server.call_tool(tool, arguments)
+
+    assert str(inbox) not in str(excinfo.value)
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> None:
+    inbox = tmp_path / "inbox"
+    (inbox / "2026").mkdir(parents=True)
+    receipt = inbox / "2026" / "receipt.pdf"
+    receipt.write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    await server.call_tool("upload_file", {"path": str(receipt)})
+
+    assert len(handler.requests) == 1
+    await provider.aclose()
+
+
+async def test_a_path_that_climbs_out_of_the_upload_directory_is_refused(
+    tmp_path: Path,
+) -> None:
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    (tmp_path / "private.pdf").write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    with pytest.raises(ToolError, match="outside"):
+        await server.call_tool(
+            "upload_file", {"path": str(inbox / ".." / "private.pdf")}
+        )
+
+    assert handler.requests == []
     await provider.aclose()
 
 
@@ -610,6 +716,20 @@ async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
     await provider.aclose()
 
 
+async def test_the_same_document_twice_logs_no_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The SDK warns for every URI registered twice, once per repeat."""
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    for _ in range(3):
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert "already exists" not in caplog.text
+    await provider.aclose()
+
+
 async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:
     """The other half of the rule: nothing is ever overwritten."""
     directory = tmp_path
@@ -619,6 +739,27 @@ async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None
     assert first.name == "invoice.pdf"
     assert second.name == "invoice-2.pdf"
     assert first.read_bytes() == b"january"
+
+
+def test_a_name_taken_between_the_check_and_the_write_is_not_overwritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another download claims the name after it looked free. The file it
+    wrote survives, and this one moves to the next name."""
+    real_open = Path.open
+
+    def racing_open(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if self.name == "invoice.pdf" and "x" in mode and not self.exists():
+            self.write_bytes(b"the other download")
+        return real_open(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", racing_open)
+
+    saved = storage.save(b"this download", "invoice.pdf", tmp_path)
+
+    assert saved.name == "invoice-2.pdf"
+    assert (tmp_path / "invoice.pdf").read_bytes() == b"the other download"
+    assert saved.read_bytes() == b"this download"
 
 
 def test_reusing_a_copy_that_already_carries_a_counter(tmp_path: Path) -> None:
@@ -831,6 +972,94 @@ async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> N
     await provider.aclose()
 
 
+def test_red_is_rendered_red() -> None:
+    """PDFium hands out BGR by default. Written into an RGB PNG unchanged,
+    the red stamp on a dunning letter arrived blue."""
+    red_page = make_pdf(stream=b"1 0 0 rg 0 0 595 842 re f")
+
+    pages, _ = rendering.pdf_pages_as_png(red_page, max_edge=40)
+
+    png = pages[0].png
+    ihdr = png[16:29]
+    width, _height, _depth, colour_type = struct.unpack(">IIBB", ihdr[:10])
+    assert colour_type == 2  # RGB
+    rows = zlib.decompress(_idat(png))
+    first_pixel = rows[1:4]  # after the row's filter byte
+    assert first_pixel == b"\xff\x00\x00", first_pixel
+    assert len(rows) == (1 + width * 3) * pages[0].height
+
+
+def _idat(png: bytes) -> bytes:
+    data, offset = b"", 8
+    while offset < len(png):
+        (length,) = struct.unpack(">I", png[offset : offset + 4])
+        tag = png[offset + 4 : offset + 8]
+        if tag == b"IDAT":
+            data += png[offset + 8 : offset + 8 + length]
+        offset += 12 + length
+    return data
+
+
+def test_padding_at_the_end_of_a_row_is_not_part_of_the_image() -> None:
+    """A bitmap row can be longer than its pixels. Two 1x1 rows padded to 4."""
+    pixels = b"\x01\x02\x03\xee" + b"\x04\x05\x06\xee"
+
+    png = rendering._png(pixels, 1, 2, 3, stride=4)
+
+    assert zlib.decompress(_idat(png)) == b"\x00\x01\x02\x03\x00\x04\x05\x06"
+
+
+async def test_rendering_runs_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seconds of CPU on the loop would hold every other call up."""
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server, provider = server_for(Recorder(), tmp_path)
+    real = rendering.pdf_pages_as_png
+    seen: list[int] = []
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        seen.append(threading.get_ident())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rendering, "pdf_pages_as_png", recording)
+
+    await server.call_tool("read_download", {"uri": "lexware://download/invoice.pdf"})
+
+    assert seen and seen[0] != threading.get_ident()
+    await provider.aclose()
+
+
+async def test_every_page_means_at_most_the_ceiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """null renders every page there is, up to MAX_PDF_PAGES and no further."""
+    from benethos_lexware_office_mcp.tools import files as files_tools
+
+    monkeypatch.setattr(files_tools, "MAX_PDF_PAGES", 2)
+    (tmp_path / "long.pdf").write_bytes(make_pdf(pages=3))
+    server, provider = server_for(Recorder(), tmp_path)
+
+    result = await server.call_tool(
+        "read_download", {"uri": "lexware://download/long.pdf", "max_pages": None}
+    )
+
+    summary = result.structured_content or {}
+    assert (summary["pages"], summary["pagesShown"]) == (3, 2)
+    await provider.aclose()
+
+
+async def test_asking_for_more_than_the_ceiling_is_refused(tmp_path: Path) -> None:
+    server, provider = server_for(Recorder(), tmp_path)
+
+    with pytest.raises(ToolError):
+        await server.call_tool(
+            "read_download",
+            {"uri": "lexware://download/x.pdf", "max_pages": DEFAULT_PDF_PAGES * 100},
+        )
+    await provider.aclose()
+
+
 def test_asking_for_more_pages_than_there_are_is_not_an_error() -> None:
     pages, total = rendering.pdf_pages_as_png(make_pdf(pages=2), max_pages=50)
     assert total == 2
@@ -1023,6 +1252,152 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
 
     assert (result.structured_content or {})["deliveredAs"] == "pages"
     assert any(b.type == "image" for b in result.content)
+    await provider.aclose()
+
+
+@pytest.mark.parametrize(
+    "uri",
+    ["lexware://download/my invoice.pdf", "lexware://download/my%20invoice.pdf"],
+)
+async def test_a_file_put_there_by_hand_is_readable_under_the_name_listed(
+    tmp_path: Path, uri: str
+) -> None:
+    """Listed under its own name, it has to be found under that name too."""
+    (tmp_path / "my invoice.pdf").write_bytes(PDF)
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    listed = await server.list_resources()
+    assert [str(r.uri) for r in listed] == ["lexware://download/my invoice.pdf"]
+
+    result = await server.call_tool("read_download", {"uri": uri})
+
+    assert (result.structured_content or {})["deliveredAs"] == "pages"
+    await provider.aclose()
+
+
+@pytest.mark.parametrize("name", ["../outside.pdf", "..%2Foutside.pdf", ".."])
+def test_resolve_never_leaves_the_directory(tmp_path: Path, name: str) -> None:
+    inside = tmp_path / "downloads"
+    inside.mkdir()
+    (tmp_path / "outside.pdf").write_bytes(PDF)
+
+    assert storage.resolve(name, inside) is None
+
+
+async def test_downloads_are_not_resources_while_no_download_tool_is_on(
+    tmp_path: Path,
+) -> None:
+    """The policy file decides the resources too, not only the tools.
+
+    Before, every file in the download directory was listed and readable even
+    with a policy that enabled nothing at all.
+    """
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    policy = tmp_path.parent / f"{tmp_path.name}-only-profile.json"
+    policy.write_text('{"get_profile": true}', encoding="utf-8")
+    settings = Settings(
+        api_key=API_KEY, download_path=tmp_path, tool_policy_path=policy
+    )
+    server = build_server(settings)
+
+    assert await server.list_resources() == []
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/invoice.pdf")
+
+    policy.write_text('{"read_download": true}', encoding="utf-8")
+
+    assert [r.name for r in await server.list_resources()] == ["invoice.pdf"]
+
+
+def test_every_gating_tool_is_a_tool() -> None:
+    """A misspelt name here would quietly keep the resources off for good."""
+    assert set(resources.GATING_TOOLS) <= set(known_tools())
+
+
+def test_a_symbolic_link_in_the_download_directory_is_not_published(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.txt"
+    outside.write_text("not a download", encoding="utf-8")
+    try:
+        (tmp_path / "link.pdf").symlink_to(outside)
+    except OSError:
+        pytest.skip("this account may not create symbolic links")
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server = build_server(Settings(api_key=API_KEY))
+
+    assert resources.publish_existing(server, tmp_path) == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        PermissionError(13, "Permission denied", "/home/someone/cache/x.pdf"),
+        OSError(28, "No space left on device"),
+        FileExistsError("Too many files already named like 'x.pdf'."),
+    ],
+    ids=["denied", "full", "collisions"],
+)
+async def test_a_download_that_cannot_be_saved_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: OSError
+) -> None:
+    """A tool error with the system's reason, not a crash and never the path."""
+
+    def refuse(*_args: object) -> Path:
+        raise failure
+
+    monkeypatch.setattr(storage, "save", refuse)
+    handler = Recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_for(handler, tmp_path)
+
+    with pytest.raises(ToolError, match="Could not save the download") as excinfo:
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    message = str(excinfo.value)
+    assert (failure.strerror or str(failure)) in message
+    assert "someone" not in message
+    await provider.aclose()
+
+
+async def test_a_download_that_cannot_be_read_back_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    handler = Recorder()
+    server, provider = server_for(handler, tmp_path)
+
+    def locked(_self: Path) -> bytes:
+        raise PermissionError(13, "Permission denied", str(tmp_path))
+
+    monkeypatch.setattr(Path, "read_bytes", locked)
+
+    with pytest.raises(ToolError, match="Permission denied") as excinfo:
+        await server.call_tool(
+            "read_download", {"uri": "lexware://download/invoice.pdf"}
+        )
+
+    assert str(tmp_path) not in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_a_file_that_cannot_be_read_for_upload_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = tmp_path / "receipt.pdf"
+    receipt.write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = server_for(handler, tmp_path)
+
+    def locked(_self: Path) -> bytes:
+        raise PermissionError(13, "Permission denied", str(receipt))
+
+    monkeypatch.setattr(Path, "read_bytes", locked)
+
+    with pytest.raises(ToolError, match="Could not read the file to upload"):
+        await server.call_tool("upload_file", {"path": str(receipt)})
+
+    assert handler.requests == []
     await provider.aclose()
 
 

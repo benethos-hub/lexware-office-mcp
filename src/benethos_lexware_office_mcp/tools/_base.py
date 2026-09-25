@@ -15,7 +15,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..config import MAX_PAGE_SIZE
-from ..policy import known_tools
+from ..policy import ToolPolicy, guarded, known_tools
 
 __all__ = ["PageNumber", "PageSize", "register_tool"]
 
@@ -95,10 +95,12 @@ def register_tool(server: MCPServer, func: Any) -> None:
 
     Every tool is registered, whatever the policy says. What the policy
     decides is what gets **listed**, in :class:`~..server.PolicyServer`, and
-    what may be **called**, in the wrapper `classify` puts around the
-    function. Deciding it here as well would freeze the answer at startup: a
-    tool enabled afterwards was never registered, and no amount of re-reading
-    the file would bring it back.
+    what may be **called**, in the :func:`~..policy.guarded` wrapper put
+    around the function here - with the policy of *this* server, which a
+    server without one does not have, and then nothing may be called.
+    Deciding more here would freeze the answer at startup: a tool enabled
+    afterwards was never registered, and no amount of re-reading the file
+    would bring it back.
 
     The docstring becomes the description the model reads, and descriptions
     are sent on **every** request. Python keeps the source indentation on
@@ -108,4 +110,7 @@ def register_tool(server: MCPServer, func: Any) -> None:
     """
     if func.__doc__:
         func.__doc__ = inspect.cleandoc(func.__doc__)
-    server.tool(annotations=_annotations(func.__name__))(func)
+    policy = getattr(server, "policy", None)
+    if not isinstance(policy, ToolPolicy):
+        policy = ToolPolicy()
+    server.tool(annotations=_annotations(func.__name__))(guarded(func, policy))

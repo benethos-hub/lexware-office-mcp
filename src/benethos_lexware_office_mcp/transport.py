@@ -63,14 +63,22 @@ LOOPBACK_ORIGINS = ("http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"
 def bearer_middleware(app: ASGIApp, token: str) -> ASGIApp:
     """Wrap an ASGI app so every HTTP request must carry the bearer token.
 
-    Non-HTTP scopes pass through untouched, or the wrapped app's lifespan
-    would never run and the session manager would never start.
+    The lifespan scope passes through untouched, or the wrapped app's
+    lifespan would never run and the session manager would never start.
+    **Only that one.** A websocket scope is closed before it is accepted, and
+    anything else is dropped: nothing here serves either today, and a scope
+    that passed unguarded would be a way in the day something did.
     """
     expected = f"Bearer {token}".encode()
 
     async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
+        if scope["type"] == "lifespan":
             await app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        if scope["type"] != "http":
             return
 
         headers = dict(scope.get("headers") or [])

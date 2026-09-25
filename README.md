@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Container](https://img.shields.io/badge/container-ghcr.io-blue?logo=docker&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/pkgs/container/lexware-office-mcp)
 [![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
-[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
 
 > **Disclaimer**
@@ -200,6 +200,11 @@ broken link to ride along with a working download.
 `upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
 is what the API takes. An XML file is treated as an XRechnung and is
 rejected if it is not one.
+
+**The model chooses the path.** Without `LXO_MCP_UPLOAD_DIR`, `upload_file`
+and `attach_file_to_voucher` read any file this process can read that has
+one of those extensions, and send it to Lexware. Set it to one directory -
+an inbox for receipts - and nothing outside it is read, links included.
 
 ## Requirements
 
@@ -533,11 +538,12 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
+| `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
-| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default | `10` |
+| `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default, at most 100 | `10` |
 | `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
 | `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport | — |

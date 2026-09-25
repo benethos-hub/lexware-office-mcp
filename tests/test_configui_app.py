@@ -10,6 +10,7 @@ from __future__ import annotations
 import http.cookiejar
 import json
 import re
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -177,6 +178,102 @@ def test_a_post_from_another_site_is_refused(browser: Browser) -> None:
 
 def test_a_wrong_token_is_refused(browser: Browser) -> None:
     status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nope")
+
+    assert status == 403
+    assert "Sicherheitstoken" in body
+
+
+@pytest.mark.parametrize("host", ["attacker.example:8770", "192.168.1.20:8770", ""])
+def test_a_page_addressed_by_another_name_is_refused(
+    browser: Browser, host: str
+) -> None:
+    """DNS rebinding: a foreign name pointed at 127.0.0.1 reads as its own
+    origin, so the name the browser used has to be a loopback one."""
+    request = urllib.request.Request(browser.base + "/credentials")
+    request.add_header("Host", host)
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "127.0.0.1" in body
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1:9999", "[::1]:8771"])
+def test_any_loopback_name_and_port_is_answered(browser: Browser, host: str) -> None:
+    """A container publishes under a port of its own choosing."""
+    request = urllib.request.Request(browser.base + "/")
+    request.add_header("Host", host)
+
+    assert browser._open(request)[0] == 200
+
+
+def test_no_page_is_cached(browser: Browser) -> None:
+    """They show the bearer token and name the company."""
+    assert browser.get("/credentials")[2]["Cache-Control"] == "no-store"
+    assert browser.get("/export")[2]["Cache-Control"] == "no-store"
+
+
+def test_no_page_can_be_framed_or_sniffed(browser: Browser) -> None:
+    headers = browser.get("/permissions")[2]
+
+    assert headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "same-origin"
+
+
+@pytest.mark.parametrize("length", ["999999999999", "-5", "many"])
+def test_an_oversized_or_nonsense_body_is_refused_unread(
+    browser: Browser, length: str
+) -> None:
+    """Reading what a Content-Length claims would be the whole attack."""
+    host, port = browser.base.removeprefix("http://").split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(
+            f"POST /permissions HTTP/1.1\r\nHost: {host}:{port}\r\n"
+            f"Content-Length: {length}\r\n\r\n".encode()
+        )
+        # Read to the end, so the server is not left writing into a socket
+        # this side already closed.
+        received = b""
+        while chunk := sock.recv(4096):
+            received += chunk
+        answer = received.decode("latin-1")
+
+    assert answer.startswith("HTTP/1.0 413") or answer.startswith("HTTP/1.1 413")
+
+
+def test_a_page_on_another_loopback_port_is_refused(browser: Browser) -> None:
+    """Loopback is not enough: any local program serves from loopback."""
+    port = int(browser.base.rsplit(":", 1)[1])
+    token = browser.token()
+    request = urllib.request.Request(
+        browser.base + "/permissions",
+        data=urlencode({"action": "save", "_csrf": token}).encode("utf-8"),
+    )
+    request.add_header("Origin", f"http://127.0.0.1:{port + 1}")
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "Origin" in body
+
+
+def test_a_planted_cookie_is_not_a_session(browser: Browser) -> None:
+    """Cookies ignore the port, so another local page can set this one.
+
+    The value it picks then appears both as the cookie and in the form, and
+    the two match - which is why matching is not enough on its own.
+    """
+    planted = "chosen-by-another-page"
+    request = urllib.request.Request(
+        browser.base + "/permissions",
+        data=urlencode({"action": "save", "_csrf": planted}).encode("utf-8"),
+    )
+    request.add_header("Origin", browser.base)
+    request.add_header("Cookie", f"lxo_config={planted}")
+
+    status, body, _ = browser._open(request)
 
     assert status == 403
     assert "Sicherheitstoken" in body
@@ -463,6 +560,19 @@ def test_a_setting_the_server_would_refuse_is_not_written(
 
     assert "würde das ablehnen" in note(body)
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
+
+
+def test_a_value_cannot_smuggle_in_a_second_setting(
+    browser: Browser, installation: Installation
+) -> None:
+    """%0A in a form field used to end the line and write a key of its own."""
+    _, body, _ = browser.post(
+        "/settings",
+        {"LXO_MCP_DOWNLOAD_DIR": "downloads\nLXO_MCP_API_KEY=planted"},
+    )
+
+    assert "Nicht gespeichert" in note(body)
+    assert "planted" not in installation.env_path.read_text(encoding="utf-8")
 
 
 # -- carrying the policy file ----------------------------------------------

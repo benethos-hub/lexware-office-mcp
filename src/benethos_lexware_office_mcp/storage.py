@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from urllib.parse import unquote
 
 import httpx
 
@@ -32,6 +33,13 @@ _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 _FILENAME = re.compile(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', re.IGNORECASE)
 
 MAX_NAME = 120
+
+# Names Windows reserves for devices, with or without an extension.
+_DEVICES = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    | {f"COM{n}" for n in range(10)}
+    | {f"LPT{n}" for n in range(10)}
+)
 
 
 def directory_for(settings: Settings) -> Path:
@@ -69,7 +77,12 @@ def _safe_name(raw: str) -> str:
     cleaned = _UNSAFE.sub("_", without_path).strip("._")
     if cleaned in {"", ".", ".."}:
         return ""
-    return cleaned[:MAX_NAME]
+    cleaned = cleaned[:MAX_NAME]
+    # On Windows `CON.pdf` is the console, whatever the extension, and
+    # writing to it writes nowhere a file can be found again.
+    if cleaned.split(".")[0].upper() in _DEVICES:
+        cleaned = f"_{cleaned}"[:MAX_NAME]
+    return cleaned
 
 
 def save(content: bytes, name: str, directory: Path) -> Path:
@@ -84,10 +97,16 @@ def save(content: bytes, name: str, directory: Path) -> Path:
       copies numbered up to ``-4``, which is not caution, it is litter.
     """
     for candidate in _candidates(name, directory):
-        if not candidate.exists():
-            candidate.write_bytes(content)
+        # Created exclusively rather than checked and then written: two
+        # downloads at once - the tools run concurrently - could otherwise
+        # both find a name free and the second overwrite the first.
+        try:
+            with candidate.open("xb") as out:
+                out.write(content)
             return candidate
-        if candidate.read_bytes() == content:
+        except FileExistsError:
+            pass
+        if candidate.is_file() and candidate.read_bytes() == content:
             return candidate
     # Without the directory: this message can reach the client, and where
     # downloads land on somebody's disk is not the caller's business. The
@@ -111,18 +130,36 @@ def resolve(name: str, directory: Path) -> Path | None:
 
     Used instead of an in-memory registry so a link keeps working after the
     server restarts: the file is on disk either way, and only the registration
-    was ever tied to a process. The name is sanitized and the result checked
-    to be inside ``directory``, because the name arrives from the caller.
+    was ever tied to a process. The result is checked to be inside
+    ``directory``, because the name arrives from the caller.
+
+    The name is tried as given first, then percent-decoded, then sanitized.
+    A file this server saved has a sanitized name already, but the directory
+    is listed as it is, and a file put there by hand - ``my invoice.pdf`` -
+    was listed as a resource under its own name and then looked up here
+    under a sanitized one it did not have.
     """
-    safe = _safe_name(name)
-    if not safe:
-        return None
-    candidate = (directory / safe).resolve()
-    try:
-        candidate.relative_to(directory.resolve())
-    except ValueError:
-        return None
-    return candidate if candidate.is_file() else None
+    base = directory.resolve()
+    for attempt in dict.fromkeys(
+        (_one_component(name), _one_component(unquote(name)), _safe_name(name))
+    ):
+        if not attempt:
+            continue
+        candidate = (directory / attempt).resolve()
+        try:
+            candidate.relative_to(base)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _one_component(name: str) -> str:
+    """``name`` if it is a single path component as it stands, else empty."""
+    if name in ("", ".", "..") or any(c in name for c in "/\\\x00"):
+        return ""
+    return name
 
 
 # Enough to tell a client what it is holding. Anything unlisted is handed over

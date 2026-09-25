@@ -43,6 +43,7 @@ SETTING_KEYS: tuple[str, ...] = (
     "LXO_MCP_APP_BASE_URL",
     "LXO_MCP_TOOL_POLICY",
     "LXO_MCP_DOWNLOAD_DIR",
+    "LXO_MCP_UPLOAD_DIR",
     "LXO_MCP_TIMEOUT",
     "LXO_MCP_RATE",
     "LXO_MCP_BURST",

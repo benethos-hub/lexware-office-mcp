@@ -30,10 +30,12 @@ prints it. No secret is ever read from a versioned file.
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from platformdirs import user_cache_dir, user_config_dir
 
@@ -42,6 +44,7 @@ from .errors import ConfigError, register_secret
 
 __all__ = [
     "DEFAULT_PDF_PAGES",
+    "MAX_PDF_PAGES",
     "MAX_PAGE_SIZE",
     "Settings",
     "config_dir",
@@ -84,6 +87,11 @@ MAX_PAGE_SIZE = 250
 # page size there is no upstream limit to derive one from, and a caller can
 # still override it per call.
 DEFAULT_PDF_PAGES = 10
+
+# The most pages one read_download renders, whatever the call asks for. At
+# roughly two thousand tokens a page this is already far past any context
+# worth spending, and it bounds the CPU a single call can take.
+MAX_PDF_PAGES = 100
 
 DEFAULT_LOG_LEVEL = "INFO"
 
@@ -238,8 +246,27 @@ def _as_float(raw: str | None, fallback: float, *, name: str) -> float:
         value = float(raw)
     except ValueError:
         raise ConfigError(f"{name} must be a number, got {raw!r}.") from None
+    # float() takes "nan" and "inf". A nan rate makes every wait nan, so no
+    # request is ever let through, and an infinite one switches the limiter
+    # off - neither is a number anybody meant.
+    if not math.isfinite(value):
+        raise ConfigError(f"{name} must be a finite number, got {raw!r}.")
     if value <= 0:
         raise ConfigError(f"{name} must be greater than zero, got {value}.")
+    return value
+
+
+def _https_url(raw: str | None, fallback: str, *, name: str) -> str:
+    """A base URL, which has to be ``https://``.
+
+    The API key travels to ``LXO_MCP_BASE_URL`` in a header on every request,
+    so a plain ``http://`` address would send it in the clear, and one that is
+    no URL at all would send it wherever the client makes of it.
+    """
+    value = (raw or fallback).rstrip("/")
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ConfigError(f"{name} must be an https:// address, got {value!r}.")
     return value
 
 
@@ -272,6 +299,7 @@ class Settings:
     base_url: str = DEFAULT_BASE_URL
     app_base_url: str = DEFAULT_APP_BASE_URL
     download_path: Path | None = None
+    upload_path: Path | None = None
     timeout: float = DEFAULT_TIMEOUT
     rate: float = DEFAULT_RATE
     burst: int = DEFAULT_BURST
@@ -358,9 +386,14 @@ def load_settings(
 
     return Settings(
         api_key=api_key,
-        base_url=(get("BASE_URL") or DEFAULT_BASE_URL).rstrip("/"),
-        app_base_url=(get("APP_BASE_URL") or DEFAULT_APP_BASE_URL).rstrip("/"),
-        download_path=Path(raw_download) if raw_download else None,
+        base_url=_https_url(get("BASE_URL"), DEFAULT_BASE_URL, name="LXO_MCP_BASE_URL"),
+        app_base_url=_https_url(
+            get("APP_BASE_URL"), DEFAULT_APP_BASE_URL, name="LXO_MCP_APP_BASE_URL"
+        ),
+        download_path=Path(raw_download).expanduser() if raw_download else None,
+        upload_path=(
+            Path(upload_raw).expanduser() if (upload_raw := get("UPLOAD_DIR")) else None
+        ),
         timeout=_as_float(get("TIMEOUT"), DEFAULT_TIMEOUT, name="LXO_MCP_TIMEOUT"),
         rate=_as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),
         burst=_as_int(get("BURST"), DEFAULT_BURST, name="LXO_MCP_BURST"),
@@ -371,7 +404,10 @@ def load_settings(
             maximum=MAX_PAGE_SIZE,
         ),
         pdf_pages=_as_int(
-            get("PDF_PAGES"), DEFAULT_PDF_PAGES, name="LXO_MCP_PDF_PAGES"
+            get("PDF_PAGES"),
+            DEFAULT_PDF_PAGES,
+            name="LXO_MCP_PDF_PAGES",
+            maximum=MAX_PDF_PAGES,
         ),
         tool_policy_path=(
             Path(policy_raw).expanduser()

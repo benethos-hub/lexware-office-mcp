@@ -8,17 +8,19 @@ arrives, and that the policy alone answers "may this run".
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
+from benethos_lexware_office_mcp import policy as policy_module
 from benethos_lexware_office_mcp.errors import PermissionDeniedError
 from benethos_lexware_office_mcp.policy import (
     ToolMeta,
     ToolPolicy,
-    active_policy,
     classify,
     grouped_tools,
+    guarded,
     known_tools,
-    set_active_policy,
 )
 
 pytestmark = pytest.mark.anyio
@@ -27,6 +29,20 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def registry_left_as_found() -> Iterator[None]:
+    """The sample tools below classify themselves into the one registry.
+
+    Left there, they turned up in every later test that compares the
+    registry with what a server registers - `test_annotations.py` failed
+    whenever it ran after this file, which alphabetical order hid.
+    """
+    saved = dict(policy_module._REGISTRY)
+    yield
+    policy_module._REGISTRY.clear()
+    policy_module._REGISTRY.update(saved)
 
 
 class Everything(ToolPolicy):
@@ -39,13 +55,6 @@ class Everything(ToolPolicy):
 class Nothing(ToolPolicy):
     def enabled(self, name: str) -> bool:
         return False
-
-
-@pytest.fixture
-def restore_policy() -> object:
-    previous = active_policy()
-    yield
-    set_active_policy(previous)
 
 
 # -- what the classification records --------------------------------------
@@ -91,9 +100,7 @@ def test_the_shipped_tools_are_grouped_by_domain() -> None:
 # -- what it deliberately does not do -------------------------------------
 
 
-async def test_a_write_tool_runs_when_the_file_allows_it(
-    restore_policy: object,
-) -> None:
+async def test_a_write_tool_runs_when_the_file_allows_it() -> None:
     """The classification is not a permission. Only the file is.
 
     A `write` tool used to be refused by the tier whatever any file said.
@@ -105,44 +112,56 @@ async def test_a_write_tool_runs_when_the_file_allows_it(
     async def sample_creating_tool() -> str:
         return "ran"
 
-    set_active_policy(Everything())
-
-    assert await sample_creating_tool() == "ran"
+    assert await guarded(sample_creating_tool, Everything())() == "ran"
 
 
-async def test_a_read_tool_is_refused_when_the_file_says_so(
-    restore_policy: object,
-) -> None:
+async def test_a_read_tool_is_refused_when_the_file_says_so() -> None:
     @classify("read", "contacts")
     async def sample_reading_tool() -> str:
         return "ran"
 
-    set_active_policy(Nothing())
-
     with pytest.raises(PermissionDeniedError) as excinfo:
-        await sample_reading_tool()
+        await guarded(sample_reading_tool, Nothing())()
 
     assert "not enabled" in str(excinfo.value)
 
 
-def test_the_gate_works_on_a_plain_function_too(restore_policy: object) -> None:
+def test_the_gate_works_on_a_plain_function_too() -> None:
     """Not every tool has to be a coroutine, so both wrappers are checked."""
 
     @classify("read", "diagnostics")
     def sample_sync_tool() -> str:
         return "ran"
 
-    set_active_policy(Everything())
-    assert sample_sync_tool() == "ran"
+    assert guarded(sample_sync_tool, Everything())() == "ran"
 
-    set_active_policy(Nothing())
     with pytest.raises(PermissionDeniedError):
-        sample_sync_tool()
+        guarded(sample_sync_tool, Nothing())()
 
 
-def test_the_refusal_names_the_tool_but_never_a_path(
-    restore_policy: object,
-) -> None:
+@pytest.mark.parametrize("value", ['"false"', '"true"', "1", '"yes"', "null", "[]"])
+def test_only_json_true_enables_a_tool(tmp_path, caplog, value: str) -> None:
+    """`bool("false")` is true, so a coercing reader would enable what the
+    file meant to refuse. Anything but the literal `true` is off, and said."""
+    path = tmp_path / "tools.json"
+    path.write_text(f'{{"create_voucher": {value}}}', encoding="utf-8")
+
+    assert not ToolPolicy(path).enabled("create_voucher")
+    assert "create_voucher" in caplog.text
+
+
+def test_json_true_and_false_are_read_without_a_warning(tmp_path, caplog) -> None:
+    path = tmp_path / "tools.json"
+    path.write_text('{"get_profile": true, "create_voucher": false}', encoding="utf-8")
+
+    policy = ToolPolicy(path)
+
+    assert policy.enabled("get_profile")
+    assert not policy.enabled("create_voucher")
+    assert caplog.text == ""
+
+
+def test_the_refusal_names_the_tool_but_never_a_path() -> None:
     """This message reaches the client, and from there a model's context.
 
     Which tool was refused is what the caller can act on. Where the file
@@ -154,12 +173,10 @@ def test_the_refusal_names_the_tool_but_never_a_path(
     def sample_named_tool() -> str:
         return "ran"
 
-    set_active_policy(
-        ToolPolicy(__import__("pathlib").Path("/home/someone/secret/tools.json"))
-    )
+    policy = ToolPolicy(__import__("pathlib").Path("/home/someone/secret/tools.json"))
 
     with pytest.raises(PermissionDeniedError) as excinfo:
-        sample_named_tool()
+        guarded(sample_named_tool, policy)()
 
     message = str(excinfo.value)
     assert "sample_named_tool" in message

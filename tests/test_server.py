@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import __version__, policy
+from benethos_lexware_office_mcp import __version__
 from benethos_lexware_office_mcp.config import Settings, settings_sample
 from benethos_lexware_office_mcp.server import build_server, main
 
@@ -18,12 +21,67 @@ def test_server_identifies_itself() -> None:
     assert server.version == __version__
 
 
-def test_building_a_server_activates_its_policy(tmp_path: Path) -> None:
+def test_a_server_answers_to_its_own_policy(tmp_path: Path) -> None:
     target = tmp_path / "tools.json"
 
-    build_server(Settings(tool_policy_path=target))
+    server = build_server(Settings(tool_policy_path=target))
 
-    assert policy.active_policy().path == target
+    assert server.policy.path == target
+
+
+async def test_a_second_server_does_not_change_what_the_first_enforces(
+    tmp_path: Path,
+) -> None:
+    """There was one process-wide policy, set by whichever server was built
+    last, and every call guard read that one. The configuration interface
+    builds a server of its own to measure costs."""
+    allows = tmp_path / "allows.json"
+    allows.write_text('{"get_deeplink": true}', encoding="utf-8")
+    refuses = tmp_path / "refuses.json"
+    refuses.write_text('{"get_deeplink": false}', encoding="utf-8")
+
+    first = build_server(Settings(tool_policy_path=allows))
+    build_server(Settings(tool_policy_path=refuses))
+
+    result = await first.call_tool(
+        "get_deeplink", {"target": "invoice", "target_id": "PLACEHOLDER-DOC-1"}
+    )
+    assert "permalink" in (result.structured_content or {})["url"]
+
+
+@pytest.mark.parametrize("args", [["--version"], ["--help"]])
+def test_a_bad_setting_does_not_break_version_or_help(args: list[str]) -> None:
+    """The server used to be built on import, from the real environment, so
+    one bad value killed even `--version` with a traceback."""
+    env = {**os.environ, "LXO_MCP_RATE": "not-a-number"}
+
+    done = subprocess.run(
+        [sys.executable, "-m", "benethos_lexware_office_mcp", *args],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert "Traceback" not in done.stderr
+
+
+def test_a_bad_setting_ends_the_server_in_one_line(tmp_path: Path) -> None:
+    env = {**os.environ, "LXO_MCP_RATE": "not-a-number"}
+
+    done = subprocess.run(
+        [sys.executable, "-m", "benethos_lexware_office_mcp"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+    )
+
+    assert done.returncode == 2
+    assert "LXO_MCP_RATE" in done.stderr
+    assert "Traceback" not in done.stderr
 
 
 async def test_a_server_without_a_policy_file_offers_nothing(

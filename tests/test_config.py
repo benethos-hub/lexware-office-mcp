@@ -57,6 +57,14 @@ def test_environment_overrides_defaults() -> None:
     assert settings.timeout == 5.0
 
 
+def test_a_download_directory_under_home_is_expanded() -> None:
+    """The policy path always was. `~/Belege` stayed a literal `~` folder."""
+    settings = load_settings({"LXO_MCP_DOWNLOAD_DIR": "~/Belege"})
+
+    assert settings.download_path == Path("~/Belege").expanduser()
+    assert "~" not in str(settings.download_path)
+
+
 def test_trailing_slash_is_stripped_from_urls() -> None:
     """So that joining a path never produces a double slash."""
     settings = load_settings({"LXO_MCP_BASE_URL": "https://example.invalid/"})
@@ -71,6 +79,16 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
         {"LXO_MCP_BURST": "0"},
         {"LXO_MCP_TIMEOUT": "-1"},
         {"LXO_MCP_PAGE_SIZE": "251"},
+        # float() accepts both. nan never lets a request through, inf
+        # switches the limiter off.
+        {"LXO_MCP_RATE": "nan"},
+        {"LXO_MCP_RATE": "inf"},
+        {"LXO_MCP_TIMEOUT": "inf"},
+        {"LXO_MCP_PDF_PAGES": "101"},
+        # The key travels to this address, so never in the clear.
+        {"LXO_MCP_BASE_URL": "http://api.lexware.io"},
+        {"LXO_MCP_BASE_URL": "api.lexware.io"},
+        {"LXO_MCP_APP_BASE_URL": "http://app.lexware.de"},
     ],
 )
 def test_invalid_values_are_rejected(env: dict[str, str]) -> None:
