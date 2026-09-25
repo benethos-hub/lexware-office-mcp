@@ -305,12 +305,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             update_env_file(inst.env_path, {API_KEY: key})
-        except OSError as exc:
-            self._page_with(
-                pages.credentials,
-                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-            )
+        except (OSError, ValueError) as exc:
+            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
             return
         inst.reload()
         suffix = (
@@ -355,12 +351,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             update_env_file(inst.env_path, {BEARER_KEY: token})
-        except OSError as exc:
-            self._page_with(
-                pages.credentials,
-                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-            )
+        except (OSError, ValueError) as exc:
+            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
             return
 
         inst.reload()
@@ -400,12 +392,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             update_env_file(inst.env_path, submitted)
-        except OSError as exc:
-            self._page_with(
-                pages.credentials,
-                f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}",
-                kind="bad",
-            )
+        except (OSError, ValueError) as exc:
+            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
             return
         inst.reload()
         self._page_with(
@@ -672,6 +660,13 @@ class Handler(BaseHTTPRequestHandler):
                 **extra,
             ),
         )
+
+
+def _env_write_failed(inst: Installation, exc: OSError | ValueError) -> str:
+    """Why the .env was not written. A refused value is quoted, not translated."""
+    if isinstance(exc, ValueError):
+        return f"Nicht gespeichert: {exc}"
+    return f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}"
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:

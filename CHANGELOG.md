@@ -38,6 +38,12 @@ housekeeping are out of scope here — design decisions live in
   rebinding cannot read the pages - bearer token included - and a `--host
   0.0.0.0` bind outside a container does not answer the network. Every
   response carries `Cache-Control: no-store`.
+- **A line break in a setting is refused rather than written.** A value
+  carrying `%0A` from a form ended its line in the `.env`, and what followed
+  became a setting of its own - `LXO_MCP_API_KEY` included, unchecked. The
+  `.env` is now written to a temporary file and moved into place, and a new
+  one is created readable by its owner only. An existing file keeps its
+  permissions.
 - **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
   server refuses to start otherwise, and the configuration interface refuses
   to save one.

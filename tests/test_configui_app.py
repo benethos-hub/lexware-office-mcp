@@ -531,6 +531,19 @@ def test_a_setting_the_server_would_refuse_is_not_written(
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
 
 
+def test_a_value_cannot_smuggle_in_a_second_setting(
+    browser: Browser, installation: Installation
+) -> None:
+    """%0A in a form field used to end the line and write a key of its own."""
+    _, body, _ = browser.post(
+        "/settings",
+        {"LXO_MCP_DOWNLOAD_DIR": "downloads\nLXO_MCP_API_KEY=planted"},
+    )
+
+    assert "Nicht gespeichert" in note(body)
+    assert "planted" not in installation.env_path.read_text(encoding="utf-8")
+
+
 # -- carrying the policy file ----------------------------------------------
 
 
