@@ -44,6 +44,12 @@ housekeeping are out of scope here — design decisions live in
   `.env` is now written to a temporary file and moved into place, and a new
   one is created readable by its owner only. An existing file keeps its
   permissions.
+- **New setting `LXO_MCP_UPLOAD_DIR`: the one directory the upload tools may
+  read from.** `upload_file` and `attach_file_to_voucher` take a path from
+  the model and read any file the process can read with an accepted
+  extension. With the setting, a file has to resolve inside that directory
+  or is refused before any request. Unset, nothing changes, and the README
+  now says so plainly.
 - **`LXO_MCP_BASE_URL` and `LXO_MCP_APP_BASE_URL` must be `https://`.** The
   server refuses to start otherwise, and the configuration interface refuses
   to save one.

@@ -201,6 +201,11 @@ broken link to ride along with a working download.
 is what the API takes. An XML file is treated as an XRechnung and is
 rejected if it is not one.
 
+**The model chooses the path.** Without `LXO_MCP_UPLOAD_DIR`, `upload_file`
+and `attach_file_to_voucher` read any file this process can read that has
+one of those extensions, and send it to Lexware. Set it to one directory -
+an inbox for receipts - and nothing outside it is read, links included.
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
@@ -533,6 +538,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
+| `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |

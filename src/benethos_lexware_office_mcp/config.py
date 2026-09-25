@@ -287,6 +287,7 @@ class Settings:
     base_url: str = DEFAULT_BASE_URL
     app_base_url: str = DEFAULT_APP_BASE_URL
     download_path: Path | None = None
+    upload_path: Path | None = None
     timeout: float = DEFAULT_TIMEOUT
     rate: float = DEFAULT_RATE
     burst: int = DEFAULT_BURST
@@ -378,6 +379,9 @@ def load_settings(
             get("APP_BASE_URL"), DEFAULT_APP_BASE_URL, name="LXO_MCP_APP_BASE_URL"
         ),
         download_path=Path(raw_download) if raw_download else None,
+        upload_path=(
+            Path(upload_raw).expanduser() if (upload_raw := get("UPLOAD_DIR")) else None
+        ),
         timeout=_as_float(get("TIMEOUT"), DEFAULT_TIMEOUT, name="LXO_MCP_TIMEOUT"),
         rate=_as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),
         burst=_as_int(get("BURST"), DEFAULT_BURST, name="LXO_MCP_BURST"),

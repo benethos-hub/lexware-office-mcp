@@ -351,7 +351,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. An XML file is treated as
         an XRechnung.
         """
-        content, name, content_type = _read_upload(path)
+        content, name, content_type = _read_upload(path, settings.upload_path)
         return dict(await provider.get().upload_file(content, name, content_type))
 
     @classify("write", "files", "create", permanence="books")
@@ -389,7 +389,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. The answer is the new file
         id, which `download_file` reads back.
         """
-        content, name, content_type = _read_upload(path)
+        content, name, content_type = _read_upload(path, settings.upload_path)
         return dict(
             await provider.get().attach_file(voucher_id, content, name, content_type)
         )
@@ -563,13 +563,29 @@ CONTENT_TYPES: dict[str, str] = {
 }
 
 
-def _read_upload(raw_path: str) -> tuple[bytes, str, str]:
-    """Read a local file for upload, refusing what the API would refuse."""
+def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
+    """Read a local file for upload, refusing what the API would refuse.
+
+    ``allowed`` is ``LXO_MCP_UPLOAD_DIR``. The path comes from the model, so
+    where one is set, the file has to resolve inside it - links followed
+    first, so one placed in the directory cannot point out of it.
+    """
     path = Path(raw_path).expanduser()
     if not path.is_file():
         raise ValidationError(
             f"No file at {raw_path}. Give the path to an existing receipt."
         )
+    if allowed is not None:
+        try:
+            path.resolve().relative_to(allowed.expanduser().resolve())
+        except (OSError, ValueError):
+            # Without the directory: it describes this machine, and the
+            # person who can change it knows where it is.
+            raise ValidationError(
+                f"{path.name} is outside the directory this server may upload "
+                "from. Move the file there, or ask the account owner about "
+                "LXO_MCP_UPLOAD_DIR."
+            ) from None
 
     size = path.stat().st_size
     if size > MAX_UPLOAD:

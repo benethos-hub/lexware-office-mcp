@@ -56,6 +56,7 @@ _SETTING_LABELS: dict[str, str] = {
     "LXO_MCP_APP_BASE_URL": "Web-App für Deeplinks",
     "LXO_MCP_TOOL_POLICY": "Rechtedatei",
     "LXO_MCP_DOWNLOAD_DIR": "Downloads",
+    "LXO_MCP_UPLOAD_DIR": "Uploads nur aus",
     "LXO_MCP_TIMEOUT": "Zeitlimit je Anfrage (s)",
     "LXO_MCP_RATE": "Anfragen pro Sekunde",
     "LXO_MCP_BURST": "Burst",
@@ -131,6 +132,9 @@ def _resolved(inst: Installation) -> dict[str, str]:
         "LXO_MCP_APP_BASE_URL": settings.app_base_url,
         "LXO_MCP_TOOL_POLICY": str(inst.policy_path),
         "LXO_MCP_DOWNLOAD_DIR": str(settings.download_path or download_dir()),
+        "LXO_MCP_UPLOAD_DIR": (
+            str(settings.upload_path) if settings.upload_path else "überall"
+        ),
         "LXO_MCP_TIMEOUT": f"{settings.timeout:g}",
         "LXO_MCP_RATE": f"{settings.rate:g}",
         "LXO_MCP_BURST": str(settings.burst),

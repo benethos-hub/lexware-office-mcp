@@ -376,6 +376,74 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
     await provider.aclose()
 
 
+def upload_server(
+    handler: Recorder, tmp_path: Path, allowed: Path
+) -> tuple[Any, ClientProvider]:
+    settings = Settings(api_key=API_KEY, download_path=tmp_path, upload_path=allowed)
+    provider = ClientProvider(
+        settings,
+        transport=httpx.MockTransport(handler),
+        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
+        sleep=_no_sleep,
+    )
+    return build_server(settings, provider), provider
+
+
+@pytest.mark.parametrize("tool", ["upload_file", "attach_file_to_voucher"])
+async def test_an_upload_outside_the_upload_directory_is_refused(
+    tmp_path: Path, tool: str
+) -> None:
+    """The model names the path, so this setting decides what can leave."""
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    elsewhere = tmp_path / "private.pdf"
+    elsewhere.write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    arguments = {"path": str(elsewhere), "voucher_id": "PLACEHOLDER-VOUCHER-1"}
+    if tool == "upload_file":
+        del arguments["voucher_id"]
+    with pytest.raises(ToolError, match="LXO_MCP_UPLOAD_DIR") as excinfo:
+        await server.call_tool(tool, arguments)
+
+    assert str(inbox) not in str(excinfo.value)
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> None:
+    inbox = tmp_path / "inbox"
+    (inbox / "2026").mkdir(parents=True)
+    receipt = inbox / "2026" / "receipt.pdf"
+    receipt.write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    await server.call_tool("upload_file", {"path": str(receipt)})
+
+    assert len(handler.requests) == 1
+    await provider.aclose()
+
+
+async def test_a_path_that_climbs_out_of_the_upload_directory_is_refused(
+    tmp_path: Path,
+) -> None:
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    (tmp_path / "private.pdf").write_bytes(PDF)
+    handler = Recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    with pytest.raises(ToolError, match="outside"):
+        await server.call_tool(
+            "upload_file", {"path": str(inbox / ".." / "private.pdf")}
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 async def test_an_attachment_hangs_on_a_voucher_that_already_exists(
     tmp_path: Path,
 ) -> None:
