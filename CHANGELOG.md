@@ -143,6 +143,10 @@ housekeeping are out of scope here — design decisions live in
   new value was filed under `business` or `private` beside the old one, so a
   contact whose address sat under `office` ended up with two. It now replaces
   what the contact had, and a contact that used one category keeps it.
+- **`update_voucher` keeps the totals when no line changes.** They were
+  added up again from the lines on every update, which for a voucher made
+  from an upload, holding no lines yet, meant a total of zero. Now they are
+  worked out only when `items` is passed, and otherwise sent as read.
 
 ### Changed
 

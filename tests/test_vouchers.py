@@ -313,6 +313,47 @@ def test_a_stated_total_is_sent_unchanged() -> None:
     assert body["totalGrossAmount"] == 999.0
 
 
+def test_an_update_that_touches_no_line_keeps_the_totals_it_read() -> None:
+    """Totals that do not add up from the lines stay as the API holds them.
+    The API refuses such a voucher when it is written, so this is about the
+    ones written elsewhere - and about not deriving what nobody changed."""
+    base = {**VOUCHER, "totalGrossAmount": 240.0, "totalTaxAmount": 38.5}
+
+    body = voucher_body(base=base, remark="changed")
+
+    assert body["totalGrossAmount"] == 240.0
+    assert body["totalTaxAmount"] == 38.5
+
+
+def test_a_voucher_from_an_upload_is_not_given_a_total_of_zero() -> None:
+    """Measured 2026-09-27: an uploaded voucher holds no lines and no gross
+    total. Adding up nothing sent a total of zero."""
+    base = {k: v for k, v in VOUCHER.items() if k not in ("totalGrossAmount", "remark")}
+    base = {**base, "voucherItems": [], "totalTaxAmount": 0}
+
+    body = voucher_body(base=base, voucher_number="MCP-0002")
+
+    assert "totalGrossAmount" not in body
+    assert body["totalTaxAmount"] == 0
+
+
+def test_new_lines_on_an_update_bring_new_totals() -> None:
+    body = voucher_body(
+        base=VOUCHER,
+        items=[VoucherItem(**{**LINE, "amount": 119.0, "tax_amount": 19.0})],
+    )
+
+    assert body["totalGrossAmount"] == 119.0
+    assert body["totalTaxAmount"] == 19.0
+
+
+def test_a_new_tax_type_on_an_update_brings_new_totals() -> None:
+    """The same lines mean a different gross total once net becomes gross."""
+    body = voucher_body(base=VOUCHER, tax_type="net")
+
+    assert body["totalGrossAmount"] == 276.0
+
+
 def test_a_named_contact_turns_off_the_collective_one() -> None:
     body = voucher_body(contact_id="PLACEHOLDER-CONTACT-1", tax_type="gross", items=[])
     assert body["contactId"] == "PLACEHOLDER-CONTACT-1"

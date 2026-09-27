@@ -286,7 +286,9 @@ def voucher_body(
     The totals are computed from the items when the caller does not state
     them. That is arithmetic, not invention: the API rejects totals that do
     not match the lines, and a caller who does state them has theirs sent
-    unchanged and checked upstream.
+    unchanged and checked upstream. An update that leaves the lines and the
+    tax type alone sends the totals it read back, untouched - a voucher made
+    from an upload holds no lines, and adding up nothing gave it zero.
 
     **No ``voucherStatus`` is ever sent.** A POST carrying one is refused with
     ``voucherStatus: invalid_value``, measured on 2026-08-23 across three
@@ -319,16 +321,19 @@ def voucher_body(
     if items is not None:
         body["voucherItems"] = [_item_body(item) for item in items]
 
+    # Totals are derived only for lines this call wrote, or for a tax type
+    # that changes what the lines mean. An update that touches neither keeps
+    # the totals the API holds rather than a figure worked out here.
+    derive = base is None or items is not None or tax_type is not None
     lines = body.get("voucherItems") or []
-    effective_tax_type = body.get("taxType")
-    body["totalTaxAmount"] = (
-        total_tax_amount if total_tax_amount is not None else _sum(lines, "taxAmount")
-    )
-    body["totalGrossAmount"] = (
-        total_gross_amount
-        if total_gross_amount is not None
-        else _gross_total(lines, effective_tax_type)
-    )
+    if total_tax_amount is not None:
+        body["totalTaxAmount"] = total_tax_amount
+    elif derive:
+        body["totalTaxAmount"] = _sum(lines, "taxAmount")
+    if total_gross_amount is not None:
+        body["totalGrossAmount"] = total_gross_amount
+    elif derive:
+        body["totalGrossAmount"] = _gross_total(lines, body.get("taxType"))
     return body
 
 
