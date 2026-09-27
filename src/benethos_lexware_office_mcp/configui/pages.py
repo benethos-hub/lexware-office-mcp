@@ -25,10 +25,17 @@ from ..config import (
 )
 from ..errors import ConfigError
 from ..policy import ToolMeta, grouped_tools, known_tools, preset
-from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
+from .cost import estimate_tokens, tool_costs
 from .probe import Account, last_account
 from .profiles import Profile
-from .render import esc, note, page, source_badge
+from .render import (
+    FILE_PICKER_SCRIPT,
+    esc,
+    note,
+    page,
+    permissions_script,
+    source_badge,
+)
 from .state import (
     API_KEY,
     BEARER_KEY,
@@ -501,49 +508,7 @@ def permissions(
       rund <span id="tokens">–</span> Token je Anfrage</span>
   </div>
 </form>
-<script>
-(function () {{
-  var COST = {json.dumps(costs, separators=(",", ":"))};
-  var READ = {json.dumps(read_names, separators=(",", ":"))};
-  var DESTRUCTIVE = {json.dumps(keep_names, separators=(",", ":"))};
-  var PER_TOKEN = {json.dumps(CHARS_PER_TOKEN)};
-  var form = document.getElementById('permform');
-  function boxes(root) {{
-    return Array.prototype.slice.call(
-      (root || form).querySelectorAll('input[name=tool]'));
-  }}
-  function de(n) {{ return n.toLocaleString('de-DE'); }}
-  function refresh() {{
-    var on = boxes(form).filter(function (c) {{ return c.checked; }});
-    var chars = on.reduce(
-      function (sum, c) {{ return sum + (COST[c.value] || 0); }}, 0);
-    document.getElementById('count').textContent = on.length;
-    document.getElementById('cost').textContent = de(chars);
-    document.getElementById('tokens').textContent = de(Math.round(chars / PER_TOKEN));
-  }}
-  function apply(mode, scope) {{
-    boxes(scope).forEach(function (c) {{
-      if (mode === 'on') c.checked = true;
-      else if (mode === 'off') c.checked = false;
-      else if (mode === 'read') c.checked = READ.indexOf(c.value) !== -1;
-      else if (mode === 'reversible') c.checked = DESTRUCTIVE.indexOf(c.value) === -1;
-    }});
-    refresh();
-  }}
-  document.addEventListener('click', function (e) {{
-    var b = e.target && e.target.closest ? e.target.closest('button[data-act]') : null;
-    if (!b) return;
-    e.preventDefault();
-    var act = b.getAttribute('data-act');
-    var scoped = act.indexOf('grp-') === 0;
-    apply(act.replace(/^(all-|grp-)/, ''), scoped ? b.closest('.grp') : form);
-  }});
-  document.addEventListener('change', function (e) {{
-    if (e.target && e.target.name === 'tool') refresh();
-  }});
-  refresh();
-}})();
-</script>
+{permissions_script(costs, read_names, keep_names)}
 """
     return page("Rechte", body, here="/permissions", chip=_chip(last_account()))
 
@@ -683,21 +648,7 @@ def _policy_transfer(inst: Installation, opened: bool = False) -> str:
      bleiben aus — wie <code>--tools sync</code> auf der Kommandozeile.
      Geschrieben wird erst mit „Rechte speichern".</span></p>
 </details>
-<script>
-(function () {{
-  var pick = document.getElementById('policyfile');
-  if (!pick) return;
-  pick.addEventListener('change', function () {{
-    var file = pick.files && pick.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () {{
-      document.querySelector('textarea[name=bundle]').value = reader.result;
-    }};
-    reader.readAsText(file);
-  }});
-}})();
-</script>
+{FILE_PICKER_SCRIPT}
 """
 
 

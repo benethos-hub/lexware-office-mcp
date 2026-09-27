@@ -12,17 +12,22 @@ dependency it does not have is one that cannot go stale between releases.
 
 from __future__ import annotations
 
+import json
 from html import escape
+
+from .cost import CHARS_PER_TOKEN
 
 __all__ = [
     "CLI_SOURCE",
     "DEFAULT_SOURCE",
     "ENV_SOURCE",
+    "FILE_PICKER_SCRIPT",
     "FILE_SOURCE",
     "SEARCH_SOURCE",
     "esc",
     "note",
     "page",
+    "permissions_script",
     "source_badge",
 ]
 
@@ -149,3 +154,94 @@ def source_badge(source: str, detail: str = "") -> str:
     css = "src env" if loud else "src"
     title = f' title="{esc(detail)}"' if detail else ""
     return f'<span class="{css}"{title}>aus: {esc(source)}</span>'
+
+
+# --- the two scripts -----------------------------------------------------
+#
+# Plain strings rather than f-strings, so a brace is a brace. What a script
+# needs from the page arrives as one JSON object in front of it.
+
+# The tally under the permissions form, and the buttons that tick a group
+# or the whole list at once. Reads `PERMISSIONS`: the cost of every tool,
+# the names of the reading ones, the names of the destructive ones, and
+# the characters-per-token estimate.
+_PERMISSIONS_JS = """
+(function () {
+  var COST = PERMISSIONS.cost;
+  var READ = PERMISSIONS.read;
+  var DESTRUCTIVE = PERMISSIONS.destructive;
+  var PER_TOKEN = PERMISSIONS.perToken;
+  var form = document.getElementById('permform');
+  function boxes(root) {
+    return Array.prototype.slice.call(
+      (root || form).querySelectorAll('input[name=tool]'));
+  }
+  function de(n) { return n.toLocaleString('de-DE'); }
+  function refresh() {
+    var on = boxes(form).filter(function (c) { return c.checked; });
+    var chars = on.reduce(
+      function (sum, c) { return sum + (COST[c.value] || 0); }, 0);
+    document.getElementById('count').textContent = on.length;
+    document.getElementById('cost').textContent = de(chars);
+    document.getElementById('tokens').textContent = de(Math.round(chars / PER_TOKEN));
+  }
+  function apply(mode, scope) {
+    boxes(scope).forEach(function (c) {
+      if (mode === 'on') c.checked = true;
+      else if (mode === 'off') c.checked = false;
+      else if (mode === 'read') c.checked = READ.indexOf(c.value) !== -1;
+      else if (mode === 'reversible') c.checked = DESTRUCTIVE.indexOf(c.value) === -1;
+    });
+    refresh();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('button[data-act]') : null;
+    if (!b) return;
+    e.preventDefault();
+    var act = b.getAttribute('data-act');
+    var scoped = act.indexOf('grp-') === 0;
+    apply(act.replace(/^(all-|grp-)/, ''), scoped ? b.closest('.grp') : form);
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.name === 'tool') refresh();
+  });
+  refresh();
+})();
+"""
+
+# A chosen policy file goes into the textarea, so reading one is the same
+# form post as pasting one.
+FILE_PICKER_SCRIPT = """<script>
+(function () {
+  var pick = document.getElementById('policyfile');
+  if (!pick) return;
+  pick.addEventListener('change', function () {
+    var file = pick.files && pick.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      document.querySelector('textarea[name=bundle]').value = reader.result;
+    };
+    reader.readAsText(file);
+  });
+})();
+</script>"""
+
+
+def permissions_script(
+    costs: dict[str, int], read: list[str], destructive: list[str]
+) -> str:
+    """The permissions form's script, with what it needs in front of it."""
+    data = {
+        "cost": costs,
+        "read": read,
+        "destructive": destructive,
+        "perToken": CHARS_PER_TOKEN,
+    }
+    return (
+        "<script>\nvar PERMISSIONS = "
+        + json.dumps(data, separators=(",", ":"))
+        + ";"
+        + _PERMISSIONS_JS
+        + "</script>"
+    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from html.parser import HTMLParser
@@ -564,3 +565,18 @@ def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
 
     assert "&lt;script&gt;" in body
     assert "<script>böse" not in body
+
+
+def test_the_permissions_script_gets_its_data_as_one_json_object(
+    inst: Installation,
+) -> None:
+    """The script is a plain string, so what it needs arrives in front of it."""
+    body = pages.permissions(inst).decode("utf-8")
+
+    start = body.index("var PERMISSIONS = ") + len("var PERMISSIONS = ")
+    data = json.loads(body[start : body.index(";", start)])
+
+    assert set(data) == {"cost", "read", "destructive", "perToken"}
+    assert "get_profile" in data["read"]
+    assert data["cost"]["get_profile"] > 0
+    assert "delete_article" in data["destructive"]
