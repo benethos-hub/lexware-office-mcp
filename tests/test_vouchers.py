@@ -139,6 +139,28 @@ async def test_the_optional_filters_reach_the_query_string() -> None:
     assert "onlyOpen" not in query
 
 
+async def test_search_vouchers_finds_a_document_by_its_number() -> None:
+    """The filter has been in the documentation since 2021, while this project
+    said it did not exist. Measured 2026-09-27: exact, ignoring case, across
+    sales and bookkeeping documents alike."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_with(handler)
+
+    await server.call_tool("search_vouchers", {"voucher_number": "AG0001"})
+
+    assert handler.query["voucherNumber"] == ["AG0001"]
+    assert handler.query["voucherType"] == ["any"]
+    await provider.aclose()
+
+
+async def test_without_a_number_no_number_filter_is_sent() -> None:
+    handler = Scripted((200, PAGE))
+    async with fast_client(handler) as client:
+        await client.voucherlist(voucher_type="any", voucher_status="any")
+
+    assert "voucherNumber" not in handler.query
+
+
 async def test_only_one_page_is_fetched() -> None:
     handler = Scripted((200, {**PAGE, "totalPages": 40, "last": False}))
     async with fast_client(handler) as client:

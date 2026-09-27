@@ -167,6 +167,10 @@ housekeeping are out of scope here — design decisions live in
   moved to a named contact but not back to the collective one, which only
   `create_voucher` could choose. Passing it together with `contact_id` is
   refused before anything is sent.
+- **`search_vouchers` takes `voucher_number`.** It finds a document by its
+  number in one call, sales documents included, which until now only
+  `get_voucher` could do and only for bookkeeping vouchers. The number is
+  matched in full, ignoring case.
 
 ## [0.2.4] - 2026-09-14
 

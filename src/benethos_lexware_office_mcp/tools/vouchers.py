@@ -124,6 +124,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ] = None,
+        voucher_number: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "The document number, for example 'RE0001', matched in "
+                    "full and ignoring case. Not a prefix."
+                )
+            ),
+        ] = None,
         date_from: Annotated[
             str | None,
             Field(
@@ -182,6 +191,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             voucher_type=voucher_type,
             voucher_status=voucher_status,
             contact_id=contact_id,
+            voucher_number=voucher_number,
             voucher_date_from=date_from,
             voucher_date_to=date_to,
             only_overdue=only_overdue,
@@ -219,8 +229,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         One API call. Returns the booked amounts, tax type, the posting
         category of every line, the contact and the `version`.
 
-        Prefer the id. The number is the fallback, because `search_vouchers`
-        cannot filter by it, and it is unique only by convention.
+        Prefer the id. A number is unique only by convention, and
+        `search_vouchers` finds one across every document type.
 
         For whether it has been paid, use `get_payments` with the same id.
         """
