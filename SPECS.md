@@ -89,7 +89,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
-| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
+| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, and a refusal handed to `errors.from_response`. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
@@ -284,7 +284,7 @@ section 2.
   (verified 2026-08-21): `/file` answers **409** with "is in status 'draft'
   and therefore cannot be downloaded", `/document` answers **406** with
   "Requesting PDF document is not possible in state draft". The 409 is not a
-  version conflict, which is what `client._client_error` has to keep apart —
+  version conflict, which is what `errors.from_response` has to keep apart —
   a stale version is a 406 naming `version`.
 - **A draft is still indexed.** `/v1/voucherlist` lists it with
   `voucherStatus: draft` and it already carries its document number, so it is
@@ -1018,19 +1018,20 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21, again on
-2026-08-22 with the annotations below, and again on 2026-08-23 after
-`create_voucher` lost a parameter that could not work.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **52,091
-characters**, around 2,084 each. Roughly 13,000 to 15,000 tokens, estimated at
-3.2 to 3.8 characters per token rather than counted with a tokenizer.
+2026-08-22 with the annotations below, again on 2026-08-23 after
+`create_voucher` lost a parameter that could not work, and again on
+2026-09-27.** Serialized as the compact JSON a `tools/list` answer is,
+twenty-five tools come to **52,298 characters**, around 2,092 each. Roughly
+13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
+than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,274 | 64% |
-| Tool descriptions, the part under a ceiling | 10,965 | 21% |
+| Input schemas | 33,481 | 64% |
+| Tool descriptions, the part under a ceiling | 11,272 | 22% |
 | Output schemas | 4,340 | 8% |
-| Annotations | 1,115 | 2% |
-| Names, titles and the rest | ~2,092 | 4% |
+| Annotations | 1,041 | 2% |
+| Names, titles and the rest | ~2,164 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.

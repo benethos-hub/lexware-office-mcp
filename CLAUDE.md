@@ -89,6 +89,7 @@ src/benethos_lexware_office_mcp/
                   # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, deeplinks, master_data
 tests/            # offline, httpx MockTransport - the whole of the gate
+  helpers.py      # the client, provider, server and scripted transport every suite builds
 live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
@@ -105,9 +106,10 @@ new HTTP call goes in `client.py`, never in a tool function.
 ## How to add or change a tool
 
 1. Add the request to `client.py`, using `request()` so the shared limiter and
-   the retry rules apply automatically. Never retry a POST yourself. Map
-   the upstream status to the right `ToolError` subclass, and pass the page
-   parameters through rather than walking every page.
+   the retry rules apply automatically. Never retry a POST yourself. A
+   refused answer becomes a `ToolError` in `errors.from_response`, so a new
+   status or a new body shape is taught there, not in the client. Pass the
+   page parameters through rather than walking every page.
 2. Normalize the response in `formatting.py`. Drop null and empty fields, keep
    monetary values exactly as the API returned them, and always carry the
    currency. A paged list goes through `formatting.page`, so every list tool
