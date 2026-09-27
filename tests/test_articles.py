@@ -240,6 +240,37 @@ def test_changing_the_side_moves_the_price_across() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("side", "kept", "dropped", "amount"),
+    [
+        ("NET", "netPrice", "grossPrice", 100.0),
+        ("GROSS", "grossPrice", "netPrice", 119.0),
+    ],
+)
+def test_a_new_tax_rate_alone_sends_only_the_leading_price(
+    side: str, kept: str, dropped: str, amount: float
+) -> None:
+    """Both old prices beside a new rate would contradict each other. The API
+    recomputes the other side and ignores the stale one, measured 2026-09-27,
+    so the body leaves it out rather than relying on that."""
+    base = {**ARTICLE, "price": {**ARTICLE["price"], "leadingPrice": side}}
+
+    body = article_body(base=base, tax_rate=7)
+
+    assert body["price"] == {"leadingPrice": side, kept: amount, "taxRate": 7}
+    assert dropped not in body["price"]
+
+
+def test_switching_the_side_alone_keeps_the_figure_on_the_new_side() -> None:
+    body = article_body(base=ARTICLE, leading_price="GROSS")
+
+    assert body["price"] == {
+        "leadingPrice": "GROSS",
+        "grossPrice": 119.0,
+        "taxRate": 19,
+    }
+
+
 def test_an_update_that_touches_no_price_leaves_it_exactly_as_it_was() -> None:
     body = article_body(base=ARTICLE, note="changed")
 

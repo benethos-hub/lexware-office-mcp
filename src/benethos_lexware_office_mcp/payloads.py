@@ -408,12 +408,16 @@ def article_body(
     current = dict(body.get("price") or {})
     side = leading_price or current.get("leadingPrice") or "NET"
     if price is not None or leading_price is not None or tax_rate is not None:
-        if price is not None:
-            # The side that is no longer authoritative is dropped, so the API
-            # recomputes it instead of being handed a stale figure.
-            current.pop("netPrice", None)
-            current.pop("grossPrice", None)
-            current["netPrice" if side == "NET" else "grossPrice"] = price
+        # Only the leading side goes back, so the API computes the other one
+        # instead of being handed a figure the new price or rate made stale.
+        # The API would ignore that figure too - measured 2026-09-27, a new
+        # rate beside both old prices recomputes the other side either way -
+        # but a body that contradicts itself should not depend on that.
+        leading = "netPrice" if side == "NET" else "grossPrice"
+        kept = price if price is not None else current.get(leading)
+        current.pop("netPrice", None)
+        current.pop("grossPrice", None)
+        _set(current, leading, kept)
         current["leadingPrice"] = side
         _set(current, "taxRate", tax_rate)
     if current:
