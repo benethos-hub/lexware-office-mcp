@@ -193,7 +193,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             description=description,
             note=note,
         )
-        return dict(formatting.compact(await provider.get().create_article(body)))
+        return formatting.compact_object(await provider.get().create_article(body))
 
     @classify("write", "articles", "update")
     async def update_article(
@@ -278,7 +278,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             description=description,
             note=note,
         )
-        return dict(formatting.compact(await client.update_article(article_id, body)))
+        return formatting.compact_object(await client.update_article(article_id, body))
 
     @classify("write", "articles", "delete")
     async def delete_article(

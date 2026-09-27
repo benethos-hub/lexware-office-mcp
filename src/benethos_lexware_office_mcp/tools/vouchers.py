@@ -360,7 +360,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             total_tax_amount=total_tax_amount,
             remark=remark,
         )
-        return dict(formatting.compact(await provider.get().create_voucher(body)))
+        return formatting.compact_object(await provider.get().create_voucher(body))
 
     @classify("write", "vouchers", "update")
     async def update_voucher(
@@ -451,7 +451,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             total_tax_amount=total_tax_amount,
             remark=remark,
         )
-        return dict(formatting.compact(await client.update_voucher(voucher_id, body)))
+        return formatting.compact_object(await client.update_voucher(voucher_id, body))
 
     register_tool(server, search_vouchers)
     register_tool(server, get_voucher)

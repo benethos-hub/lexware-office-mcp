@@ -16,21 +16,25 @@ from collections.abc import Callable
 from typing import Any
 
 __all__ = [
+    "PAGE_KEYS",
     "article",
-    "recurring_template",
-    "recurring_templates_page",
     "article_row",
     "articles_page",
     "compact",
+    "compact_object",
     "contact",
+    "contact_row",
     "contacts_page",
     "master_data",
     "page",
     "page_info",
     "payments",
     "profile",
+    "recurring_template",
+    "recurring_templates_page",
     "sales_document",
     "voucher",
+    "voucher_row",
     "vouchers_page",
 ]
 
@@ -50,12 +54,50 @@ def compact(value: Any) -> Any:
     return value
 
 
+def compact_object(payload: dict[str, Any]) -> dict[str, Any]:
+    """:func:`compact` for a record, typed as the record it returns.
+
+    ``compact`` answers ``Any`` because it takes anything. A tool answering
+    with a record wants the mapping back as a mapping, and this is that
+    without a cast at every call site.
+    """
+    return dict(compact(payload))
+
+
 def _is_empty(value: Any) -> bool:
     if value is None:
         return True
     if isinstance(value, str | list | dict | tuple):
         return len(value) == 0
     return False
+
+
+# The same organization id sits on every record the account returns, and
+# `get_profile` already answers which organization is connected. Repeating it
+# on every record buys the caller nothing and is paid for on every call.
+ORGANIZATION_ID = ("organizationId",)
+
+
+def _without(payload: dict[str, Any], drop: tuple[str, ...]) -> dict[str, Any]:
+    """A record minus the fields named in ``drop``, compacted.
+
+    A drop-list rather than an allow-list, everywhere: a field Lexware adds
+    upstream shows up instead of being silently swallowed.
+    """
+    return compact_object({k: v for k, v in payload.items() if k not in drop})
+
+
+def _row(item: dict[str, Any], drop: tuple[str, ...]) -> dict[str, Any]:
+    """A search result row: :func:`_without`, and ``archived`` only when true.
+
+    It is false on nearly every row and repeating it costs more than it
+    tells anyone, which is why the tool descriptions state that an unmarked
+    row is active.
+    """
+    row = {key: value for key, value in item.items() if key not in drop}
+    if not row.get("archived"):
+        row.pop("archived", None)
+    return compact_object(row)
 
 
 # Every list endpoint answers with the same envelope. Of its nine fields these
@@ -68,7 +110,7 @@ PAGE_KEYS = ("number", "size", "totalElements", "totalPages", "last")
 
 def page_info(payload: dict[str, Any]) -> dict[str, Any]:
     """The paging part of a list response, trimmed."""
-    return dict(compact({key: payload.get(key) for key in PAGE_KEYS}))
+    return compact_object({key: payload.get(key) for key in PAGE_KEYS})
 
 
 def page(
@@ -102,14 +144,8 @@ def profile(payload: dict[str, Any]) -> dict[str, Any]:
     :data:`PROFILE_DROP`, so a field added upstream shows up rather than being
     silently discarded by an allow-list.
     """
-    kept = {k: v for k, v in payload.items() if k not in PROFILE_DROP}
-    return dict(compact(kept))
+    return _without(payload, PROFILE_DROP)
 
-
-# The same organization id sits on every record the account returns, and
-# `get_profile` already answers which organization is connected. Repeating it
-# on every contact buys the caller nothing and is paid for on every call.
-CONTACT_DROP = ("organizationId",)
 
 # Order of preference when picking the one address or number worth putting in
 # a search result. Business before private, because a search result is a
@@ -121,12 +157,9 @@ _PHONE_KINDS = ("business", "office", "mobile", "private", "fax", "other")
 def contact(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize one contact from ``GET /v1/contacts/{id}``.
 
-    A drop-list rather than an allow-list, so a field Lexware adds upstream
-    shows up instead of being silently swallowed. ``version`` is kept: an
-    update has to send back the version it read.
+    ``version`` is kept: an update has to send back the version it read.
     """
-    kept = {k: v for k, v in payload.items() if k not in CONTACT_DROP}
-    return dict(compact(kept))
+    return _without(payload, ORGANIZATION_ID)
 
 
 def contacts_page(payload: dict[str, Any]) -> dict[str, Any]:
@@ -161,7 +194,7 @@ def contact_row(item: dict[str, Any]) -> dict[str, Any]:
     }
     if item.get("archived"):
         row["archived"] = True
-    return dict(compact(row))
+    return compact_object(row)
 
 
 def _contact_name(company: dict[str, Any], person: dict[str, Any]) -> str:
@@ -198,20 +231,10 @@ def _first_entry(block: Any, kinds: tuple[str, ...]) -> str | None:
 # for a document and the other two only say when somebody typed it in.
 VOUCHER_ROW_DROP = ("createdDate", "updatedDate")
 
-# Repeated on every voucher and answered once by `get_profile`.
-VOUCHER_DROP = ("organizationId",)
-
 
 def voucher_row(item: dict[str, Any]) -> dict[str, Any]:
-    """One line of a voucher search result.
-
-    ``archived`` is kept only when true, as in a contact row: it is false on
-    nearly every voucher and repeating it costs more than it says.
-    """
-    row = {key: value for key, value in item.items() if key not in VOUCHER_ROW_DROP}
-    if not row.get("archived"):
-        row.pop("archived", None)
-    return dict(compact(row))
+    """One line of a voucher search result."""
+    return _row(item, VOUCHER_ROW_DROP)
 
 
 def vouchers_page(payload: dict[str, Any]) -> dict[str, Any]:
@@ -222,11 +245,9 @@ def vouchers_page(payload: dict[str, Any]) -> dict[str, Any]:
 def voucher(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize one bookkeeping voucher.
 
-    A drop-list rather than an allow-list, so a field added upstream still
-    surfaces. Amounts pass through exactly as the API reported them.
+    Amounts pass through exactly as the API reported them.
     """
-    kept = {k: v for k, v in payload.items() if k not in VOUCHER_DROP}
-    return dict(compact(kept))
+    return _without(payload, ORGANIZATION_ID)
 
 
 def payments(payload: dict[str, Any]) -> dict[str, Any]:
@@ -236,28 +257,21 @@ def payments(payload: dict[str, Any]) -> dict[str, Any]:
     one of them answers part of "has this been paid", including an
     ``openAmount`` of ``0``, which :func:`compact` keeps on purpose.
     """
-    return dict(compact(payload))
-
-
-# Identical on every document and answered once by `get_profile`, exactly as
-# on a bookkeeping voucher.
-SALES_DOCUMENT_DROP = ("organizationId",)
+    return compact_object(payload)
 
 
 def sales_document(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize one sales document.
 
-    A drop-list rather than an allow-list: the seven types differ from each
-    other field by field, and an allow-list would silently swallow whatever
-    makes a dunning a dunning. Amounts and their currency pass through
-    exactly as the API reported them.
+    The seven types differ from each other field by field, so an allow-list
+    would silently swallow whatever makes a dunning a dunning. Amounts and
+    their currency pass through exactly as the API reported them.
 
     What survives is what the API sent. A `draft` carries no `files` block
     and no `dueDate`, which is how the answer says there is nothing to
     download yet.
     """
-    kept = {k: v for k, v in payload.items() if k not in SALES_DOCUMENT_DROP}
-    return dict(compact(kept))
+    return _without(payload, ORGANIZATION_ID)
 
 
 def _row_text(row: dict[str, Any]) -> str:
@@ -293,7 +307,7 @@ def master_data(
     decision - whether a category needs a contact, whether a layout is the
     default one - so there is nothing here to leave out.
     """
-    rows = [dict(compact(entry)) for entry in entries if isinstance(entry, dict)]
+    rows = [compact_object(entry) for entry in entries if isinstance(entry, dict)]
     if search:
         needle = search.lower()
         matched = [row for row in rows if needle in _row_text(row)]
@@ -309,14 +323,11 @@ def master_data(
 
 # -- articles -------------------------------------------------------------
 
-# Identical on every record, and answered once by `get_profile`.
-ARTICLE_DROP = ("organizationId",)
-
 # A row is for choosing between articles, and these three are for reading one
 # that has been chosen. `description` and `note` are free text with no length
 # limit worth relying on, and the timestamps say when somebody typed it in.
 ARTICLE_ROW_DROP = (
-    *ARTICLE_DROP,
+    *ORGANIZATION_ID,
     "description",
     "note",
     "createdDate",
@@ -325,16 +336,8 @@ ARTICLE_ROW_DROP = (
 
 
 def article_row(item: dict[str, Any]) -> dict[str, Any]:
-    """One line of an article search result.
-
-    A drop-list rather than an allow-list, as everywhere else, so a field
-    added upstream still surfaces. ``archived`` is kept only when true, as in
-    a contact or voucher row.
-    """
-    row = {key: value for key, value in item.items() if key not in ARTICLE_ROW_DROP}
-    if not row.get("archived"):
-        row.pop("archived", None)
-    return dict(compact(row))
+    """One line of an article search result."""
+    return _row(item, ARTICLE_ROW_DROP)
 
 
 def articles_page(payload: dict[str, Any]) -> dict[str, Any]:
@@ -350,16 +353,14 @@ def article(payload: dict[str, Any]) -> dict[str, Any]:
     somebody typed is `leadingPrice` - dropping either half would leave a
     number that cannot be checked against anything.
     """
-    kept = {k: v for k, v in payload.items() if k not in ARTICLE_DROP}
-    return dict(compact(kept))
+    return _without(payload, ORGANIZATION_ID)
 
 
 # -- recurring templates --------------------------------------------------
 
-# Identical on every record, and answered once by `get_profile`. Nothing else
-# is dropped: the API already sends a shorter row in a list than it sends for
-# one record, so trimming further would take away a field it chose to include.
-RECURRING_DROP = ("organizationId",)
+# Nothing but the organization id is dropped: the API already sends a shorter
+# row in a list than it sends for one record, so trimming further would take
+# away a field it chose to include.
 
 
 def recurring_template(payload: dict[str, Any]) -> dict[str, Any]:
@@ -369,8 +370,7 @@ def recurring_template(payload: dict[str, Any]) -> dict[str, Any]:
     row and a full record, which differ by twelve fields upstream - see
     SPECS.md section 5.
     """
-    kept = {k: v for k, v in payload.items() if k not in RECURRING_DROP}
-    return dict(compact(kept))
+    return _without(payload, ORGANIZATION_ID)
 
 
 def recurring_templates_page(payload: dict[str, Any]) -> dict[str, Any]:

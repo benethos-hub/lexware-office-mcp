@@ -239,7 +239,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             tax_number=tax_number,
             note=note,
         )
-        return dict(formatting.compact(await provider.get().create_contact(body)))
+        return formatting.compact_object(await provider.get().create_contact(body))
 
     @classify("write", "contacts", "update")
     async def update_contact(
@@ -323,7 +323,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             tax_number=tax_number,
             note=note,
         )
-        return dict(formatting.compact(await client.update_contact(contact_id, body)))
+        return formatting.compact_object(await client.update_contact(contact_id, body))
 
     register_tool(server, search_contacts)
     register_tool(server, get_contact)

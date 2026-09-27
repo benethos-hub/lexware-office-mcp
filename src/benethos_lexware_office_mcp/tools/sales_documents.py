@@ -324,7 +324,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             finalize=finalize,
             preceding_sales_voucher_id=preceding_sales_voucher_id,
         )
-        return dict(formatting.compact(written))
+        return formatting.compact_object(written)
 
     register_tool(server, get_sales_document)
     register_tool(server, create_sales_document)
