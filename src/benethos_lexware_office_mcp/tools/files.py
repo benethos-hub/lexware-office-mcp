@@ -33,24 +33,19 @@ from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..policy import classify
 from ._base import register_tool
-from .sales_documents import RESOURCES, DocumentIdField, DocumentTypeField
+from .sales_documents import (
+    RESOURCES,
+    DocumentIdField,
+    DocumentType,
+    DocumentTypeField,
+)
 
 __all__ = ["register"]
 
 # Deeplinks reach further than documents do, but not to a stored file:
 # the web app has no page for one. Verified 2026-08-21, see SPECS.md
 # section 5.
-LinkTarget = Literal[
-    "invoice",
-    "quotation",
-    "credit-note",
-    "order-confirmation",
-    "delivery-note",
-    "dunning",
-    "down-payment-invoice",
-    "contact",
-    "voucher",
-]
+LinkTarget = Literal[DocumentType, "contact", "voucher"]
 
 LINK_RESOURCES: dict[str, str] = {
     **RESOURCES,

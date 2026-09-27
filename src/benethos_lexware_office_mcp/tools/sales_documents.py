@@ -13,7 +13,7 @@ The bookkeeping voucher these documents are often confused with is
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -25,7 +25,7 @@ from ..errors import ValidationError
 from ..payloads import (
     SHIPPING_REQUIRED,
     SalesLineItem,
-    SalesTaxType,
+    TaxType,
     sales_document_body,
 )
 from ..policy import classify
@@ -39,34 +39,10 @@ __all__ = [
     "register",
 ]
 
-# The seven types, and the path segment each one lives under. The segments
-# are plural and kebab-cased, which is also what the web app's permalinks use.
-DocumentType = Literal[
-    "invoice",
-    "quotation",
-    "credit-note",
-    "order-confirmation",
-    "delivery-note",
-    "dunning",
-    "down-payment-invoice",
-]
-
-RESOURCES: dict[str, str] = {
-    "invoice": "invoices",
-    "quotation": "quotations",
-    "credit-note": "credit-notes",
-    "order-confirmation": "order-confirmations",
-    "delivery-note": "delivery-notes",
-    "dunning": "dunnings",
-    "down-payment-invoice": "down-payment-invoices",
-}
-
-# Both fields are shared with `download_document` in :mod:`.files`, which
-# addresses the same seven documents. One wording, sent to the model once per
-# tool that uses it, rather than two that can drift apart.
-# A down payment invoice has no POST at all - it is raised by the app when a
-# quotation is part-invoiced. Measured against the documented endpoint list
-# and confirmed by the six that do accept one, 2026-08-21.
+# The six types the API creates. A down payment invoice has no POST at all -
+# it is raised by the app when a quotation is part-invoiced. Measured against
+# the documented endpoint list and confirmed by the six that do accept one,
+# 2026-08-21.
 CreatableType = Literal[
     "invoice",
     "quotation",
@@ -75,6 +51,19 @@ CreatableType = Literal[
     "delivery-note",
     "dunning",
 ]
+
+# The seven types there are. A nested Literal is flattened, so the schema
+# lists all seven and a new type is added in exactly one place.
+DocumentType = Literal[CreatableType, "down-payment-invoice"]
+
+# The path segment each type lives under: plural and kebab-cased, which is
+# also what the web app's permalinks use. Every one of the seven pluralizes
+# with an `s`, so the table is derived rather than kept by hand.
+RESOURCES: dict[str, str] = {name: f"{name}s" for name in get_args(DocumentType)}
+
+# Both fields are shared with `download_document` in :mod:`.files`, which
+# addresses the same seven documents. One wording, sent to the model once per
+# tool that uses it, rather than two that can drift apart.
 
 DocumentTypeField = Annotated[
     DocumentType,
@@ -205,7 +194,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             Field(description="The lines of the document.", min_length=1),
         ],
         tax_type: Annotated[
-            SalesTaxType,
+            TaxType,
             Field(
                 description=(
                     "Whether the line prices are before or after tax. "

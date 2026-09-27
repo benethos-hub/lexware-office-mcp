@@ -15,7 +15,7 @@ for a confirmation the other write tools do not.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -24,7 +24,7 @@ from .. import formatting
 from ..client import ClientProvider
 from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ..errors import ValidationError
-from ..payloads import ArticleType, article_body
+from ..payloads import ArticleType, LeadingPrice, article_body
 from ..policy import classify
 from ._base import PageNumber, register_tool, require_version
 
@@ -58,7 +58,7 @@ ArticlePageSize = Annotated[
 ]
 
 LeadingPriceField = Annotated[
-    Literal["NET", "GROSS"],
+    LeadingPrice,
     Field(
         description=(
             "Whether `price` is before or after tax. The other figure is "
@@ -227,7 +227,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             Field(description="New tax rate as a percentage.", ge=0),
         ] = None,
         leading_price: Annotated[
-            Literal["NET", "GROSS"] | None,
+            LeadingPrice | None,
             Field(
                 description=(
                     "Whether the new price is before or after tax. Left unset, "
