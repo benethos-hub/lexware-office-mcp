@@ -818,6 +818,20 @@ from there — configuration read out of a directory shared with every other
 installed package is not a property this server should have. The invocation
 outranks the installation, which is why the working directory sits above it.
 
+**Without a home directory there is no per-user directory.** That happens
+when `HOME` is unset or empty and the uid has no password database entry, as
+under `env -i` with a foreign uid. platformdirs raises then, from 4.12 on,
+where it used to answer a relative `~/.config/...` that landed below whatever
+the working directory was. The search leaves that candidate out and the
+other three still count, so a checkout or a working directory needs no home.
+Only where no file exists anywhere, and the answer would be the place to
+create one, does it end in a `ConfigError` that says to set `HOME` or to name
+the files. The default download directory follows the same rule: a download
+asks for `LXO_MCP_DOWNLOAD_DIR` or `HOME`, the server starts without
+publishing any, and the configuration interface shows the message in place
+of a path. A process ending on this does so in one line on stderr, not a
+traceback.
+
 No secret is ever read from a versioned file. `config/.env` is gitignored and
 The settings sample, which is committed and ships inside the package, holds
 no key.

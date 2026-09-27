@@ -132,6 +132,13 @@ housekeeping are out of scope here — design decisions live in
 - **`read_download` renders at most 100 pages.** `max_pages` accepts up to
   100, `null` means every page up to that, and `LXO_MCP_PDF_PAGES` above 100
   is refused. `pages` and `pagesShown` still say what was left out.
+- **A process with no home directory says what to set.** With `HOME` unset
+  and no password database entry for the uid, platformdirs 4.12 raises
+  instead of answering a relative `~/.config/...`, and the server ended in a
+  traceback. Now a configuration file in the working directory or a checkout
+  is still found, and where none exists the server says in one line to set
+  `HOME` or to name the files with `--env-file` and `--tools-file`. A
+  download asks for `LXO_MCP_DOWNLOAD_DIR` in the same case.
 
 ### Changed
 

@@ -122,9 +122,26 @@ def settings_sample() -> str:
     return (resources.files(__package__) / SAMPLE_NAME).read_text(encoding="utf-8")
 
 
+# platformdirs raises when no home directory resolves - HOME unset or empty and
+# no password database entry for the uid. Before 4.12 it answered a relative
+# ``~/.config/...`` instead, which landed below whatever the working directory
+# happened to be. Neither message names a path, only what to set.
+NO_HOME_CONFIG = (
+    "No home directory resolves, so there is no per-user configuration "
+    "directory. Set HOME, or name the files with --env-file and --tools-file."
+)
+NO_HOME_DOWNLOADS = (
+    "No home directory resolves, so there is no default download directory. "
+    "Set LXO_MCP_DOWNLOAD_DIR, or HOME."
+)
+
+
 def config_dir() -> Path:
     """Per-user configuration directory for this application."""
-    return Path(user_config_dir(APP_NAME, appauthor=False))
+    try:
+        return Path(user_config_dir(APP_NAME, appauthor=False))
+    except RuntimeError:
+        raise ConfigError(NO_HOME_CONFIG) from None
 
 
 def tool_policy_file() -> Path:
@@ -138,7 +155,10 @@ def tool_policy_file() -> Path:
 
 def download_dir() -> Path:
     """Default directory for downloaded documents."""
-    return Path(user_cache_dir(APP_NAME, appauthor=False)) / "downloads"
+    try:
+        return Path(user_cache_dir(APP_NAME, appauthor=False)) / "downloads"
+    except RuntimeError:
+        raise ConfigError(NO_HOME_DOWNLOADS) from None
 
 
 def _project_config_dir() -> Path | None:
@@ -172,7 +192,12 @@ def config_candidates(name: str, cwd: Path | None = None) -> list[Path]:
     head, and the reason it fits in a sentence.
     """
     here = cwd or Path.cwd()
-    found = [config_dir() / name]
+    # Without a home there is no per-user directory, and the other places
+    # still count: a checkout or a working directory needs none.
+    try:
+        found = [config_dir() / name]
+    except ConfigError:
+        found = []
     project = _project_config_dir()
     if project is not None:
         found.append(project / name)
@@ -186,12 +211,14 @@ def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
 
     The highest-precedence candidate that exists, and the only one read. When
     none does, the per-user directory — the place to create one, and the
-    answer a message should name when a file is missing.
+    answer a message should name when a file is missing. Without a home there
+    is no such place, and :class:`ConfigError` says what to set instead.
     """
     candidates = config_candidates(name, cwd)
     for path in reversed(candidates):
         if path.is_file():
             return path
+    config_dir()  # raises when there is no home, and so nowhere to create one
     return candidates[0]
 
 
@@ -212,7 +239,10 @@ def env_file_in_effect(
     """
     if named is not None:
         return named
-    found = resolve_config_file(".env", cwd)
+    try:
+        found = resolve_config_file(".env", cwd)
+    except ConfigError:
+        return None
     return found if found.is_file() else None
 
 
