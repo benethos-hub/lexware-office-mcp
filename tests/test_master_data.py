@@ -10,7 +10,7 @@ characters.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, get_args
 from urllib.parse import urlparse
 
 import httpx
@@ -23,7 +23,9 @@ from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import UpstreamError
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
-from benethos_lexware_office_mcp.tools.master_data import KINDS
+from benethos_lexware_office_mcp.tools.master_data import MasterDataKind
+
+KINDS: tuple[str, ...] = get_args(MasterDataKind)
 
 API_KEY = "test-key-0123456789"
 
@@ -229,14 +231,14 @@ def test_a_row_that_is_not_an_object_is_skipped() -> None:
 # -- the tool -------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("kind", "segment"), sorted(KINDS.items()))
-async def test_every_kind_reaches_its_own_path(kind: str, segment: str) -> None:
+@pytest.mark.parametrize("kind", KINDS)
+async def test_every_kind_reaches_its_own_path(kind: str) -> None:
     handler = Scripted((200, LAYOUTS))
     server, provider = server_for(handler)
 
     await server.call_tool("get_master_data", {"kind": kind})
 
-    assert handler.path == f"/v1/{segment}"
+    assert handler.path == f"/v1/{kind}"
     await provider.aclose()
 
 

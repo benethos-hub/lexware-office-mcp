@@ -148,29 +148,6 @@ def test_a_name_that_is_no_longer_a_tool_is_reported() -> None:
     assert profile.unknown(KNOWN) == ["removed_tool"]
 
 
-def test_merging_says_what_it_overwrote(store: ProfileStore) -> None:
-    store.save("Alt", ["get_profile"], KNOWN)
-
-    overwritten = store.merge(
-        {
-            "Alt": Profile(name="Alt", tools=("create_voucher",)),
-            "Neu": Profile(name="Neu", tools=("get_profile",)),
-        }
-    )
-
-    assert overwritten == ["Alt"]
-    assert set(store.all()) == {"Alt", "Neu"}
-    assert store.all()["Alt"].tools == ("create_voucher",)
-
-
-def test_replace_all_drops_what_was_there(store: ProfileStore) -> None:
-    store.save("Alt", ["get_profile"], KNOWN)
-
-    store.replace_all({"Neu": Profile(name="Neu", tools=())})
-
-    assert list(store.all()) == ["Neu"]
-
-
 def test_an_unreadable_file_yields_nothing_rather_than_raising(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

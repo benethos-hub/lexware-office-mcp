@@ -36,7 +36,6 @@ __all__ = [
     "ProfileError",
     "ProfileStore",
     "profile_file",
-    "profile_from_stored",
 ]
 
 logger = logging.getLogger(__name__)
@@ -118,7 +117,7 @@ class ProfileStore:
         if not isinstance(raw, dict):
             return found
         for name, body in raw.items():
-            profile = profile_from_stored(str(name), body)
+            profile = _from_stored(str(name), body)
             if profile is not None:
                 found[profile.name] = profile
         return {name: found[name] for name in sorted(found, key=str.casefold)}
@@ -172,26 +171,6 @@ class ProfileStore:
         self._write(profiles)
         return True
 
-    def replace_all(self, profiles: dict[str, Profile]) -> None:
-        """Write exactly these profiles, dropping whatever was there."""
-        self._write(dict(profiles))
-
-    def merge(self, profiles: dict[str, Profile]) -> list[str]:
-        """Add these profiles, overwriting same-named ones.
-
-        Returns the names that already existed, so an import can say what it
-        is about to overwrite before it does.
-        """
-        current = self.all()
-        overwritten = sorted(name for name in profiles if name in current)
-        current.update(profiles)
-        self._write(current)
-        return overwritten
-
-    def as_document(self) -> dict[str, Any]:
-        """The stored form, for an export to carry."""
-        return _document(self.all())
-
     def _document(self) -> dict[str, Any]:
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
@@ -227,7 +206,7 @@ def _document(profiles: dict[str, Profile]) -> dict[str, Any]:
     }
 
 
-def profile_from_stored(name: str, body: Any) -> Profile | None:
+def _from_stored(name: str, body: Any) -> Profile | None:
     """One stored entry read back, or ``None`` when it is not a profile."""
     clean = name.strip()
     if not clean or not isinstance(body, dict):

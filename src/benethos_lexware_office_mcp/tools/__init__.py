@@ -29,7 +29,7 @@ __all__ = ["register_tool", "register_tools"]
 
 Registrar = Callable[[MCPServer, Settings, ClientProvider], None]
 
-# Filled in as the tool modules appear. Order is the order tools are listed.
+# Order is the order tools are listed.
 _MODULES: Sequence[Registrar] = (
     diagnostics.register,
     contacts.register,

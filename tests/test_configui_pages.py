@@ -12,7 +12,6 @@ import pytest
 from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
-from benethos_lexware_office_mcp.configui.profiles import Profile
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
@@ -559,9 +558,7 @@ def test_an_account_summary_reads_as_a_sentence() -> None:
 
 
 def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
-    inst.profiles.replace_all(
-        {"<script>böse</script>": Profile(name="<script>böse</script>", tools=())}
-    )
+    inst.profiles.save("<script>böse</script>", (), ())
 
     body = text(pages.permissions(inst))
 
