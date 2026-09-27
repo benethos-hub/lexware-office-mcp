@@ -66,7 +66,19 @@ SearchStatus = Literal[
 # `sort` is the one place the API is stricter than it looks: only the voucher
 # date can be sorted on, and anything else is refused as "parameter 'sort' is
 # invalid".
-SortOrder = Literal["voucherDate,DESC", "voucherDate,ASC"]
+# The four properties the API sorts the voucher list on, each way round.
+# Measured 2026-09-27: all four are honoured, and anything else is refused
+# with "parameter 'sort' is invalid".
+SortOrder = Literal[
+    "voucherDate,DESC",
+    "voucherDate,ASC",
+    "voucherNumber,DESC",
+    "voucherNumber,ASC",
+    "createdDate,DESC",
+    "createdDate,ASC",
+    "updatedDate,DESC",
+    "updatedDate,ASC",
+]
 
 VoucherId = Annotated[
     str,
@@ -124,6 +136,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ] = None,
+        voucher_number: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "The document number, for example 'RE0001', matched in "
+                    "full and ignoring case. Not a prefix."
+                )
+            ),
+        ] = None,
         date_from: Annotated[
             str | None,
             Field(
@@ -156,8 +177,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             SortOrder,
             Field(
                 description=(
-                    "Ordering. Newest first by default. The API sorts on the "
-                    "voucher date and nothing else."
+                    "Ordering. Newest voucher date first by default. "
+                    "createdDate and updatedDate are when it was entered or "
+                    "last changed."
                 )
             ),
         ] = "voucherDate,DESC",
@@ -182,6 +204,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             voucher_type=voucher_type,
             voucher_status=voucher_status,
             contact_id=contact_id,
+            voucher_number=voucher_number,
             voucher_date_from=date_from,
             voucher_date_to=date_to,
             only_overdue=only_overdue,
@@ -219,8 +242,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         One API call. Returns the booked amounts, tax type, the posting
         category of every line, the contact and the `version`.
 
-        Prefer the id. The number is the fallback, because `search_vouchers`
-        cannot filter by it, and it is unique only by convention.
+        Prefer the id. A number is unique only by convention, and
+        `search_vouchers` finds one across every document type.
 
         For whether it has been paid, use `get_payments` with the same id.
         """
@@ -414,6 +437,20 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             float | None, Field(description="New total tax.")
         ] = None,
         remark: Annotated[str | None, Field(description="New note.")] = None,
+        finalize: Annotated[
+            bool,
+            Field(
+                description=(
+                    "Book an unchecked voucher, such as one upload_file made, "
+                    "by moving it to open. Only when the user asked for that. "
+                    "Needs confirm."
+                )
+            ),
+        ] = False,
+        confirm: Annotated[
+            bool,
+            Field(description="Required only for finalize. Ignored otherwise."),
+        ] = False,
     ) -> dict[str, Any]:
         """Change a bookkeeping voucher that is already recorded.
 
@@ -421,9 +458,19 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         shows what is there and carries the `version` this needs. Two API
         calls. Passing `items` **replaces** every line rather than adding one.
 
+        An `unchecked` voucher takes new data and stays unchecked until
+        `finalize` books it, which needs its number, date, contact and lines.
+
         If the voucher changed since that read, nothing is written. One that
         is already paid or booked may be refused whatever the version.
         """
+        if finalize and not confirm:
+            raise ValidationError(
+                "finalize books the voucher and the API cannot take it back. "
+                "Use it only when the user asked to book it, and pass "
+                "confirm=true as well. Leaving finalize unset changes the "
+                "voucher and leaves it unchecked."
+            )
         if contact_id is not None and use_collective_contact:
             raise ValidationError(
                 "Pass contact_id or use_collective_contact, not both: a voucher "
@@ -432,6 +479,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         client = provider.get()
         current = await client.voucher(voucher_id)
         require_version(current, version, noun="voucher", reader="get_voucher")
+        status = current.get("voucherStatus")
+        if finalize and status != "unchecked":
+            raise ValidationError(
+                f"finalize only books an unchecked voucher, and this one is "
+                f"{status}. Nothing was written."
+            )
 
         body = voucher_body(
             base=current,
@@ -444,6 +497,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             total_gross_amount=total_gross_amount,
             total_tax_amount=total_tax_amount,
             remark=remark,
+            finalize=finalize,
         )
         return formatting.compact_object(await client.update_voucher(voucher_id, body))
 

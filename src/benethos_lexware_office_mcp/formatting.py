@@ -267,9 +267,10 @@ def sales_document(payload: dict[str, Any]) -> dict[str, Any]:
     would silently swallow whatever makes a dunning a dunning. Amounts and
     their currency pass through exactly as the API reported them.
 
-    What survives is what the API sent. A `draft` carries no `files` block
-    and no `dueDate`, which is how the answer says there is nothing to
-    download yet.
+    What survives is what the API sent. `voucherStatus` says whether it is a
+    `draft`, which has nothing to download yet. The `files` block that used
+    to say the same is deprecated for every sales document type, so nothing
+    here or in a description leans on its absence.
     """
     return _without(payload, ORGANIZATION_ID)
 

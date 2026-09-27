@@ -277,7 +277,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         never retried.
 
         Takes PDF, JPEG, PNG or XML, at most 5 MiB. An XML file is treated as
-        an XRechnung.
+        an XRechnung. The voucher starts `unchecked`: `update_voucher` fills
+        it in, and its `finalize` books it.
         """
         content, name, content_type = await asyncio.to_thread(
             _read_upload, path, settings.upload_path

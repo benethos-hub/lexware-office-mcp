@@ -157,6 +157,9 @@ housekeeping are out of scope here — design decisions live in
   uvicorn 0.54.0, pyjwt 2.15.0, platformdirs 4.12.0, idna 3.20,
   opentelemetry-api 1.45.0 and ruff 0.16.9. No change to any tool, parameter
   or answer.
+- **`get_sales_document` tells a draft by `voucherStatus`.** Its description
+  pointed at the missing `files.documentFileId`, which Lexware has marked for
+  removal on every sales document type. The answer itself is unchanged.
 
 ### Added
 
@@ -164,6 +167,19 @@ housekeeping are out of scope here — design decisions live in
   moved to a named contact but not back to the collective one, which only
   `create_voucher` could choose. Passing it together with `contact_id` is
   refused before anything is sent.
+- **`search_vouchers` takes `voucher_number`.** It finds a document by its
+  number in one call, sales documents included, which until now only
+  `get_voucher` could do and only for bookkeeping vouchers. The number is
+  matched in full, ignoring case.
+- **`search_vouchers` sorts by number, creation and last change too.** Its
+  description said the API sorts on the voucher date and nothing else, and
+  `sort` offered only that. The API honours `voucherNumber`, `createdDate`
+  and `updatedDate` as well, each way round.
+- **`update_voucher` can book an unchecked voucher.** A receipt sent with
+  `upload_file` arrives `unchecked`, and could be filled in but never
+  booked: the update left it unchecked. `finalize`, together with `confirm`,
+  now moves it to `open`. It is refused for a voucher in any other state
+  before anything is written.
 
 ## [0.2.4] - 2026-09-14
 

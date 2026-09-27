@@ -575,23 +575,25 @@ still meets it.
 - The other two are as small as the account is: one payment condition and one
   print layout, both flagged as the organization's default.
 
-### Announced upstream, read 2026-09-02
+### Announced upstream, read 2026-09-02 and 2026-09-27
 
 Read from the documentation rather than measured, because a removal that has
-not happened yet cannot be measured. Both fields are still served today.
+not happened yet cannot be measured. Both are still served today.
 
-- **`files` on credit notes and delivery notes is going away.** The wording is
-  "(Deprecated, will be removed) The document id for the PDF version of the
-  credit note", and the same for a delivery note. The **download** is
-  unaffected: `download_document` fetches `/file` directly and never reads
-  that id. What weakens is the signal above — on those two types the absence
-  of a `files` block will stop meaning "still a draft, nothing rendered", and
-  `voucherStatus` becomes the field to read instead. It is in the answer
-  already, so no tool has to change for that to be possible.
-- **`/v1/credit-notes/{id}/document` is deprecated**, with the documentation
-  pointing at the `/file` subresource instead. Nothing to do: this server has
-  never called `/document`, for a reason measured 2026-08-21 and recorded
-  above — it costs one call more for the same bytes. The vendor has now
+- **`files` and `documentFileId` are going away on every sales document
+  type**, not only on credit notes and delivery notes as the reading of
+  2026-09-02 had it. The documentation's change log dates it 13.08.2025, and
+  each of the seven types carries the same "(Deprecated, will be removed)"
+  line. The **download** is unaffected: `download_document` fetches `/file`
+  directly and never reads that id. What goes is the signal above, so
+  `voucherStatus` is the field to read, and `get_sales_document` says so
+  since 2026-09-27.
+- **`/v1/{resource}/{id}/document` is deprecated for every type**, with the
+  documentation pointing at the `/file` subresource instead, and so is
+  downloading a sales document through `/v1/files`. Nothing to do: this
+  server has never called `/document`, for a reason measured 2026-08-21 and
+  recorded above - it costs one call more for the same bytes - and
+  `download_file` is for bookkeeping voucher files. The vendor has now
   arrived at the same place.
 
 Neither is dated by Lexware, so there is no deadline to plan against. The
@@ -614,8 +616,12 @@ arriving.
   transferred, sepadebit, overdue, accepted, rejected, unchecked`. **`dunning`
   is not accepted**, so dunnings cannot be found through the voucher list at
   all.
-- **`sort` accepts only the voucher date**, ascending or descending. Anything
-  else is refused with "parameter 'sort' is invalid".
+- **`sort` accepts four properties**, each ascending or descending:
+  `voucherDate`, `voucherNumber`, `createdDate` and `updatedDate`, as the
+  documentation says. Anything else is refused with "parameter 'sort' is
+  invalid". This line said "only the voucher date" from 2026-08-20 until a
+  live read on 2026-09-27 found all four honoured, so the tool offered one
+  of them and told the model the others did not exist.
 - **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
   answers 404, so a wrong entry has to be corrected in the web app. It is
   booked as `open` the moment it is created.
@@ -641,10 +647,17 @@ arriving.
   four: without it the POST is refused with `voucherNumber: missing_entity`.
   The parameter was optional and is now required, so the schema refuses the
   call before it costs anything.
-- **A PUT must not echo `voucherStatus`.** Unlike a contact, which accepts its
-  read-only fields and ignores them, a voucher is refused outright with
-  `voucherStatus: invalid_value`. `payloads.VOUCHER_PUT_DROP` is what strips
-  it, along with `contactName`, the timestamps and `organizationId`.
+- **A PUT carries `voucherStatus` only to book.** Unlike a contact, which
+  accepts its read-only fields and ignores them, a voucher refuses every
+  status but one with `voucherStatus: invalid_value`: `unchecked` and `paid`
+  are refused, `open` is accepted, measured 2026-09-27.
+  `payloads.VOUCHER_PUT_DROP` strips the status from the record being
+  merged, along with `contactName`, the timestamps and `organizationId`.
+  `open` is what books an `unchecked` voucher, the one status change the
+  documentation allows, and `update_voucher` sends it only for `finalize`
+  with `confirm`. Without it an unchecked voucher takes new data and stays
+  unchecked - the documentation says it cannot be updated at all, which is
+  not what the API does.
 - **The API checks the totals against the lines** and refuses a mismatch with
   `totalGrossAmount: invalid_total_amount`, and the tax against the tax type
   with `voucherItems[0].taxAmount: invalid_taxamount`. Every voucher
@@ -674,16 +687,23 @@ arriving.
 - **A draft reads in full**, verified 2026-08-21. Only the download is
   refused: `GET /v1/invoices/{id}` answers with every figure on the document
   while it is still a draft. What it does not carry is `dueDate`,
-  `printLayoutId` and the `files` block, and that last absence is the reliable
-  way to tell whether there is anything to download — an `open` document
-  carries `files.documentFileId`, pointing at the same rendered file
-  `/file` serves. **On two types that signal is on borrowed time**, see
-  "Announced upstream" below.
+  `printLayoutId` and the `files` block. `voucherStatus` is the field that
+  says whether there is anything to download: `draft` has nothing, measured
+  again 2026-09-27 on a quotation. An `open` document carries
+  `files.documentFileId`, pointing at the same rendered file `/file` serves,
+  but that block is deprecated for every type, see "Announced upstream"
+  below, so nothing here reads its absence as a signal any more.
 - **A document type that does not match the id is a 404**, measured on
   2026-08-21 by reading a real invoice id through `/v1/quotations`,
   `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one
   an id that does not exist gives, so a tool cannot tell the caller which
   mistake they made.
+- **Text formatting, documented since 05.05.2026 and not offered.** Bold as
+  `**word**`, italics as `__word__` and `- ` lists render in a sales
+  document's introduction, line item description and remark, and in an
+  article's description, not in its title. No tool description mentions it:
+  a model rarely wants bold in an invoice line, and every request would pay
+  for the sentence. Read from the documentation, not measured.
 - **PDF:** `GET /v1/{resource}/{id}/document` returns a `documentFileId` for
   the Files endpoint. Rendering is triggered when a document moves from draft
   to open. `GET /v1/{resource}/{id}/file` downloads the binary directly and
@@ -1019,19 +1039,21 @@ exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21, again on
 2026-08-22 with the annotations below, again on 2026-08-23 after
-`create_voucher` lost a parameter that could not work, and again on
-2026-09-27.** Serialized as the compact JSON a `tools/list` answer is,
-twenty-five tools come to **52,298 characters**, around 2,092 each. Roughly
+`create_voucher` lost a parameter that could not work, and twice on
+2026-09-27, the second time after the documentation review added
+`voucher_number`, three sort properties and `finalize`.** Serialized as the
+compact JSON a `tools/list` answer is, twenty-five tools come to **53,198
+characters**, around 2,127 each. Roughly
 13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
 than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,481 | 64% |
-| Tool descriptions, the part under a ceiling | 11,272 | 22% |
+| Input schemas | 34,173 | 64% |
+| Tool descriptions, the part under a ceiling | 11,169 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
-| Names, titles and the rest | ~2,164 | 4% |
+| Names, titles and the rest | ~2,475 | 5% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
@@ -1062,21 +1084,21 @@ consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 33,469
-characters of input schema, 13,264 are prose from `Field(description=...)` and
-the remaining 20,205 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,173
+characters of input schema, 13,516 are prose from `Field(description=...)` and
+the remaining 20,657 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
-where it should be watched: `create_voucher` spends 1,744 characters on
-seventeen parameter descriptions, nearly four times its own description.
+where it should be watched: `create_voucher` spends 1,634 characters on
+sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,139), `create_voucher` (4,334), `update_contact` (3,965), `create_contact`
-(3,907), `search_vouchers` (3,378) and `update_voucher` (3,359) come to 48% of
+(5,293), `create_voucher` (4,288), `update_voucher` (4,145), `create_contact`
+(4,072), `update_contact` (4,023) and `search_vouchers` (3,770) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 22,620 characters, a little under half.
+`read-only` installation sends 23,563 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -1092,9 +1114,9 @@ arguments cost three to four times what the simple ones do.
 | `get_contact` | `contact_id` | the full contact including addresses, roles and `version`, with `organizationId` dropped: it is identical on every record and `get_profile` already answers it. A drop-list, not an allow-list, so a field added upstream still surfaces. Built and verified against live records 2026-08-20. | 1 |
 | `search_articles` | `article_number`, `gtin`, `article_type`, `page`, `size` | `{articles: [{id, version, title, articleNumber, type, unitName, price, archived?}], page: {...}}`. **No `query`.** It was specified here and dropped on 2026-08-21 when the endpoint turned out to filter on three fields and to ignore every other parameter silently, so a text search would have answered with the whole catalogue while looking like it had searched. Both filters match in full. `description` and `note` are dropped from a row and kept by `get_article`. There is no `currency`: an article's price block carries none. Built and verified live 2026-08-21. | 1 |
 | `get_article` | `article_id` | the article in full, `organizationId` dropped, including the price block and `version`. The block carries a net and a gross figure with the tax rate between them and `leadingPrice` saying which of the two was entered - dropping either half would leave a number that cannot be checked. Built and verified live 2026-08-21. | 1 |
-| `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `date_from`, `date_to`, `only_open`, `only_overdue`, `archived`, `sort`, `page`, `size` | `{vouchers: [{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, openAmount, currency, archived?}], page: {...}}`. The central discovery tool, and the only way to find a document at all. `voucher_type` and `voucher_status` default to `any` because the API requires them, so the tool always sends both. `createdDate` and `updatedDate` are dropped from the rows: they say when somebody typed it in, not when the document is dated. Built and verified live 2026-08-20. | 1 |
+| `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `voucher_number`, `date_from`, `date_to`, `only_open`, `only_overdue`, `archived`, `sort`, `page`, `size` | `{vouchers: [{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, openAmount, currency, archived?}], page: {...}}`. The central discovery tool, and the only way to find a document at all. `voucher_type` and `voucher_status` default to `any` because the API requires them, so the tool always sends both. `createdDate` and `updatedDate` are dropped from the rows: they say when somebody typed it in, not when the document is dated. `voucher_number` matches the whole number, ignoring case, never a prefix, and combines with the other filters - measured 2026-09-27, when it turned out the filter had been in the documentation since 2021 while this table said it did not exist. Built and verified live 2026-08-20. | 1 |
 | `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
-| `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id because `voucherlist` cannot filter by number and `/v1/vouchers?voucherNumber=` is the only lookup the API offers. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
+| `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id. The lookup goes through `/v1/vouchers?voucherNumber=`, which answers with the whole voucher in one call. The documentation marks that filter deprecated in favour of `voucherlist`'s own, which would cost a second call for the record - it still answers, measured 2026-09-27. Until then this table said `voucherlist` could not filter by number, which was never measured and is false. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. Nothing but `organizationId` is dropped, because the API already sends a shorter row in a list than it sends for one record — see section 5, which is also why the tool says to read by id for the lines. Built and verified live 2026-08-21. | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts), `search`, `limit` | `{kind, total, matched?, shown, entries}`. Nothing is dropped from a row: every field of these four decides something, including a `contactRequired` of false. What is trimmed is the number of rows, because two of the lists run into the hundreds and none of them pages, so the whole list arrives whatever the caller wanted. `search` matches every text a row carries except its id, which is one parameter instead of one per field and narrows by name, group, country code or category type alike. `matched` appears only when a search was given, where it would otherwise restate `total`. Built and verified live 2026-08-21. | 1 |
@@ -1115,7 +1137,7 @@ arguments cost three to four times what the simple ones do.
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and sends only the leading figure whenever the price, the side or the rate changes, so a new rate is never sent beside two prices it contradicts. The API would tolerate that - measured 2026-09-27, a new rate beside both old prices is accepted and the other side recomputed, for `NET` and `GROSS` alike - but a body should not depend on it. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
-| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
@@ -2149,7 +2171,7 @@ belongs in section 5: the profile response shape, the per-endpoint page
 ceiling, the 404 and 400 error bodies including the `IssueList`-only form, the
 three-character minimum on the contact filters, the voucher type and status
 enums, that a stale version arrives as 406 rather than 409, that a voucher PUT
-must not echo its status, the upload contract and its 5 MiB ceiling, that
+carries a status only to book, the upload contract and its 5 MiB ceiling, that
 master data comes back as a bare list, that a key can be created inside a test
 account, and that the bucket paces real calls (five tool calls at rate 1.5 took
 2.69 seconds).

@@ -365,6 +365,7 @@ class LexwareClient:
         voucher_type: str,
         voucher_status: str,
         contact_id: str | None = None,
+        voucher_number: str | None = None,
         voucher_date_from: str | None = None,
         voucher_date_to: str | None = None,
         only_overdue: bool | None = None,
@@ -380,7 +381,8 @@ class LexwareClient:
         to find one without already knowing its id. ``voucherType`` and
         ``voucherStatus`` are **required** by the API, not optional filters
         (verified 2026-08-20), so the caller always states both even if only
-        to say ``any``.
+        to say ``any``. ``voucherNumber`` matches the whole number, ignoring
+        case, and never a part of it (measured 2026-09-27).
         """
         params = _page_params(
             page,
@@ -388,6 +390,7 @@ class LexwareClient:
             voucherType=voucher_type,
             voucherStatus=voucher_status,
             contactId=contact_id,
+            voucherNumber=voucher_number,
             voucherDateFrom=voucher_date_from,
             voucherDateTo=voucher_date_to,
             onlyOverdue=only_overdue,
@@ -408,9 +411,12 @@ class LexwareClient:
     async def vouchers_by_number(self, voucher_number: str) -> dict[str, Any]:
         """``GET /v1/vouchers?voucherNumber=``. One API call.
 
-        The only lookup by document number the API offers: ``voucherlist``
-        cannot filter by number at all. The response is a page of whole
-        vouchers rather than of rows.
+        A page of whole vouchers rather than of rows, so a lookup by number
+        costs one call where ``voucherlist`` would need a second to read the
+        record. The documentation marks this filter deprecated in favour of
+        ``voucherlist``'s own, which finds sales documents as well. It still
+        answers, measured 2026-09-27, and ``live/smoke.py`` is what will see
+        the day it stops.
         """
         return _expect_object(
             await self.get_json(
