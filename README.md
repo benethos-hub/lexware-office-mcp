@@ -556,7 +556,8 @@ search — except under `setup`, which exists partly to create one.
 
 Every setting above is in use. `LXO_MCP_PAGE_SIZE` is capped at 250, which is
 the lowest page size any endpoint accepts, and a larger value is refused at
-startup rather than turning into an API error later.
+startup rather than turning into an API error later. `search_articles` asks
+for at least 25 whatever it says, because that endpoint refuses less.
 
 ## Transport
 

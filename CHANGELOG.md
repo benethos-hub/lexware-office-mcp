@@ -147,6 +147,9 @@ housekeeping are out of scope here — design decisions live in
   added up again from the lines on every update, which for a voucher made
   from an upload, holding no lines yet, meant a total of zero. Now they are
   worked out only when `items` is passed, and otherwise sent as read.
+- **`search_articles` and `get_recurring_templates` follow
+  `LXO_MCP_PAGE_SIZE`.** Both asked for 25 rows whatever it said. Articles
+  still ask for at least 25, the least that endpoint accepts.
 
 ### Changed
 

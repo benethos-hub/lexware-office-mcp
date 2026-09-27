@@ -116,8 +116,8 @@ def make_client(handler: Scripted) -> LexwareClient:
     )
 
 
-def server_for(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
+def server_for(handler: Scripted, page_size: int = 25) -> tuple[Any, ClientProvider]:
+    settings = Settings(api_key=API_KEY, page_size=page_size)
     provider = ClientProvider(
         settings,
         transport=httpx.MockTransport(handler),
@@ -434,6 +434,21 @@ async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> N
         await server.call_tool("search_articles", {"size": 5})
 
     assert handler.requests == []
+    await provider.aclose()
+
+
+@pytest.mark.parametrize(("page_size", "sent"), [(60, "60"), (10, "25")])
+async def test_the_page_follows_the_setting_down_to_the_floor(
+    page_size: int, sent: str
+) -> None:
+    """It was fixed at 25 whatever LXO_MCP_PAGE_SIZE said. A setting below the
+    floor this endpoint enforces is raised to it rather than sent and refused."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_for(handler, page_size=page_size)
+
+    await server.call_tool("search_articles", {})
+
+    assert handler.query["size"] == [sent]
     await provider.aclose()
 
 

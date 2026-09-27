@@ -151,7 +151,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ] = None,
         page: PageNumber = 0,
-        size: PageSize = 25,
+        size: PageSize = settings.page_size,
     ) -> dict[str, Any]:
         """Read the templates that issue invoices on a schedule.
 

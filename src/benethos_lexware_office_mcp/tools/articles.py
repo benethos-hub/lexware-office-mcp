@@ -70,6 +70,9 @@ LeadingPriceField = Annotated[
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the article tools. The policy file decides the rest."""
+    # The setting, raised to the floor this endpoint enforces rather than
+    # sent below it and refused.
+    page_size = max(settings.page_size, DEFAULT_PAGE_SIZE)
 
     @classify("read", "articles")
     async def search_articles(
@@ -88,7 +91,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         ] = None,
         article_type: ArticleTypeField = None,
         page: PageNumber = 0,
-        size: ArticlePageSize = DEFAULT_PAGE_SIZE,
+        size: ArticlePageSize = page_size,
     ) -> dict[str, Any]:
         """List articles, filtered by number, barcode or kind.
 
