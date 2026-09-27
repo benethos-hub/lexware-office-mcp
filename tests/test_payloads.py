@@ -145,6 +145,38 @@ def test_changing_one_field_keeps_everything_else() -> None:
     assert body["company"] == CURRENT["company"]
 
 
+def test_a_new_email_replaces_one_kept_under_another_category() -> None:
+    """Merged in, the new address sat under `business` beside the old one
+    under `office`, and the contact had two. Measured 2026-09-27."""
+    base = {
+        **CURRENT,
+        "emailAddresses": {"office": ["alt@example.invalid"]},
+        "phoneNumbers": {"office": ["+49 30 1111"]},
+    }
+
+    body = contact_body(base=base, email="neu@example.invalid", phone="+49 30 2222")
+
+    assert body["emailAddresses"] == {"office": ["neu@example.invalid"]}
+    assert body["phoneNumbers"] == {"office": ["+49 30 2222"]}
+
+
+def test_a_new_email_replaces_every_address_the_contact_had() -> None:
+    """Several categories in use: the caller asked for one address, and the
+    contact ends up with exactly that one, under the default category."""
+    base = {
+        **CURRENT,
+        "emailAddresses": {
+            "business": ["a@example.invalid"],
+            "private": ["b@example.invalid"],
+            "other": [],
+        },
+    }
+
+    body = contact_body(base=base, email="neu@example.invalid")
+
+    assert body["emailAddresses"] == {"business": ["neu@example.invalid"]}
+
+
 def test_the_base_is_not_modified() -> None:
     """A builder that edits its input corrupts the record it was handed."""
     before = {"emails": CURRENT["emailAddresses"], "company": dict(CURRENT["company"])}
@@ -172,6 +204,23 @@ def test_a_person_is_recognised_from_the_record_being_updated() -> None:
     person = {"version": 1, "roles": {"customer": {}}, "person": {"lastName": "Muster"}}
     body = contact_body(base=person, email="neu@example.invalid")
     assert body["emailAddresses"] == {"private": ["neu@example.invalid"]}
+
+
+def test_an_empty_company_key_does_not_make_a_person_a_company() -> None:
+    """The key alone decided, so a `company: null` turned a person's email
+    into a business one and wrote a name into an empty company block."""
+    person = {
+        "version": 1,
+        "roles": {"customer": {}},
+        "company": None,
+        "person": {"lastName": "Muster"},
+    }
+
+    body = contact_body(base=person, email="neu@example.invalid", name="Anders")
+
+    assert body["emailAddresses"] == {"private": ["neu@example.invalid"]}
+    assert body["person"]["lastName"] == "Anders"
+    assert not body.get("company")
 
 
 def test_adding_a_role_keeps_the_number_the_other_one_already_has() -> None:

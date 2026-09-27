@@ -116,8 +116,8 @@ def make_client(handler: Scripted) -> LexwareClient:
     )
 
 
-def server_for(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
+def server_for(handler: Scripted, page_size: int = 25) -> tuple[Any, ClientProvider]:
+    settings = Settings(api_key=API_KEY, page_size=page_size)
     provider = ClientProvider(
         settings,
         transport=httpx.MockTransport(handler),
@@ -236,6 +236,37 @@ def test_changing_the_side_moves_the_price_across() -> None:
     assert body["price"] == {
         "leadingPrice": "GROSS",
         "grossPrice": 238.0,
+        "taxRate": 19,
+    }
+
+
+@pytest.mark.parametrize(
+    ("side", "kept", "dropped", "amount"),
+    [
+        ("NET", "netPrice", "grossPrice", 100.0),
+        ("GROSS", "grossPrice", "netPrice", 119.0),
+    ],
+)
+def test_a_new_tax_rate_alone_sends_only_the_leading_price(
+    side: str, kept: str, dropped: str, amount: float
+) -> None:
+    """Both old prices beside a new rate would contradict each other. The API
+    recomputes the other side and ignores the stale one, measured 2026-09-27,
+    so the body leaves it out rather than relying on that."""
+    base = {**ARTICLE, "price": {**ARTICLE["price"], "leadingPrice": side}}
+
+    body = article_body(base=base, tax_rate=7)
+
+    assert body["price"] == {"leadingPrice": side, kept: amount, "taxRate": 7}
+    assert dropped not in body["price"]
+
+
+def test_switching_the_side_alone_keeps_the_figure_on_the_new_side() -> None:
+    body = article_body(base=ARTICLE, leading_price="GROSS")
+
+    assert body["price"] == {
+        "leadingPrice": "GROSS",
+        "grossPrice": 119.0,
         "taxRate": 19,
     }
 
@@ -403,6 +434,21 @@ async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> N
         await server.call_tool("search_articles", {"size": 5})
 
     assert handler.requests == []
+    await provider.aclose()
+
+
+@pytest.mark.parametrize(("page_size", "sent"), [(60, "60"), (10, "25")])
+async def test_the_page_follows_the_setting_down_to_the_floor(
+    page_size: int, sent: str
+) -> None:
+    """It was fixed at 25 whatever LXO_MCP_PAGE_SIZE said. A setting below the
+    floor this endpoint enforces is raised to it rather than sent and refused."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_for(handler, page_size=page_size)
+
+    await server.call_tool("search_articles", {})
+
+    assert handler.query["size"] == [sent]
     await provider.aclose()
 
 

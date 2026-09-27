@@ -97,9 +97,9 @@ def contact_body(
     everything else is carried over unchanged, including the ``version`` that
     makes the update fail rather than overwrite if the record moved on.
 
-    Anything left at ``None`` is not a change. Fields that hold a single value
-    upstream are replaced rather than merged, because the API stores only one
-    of each anyway.
+    Anything left at ``None`` is not a change. An email address or a phone
+    number replaces every one the contact has rather than joining them, which
+    is what the tool promises.
     """
     body: dict[str, Any] = dict(base) if base else {"version": 0}
     is_company = _is_company(body, kind)
@@ -121,14 +121,11 @@ def contact_body(
             body["company"] = company
 
     if email is not None:
-        kind_key = _COMPANY_EMAIL if is_company else _PERSON_EMAIL
-        body["emailAddresses"] = {
-            **(body.get("emailAddresses") or {}),
-            kind_key: [email],
-        }
+        default = _COMPANY_EMAIL if is_company else _PERSON_EMAIL
+        body["emailAddresses"] = {_kind(body.get("emailAddresses"), default): [email]}
     if phone is not None:
-        kind_key = _COMPANY_PHONE if is_company else _PERSON_PHONE
-        body["phoneNumbers"] = {**(body.get("phoneNumbers") or {}), kind_key: [phone]}
+        default = _COMPANY_PHONE if is_company else _PERSON_PHONE
+        body["phoneNumbers"] = {_kind(body.get("phoneNumbers"), default): [phone]}
 
     addresses = dict(body.get("addresses") or {})
     if billing_address is not None:
@@ -144,16 +141,33 @@ def contact_body(
     return body
 
 
+def _kind(current: Any, default: str) -> str:
+    """The category a replacing email address or phone number is filed under.
+
+    The one the contact already uses when it uses exactly one, so an address
+    kept under ``office`` stays there. Otherwise the default for this kind of
+    contact. Either way the value replaces the whole block: merged into it, a
+    new address under ``business`` sat beside the old one under ``office``,
+    and the contact had two. Measured 2026-09-27.
+    """
+    used = [key for key, value in (current or {}).items() if value]
+    return used[0] if len(used) == 1 else default
+
+
 def _is_company(body: dict[str, Any], kind: ContactKind | None) -> bool:
     """Whether this contact is a company.
 
     On an update the caller does not say, and must not have to: a contact
     cannot change from a company into a person, and the API refuses a record
     carrying both.
+
+    Read off the block's content, not off the key: a person read back from
+    the API has no ``company`` key at all (measured 2026-09-27), but a record
+    that carries one as ``null`` beside a ``person`` block is still a person.
     """
     if kind is not None:
         return kind == "company"
-    return "company" in body
+    return bool(body.get("company")) and not body.get("person")
 
 
 def _apply_identity(
@@ -276,7 +290,9 @@ def voucher_body(
     The totals are computed from the items when the caller does not state
     them. That is arithmetic, not invention: the API rejects totals that do
     not match the lines, and a caller who does state them has theirs sent
-    unchanged and checked upstream.
+    unchanged and checked upstream. An update that leaves the lines and the
+    tax type alone sends the totals it read back, untouched - a voucher made
+    from an upload holds no lines, and adding up nothing gave it zero.
 
     **No ``voucherStatus`` is ever sent.** A POST carrying one is refused with
     ``voucherStatus: invalid_value``, measured on 2026-08-23 across three
@@ -309,16 +325,19 @@ def voucher_body(
     if items is not None:
         body["voucherItems"] = [_item_body(item) for item in items]
 
+    # Totals are derived only for lines this call wrote, or for a tax type
+    # that changes what the lines mean. An update that touches neither keeps
+    # the totals the API holds rather than a figure worked out here.
+    derive = base is None or items is not None or tax_type is not None
     lines = body.get("voucherItems") or []
-    effective_tax_type = body.get("taxType")
-    body["totalTaxAmount"] = (
-        total_tax_amount if total_tax_amount is not None else _sum(lines, "taxAmount")
-    )
-    body["totalGrossAmount"] = (
-        total_gross_amount
-        if total_gross_amount is not None
-        else _gross_total(lines, effective_tax_type)
-    )
+    if total_tax_amount is not None:
+        body["totalTaxAmount"] = total_tax_amount
+    elif derive:
+        body["totalTaxAmount"] = _sum(lines, "taxAmount")
+    if total_gross_amount is not None:
+        body["totalGrossAmount"] = total_gross_amount
+    elif derive:
+        body["totalGrossAmount"] = _gross_total(lines, body.get("taxType"))
     return body
 
 
@@ -408,12 +427,16 @@ def article_body(
     current = dict(body.get("price") or {})
     side = leading_price or current.get("leadingPrice") or "NET"
     if price is not None or leading_price is not None or tax_rate is not None:
-        if price is not None:
-            # The side that is no longer authoritative is dropped, so the API
-            # recomputes it instead of being handed a stale figure.
-            current.pop("netPrice", None)
-            current.pop("grossPrice", None)
-            current["netPrice" if side == "NET" else "grossPrice"] = price
+        # Only the leading side goes back, so the API computes the other one
+        # instead of being handed a figure the new price or rate made stale.
+        # The API would ignore that figure too - measured 2026-09-27, a new
+        # rate beside both old prices recomputes the other side either way -
+        # but a body that contradicts itself should not depend on that.
+        leading = "netPrice" if side == "NET" else "grossPrice"
+        kept = price if price is not None else current.get(leading)
+        current.pop("netPrice", None)
+        current.pop("grossPrice", None)
+        _set(current, leading, kept)
         current["leadingPrice"] = side
         _set(current, "taxRate", tax_rate)
     if current:

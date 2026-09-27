@@ -149,8 +149,8 @@ def make_client(handler: Scripted) -> LexwareClient:
     )
 
 
-def server_for(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
+def server_for(handler: Scripted, page_size: int = 25) -> tuple[Any, ClientProvider]:
+    settings = Settings(api_key=API_KEY, page_size=page_size)
     provider = ClientProvider(
         settings,
         transport=httpx.MockTransport(handler),
@@ -259,6 +259,19 @@ async def test_without_an_id_a_page_comes_back() -> None:
     assert result.structured_content is not None
     assert result.structured_content["page"]["totalElements"] == 1
     assert handler.path == "/v1/recurring-templates"
+    await provider.aclose()
+
+
+@pytest.mark.parametrize("page_size", [5, 60])
+async def test_the_page_follows_the_page_size_setting(page_size: int) -> None:
+    """It was fixed at 25 whatever LXO_MCP_PAGE_SIZE said. This endpoint
+    takes a page of one up to 250, measured 2026-09-27."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_for(handler, page_size=page_size)
+
+    await server.call_tool("get_recurring_templates", {})
+
+    assert handler.query["size"] == [str(page_size)]
     await provider.aclose()
 
 

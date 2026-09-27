@@ -139,6 +139,17 @@ housekeeping are out of scope here — design decisions live in
   is still found, and where none exists the server says in one line to set
   `HOME` or to name the files with `--env-file` and `--tools-file`. A
   download asks for `LXO_MCP_DOWNLOAD_DIR` in the same case.
+- **`update_contact` replaces the email address and the phone number.** The
+  new value was filed under `business` or `private` beside the old one, so a
+  contact whose address sat under `office` ended up with two. It now replaces
+  what the contact had, and a contact that used one category keeps it.
+- **`update_voucher` keeps the totals when no line changes.** They were
+  added up again from the lines on every update, which for a voucher made
+  from an upload, holding no lines yet, meant a total of zero. Now they are
+  worked out only when `items` is passed, and otherwise sent as read.
+- **`search_articles` and `get_recurring_templates` follow
+  `LXO_MCP_PAGE_SIZE`.** Both asked for 25 rows whatever it said. Articles
+  still ask for at least 25, the least that endpoint accepts.
 
 ### Changed
 
@@ -146,6 +157,13 @@ housekeeping are out of scope here — design decisions live in
   uvicorn 0.54.0, pyjwt 2.15.0, platformdirs 4.12.0, idna 3.20,
   opentelemetry-api 1.45.0 and ruff 0.16.9. No change to any tool, parameter
   or answer.
+
+### Added
+
+- **`update_voucher` takes `use_collective_contact`.** A voucher could be
+  moved to a named contact but not back to the collective one, which only
+  `create_voucher` could choose. Passing it together with `contact_id` is
+  refused before anything is sent.
 
 ## [0.2.4] - 2026-09-14
 
