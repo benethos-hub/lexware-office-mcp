@@ -698,6 +698,12 @@ arriving.
   `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one
   an id that does not exist gives, so a tool cannot tell the caller which
   mistake they made.
+- **Text formatting, documented since 05.05.2026 and not offered.** Bold as
+  `**word**`, italics as `__word__` and `- ` lists render in a sales
+  document's introduction, line item description and remark, and in an
+  article's description, not in its title. No tool description mentions it:
+  a model rarely wants bold in an invoice line, and every request would pay
+  for the sentence. Read from the documentation, not measured.
 - **PDF:** `GET /v1/{resource}/{id}/document` returns a `documentFileId` for
   the Files endpoint. Rendering is triggered when a document moves from draft
   to open. `GET /v1/{resource}/{id}/file` downloads the binary directly and
