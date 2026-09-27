@@ -27,13 +27,15 @@ import secrets
 import sys
 import threading
 import webbrowser
+from collections.abc import Callable
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .. import __version__
-from ..config import ConfigError, load_settings
+from ..config import LOOPBACK_NAMES, ConfigError, load_settings
 from ..envfile import update_env_file
 from ..policy import known_tools
 from . import pages, probe, transfer
@@ -43,6 +45,10 @@ from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
 
 __all__ = ["ConfigServer", "Handler", "serve"]
 
+# A parsed form: every field a list, because `parse_qs` allows repeats and the
+# checkbox per tool relies on that.
+Form = dict[str, list[str]]
+
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 
@@ -51,7 +57,6 @@ _SESSION_COOKIE = "lxo_config"
 # The largest form this interface accepts. An imported policy file is the
 # biggest thing any of them carries, and that is a few kilobytes.
 MAX_BODY = 1024 * 1024
-_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 # The name the file has on disk, so a download can simply replace one.
 _EXPORT_NAME = "tools.json"
@@ -176,7 +181,7 @@ class Handler(BaseHTTPRequestHandler):
         port still works.
         """
         target = _host_and_port(self.headers.get("Host", ""))
-        return target is not None and target[0] in _LOOPBACK
+        return target is not None and target[0] in LOOPBACK_NAMES
 
     def _origin_ok(self) -> bool:
         """Whether a state-changing request came from this page.
@@ -198,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.scheme != "http":
             return False
         target = _host_and_port(self.headers.get("Host", ""))
-        if target is None or target[0] not in _LOOPBACK:
+        if target is None or target[0] not in LOOPBACK_NAMES:
             return False
         try:
             origin = ((parsed.hostname or "").lower(), parsed.port or 80)
@@ -206,10 +211,10 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return origin == target
 
-    def _csrf_ok(self, form: dict[str, list[str]]) -> bool:
+    def _csrf_ok(self, form: Form) -> bool:
         if self._fresh_cookie:
             return False  # no session cookie was presented at all
-        sent = (form.get("_csrf", [""])[0]).strip()
+        sent = _field(form, "_csrf")
         return bool(sent) and secrets.compare_digest(sent, self._session)
 
     # --- routing -----------------------------------------------------------
@@ -291,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- actions -----------------------------------------------------------
 
-    def _check(self, form: dict[str, list[str]]) -> None:
+    def _check(self, form: Form) -> None:
         account, message = probe.check(self.installation.settings)
         if account is None:
             body = pages.raw_message(esc(message), "bad")
@@ -303,9 +308,9 @@ class Handler(BaseHTTPRequestHandler):
             200, pages.overview(self.installation, csrf=self._session, message=body)
         )
 
-    def _save_key(self, form: dict[str, list[str]]) -> None:
+    def _save_key(self, form: Form) -> None:
         inst = self.installation
-        key = (form.get("api_key", [""])[0]).strip()
+        key = _field(form, "api_key")
         skip_check = bool(form.get("unchecked"))
         if not key:
             self._page_with(
@@ -328,7 +333,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             update_env_file(inst.env_path, {API_KEY: key})
         except (OSError, ValueError) as exc:
-            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
+            self._page_with(
+                pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
+            )
             return
         inst.reload()
         suffix = (
@@ -347,7 +354,7 @@ class Handler(BaseHTTPRequestHandler):
             kind="good",
         )
 
-    def _save_bearer(self, form: dict[str, list[str]]) -> None:
+    def _save_bearer(self, form: Form) -> None:
         """Write the HTTP token, or make one. Never write an empty one.
 
         Empty means "leave alone" for the API key, where the field is blank
@@ -356,11 +363,11 @@ class Handler(BaseHTTPRequestHandler):
         serving on its next start.
         """
         inst = self.installation
-        if form.get("action", [""])[0] == "generate":
+        if _field(form, "action") == "generate":
             token = secrets.token_urlsafe(32)
             done = "Neues Token erzeugt und gespeichert."
         else:
-            token = (form.get("bearer", [""])[0]).strip()
+            token = _field(form, "bearer")
             if not token:
                 self._page_with(
                     pages.credentials,
@@ -374,7 +381,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             update_env_file(inst.env_path, {BEARER_KEY: token})
         except (OSError, ValueError) as exc:
-            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
+            self._page_with(
+                pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
+            )
             return
 
         inst.reload()
@@ -390,13 +399,9 @@ class Handler(BaseHTTPRequestHandler):
             kind="good",
         )
 
-    def _save_settings(self, form: dict[str, list[str]]) -> None:
+    def _save_settings(self, form: Form) -> None:
         inst = self.installation
-        submitted = {
-            key: (form.get(key, [""])[0]).strip()
-            for key in EDITABLE_KEYS
-            if key in form
-        }
+        submitted = {key: _field(form, key) for key in EDITABLE_KEYS if key in form}
         # Validated by the same code the server uses, so a value accepted here
         # cannot be one that stops the server from starting later.
         proposed = {**inst.file_env(), **submitted}
@@ -415,7 +420,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             update_env_file(inst.env_path, submitted)
         except (OSError, ValueError) as exc:
-            self._page_with(pages.credentials, _env_write_failed(inst, exc), kind="bad")
+            self._page_with(
+                pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
+            )
             return
         inst.reload()
         self._page_with(
@@ -424,41 +431,33 @@ class Handler(BaseHTTPRequestHandler):
             kind="good",
         )
 
-    def _permissions(self, form: dict[str, list[str]]) -> None:
-        inst = self.installation
-        action = (form.get("action", [""])[0]).strip()
+    def _permissions(self, form: Form) -> None:
+        """One form, seven buttons: the button's value says which."""
         chosen = [name for name in form.get("tool", []) if name in known_tools()]
-
-        if action == "load":
-            self._load_profile(form)
-            return
-        if action == "profile-save":
-            self._save_profile(form, chosen)
-            return
-        if action == "profile-overwrite":
-            self._overwrite_profile(form, chosen)
-            return
-        if action == "profile-delete":
-            self._delete_profile(form)
-            return
-        if action == "policy-export":
-            self._export()
-            return
-        if action == "policy-import":
-            self._import_policy(form, chosen)
-            return
-        if action != "save":
+        actions: dict[str, Callable[[], None]] = {
+            "save": lambda: self._save_policy(chosen),
+            "load": lambda: self._load_profile(form),
+            "profile-save": lambda: self._save_profile(form, chosen),
+            "profile-overwrite": lambda: self._overwrite_profile(form, chosen),
+            "profile-delete": lambda: self._delete_profile(form),
+            "policy-export": self._export,
+            "policy-import": lambda: self._import_policy(form, chosen),
+        }
+        action = actions.get(_field(form, "action"))
+        if action is None:
             self._not_found()
             return
+        action()
 
+    def _save_policy(self, chosen: list[str]) -> None:
+        """Write the file. The one action here that changes what a server does."""
+        inst = self.installation
         flags = {name: name in chosen for name in known_tools()}
         try:
             inst.policy.save(flags)
         except (OSError, ValueError) as exc:
             self._page_with(
-                pages.permissions,
-                f"Konnte {inst.policy_path} nicht schreiben: {exc}",
-                kind="bad",
+                pages.permissions, _write_failed(inst.policy_path, exc), kind="bad"
             )
             return
         writers = sorted(n for n in chosen if known_tools()[n].access == "write")
@@ -471,9 +470,9 @@ class Handler(BaseHTTPRequestHandler):
             )
         self._page_with(pages.permissions, text, kind="" if writers else "good")
 
-    def _load_profile(self, form: dict[str, list[str]]) -> None:
+    def _load_profile(self, form: Form) -> None:
         inst = self.installation
-        name = (form.get("profile", [""])[0]).strip()
+        name = _field(form, "profile")
         profile = inst.profiles.get(name)
         if profile is None:
             self._page_with(
@@ -502,7 +501,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         self._send(200, body)
 
-    def _save_profile(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+    def _save_profile(self, form: Form, chosen: list[str]) -> None:
         """Create a profile under a new name, and only under a new one.
 
         A name that is already taken is refused rather than silently
@@ -512,7 +511,7 @@ class Handler(BaseHTTPRequestHandler):
         Overwriting has a button of its own.
         """
         inst = self.installation
-        name = (form.get("profile_name", [""])[0]).strip()
+        name = _field(form, "profile_name")
         clash = inst.profiles.find(name)
         if clash is not None:
             self._page_with(
@@ -538,7 +537,7 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as exc:
             self._page_with(
                 pages.permissions,
-                f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
+                _write_failed(inst.profiles.path, exc),
                 kind="bad",
                 flags=_flags(chosen),
                 opened="profiles",
@@ -553,10 +552,10 @@ class Handler(BaseHTTPRequestHandler):
             opened="profiles",
         )
 
-    def _overwrite_profile(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+    def _overwrite_profile(self, form: Form, chosen: list[str]) -> None:
         """Replace the selected profile with what is ticked right now."""
         inst = self.installation
-        name = (form.get("profile", [""])[0]).strip()
+        name = _field(form, "profile")
         if inst.profiles.get(name) is None:
             self._page_with(
                 pages.permissions,
@@ -571,7 +570,7 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as exc:
             self._page_with(
                 pages.permissions,
-                f"Konnte {inst.profiles.path} nicht schreiben: {exc.strerror or exc}",
+                _write_failed(inst.profiles.path, exc),
                 kind="bad",
                 flags=_flags(chosen),
                 opened="profiles",
@@ -586,8 +585,8 @@ class Handler(BaseHTTPRequestHandler):
             opened="profiles",
         )
 
-    def _delete_profile(self, form: dict[str, list[str]]) -> None:
-        name = (form.get("profile", [""])[0]).strip()
+    def _delete_profile(self, form: Form) -> None:
+        name = _field(form, "profile")
         gone = self.installation.profiles.delete(name)
         self._page_with(
             pages.permissions,
@@ -605,7 +604,7 @@ class Handler(BaseHTTPRequestHandler):
             _EXPORT_NAME,
         )
 
-    def _import_policy(self, form: dict[str, list[str]], chosen: list[str]) -> None:
+    def _import_policy(self, form: Form, chosen: list[str]) -> None:
         """Read a policy file into the form. Saving is still a separate act.
 
         The rule is the one `--tools sync` follows: a tool the file does not
@@ -614,7 +613,7 @@ class Handler(BaseHTTPRequestHandler):
         therefore leaves it switched off rather than guessing, and how many
         those are is said out loud instead of being left to be noticed.
         """
-        text = form.get("bundle", [""])[0]
+        text = _field(form, "bundle")
         try:
             arriving = transfer.parse(text)
         except transfer.TransferError as exc:
@@ -661,7 +660,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _page_with(
         self,
-        render: Any,
+        render: Callable[..., bytes],
         text: str,
         *,
         kind: str = "",
@@ -684,11 +683,21 @@ class Handler(BaseHTTPRequestHandler):
         )
 
 
-def _env_write_failed(inst: Installation, exc: OSError | ValueError) -> str:
-    """Why the .env was not written. A refused value is quoted, not translated."""
+def _field(form: Form, name: str) -> str:
+    """One single-valued field of a form, stripped, empty when absent."""
+    return form.get(name, [""])[0].strip()
+
+
+def _write_failed(path: Path, exc: OSError | ValueError) -> str:
+    """Why a file was not written. A refused value is quoted, not translated.
+
+    One sentence for the three files this interface writes. The path is
+    shown: this page is read by the person sitting at the machine, who is
+    the one who can do something about a directory they do not own.
+    """
     if isinstance(exc, ValueError):
         return f"Nicht gespeichert: {exc}"
-    return f"Konnte {inst.env_path} nicht schreiben: {exc.strerror or exc}"
+    return f"Konnte {path} nicht schreiben: {exc.strerror or exc}"
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:
@@ -725,7 +734,7 @@ def serve(
     reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
     url = f"http://{reachable}:{port}/"
     print(f"Konfiguration im Browser: {url}", file=sys.stderr)
-    if host not in _LOOPBACK:
+    if host not in LOOPBACK_NAMES:
         print(
             f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
             "aus erreichbar. Die Seiten haben keine Anmeldung und antworten "

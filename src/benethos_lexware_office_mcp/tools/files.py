@@ -1,4 +1,4 @@
-"""Downloading documents and receipts, uploading receipts, and deeplinks.
+"""Downloading documents and receipts, and uploading receipts.
 
 A download is written to the server's download directory and handed to the
 client twice over: as a **path**, which is what a client sharing the machine
@@ -9,54 +9,33 @@ wants, and as a **resource link**, which is what everyone else needs. See
 from __future__ import annotations
 
 import asyncio
-import base64
 import contextlib
 import inspect
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any, Literal
-from urllib.parse import quote
 
+import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.types import (
-    BlobResourceContents,
     CallToolResult,
-    EmbeddedResource,
-    ImageContent,
     TextContent,
 )
 from pydantic import BaseModel, Field
 
-from .. import rendering, resources, storage
+from .. import delivery, formatting, resources, storage
 from ..client import ClientProvider
 from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..policy import classify
 from ._base import register_tool
-from .sales_documents import RESOURCES, DocumentIdField, DocumentTypeField
+from .sales_documents import (
+    RESOURCES,
+    DocumentIdField,
+    DocumentTypeField,
+)
 
 __all__ = ["register"]
-
-# Deeplinks reach further than documents do, but not to a stored file:
-# the web app has no page for one. Verified 2026-08-21, see SPECS.md
-# section 5.
-LinkTarget = Literal[
-    "invoice",
-    "quotation",
-    "credit-note",
-    "order-confirmation",
-    "delivery-note",
-    "dunning",
-    "down-payment-invoice",
-    "contact",
-    "voucher",
-]
-
-LINK_RESOURCES: dict[str, str] = {
-    **RESOURCES,
-    "contact": "contacts",
-    "voucher": "vouchers",
-}
 
 
 class Download(BaseModel):
@@ -110,18 +89,9 @@ class Delivered(BaseModel):
 # accepts for an upload, so there is one number to remember.
 MAX_INLINE = 5 * 1024 * 1024
 
-# Types a model can actually read. XML is the one that matters: an XRechnung
-# is an invoice in text form.
-TEXT_TYPES = ("application/xml", "text/xml", "application/json")
-
 Format = Literal["pdf", "xml"]
 
 MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
-
-# Verified 2026-08-20: 5 MiB exactly is still accepted, one byte more is
-# refused with `max_file_size_exceeded`. Checked here so a caller finds out
-# before spending a request on it.
-MAX_UPLOAD = 5 * 1024 * 1024
 
 
 def max_pages_field(default: int) -> Any:
@@ -227,43 +197,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
 
     @classify("read", "files")
-    async def get_deeplink(
-        target: Annotated[
-            LinkTarget,
-            Field(description="What the link should point at."),
-        ],
-        target_id: Annotated[
-            str,
-            Field(
-                description=(
-                    "The Lexware id of a record of that exact type. A file id "
-                    "is not the id of the voucher it hangs on, and the "
-                    "mismatch still builds a link — one that leads nowhere."
-                )
-            ),
-        ],
-        action: Annotated[
-            Literal["view", "edit"],
-            Field(
-                description=(
-                    "Whether to open the record or open it for editing. A "
-                    "contact has a single page and always opens on it."
-                )
-            ),
-        ] = "view",
-    ) -> dict[str, Any]:
-        """Build a link that opens a record in the Lexware Office web app.
-
-        Costs **no** API call: the link is assembled from ids you already
-        have. Use it whenever a person should look at something themselves,
-        rather than describing where to click.
-
-        The link is not checked for existence, and a wrong id still produces
-        one. Take the id from a search rather than from memory.
-        """
-        return {"url": permalink(settings, target, target_id, action)}
-
-    @classify("read", "files")
     async def read_download(
         uri: Annotated[
             str,
@@ -349,7 +282,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = await asyncio.to_thread(
             _read_upload, path, settings.upload_path
         )
-        return dict(await provider.get().upload_file(content, name, content_type))
+        return formatting.compact_object(
+            await provider.get().upload_file(content, name, content_type)
+        )
 
     @classify("write", "files", "create", permanence="books")
     async def attach_file_to_voucher(
@@ -389,43 +324,23 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = await asyncio.to_thread(
             _read_upload, path, settings.upload_path
         )
-        return dict(
+        return formatting.compact_object(
             await provider.get().attach_file(voucher_id, content, name, content_type)
         )
 
     register_tool(server, download_file)
     register_tool(server, download_document)
-    register_tool(server, get_deeplink)
     register_tool(server, read_download)
     register_tool(server, upload_file)
     register_tool(server, attach_file_to_voucher)
 
 
-def permalink(
-    settings: Settings, target: str, target_id: str, action: str = "view"
-) -> str:
-    """A link into the web app for one record.
-
-    Assembled from ids the caller already holds, so it costs no API call.
-    Only ``get_deeplink`` calls this: a download says where bytes are, and
-    that is a different question from where a person should click.
-
-    Every shape here was requested against the live app on 2026-08-21 rather
-    than taken from the documentation, which is where the two known corners
-    come from: a contact answers only to ``view``, and a stored file has no
-    permalink at all and so is not a target.
-    """
-    base = settings.app_base_url.rstrip("/")
-    resource = LINK_RESOURCES[target]
-    if target == "contact":
-        action = "view"
-    # Encoded whole: the id comes from the model, and a slash, `?` or `#` in
-    # it would otherwise make a link to some other page of the app.
-    return f"{base}/permalink/{resource}/{action}/{quote(target_id, safe='')}"
-
-
 def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
-    """Find a download, read it and build the answer. Blocking, run in a thread."""
+    """Find a download, read it and build the answer. Blocking, run in a thread.
+
+    ``Any`` for the same reason as :func:`_deliver`: the tool declares
+    :class:`Delivered` for its schema and passes the ``CallToolResult`` on.
+    """
     with _on_disk("read the download"):
         found = storage.resolve(
             uri[len(resources.SCHEME) :], storage.directory_for(settings)
@@ -440,93 +355,11 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
             "put in an answer. It is on disk already, so use the path the "
             "download reported."
         )
-    return _inline(uri, payload, mime, max_pages)
-
-
-def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -> Any:
-    """Choose the content block that makes this file usable.
-
-    Four shapes, because the same bytes are worth different things: text a
-    model can read, an image it can see, a PDF turned into pictures of its
-    pages so that it can be seen at all, and a blob only the client can do
-    anything with.
-    """
-    summary = {"uri": uri, "mimeType": mime, "size": len(payload)}
-
-    if mime == "application/pdf":
-        return _rendered(uri, payload, summary, max_pages)
-
-    if mime.startswith("text/") or mime in TEXT_TYPES:
-        text = payload.decode("utf-8", errors="replace")
-        return CallToolResult(
-            content=[TextContent(type="text", text=text)],
-            structured_content={**summary, "deliveredAs": "text"},
-        )
-
-    encoded = base64.b64encode(payload).decode("ascii")
-    if mime.startswith("image/"):
-        return CallToolResult(
-            content=[ImageContent(type="image", data=encoded, mime_type=mime)],
-            structured_content={**summary, "deliveredAs": "image"},
-        )
-
-    return CallToolResult(
-        content=[
-            EmbeddedResource(
-                type="resource",
-                resource=BlobResourceContents(uri=uri, mime_type=mime, blob=encoded),
-            )
-        ],
-        structured_content={**summary, "deliveredAs": "binary"},
-    )
-
-
-def _rendered(
-    uri: str, payload: bytes, summary: dict[str, Any], max_pages: int | None
-) -> Any:
-    """A PDF as pictures of its pages."""
-    try:
-        pages, total = rendering.pdf_pages_as_png(payload, max_pages=max_pages)
-    except Exception as exc:  # pypdfium2 raises its own errors
-        raise ValidationError(
-            f"{uri} could not be rendered: {exc}. It may be encrypted or "
-            "damaged. The file itself is on disk either way."
-        ) from exc
-
-    if not pages:
-        raise ValidationError(f"{uri} has no pages to show.")
-
-    blocks: list[Any] = [
-        TextContent(
-            type="text",
-            text=(
-                f"{total} page{'s' if total != 1 else ''}, all rendered."
-                if len(pages) == total
-                else f"{total} pages, showing the first {len(pages)}."
-            ),
-        )
-    ]
-    blocks += [
-        ImageContent(
-            type="image",
-            data=base64.b64encode(page.png).decode("ascii"),
-            mime_type="image/png",
-        )
-        for page in pages
-    ]
-    return CallToolResult(
-        content=blocks,
-        structured_content={
-            **summary,
-            "deliveredAs": "pages",
-            "pages": total,
-            "pagesShown": len(pages),
-        },
-    )
+    return delivery.inline(uri, payload, mime, max_pages)
 
 
 async def _deliver(
-    response: Any,
+    response: httpx.Response,
     server: MCPServer,
     settings: Settings,
     *,
@@ -566,23 +399,6 @@ async def _deliver(
     )
 
 
-# Exactly what the API takes, measured on 2026-08-20 rather than assumed:
-# `.gif` is refused with `inacceptable_file_extension`, and `.xml` is accepted
-# and parsed as an XRechnung — a file that is not one comes back as
-# `invalid_xrechnung`. The web app states the same four types.
-#
-# The type is guessed from the extension rather than sniffed. The API
-# validates the content anyway and rejects a mislabelled or damaged file, so a
-# second opinion here would only be a second way to be wrong.
-CONTENT_TYPES: dict[str, str] = {
-    ".pdf": "application/pdf",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".xml": "application/xml",
-}
-
-
 def _save(content: bytes, name: str, settings: Settings) -> Path:
     """Write a download to disk. Blocking, run in a thread."""
     return storage.save(content, name, storage.directory_for(settings))
@@ -610,39 +426,4 @@ def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     first, so one placed in the directory cannot point out of it.
     """
     with _on_disk("read the file to upload"):
-        return _read_upload_unguarded(raw_path, allowed)
-
-
-def _read_upload_unguarded(
-    raw_path: str, allowed: Path | None
-) -> tuple[bytes, str, str]:
-    path = Path(raw_path).expanduser()
-    if not path.is_file():
-        raise ValidationError(
-            f"No file at {raw_path}. Give the path to an existing receipt."
-        )
-    if allowed is not None:
-        try:
-            path.resolve().relative_to(allowed.expanduser().resolve())
-        except (OSError, ValueError):
-            # Without the directory: it describes this machine, and the
-            # person who can change it knows where it is.
-            raise ValidationError(
-                f"{path.name} is outside the directory this server may upload "
-                "from. Move the file there, or ask the account owner about "
-                "LXO_MCP_UPLOAD_DIR."
-            ) from None
-
-    size = path.stat().st_size
-    if size > MAX_UPLOAD:
-        raise ValidationError(
-            f"{path.name} is {size / 1024 / 1024:.1f} MiB. The API accepts at "
-            "most 5 MiB, so this was not sent."
-        )
-
-    content_type = CONTENT_TYPES.get(path.suffix.lower())
-    if content_type is None:
-        accepted = ", ".join(sorted(CONTENT_TYPES))
-        found = path.suffix or "no extension"
-        raise ValidationError(f"The API does not accept {found}. It takes: {accepted}.")
-    return path.read_bytes(), path.name, content_type
+        return storage.read_upload(raw_path, allowed)

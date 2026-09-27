@@ -13,21 +13,14 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
-import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import NotFoundError
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
-from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.tools.sales_documents import RESOURCES
-
-API_KEY = "test-key-0123456789"
+from helpers import Scripted, fast_client, server_with
 
 INVOICE: dict[str, Any] = {
     "id": "PLACEHOLDER-INVOICE-1",
@@ -92,57 +85,12 @@ DRAFT: dict[str, Any] = {
 } | {"voucherStatus": "draft", "voucherNumber": "RE0002", "version": 1}
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Scripted:
-    """Answers a scripted sequence, and remembers what it was asked for."""
-
-    def __init__(self, *responses: tuple[int, Any]) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        status, payload = self._responses.pop(0) if self._responses else (200, {})
-        return httpx.Response(status, json=payload)
-
-    @property
-    def path(self) -> str:
-        return urlparse(str(self.requests[-1].url)).path
-
-    @property
-    def query(self) -> dict[str, list[str]]:
-        return parse_qs(urlparse(str(self.requests[-1].url)).query)
-
-
-def make_client(handler: Scripted) -> LexwareClient:
-    return LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
-def server_for(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
-
-
 # -- client ---------------------------------------------------------------
 
 
 async def test_the_document_is_read_from_its_own_path() -> None:
     handler = Scripted((200, INVOICE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.sales_document("invoices", "PLACEHOLDER-INVOICE-1")
 
     assert handler.path == "/v1/invoices/PLACEHOLDER-INVOICE-1"
@@ -152,7 +100,7 @@ async def test_the_document_is_read_from_its_own_path() -> None:
 async def test_a_missing_document_is_a_not_found() -> None:
     """A wrong type answers this too, which is why the tool names both."""
     handler = Scripted((404, {"message": "does not exist"}))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         with pytest.raises(NotFoundError):
             await client.sales_document("quotations", "PLACEHOLDER-INVOICE-1")
 
@@ -194,7 +142,7 @@ def test_nothing_type_specific_is_filtered_out() -> None:
 
 async def test_reading_an_invoice_returns_it_whole() -> None:
     handler = Scripted((200, INVOICE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_sales_document",
@@ -210,7 +158,7 @@ async def test_reading_an_invoice_returns_it_whole() -> None:
 async def test_an_open_document_says_where_its_pdf_is() -> None:
     """`files.documentFileId` is what `download_file` would take."""
     handler = Scripted((200, INVOICE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_sales_document",
@@ -225,7 +173,7 @@ async def test_an_open_document_says_where_its_pdf_is() -> None:
 async def test_a_draft_reads_in_full_and_carries_no_document() -> None:
     """It cannot be downloaded, but every figure on it can be read."""
     handler = Scripted((200, DRAFT))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_sales_document",
@@ -246,7 +194,7 @@ async def test_every_type_reaches_its_own_path(
     document_type: str, segment: str
 ) -> None:
     handler = Scripted((200, INVOICE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "get_sales_document",
@@ -260,7 +208,7 @@ async def test_every_type_reaches_its_own_path(
 async def test_an_unknown_type_never_reaches_the_api() -> None:
     """The schema is a `Literal`, so the client can only send a real type."""
     handler = Scripted((200, INVOICE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -274,7 +222,7 @@ async def test_an_unknown_type_never_reaches_the_api() -> None:
 
 async def test_the_document_types_are_the_ones_the_client_is_offered() -> None:
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     offered = tools["get_sales_document"].input_schema["properties"]["document_type"]
@@ -285,7 +233,7 @@ async def test_the_document_types_are_the_ones_the_client_is_offered() -> None:
 
 async def test_the_description_says_what_it_costs_and_what_a_draft_lacks() -> None:
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["get_sales_document"].description or ""
@@ -329,7 +277,7 @@ def _create_args(**extra: Any) -> dict[str, Any]:
 
 async def test_a_draft_carries_the_lines_and_leaves_the_totals_to_the_api() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool("create_sales_document", _create_args())
 
@@ -352,7 +300,7 @@ async def test_a_plain_date_becomes_the_timestamp_the_api_insists_on() -> None:
     """Measured 2026-08-21: milliseconds and an offset are both mandatory here,
     where `/v1/vouchers` takes a bare date."""
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool("create_sales_document", _create_args())
 
@@ -364,7 +312,7 @@ async def test_a_plain_date_becomes_the_timestamp_the_api_insists_on() -> None:
 
 async def test_a_full_timestamp_is_left_alone() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "create_sales_document",
@@ -378,7 +326,7 @@ async def test_a_full_timestamp_is_left_alone() -> None:
 
 async def test_a_gross_document_puts_the_price_on_the_gross_side() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool("create_sales_document", _create_args(tax_type="gross"))
 
@@ -391,7 +339,7 @@ async def test_a_gross_document_puts_the_price_on_the_gross_side() -> None:
 
 async def test_a_line_may_quote_an_article_or_carry_no_price_at_all() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "create_sales_document",
@@ -425,7 +373,7 @@ async def test_what_each_kind_insists_on_is_refused_before_the_request(
 ) -> None:
     """Measured 2026-08-21 by posting a minimal body to each of them."""
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
     args = _create_args(document_type=document_type)
     args.pop("shipping_date")
 
@@ -439,7 +387,7 @@ async def test_what_each_kind_insists_on_is_refused_before_the_request(
 
 async def test_a_credit_note_needs_nothing_of_its_own() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
     args = _create_args(document_type="credit-note")
     args.pop("shipping_date")
 
@@ -451,7 +399,7 @@ async def test_a_credit_note_needs_nothing_of_its_own() -> None:
 
 async def test_finalizing_without_a_confirmation_never_reaches_the_api() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("create_sales_document", _create_args(finalize=True))
@@ -463,7 +411,7 @@ async def test_finalizing_without_a_confirmation_never_reaches_the_api() -> None
 
 async def test_a_confirmed_finalize_becomes_a_query_parameter() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "create_sales_document", _create_args(finalize=True, confirm=True)
@@ -475,7 +423,7 @@ async def test_a_confirmed_finalize_becomes_a_query_parameter() -> None:
 
 async def test_a_draft_sends_no_finalize_at_all() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool("create_sales_document", _create_args(confirm=True))
 
@@ -485,7 +433,7 @@ async def test_a_draft_sends_no_finalize_at_all() -> None:
 
 async def test_pursuing_a_document_names_it_in_the_query() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "create_sales_document",
@@ -499,7 +447,7 @@ async def test_pursuing_a_document_names_it_in_the_query() -> None:
 async def test_a_creation_is_never_retried() -> None:
     """A repeat is a second document, and the API cannot delete either."""
     handler = Scripted((500, {}))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool("create_sales_document", _create_args())
@@ -512,7 +460,7 @@ async def test_a_down_payment_invoice_cannot_be_created() -> None:
     """It has no POST at all - the app raises one from a part-invoiced
     quotation - so the schema does not offer it."""
     handler = Scripted((201, CREATED))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -530,7 +478,7 @@ async def test_the_creating_description_says_finalize_is_the_users_call() -> Non
     the rule has to be there rather than only in the repository's docs.
     """
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["create_sales_document"].description or ""
@@ -546,7 +494,7 @@ async def test_the_creating_description_says_finalize_is_the_users_call() -> Non
 async def test_the_finalize_parameter_repeats_the_rule_where_it_is_set() -> None:
     """A model reads the parameter, not only the prose above it."""
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     schema = tools["create_sales_document"].input_schema

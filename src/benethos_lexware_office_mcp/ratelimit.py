@@ -24,7 +24,7 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 
-__all__ = ["TokenBucket"]
+__all__ = ["Clock", "Sleeper", "TokenBucket"]
 
 Clock = Callable[[], float]
 Sleeper = Callable[[float], Awaitable[None]]

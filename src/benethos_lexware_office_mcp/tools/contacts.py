@@ -10,10 +10,9 @@ from pydantic import Field
 from .. import formatting
 from ..client import ClientProvider
 from ..config import Settings
-from ..errors import ConflictError
 from ..payloads import Address, ContactKind, Role, contact_body
 from ..policy import classify
-from ._base import PageNumber, PageSize, register_tool
+from ._base import PageNumber, PageSize, register_tool, require_version
 
 __all__ = ["register"]
 
@@ -239,7 +238,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             tax_number=tax_number,
             note=note,
         )
-        return dict(formatting.compact(await provider.get().create_contact(body)))
+        return formatting.compact_object(await provider.get().create_contact(body))
 
     @classify("write", "contacts", "update")
     async def update_contact(
@@ -298,16 +297,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         client = provider.get()
         current = await client.contact(contact_id)
-        if current.get("version") != version:
-            # Refused here rather than at the API, so nothing is sent at all.
-            # The API would refuse it too, but its wording for this is
-            # `version: invalid_value` behind a 406.
-            raise ConflictError(
-                f"This contact is at version {current.get('version')}, but the "
-                f"update was written against version {version}. Somebody "
-                "changed it in between. Read it again with get_contact, check "
-                "whether your change still applies, then retry."
-            )
+        require_version(current, version, noun="contact", reader="get_contact")
 
         body = contact_body(
             base=current,
@@ -323,7 +313,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             tax_number=tax_number,
             note=note,
         )
-        return dict(formatting.compact(await client.update_contact(contact_id, body)))
+        return formatting.compact_object(await client.update_contact(contact_id, body))
 
     register_tool(server, search_contacts)
     register_tool(server, get_contact)

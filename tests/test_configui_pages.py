@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from html.parser import HTMLParser
@@ -12,7 +13,6 @@ import pytest
 from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
-from benethos_lexware_office_mcp.configui.profiles import Profile
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
@@ -559,11 +559,24 @@ def test_an_account_summary_reads_as_a_sentence() -> None:
 
 
 def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
-    inst.profiles.replace_all(
-        {"<script>böse</script>": Profile(name="<script>böse</script>", tools=())}
-    )
+    inst.profiles.save("<script>böse</script>", (), ())
 
     body = text(pages.permissions(inst))
 
     assert "&lt;script&gt;" in body
     assert "<script>böse" not in body
+
+
+def test_the_permissions_script_gets_its_data_as_one_json_object(
+    inst: Installation,
+) -> None:
+    """The script is a plain string, so what it needs arrives in front of it."""
+    body = pages.permissions(inst).decode("utf-8")
+
+    start = body.index("var PERMISSIONS = ") + len("var PERMISSIONS = ")
+    data = json.loads(body[start : body.index(";", start)])
+
+    assert set(data) == {"cost", "read", "destructive", "perToken"}
+    assert "get_profile" in data["read"]
+    assert data["cost"]["get_profile"] > 0
+    assert "delete_article" in data["destructive"]

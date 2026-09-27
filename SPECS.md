@@ -85,18 +85,20 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 
 | Module | Responsibility | State |
 |--------|----------------|-------|
-| `server.py` | The `PolicyServer` instance, which is an `MCPServer` listing only what the policy file allows, plus tool registration, the CLI and `main()`. | built |
+| `server.py` | The `PolicyServer`, an `MCPServer` listing only what the policy file allows, and `build_server`, which makes one from the settings and fills the tool registry. | built |
+| `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
-| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
+| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, and a refusal handed to `errors.from_response`. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `delivery.py` | A downloaded file as content blocks: text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
 | `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
-| `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
+| `storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
-| `errors.py` | `ToolError` and its subclasses. | built |
+| `errors.py` | `ToolError` and its subclasses, and `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses. | built |
 | `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
@@ -106,7 +108,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/articles.py` | Articles, read, written and deleted. | built |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
 | `tools/sales_documents.py` | The seven sales document types, the path segment each one lives behind, and the templates that repeat them. | built |
-| `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
+| `tools/files.py` | Upload, download, rendered documents. | built |
+| `tools/deeplinks.py` | Links into the web app, built from ids without an API call. Classified under `files`, so the policy file and the interface group it as before. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
 
 **Layer rule:** tool functions stay thin. Every HTTP call lives in
@@ -281,7 +284,7 @@ section 2.
   (verified 2026-08-21): `/file` answers **409** with "is in status 'draft'
   and therefore cannot be downloaded", `/document` answers **406** with
   "Requesting PDF document is not possible in state draft". The 409 is not a
-  version conflict, which is what `client._client_error` has to keep apart —
+  version conflict, which is what `errors.from_response` has to keep apart —
   a stale version is a 406 naming `version`.
 - **A draft is still indexed.** `/v1/voucherlist` lists it with
   `voucherStatus: draft` and it already carries its document number, so it is
@@ -1015,19 +1018,20 @@ are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21, again on
-2026-08-22 with the annotations below, and again on 2026-08-23 after
-`create_voucher` lost a parameter that could not work.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **52,091
-characters**, around 2,084 each. Roughly 13,000 to 15,000 tokens, estimated at
-3.2 to 3.8 characters per token rather than counted with a tokenizer.
+2026-08-22 with the annotations below, again on 2026-08-23 after
+`create_voucher` lost a parameter that could not work, and again on
+2026-09-27.** Serialized as the compact JSON a `tools/list` answer is,
+twenty-five tools come to **52,298 characters**, around 2,092 each. Roughly
+13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
+than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,274 | 64% |
-| Tool descriptions, the part under a ceiling | 10,965 | 21% |
+| Input schemas | 33,481 | 64% |
+| Tool descriptions, the part under a ceiling | 11,272 | 22% |
 | Output schemas | 4,340 | 8% |
-| Annotations | 1,115 | 2% |
-| Names, titles and the rest | ~2,092 | 4% |
+| Annotations | 1,041 | 2% |
+| Names, titles and the rest | ~2,164 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.

@@ -1,10 +1,13 @@
-"""Where downloaded files land on the local disk.
+"""Where downloaded files land on the local disk, and what leaves it.
 
 Its own module because two things here are easy to get wrong and worth testing
 on their own: the filename comes from the **server**, so it is treated as
 untrusted input rather than as a path, and an existing file is never
 overwritten. A download that silently replaces last month's invoice with this
 month's is worse than one that fails.
+
+The other direction lives here too: a file the model names for upload is
+read under the one rule that bounds it, ``LXO_MCP_UPLOAD_DIR``.
 """
 
 from __future__ import annotations
@@ -17,10 +20,14 @@ from urllib.parse import unquote
 import httpx
 
 from .config import Settings, download_dir
+from .errors import ValidationError
 
 __all__ = [
+    "MAX_UPLOAD",
+    "UPLOAD_TYPES",
     "content_type_for",
     "directory_for",
+    "read_upload",
     "resolve",
     "save",
     "suggested_name",
@@ -181,3 +188,67 @@ CONTENT_TYPES: dict[str, str] = {
 def content_type_for(path: Path) -> str:
     """The content type of a saved file, from its extension."""
     return CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+
+
+# -- uploads --------------------------------------------------------------
+
+# Exactly what the API takes, measured on 2026-08-20 rather than assumed:
+# `.gif` is refused with `inacceptable_file_extension`, and `.xml` is accepted
+# and parsed as an XRechnung — a file that is not one comes back as
+# `invalid_xrechnung`. The web app states the same four types.
+#
+# The type is guessed from the extension rather than sniffed. The API
+# validates the content anyway and rejects a mislabelled or damaged file, so a
+# second opinion here would only be a second way to be wrong.
+UPLOAD_TYPES: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".xml": "application/xml",
+}
+
+# Verified 2026-08-20: 5 MiB exactly is still accepted, one byte more is
+# refused with `max_file_size_exceeded`. Checked here so a caller finds out
+# before spending a request on it.
+MAX_UPLOAD = 5 * 1024 * 1024
+
+
+def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
+    """Read a local file for upload, refusing what the API would refuse.
+
+    ``allowed`` is ``LXO_MCP_UPLOAD_DIR``. The path comes from the model, so
+    where one is set, the file has to resolve inside it - links followed
+    first, so one placed in the directory cannot point out of it. What the
+    operating system refuses is left to the caller to turn into an answer.
+    """
+    path = Path(raw_path).expanduser()
+    if not path.is_file():
+        raise ValidationError(
+            f"No file at {raw_path}. Give the path to an existing receipt."
+        )
+    if allowed is not None:
+        try:
+            path.resolve().relative_to(allowed.expanduser().resolve())
+        except (OSError, ValueError):
+            # Without the directory: it describes this machine, and the
+            # person who can change it knows where it is.
+            raise ValidationError(
+                f"{path.name} is outside the directory this server may upload "
+                "from. Move the file there, or ask the account owner about "
+                "LXO_MCP_UPLOAD_DIR."
+            ) from None
+
+    size = path.stat().st_size
+    if size > MAX_UPLOAD:
+        raise ValidationError(
+            f"{path.name} is {size / 1024 / 1024:.1f} MiB. The API accepts at "
+            "most 5 MiB, so this was not sent."
+        )
+
+    content_type = UPLOAD_TYPES.get(path.suffix.lower())
+    if content_type is None:
+        accepted = ", ".join(sorted(UPLOAD_TYPES))
+        found = path.suffix or "no extension"
+        raise ValidationError(f"The API does not accept {found}. It takes: {accepted}.")
+    return path.read_bytes(), path.name, content_type

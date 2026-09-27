@@ -25,23 +25,17 @@ from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ..policy import classify
 from ._base import register_tool
 
-__all__ = ["KINDS", "MasterDataKind", "register"]
+__all__ = ["MasterDataKind", "register"]
 
-# The path segment is the kind, for all four. Written out anyway, so that no
-# part of a URL is ever assembled from a string that was not checked first.
+# The path segment is the kind, for all four. The value reaches a URL only
+# after the schema has checked it against this list, so nothing here is
+# assembled from an unchecked string.
 MasterDataKind = Literal[
     "countries",
     "payment-conditions",
     "posting-categories",
     "print-layouts",
 ]
-
-KINDS: dict[str, str] = {
-    "countries": "countries",
-    "payment-conditions": "payment-conditions",
-    "posting-categories": "posting-categories",
-    "print-layouts": "print-layouts",
-}
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
@@ -91,7 +85,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         A posting category id is what `create_voucher` books against, and
         `type` says whether a category takes money in or out.
         """
-        entries = await provider.get().master_data(KINDS[kind])
+        entries = await provider.get().master_data(kind)
         return formatting.master_data(kind, entries, search=search, limit=limit)
 
     register_tool(server, get_master_data)

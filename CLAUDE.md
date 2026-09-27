@@ -65,6 +65,7 @@ The planned structure, see SPECS.md section 4 for the full table.
 ```
 src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
+  cli.py          # the console script: arguments, --tools, setup, starting the server
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
   config.py       # settings resolution, credential lookup
   client.py       # ALL HTTP access: auth, retries, error mapping
@@ -72,10 +73,11 @@ src/benethos_lexware_office_mcp/
   policy.py       # the tool policy file, and what a tool declares itself to be
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies
-  storage.py      # where downloads land, filenames made safe first
+  storage.py      # where downloads land, filenames made safe first, uploads read
   resources.py    # downloads published as MCP resources for the client
   rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
-  errors.py       # ToolError hierarchy
+  delivery.py     # a downloaded file as content blocks: text, image, pages, blob
+  errors.py       # ToolError hierarchy, and an API refusal read into one
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
   configui/       # the local configuration interface, `setup` serves it
@@ -85,8 +87,9 @@ src/benethos_lexware_office_mcp/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
                   # built: diagnostics, contacts, vouchers, articles,
-                  #        sales_documents, files, master_data
+                  #        sales_documents, files, deeplinks, master_data
 tests/            # offline, httpx MockTransport - the whole of the gate
+  helpers.py      # the client, provider, server and scripted transport every suite builds
 live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
@@ -103,9 +106,10 @@ new HTTP call goes in `client.py`, never in a tool function.
 ## How to add or change a tool
 
 1. Add the request to `client.py`, using `request()` so the shared limiter and
-   the retry rules apply automatically. Never retry a POST yourself. Map
-   the upstream status to the right `ToolError` subclass, and pass the page
-   parameters through rather than walking every page.
+   the retry rules apply automatically. Never retry a POST yourself. A
+   refused answer becomes a `ToolError` in `errors.from_response`, so a new
+   status or a new body shape is taught there, not in the client. Pass the
+   page parameters through rather than walking every page.
 2. Normalize the response in `formatting.py`. Drop null and empty fields, keep
    monetary values exactly as the API returned them, and always carry the
    currency. A paged list goes through `formatting.page`, so every list tool

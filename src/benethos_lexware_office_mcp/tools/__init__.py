@@ -17,6 +17,7 @@ from ..config import Settings
 from . import (
     articles,
     contacts,
+    deeplinks,
     diagnostics,
     files,
     master_data,
@@ -29,7 +30,7 @@ __all__ = ["register_tool", "register_tools"]
 
 Registrar = Callable[[MCPServer, Settings, ClientProvider], None]
 
-# Filled in as the tool modules appear. Order is the order tools are listed.
+# Order is the order tools are listed.
 _MODULES: Sequence[Registrar] = (
     diagnostics.register,
     contacts.register,
@@ -37,6 +38,7 @@ _MODULES: Sequence[Registrar] = (
     vouchers.register,
     sales_documents.register,
     files.register,
+    deeplinks.register,
     master_data.register,
 )
 

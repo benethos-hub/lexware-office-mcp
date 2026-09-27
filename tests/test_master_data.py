@@ -10,22 +10,17 @@ characters.
 
 from __future__ import annotations
 
-from typing import Any
-from urllib.parse import urlparse
+from typing import Any, get_args
 
-import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import UpstreamError
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
-from benethos_lexware_office_mcp.server import build_server
-from benethos_lexware_office_mcp.tools.master_data import KINDS
+from benethos_lexware_office_mcp.tools.master_data import MasterDataKind
+from helpers import Scripted, fast_client, server_with
 
-API_KEY = "test-key-0123456789"
+KINDS: tuple[str, ...] = get_args(MasterDataKind)
 
 COUNTRIES: list[dict[str, Any]] = [
     {
@@ -80,53 +75,12 @@ LAYOUTS: list[dict[str, Any]] = [
 ]
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Scripted:
-    """Answers a scripted sequence, and remembers what it was asked for."""
-
-    def __init__(self, *responses: tuple[int, Any]) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        status, payload = self._responses.pop(0) if self._responses else (200, [])
-        return httpx.Response(status, json=payload)
-
-    @property
-    def path(self) -> str:
-        return urlparse(str(self.requests[-1].url)).path
-
-
-def make_client(handler: Scripted) -> LexwareClient:
-    return LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
-def server_for(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
-
-
 # -- client ---------------------------------------------------------------
 
 
 async def test_the_list_is_read_from_the_path_the_kind_names() -> None:
     handler = Scripted((200, CATEGORIES))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         entries = await client.master_data("posting-categories")
 
     assert handler.path == "/v1/posting-categories"
@@ -137,7 +91,7 @@ async def test_the_list_is_read_from_the_path_the_kind_names() -> None:
 async def test_an_envelope_where_a_list_was_promised_is_refused() -> None:
     """These four do not page. A page envelope would mean the API changed."""
     handler = Scripted((200, {"content": CATEGORIES, "totalPages": 1}))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         with pytest.raises(UpstreamError):
             await client.master_data("posting-categories")
 
@@ -229,21 +183,21 @@ def test_a_row_that_is_not_an_object_is_skipped() -> None:
 # -- the tool -------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("kind", "segment"), sorted(KINDS.items()))
-async def test_every_kind_reaches_its_own_path(kind: str, segment: str) -> None:
+@pytest.mark.parametrize("kind", KINDS)
+async def test_every_kind_reaches_its_own_path(kind: str) -> None:
     handler = Scripted((200, LAYOUTS))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool("get_master_data", {"kind": kind})
 
-    assert handler.path == f"/v1/{segment}"
+    assert handler.path == f"/v1/{kind}"
     await provider.aclose()
 
 
 async def test_the_categories_come_back_with_their_ids() -> None:
     """The id is what `create_voucher` books against."""
     handler = Scripted((200, CATEGORIES))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_master_data", {"kind": "posting-categories", "search": "Dienstleistung"}
@@ -258,7 +212,7 @@ async def test_the_categories_come_back_with_their_ids() -> None:
 
 async def test_the_default_answer_is_capped() -> None:
     handler = Scripted((200, COUNTRIES * 200))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool("get_master_data", {"kind": "countries"})
 
@@ -271,7 +225,7 @@ async def test_the_default_answer_is_capped() -> None:
 @pytest.mark.parametrize("limit", [0, 251])
 async def test_a_limit_outside_the_bounds_never_reaches_the_api(limit: int) -> None:
     handler = Scripted((200, COUNTRIES))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool("get_master_data", {"kind": "countries", "limit": limit})
@@ -282,7 +236,7 @@ async def test_a_limit_outside_the_bounds_never_reaches_the_api(limit: int) -> N
 
 async def test_an_unknown_kind_never_reaches_the_api() -> None:
     handler = Scripted((200, COUNTRIES))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool("get_master_data", {"kind": "articles"})
@@ -293,7 +247,7 @@ async def test_an_unknown_kind_never_reaches_the_api() -> None:
 
 async def test_the_kinds_are_the_ones_the_client_is_offered() -> None:
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     offered = tools["get_master_data"].input_schema["properties"]["kind"]
@@ -304,7 +258,7 @@ async def test_the_kinds_are_the_ones_the_client_is_offered() -> None:
 
 async def test_the_description_says_what_it_costs_and_to_narrow_the_search() -> None:
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["get_master_data"].description or ""

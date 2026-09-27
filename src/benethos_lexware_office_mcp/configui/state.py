@@ -12,11 +12,13 @@ should not go on showing what was true when the tab was opened.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..config import Settings, env_file_in_effect, load_settings
+from ..config import Settings, download_dir, env_file_in_effect, load_settings
 from ..envfile import read_env_file
+from ..errors import ConfigError
 from ..policy import ToolPolicy
 from .profiles import ProfileStore, profile_file
 from .render import (
@@ -27,44 +29,22 @@ from .render import (
     SEARCH_SOURCE,
 )
 
-__all__ = ["SETTING_KEYS", "Installation"]
+__all__ = [
+    "EDITABLE_KEYS",
+    "LABELS",
+    "SETTING_KEYS",
+    "SHOWN",
+    "Installation",
+    "Shown",
+    "downloads_dir",
+    "resolved",
+]
 
 # The three settings with a form of their own, named here because the
 # lists below are built by leaving them out.
 API_KEY = "LXO_MCP_API_KEY"
 POLICY_KEY = "LXO_MCP_TOOL_POLICY"
 BEARER_KEY = "LXO_MCP_BEARER_TOKEN"
-
-# Every setting a person may see, in the order the settings sample introduces
-# them. The key is first because it is the one that has to be there.
-SETTING_KEYS: tuple[str, ...] = (
-    "LXO_MCP_API_KEY",
-    "LXO_MCP_BASE_URL",
-    "LXO_MCP_APP_BASE_URL",
-    "LXO_MCP_TOOL_POLICY",
-    "LXO_MCP_DOWNLOAD_DIR",
-    "LXO_MCP_UPLOAD_DIR",
-    "LXO_MCP_TIMEOUT",
-    "LXO_MCP_RATE",
-    "LXO_MCP_BURST",
-    "LXO_MCP_PAGE_SIZE",
-    "LXO_MCP_PDF_PAGES",
-    "LXO_MCP_LOG_LEVEL",
-    "LXO_MCP_BEARER_TOKEN",
-)
-
-# Editable on the credentials page. `LXO_MCP_TOOL_POLICY` is deliberately not:
-# it decides which policy file this interface is editing, and changing that
-# from inside would swap the page's own subject out under it. The command line
-# says which one to work on, and the overview shows which one won.
-EDITABLE_KEYS: tuple[str, ...] = tuple(
-    key
-    for key in SETTING_KEYS
-    # The key and the token have their own forms, one because it is
-    # never shown back and one because it must never be blank. The
-    # policy file is decided at start, see the overview page.
-    if key not in (API_KEY, POLICY_KEY, BEARER_KEY)
-)
 
 
 @dataclass
@@ -139,7 +119,7 @@ class Installation:
             return None
         return applies
 
-    def source_of(self, key: str) -> str:
+    def source_of(self, key: str, env: dict[str, str] | None = None) -> str:
         """Where this value comes from, in the order that decides.
 
         A file is asked before the command line for one reason: the policy
@@ -147,10 +127,14 @@ class Installation:
         from ``LXO_MCP_TOOL_POLICY`` in a file, and calling the second one
         "Aufruf" would be wrong. When nothing names it at all, the search
         found it - which is not the same as a built-in default either.
+
+        ``env`` is the file's content as :meth:`file_env` read it, for a page
+        that asks about every setting in one go and wants the file read once
+        rather than once per row. Left out, the file is read here.
         """
         if os.environ.get(key, "").strip():
             return ENV_SOURCE
-        if self.source_file(key) is not None:
+        if self.source_file(key, env) is not None:
             return FILE_SOURCE
         if key == POLICY_KEY:
             return (
@@ -160,7 +144,7 @@ class Installation:
             )
         return DEFAULT_SOURCE
 
-    def source_file(self, key: str) -> Path | None:
+    def source_file(self, key: str, env: dict[str, str] | None = None) -> Path | None:
         """The ``.env`` that supplies this value, if a file does.
 
         There is only one it can be. The settings this page reports were
@@ -169,15 +153,17 @@ class Installation:
         """
         if self.shadowed(key):
             return None
-        if read_env_file(self.env_path).get(key, "").strip():
+        if env is None:
+            env = self.file_env()
+        if env.get(key, "").strip():
             return self.env_path
         return None
 
-    def source_detail(self, key: str) -> str:
+    def source_detail(self, key: str, env: dict[str, str] | None = None) -> str:
         """A tooltip for the badge: which file, or which variable."""
         if self.shadowed(key):
             return f"Umgebungsvariable {key}"
-        supplier = self.source_file(key)
+        supplier = self.source_file(key, env)
         if supplier is not None:
             return str(supplier)
         if key == POLICY_KEY:
@@ -197,3 +183,95 @@ class Installation:
 
     def has_api_key(self) -> bool:
         return bool(self.settings.api_key)
+
+
+def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
+    """The download directory, or why there is none.
+
+    Without a home and without ``LXO_MCP_DOWNLOAD_DIR`` nothing resolves, and
+    the page says so in the server's own words rather than failing to render.
+    """
+    try:
+        return str(settings.download_path or download_dir())
+    except ConfigError as exc:
+        return str(exc) if unresolved is None else unresolved
+
+
+@dataclass(frozen=True, slots=True)
+class Shown:
+    """One setting as the pages show it.
+
+    The key, the label a person reads beside it, and what the value in
+    effect is for this installation - not what a file says, but what the
+    process resolved. A setting added to the server is added here once, and
+    the table, the labels and the placeholders follow.
+    """
+
+    key: str
+    label: str
+    show: Callable[[Installation], str]
+
+
+def _state(value: object) -> str:
+    """A secret is shown as a state, never as a value.
+
+    The overview is the page somebody screenshots. The credentials page
+    shows the bearer token itself, where it exists to be copied.
+    """
+    return "gesetzt" if value else "nicht gesetzt"
+
+
+# Every setting a person may see, in the order the settings sample introduces
+# them. The key is first because it is the one that has to be there.
+SHOWN: tuple[Shown, ...] = (
+    Shown(API_KEY, "API-Schlüssel", lambda i: _state(i.settings.api_key)),
+    Shown("LXO_MCP_BASE_URL", "API-Adresse", lambda i: i.settings.base_url),
+    Shown(
+        "LXO_MCP_APP_BASE_URL",
+        "Web-App für Deeplinks",
+        lambda i: i.settings.app_base_url,
+    ),
+    Shown(POLICY_KEY, "Rechtedatei", lambda i: str(i.policy_path)),
+    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda i: downloads_dir(i.settings)),
+    Shown(
+        "LXO_MCP_UPLOAD_DIR",
+        "Uploads nur aus",
+        lambda i: str(i.settings.upload_path) if i.settings.upload_path else "überall",
+    ),
+    Shown(
+        "LXO_MCP_TIMEOUT",
+        "Zeitlimit je Anfrage (s)",
+        lambda i: f"{i.settings.timeout:g}",
+    ),
+    Shown("LXO_MCP_RATE", "Anfragen pro Sekunde", lambda i: f"{i.settings.rate:g}"),
+    Shown("LXO_MCP_BURST", "Burst", lambda i: str(i.settings.burst)),
+    Shown("LXO_MCP_PAGE_SIZE", "Zeilen je Seite", lambda i: str(i.settings.page_size)),
+    Shown(
+        "LXO_MCP_PDF_PAGES",
+        "PDF-Seiten je Ansicht",
+        lambda i: str(i.settings.pdf_pages),
+    ),
+    Shown("LXO_MCP_LOG_LEVEL", "Protokollstufe", lambda i: i.settings.log_level),
+    Shown(BEARER_KEY, "HTTP-Token", lambda i: _state(i.settings.bearer_token)),
+)
+
+SETTING_KEYS: tuple[str, ...] = tuple(shown.key for shown in SHOWN)
+LABELS: dict[str, str] = {shown.key: shown.label for shown in SHOWN}
+
+# Editable on the credentials page. `LXO_MCP_TOOL_POLICY` is deliberately not:
+# it decides which policy file this interface is editing, and changing that
+# from inside would swap the page's own subject out under it. The command line
+# says which one to work on, and the overview shows which one won.
+EDITABLE_KEYS: tuple[str, ...] = tuple(
+    key
+    for key in SETTING_KEYS
+    # The key and the token have their own forms, one because it is
+    # never shown back and one because it must never be blank. The
+    # policy file is decided at start, see the overview page.
+    if key not in (API_KEY, POLICY_KEY, BEARER_KEY)
+)
+
+
+def resolved(inst: Installation) -> dict[str, str]:
+    """What each setting actually is in this process, not what a file says."""
+    return {shown.key: shown.show(inst) for shown in SHOWN}

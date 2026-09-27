@@ -11,8 +11,10 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp import __version__
+from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.config import Settings, settings_sample
-from benethos_lexware_office_mcp.server import build_server, main
+from benethos_lexware_office_mcp.policy import ToolPolicy
+from benethos_lexware_office_mcp.server import build_server
 
 
 def test_server_identifies_itself() -> None:
@@ -113,13 +115,13 @@ def test_starting_the_server_reports_what_is_enabled(
 ) -> None:
     """A client shows an empty tool list without explaining why. stderr does."""
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.load_settings",
+        "benethos_lexware_office_mcp.cli.load_settings",
         lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
     )
     started: list[bool] = []
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: _FakeServer(started),
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer(started, settings),
     )
 
     with caplog.at_level("WARNING"):
@@ -139,12 +141,12 @@ def test_starting_with_write_tools_on_says_which_ones(
         json.dumps({"get_profile": True, "upload_file": True}), encoding="utf-8"
     )
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.load_settings",
+        "benethos_lexware_office_mcp.cli.load_settings",
         lambda **_: Settings(tool_policy_path=target),
     )
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: _FakeServer([]),
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer([], settings),
     )
 
     with caplog.at_level("WARNING"):
@@ -157,8 +159,10 @@ def test_starting_with_write_tools_on_says_which_ones(
 class _FakeServer:
     """Stands in for MCPServer so the test never opens stdio."""
 
-    def __init__(self, started: list[bool]) -> None:
+    def __init__(self, started: list[bool], settings: Settings) -> None:
         self._started = started
+        # What the real one reports on at startup.
+        self.policy = ToolPolicy(settings.policy_file())
 
     def run(self) -> None:
         self._started.append(True)
@@ -189,8 +193,8 @@ def test_a_named_env_file_configures_the_server(
     env_file.write_text("LXO_MCP_PAGE_SIZE=13\n", encoding="utf-8")
     seen: list[Settings] = []
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: seen.append(settings) or _FakeServer([]),
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: seen.append(settings) or _FakeServer([], settings),
     )
 
     main(["--env-file", str(env_file), "--log-level", "ERROR"])
@@ -212,7 +216,7 @@ def test_the_settings_sample_can_be_printed_without_any_configuration(
 def test_printing_the_sample_starts_no_server(monkeypatch: pytest.MonkeyPatch) -> None:
     """It is an action, like --version, not a way to configure a run."""
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.build_server",
+        "benethos_lexware_office_mcp.cli.build_server",
         lambda settings: pytest.fail("the server was built"),
     )
 

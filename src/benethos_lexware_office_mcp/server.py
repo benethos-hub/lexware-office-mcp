@@ -1,10 +1,9 @@
-"""MCP server entry point.
+"""The server: an ``MCPServer`` that answers to the policy file.
 
-Run with ``python -m benethos_lexware_office_mcp`` or the installed
-``benethos-lexware-office-mcp`` console script. **stdio** is the default and
-is what Claude Desktop and comparable local clients use. ``--transport
-streamable-http`` or ``sse`` serves the same tools over HTTP instead, behind
-a bearer token that is required rather than offered (SPECS.md section 6).
+:class:`PolicyServer` lists only what the file allows and, through the guard
+every tool is registered with, calls only that. :func:`build_server` makes
+one from the settings, and importing this module is what fills the tool
+registry. The command line that starts a server is :mod:`.cli`.
 
 Logging always goes to stderr, so that under stdio stdout stays reserved for
 the JSON-RPC stream.
@@ -12,37 +11,28 @@ the JSON-RPC stream.
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import contextlib
-import dataclasses
 import functools
 import logging
-import secrets
-import sys
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
+from mcp.server.session import ServerSession
+from mcp.types import Resource, Tool
 
-from . import __version__, configui, resources
+from . import __version__, resources
 from .client import ClientProvider
 from .config import (
-    LOG_LEVELS,
-    TRANSPORTS,
     Settings,
     download_dir,
     load_settings,
-    resolve_config_file,
-    settings_sample,
 )
-from .envfile import update_env_file
-from .errors import ConfigError, register_secret
-from .policy import Preset, ToolPolicy, known_tools, preset
+from .errors import ConfigError
+from .policy import ToolPolicy
 from .tools import register_tools
-from .transport import require_bearer, run_http
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +90,7 @@ class PolicyServer(MCPServer):
     def __init__(self, *args: Any, policy: ToolPolicy, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._policy = policy
-        self._sessions: set[Any] = set()
+        self._sessions: set[ServerSession] = set()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
         # Bound once, here, rather than per transport: `run_stdio_async` and
@@ -114,7 +104,7 @@ class PolicyServer(MCPServer):
             NotificationOptions(tools_changed=True),
         )
 
-    async def list_tools(self) -> list[Any]:
+    async def list_tools(self) -> list[Tool]:
         # One reading of the file for the whole list. Asking `enabled` per
         # tool would open and parse it once per tool, which is fifteen times
         # for an answer that has to be consistent anyway - a file edited
@@ -133,7 +123,7 @@ class PolicyServer(MCPServer):
         allowed = self._policy.as_map()
         return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
 
-    async def list_resources(self) -> list[Any]:
+    async def list_resources(self) -> list[Resource]:
         # Registered at startup from whatever is on disk, but offered only
         # under the same file that decides the tools: with every download
         # tool off, the files they left behind are not a way around that.
@@ -265,520 +255,3 @@ def __getattr__(name: str) -> Any:
             _inspected = build_server(load_settings())
         return _inspected
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-# Written for someone reading it in a terminal for the first time. The
-# options say what they are in one line each, and everything that needs a
-# paragraph is a worked example underneath, where argparse will not reflow it.
-_DESCRIPTION = """\
-Gives an AI assistant access to a Lexware Office account.
-
-It speaks MCP over stdio, so you do not run it yourself: a client such as
-Claude Desktop starts it. What you do run is --tools, to say which of its
-tools that client may use."""
-
-_EPILOG = """\
-the configuration interface:
-
-  benethos-lexware-office-mcp setup
-
-  Serves three pages on 127.0.0.1 and opens a browser: which files are in
-  effect and where each setting comes from, the API key, and one checkbox
-  per tool with what it costs the model in context. It writes the same files
-  this command line does, so the two can be used interchangeably.
-
-  Binds 127.0.0.1. The pages have no login, so they answer only when a
-  browser addresses them as 127.0.0.1 or localhost. --host exists for a
-  container, where the loopback of the host publishes the port.
-
-  --port and --no-browser belong to it. --env-file and --tools-file say which
-  files it edits, and unlike everywhere else the .env does not have to exist
-  yet - creating one is part of what the interface is for.
-
-choosing the tools:
-
-  The server offers only what its policy file allows, and nothing at all
-  when there is no file. Write a starting point, then edit it by hand.
-
-    benethos-lexware-office-mcp --tools read-only
-        reading only: search, look up, download
-
-    benethos-lexware-office-mcp --tools write
-        the above, and creating and changing records
-
-    benethos-lexware-office-mcp --tools irreversible
-        the above, and deleting an article, the one thing this
-        API can delete
-
-    benethos-lexware-office-mcp --tools show
-        change nothing, just list what is on
-
-    benethos-lexware-office-mcp --tools sync
-        add the tools the file does not mention yet, all off,
-        and leave every flag already in it alone
-
-  'write' does not mean undoable. Nothing in it deletes a record, but the
-  API cannot delete a bookkeeping voucher at all, so a voucher created by
-  create_voucher or by upload_file has to be corrected in the web app.
-
-  The file is JSON, one line per tool:
-
-    {
-     "search_contacts": true,
-     "create_contact": false
-    }
-
-  Changes take effect at once, in both directions - the file is read as the
-  tool list is built and again on every call. What lags is the client: most
-  ask for the list once, when they start, and go on showing what they were
-  told then. Claude Desktop is quit from the tray to make it ask again.
-
-  A preset overwrites the whole file, so edits made by hand are lost. Use one
-  to start a file, not to update one. That is what sync is for: after an
-  upgrade brings new tools, it writes them in as off and touches nothing else.
-  Sync never switches anything on.
-
-where the file goes:
-
-  Without --tools-file, tools.json is looked for in these places, and the
-  last one found is the one that counts:
-
-    1. the per-user configuration directory
-    2. config/ of the source checkout, if you are running from the sources
-    3. ./config/tools.json, then ./tools.json
-
-  --tools-file overrides that, and works two ways. With --tools it says
-  where to write:
-
-    benethos-lexware-office-mcp --tools write --tools-file ./tools.json
-
-  On its own it says which file the running server obeys, so it belongs in
-  the client's configuration next to the command it starts:
-
-    "args": ["--tools-file", "/path/to/tools.json"]
-
-  One account per file, then, if you run this server more than once.
-
-settings and the API key:
-
-  Everything else is configuration, read from a .env file found the same way
-  the policy file is, or from real environment variables, which win.
-  --settings-sample prints a commented list of every setting.
-
-  --env-file names one instead of searching, and pairs with --tools-file so
-  that one client entry has its own account and its own permissions:
-
-    "args": ["--env-file", "/path/to/test.env",
-             "--tools-file", "/path/to/test-tools.json"]
-
-  Put your API key in it as LXO_MCP_API_KEY. Create one in Lexware Office
-  under Extensions, Public API. A real environment variable still overrides
-  the file, so a client can change one value without editing anything."""
-
-
-def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="benethos-lexware-office-mcp",
-        description=_DESCRIPTION,
-        epilog=_EPILOG,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--version", action="version", version=__version__, help="print the version"
-    )
-    parser.add_argument(
-        "--settings-sample",
-        action="store_true",
-        help="print the commented settings sample and exit",
-    )
-    parser.add_argument(
-        "command",
-        nargs="?",
-        choices=("setup",),
-        metavar="COMMAND",
-        help=(
-            "setup: open the configuration interface in a browser instead of "
-            "starting the server (see below)"
-        ),
-    )
-    parser.add_argument(
-        "--log-level",
-        choices=LOG_LEVELS,
-        default=defaults.log_level,
-        metavar="LEVEL",
-        help=(
-            "how much to report on stderr: "
-            + ", ".join(LOG_LEVELS).lower()
-            + " (default: %(default)s)"
-        ),
-    )
-    parser.add_argument(
-        "--tools",
-        choices=("show", "sync", "read-only", "write", "irreversible"),
-        metavar="WHICH",
-        help=(
-            "list or rewrite the policy file instead of starting the server: "
-            "show, sync, read-only, write, irreversible (see below)"
-        ),
-    )
-    parser.add_argument(
-        "--env-file",
-        metavar="PATH",
-        help=(
-            "which .env to read instead of looking for one - the settings, "
-            "including the API key (see below)"
-        ),
-    )
-    parser.add_argument(
-        "--tools-file",
-        metavar="PATH",
-        help=(
-            "which policy file to use instead of looking for one - both for "
-            "--tools and for the server itself (see below)"
-        ),
-    )
-    parser.add_argument(
-        "--transport",
-        choices=TRANSPORTS,
-        default=defaults.transport,
-        help="how a client reaches this server (default: %(default)s)",
-    )
-    # --host and --port serve whichever of the two things this process is:
-    # the HTTP transport, or the configuration interface. A process is never
-    # both, and one pair of names is easier to remember than two.
-    parser.add_argument(
-        "--host",
-        metavar="ADDR",
-        help=(
-            "address to bind, for an HTTP transport or for setup. Anything "
-            "but a loopback address is reachable from outside this machine"
-        ),
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        metavar="N",
-        help=(
-            f"port to bind (default: {defaults.http_port} for a transport, "
-            f"{configui.DEFAULT_PORT} for setup)"
-        ),
-    )
-    parser.add_argument(
-        "--path",
-        metavar="PATH",
-        default=defaults.http_path,
-        help="URL path the HTTP transport serves on (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--allowed-hosts",
-        metavar="LIST",
-        help=(
-            "comma-separated Host values to accept besides loopback, for a "
-            "container or a proxy, for example lexware-office-mcp:8770"
-        ),
-    )
-    parser.add_argument(
-        "--no-browser",
-        action="store_true",
-        help="setup only: do not open a browser, just print the address",
-    )
-    return parser.parse_args(argv)
-
-
-def _tools_command(action: str, settings: Settings) -> None:
-    """Show or rewrite the policy file, then return without serving.
-
-    Everything here goes to **stderr**. stdout carries the JSON-RPC stream,
-    and a command that shares an entry point with the server has no business
-    learning a different habit.
-    """
-    # Building a server imports the tool modules, which is what fills the
-    # registry the policy is written against. The registry is filled as the
-    # tools are *defined*, so it is complete even when the file enables none
-    # of them - which is the state this command exists to get out of.
-    policy = build_server(settings).policy
-
-    if action != "show":
-        existed = policy.exists()
-        try:
-            if action == "sync":
-                added, stale = policy.sync()
-            else:
-                policy.save(preset(cast(Preset, action)))
-        except OSError as exc:
-            # A path that is a directory, a read-only disk, a folder somebody
-            # else owns. All of them are the caller's typo or the machine's
-            # business, and none of them deserve a traceback.
-            print(
-                f"Could not write {policy.path}: {exc.strerror or exc}", file=sys.stderr
-            )
-            raise SystemExit(2) from None
-        if action == "sync":
-            _report_sync(policy.path, existed, added, stale)
-        else:
-            print(f"Wrote the '{action}' preset to {policy.path}", file=sys.stderr)
-
-    flags = policy.as_map()
-    width = max(len(name) for name in flags)
-    for name, on in flags.items():
-        print(f"  {name:<{width}}  {'on' if on else 'off'}", file=sys.stderr)
-    print(
-        f"{sum(flags.values())} of {len(flags)} tools on, per {policy.path}",
-        file=sys.stderr,
-    )
-
-
-def _report_sync(
-    path: Path | None, existed: bool, added: list[str], stale: list[str]
-) -> None:
-    """Say what a sync changed, in the terms somebody would ask about.
-
-    Which tools appeared matters, because each is a decision waiting to be
-    made. That nothing was switched on is worth saying out loud, since that is
-    the whole reason this action is safe to run unattended.
-    """
-    if not existed:
-        print(f"Wrote a new policy file at {path}, everything off.", file=sys.stderr)
-    elif added:
-        listed = ", ".join(added)
-        print(
-            f"Added {len(added)} tool{'s' if len(added) != 1 else ''} to {path}, "
-            f"off: {listed}",
-            file=sys.stderr,
-        )
-    else:
-        print(f"{path} already lists every tool. Nothing added.", file=sys.stderr)
-    if stale:
-        print(
-            f"Dropped {len(stale)} name{'s' if len(stale) != 1 else ''} that is no "
-            f"longer a tool: {', '.join(stale)}",
-            file=sys.stderr,
-        )
-    print("Nothing was switched on.", file=sys.stderr)
-
-
-def _named_env_file(argv: list[str] | None, *, must_exist: bool = True) -> Path | None:
-    """``--env-file`` before anything else reads configuration.
-
-    Its own miniature parse, because the real one takes its defaults from the
-    settings, and the settings are what this argument decides.
-
-    ``must_exist`` is false for the setup command, which exists in part to
-    create the file the rest of the program insists on finding.
-    """
-    pre = argparse.ArgumentParser(add_help=False)
-    pre.add_argument("--env-file")
-    known, _ = pre.parse_known_args(argv)
-    if not known.env_file:
-        return None
-    named = Path(known.env_file).expanduser()
-    if not named.is_file() and must_exist:
-        # Falling back to the search here would be the worst of both: the
-        # server would start, read something else, and behave in a way the
-        # command line appears to rule out.
-        print(f"No .env file at {named}", file=sys.stderr)
-        raise SystemExit(2)
-    return named
-
-
-def main(argv: list[str] | None = None) -> None:
-    """Console script entry point."""
-    wants_setup = "setup" in (argv if argv is not None else sys.argv[1:])
-    named_env = _named_env_file(argv, must_exist=not wants_setup)
-    # A bad setting ends the server, in one line rather than a traceback. Not
-    # before argparse has had its turn, though: `--version` and `--help` have
-    # nothing to do with the settings, and `setup` is where one is repaired.
-    broken: ConfigError | None = None
-    try:
-        settings = load_settings(env_file=named_env)
-    except ConfigError as exc:
-        settings, broken = Settings(), exc
-    args = _parse_args(argv, settings)
-    if broken is not None and args.command != "setup":
-        print(str(broken), file=sys.stderr)
-        raise SystemExit(2)
-    # The same for one found later, such as no home to find a file in.
-    try:
-        _run(args, settings, named_env)
-    except ConfigError as exc:
-        print(str(exc), file=sys.stderr)
-        raise SystemExit(2) from None
-
-
-def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -> None:
-    """What the command line asked for, once the settings have been read."""
-    # The command line wins over the environment, which wins over the search.
-    # Left unset it stays None, so the search decides - and no absolute path
-    # from this machine has to appear in --help to explain that.
-    if args.tools_file:
-        named = Path(args.tools_file).expanduser()
-        if named.exists() and not named.is_file():
-            print(f"Not a file: {named}", file=sys.stderr)
-            raise SystemExit(2)
-        settings = dataclasses.replace(settings, tool_policy_path=named)
-
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-
-    if args.settings_sample:
-        print(settings_sample(), end="")
-        return
-
-    if args.command == "setup":
-        configui.start(
-            settings,
-            configui.target_env_file(named_env),
-            host=args.host or configui.DEFAULT_HOST,
-            port=args.port or configui.DEFAULT_PORT,
-            open_browser=not args.no_browser,
-        )
-        return
-
-    if args.tools:
-        _tools_command(args.tools, settings)
-        return
-
-    # The command line outranks the environment for the transport, the same
-    # way --tools-file does: each is a decision about this one run.
-    settings = dataclasses.replace(
-        settings,
-        transport=args.transport,
-        http_host=args.host or settings.http_host,
-        http_port=args.port or settings.http_port,
-        http_path=args.path,
-        allowed_hosts=_host_list(args.allowed_hosts) or settings.allowed_hosts,
-    )
-
-    if settings.transport != "stdio":
-        settings = _bearer_token_in_place(settings, _env_in_effect(named_env))
-        require_bearer(settings)
-
-    server = build_server(settings)
-    _report_what_is_enabled(settings)
-
-    if settings.transport == "stdio":
-        server.run()
-        return
-
-    _report_where_it_listens(settings)
-    # The .env is read once, at startup. Where something restarts this
-    # process - a container, a service manager - it can be told to end when
-    # that file changes, so a key saved in the browser takes effect without
-    # anyone opening a terminal. Nowhere else, since ending would be the
-    # whole of it.
-    watch = _env_in_effect(named_env) if settings.exit_on_config_change else None
-    if watch is not None:
-        logging.getLogger(__name__).info("Ending on a change to %s", watch.name)
-    run_http(server, settings, watch=watch)
-
-
-def _bearer_token_in_place(settings: Settings, env_path: Path) -> Settings:
-    """Write a generated token into the settings file, if that was asked for.
-
-    A container has no one to type a secret before it starts, and refusing to
-    run would only invite a memorable one. Thirty-two random bytes beat any
-    of those, so where something is deployed rather than launched by hand the
-    server makes one and keeps it in the file it reads.
-
-    Nowhere else, and never silently: writing into a file a person maintains
-    is not something to do unasked, and the value never reaches the log. The
-    configuration interface shows it, because it has to be copied into a
-    client to be of any use.
-    """
-    if settings.bearer_token or not settings.generate_bearer_token:
-        return settings
-
-    token = secrets.token_urlsafe(32)
-    update_env_file(env_path, {"LXO_MCP_BEARER_TOKEN": token})
-    register_secret(token)
-    logging.getLogger(__name__).warning(
-        "No bearer token was set, so one was generated and written to %s. "
-        "The configuration interface shows it - a client needs it to connect.",
-        env_path.name,
-    )
-    return dataclasses.replace(settings, bearer_token=token)
-
-
-def _env_in_effect(named: Path | None) -> Path:
-    """The settings file this process was configured from.
-
-    Pinned here for the same reason the policy file is pinned: the identity
-    of the file is decided once, and only its contents are read again.
-
-    Not :func:`config.env_file_in_effect`, which answers ``None`` when no file
-    exists. The two callers here need a path either way - one watches for a
-    file appearing, the other writes a generated token into the place a file
-    belongs - and since one `.env` applies, watching that one is watching all
-    of them.
-    """
-    return named if named is not None else resolve_config_file(".env")
-
-
-def _host_list(raw: str | None) -> tuple[str, ...]:
-    """Split a comma-separated ``--allowed-hosts`` value, ignoring blanks."""
-    if not raw:
-        return ()
-    return tuple(part for part in (piece.strip() for piece in raw.split(",")) if part)
-
-
-def _report_where_it_listens(settings: Settings) -> None:
-    """Say on stderr what is being served and to whom.
-
-    A bind address is the one setting where being told what happened matters
-    more than being told what to type: 0.0.0.0 in a container is right, and
-    on a laptop it is a mistake nobody meant to make.
-    """
-    log = logging.getLogger(__name__)
-    log.info(
-        "%s on http://%s:%s%s, bearer token required",
-        settings.transport,
-        settings.http_host,
-        settings.http_port,
-        settings.http_path,
-    )
-    if settings.http_host not in ("127.0.0.1", "localhost", "::1"):
-        log.warning(
-            "Bound to %s, so this port is reachable from outside this machine. "
-            "In a container that is what the published port is for. Anywhere "
-            "else, the bearer token is the only thing in the way.",
-            settings.http_host,
-        )
-
-
-def _report_what_is_enabled(settings: Settings) -> None:
-    """Say on stderr what this process may do, and how to change it.
-
-    A server offering nothing looks broken from the client, where the tool
-    list is simply empty. Naming the file and the command turns that into
-    something a person can act on.
-    """
-    policy = ToolPolicy(settings.policy_file())
-    enabled = [name for name, on in policy.as_map().items() if on]
-    if not policy.exists():
-        logger.warning(
-            "No tool policy at %s, so no tools are offered. Create one with "
-            "--tools read-only, then enable what this account may be used for.",
-            policy.path,
-        )
-        return
-    writers = [name for name in enabled if known_tools()[name].access == "write"]
-    if writers:
-        logger.warning(
-            "%d of %d tools enabled, %d of them able to change real accounting "
-            "records: %s. Per %s.",
-            len(enabled),
-            len(known_tools()),
-            len(writers),
-            ", ".join(sorted(writers)),
-            policy.path,
-        )
-    else:
-        logger.info(
-            "%d of %d tools enabled, all read-only. Per %s.",
-            len(enabled),
-            len(known_tools()),
-            policy.path,
-        )

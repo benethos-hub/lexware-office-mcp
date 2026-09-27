@@ -23,6 +23,7 @@ import pytest
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import probe, transfer
 from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
+from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.envfile import read_env_file
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
@@ -748,3 +749,54 @@ def test_the_page_shows_the_token_it_would_hand_to_a_client(
     _, body, _ = browser.get("/credentials")
 
     assert "shown-because-it-is-copied" in body
+
+
+# -- when a file cannot be written -----------------------------------------
+
+
+def test_a_policy_file_that_cannot_be_written_is_reported(
+    browser: Browser, installation: Installation
+) -> None:
+    """A directory where the file should be: the OS refuses, the page says so."""
+    installation.policy_path.mkdir()
+
+    _, body, _ = browser.post(
+        "/permissions", {"action": "save", "tool": ["get_profile"]}
+    )
+
+    assert "Konnte" in note(body) and "nicht schreiben" in note(body)
+    assert str(installation.policy_path) in note(body)
+
+
+def test_a_profile_file_that_cannot_be_written_is_reported(
+    browser: Browser, installation: Installation
+) -> None:
+    installation.profiles.path.mkdir()
+
+    _, body, _ = browser.post(
+        "/permissions",
+        {"action": "profile-save", "profile_name": "Neu", "tool": ["get_profile"]},
+    )
+
+    assert "Konnte" in note(body) and "nicht schreiben" in note(body)
+    assert " open>" in body  # the profile block stays open beside the message
+
+
+def test_an_overwrite_that_cannot_be_written_is_reported(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The profile is found, so the failure is the write itself."""
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    def refused(self: ProfileStore, *args: object) -> None:
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(ProfileStore, "save", refused)
+
+    _, body, _ = browser.post(
+        "/permissions",
+        {"action": "profile-overwrite", "profile": "Nur Lesen", "tool": []},
+    )
+
+    assert "nicht schreiben: Permission denied" in note(body)
+    assert installation.profiles.all()["Nur Lesen"].tools == ("get_profile",)

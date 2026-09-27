@@ -14,9 +14,10 @@ from typing import Any
 import pytest
 
 from benethos_lexware_office_mcp import transport
+from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.config import Settings, load_settings
 from benethos_lexware_office_mcp.errors import ConfigError
-from benethos_lexware_office_mcp.server import build_server, main
+from benethos_lexware_office_mcp.server import build_server
 
 TOKEN = "a-token-that-is-not-a-real-one"
 

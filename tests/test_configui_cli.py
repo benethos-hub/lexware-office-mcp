@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from benethos_lexware_office_mcp import configui, server
+from benethos_lexware_office_mcp import cli, configui
 from benethos_lexware_office_mcp.config import Settings
 
 
@@ -29,7 +29,7 @@ def test_setup_serves_instead_of_starting_the_server(
     env = tmp_path / ".env"
     env.write_text("LXO_MCP_PAGE_SIZE=40\n", encoding="utf-8")
 
-    server.main(["setup", "--env-file", str(env), "--no-browser", "--port", "9999"])
+    cli.main(["setup", "--env-file", str(env), "--no-browser", "--port", "9999"])
 
     assert len(started) == 1
     assert started[0]["env_path"] == env
@@ -44,14 +44,14 @@ def test_setup_does_not_insist_the_env_file_already_exists(
     """Creating one is half of what the interface is for."""
     absent = tmp_path / "not-yet" / ".env"
 
-    server.main(["setup", "--env-file", str(absent), "--no-browser"])
+    cli.main(["setup", "--env-file", str(absent), "--no-browser"])
 
     assert started[0]["env_path"] == absent
 
 
 def test_every_other_command_still_insists(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as exit_code:
-        server.main(["--tools", "show", "--env-file", str(tmp_path / "absent.env")])
+        cli.main(["--tools", "show", "--env-file", str(tmp_path / "absent.env")])
 
     assert exit_code.value.code == 2
 
@@ -61,7 +61,7 @@ def test_the_named_policy_file_is_the_one_edited(
 ) -> None:
     policy = tmp_path / "elsewhere.json"
 
-    server.main(["setup", "--no-browser", "--tools-file", str(policy)])
+    cli.main(["setup", "--no-browser", "--tools-file", str(policy)])
 
     assert started[0]["settings"].policy_file() == policy
 

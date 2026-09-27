@@ -25,10 +25,12 @@ __all__ = [
     "Address",
     "ArticleType",
     "ContactKind",
+    "LeadingPrice",
+    "LineItemType",
     "Role",
+    "SalesLineItem",
     "TaxType",
     "VoucherItem",
-    "SalesLineItem",
     "VoucherType",
     "article_body",
     "contact_body",
@@ -220,6 +222,8 @@ def _address_body(address: Address) -> dict[str, Any]:
 VoucherType = Literal[
     "salesinvoice", "salescreditnote", "purchaseinvoice", "purchasecreditnote"
 ]
+# One vocabulary for a voucher and for a sales document: both say whether
+# the line amounts are before or after tax, in the same three words.
 TaxType = Literal["net", "gross", "vatfree"]
 
 # Fields a voucher carries when read but refuses when written back. Contacts
@@ -446,7 +450,6 @@ def article_body(
 
 # -- sales documents ------------------------------------------------------
 
-SalesTaxType = Literal["net", "gross", "vatfree"]
 LineItemType = Literal["custom", "material", "service", "text"]
 
 # Which extra field each type insists on, measured 2026-08-21 by posting a
@@ -548,7 +551,7 @@ def sales_document_body(
     contact_id: str,
     voucher_date: str,
     items: list[SalesLineItem],
-    tax_type: SalesTaxType = "net",
+    tax_type: TaxType = "net",
     currency: str = "EUR",
     shipping_date: str | None = None,
     shipping_type: str | None = None,
