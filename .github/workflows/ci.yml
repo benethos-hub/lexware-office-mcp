@@ -134,6 +134,39 @@ jobs:
           print('OK: the preset enabled', len(names), 'tools, none of them writing')
           "
 
+  # fresh-install resolves the newest versions the ranges allow, which is what
+  # most people get. The other end of each range is a promise too: `>=0.28`
+  # says 0.28 works, and nothing else here installs it. This job does, with
+  # the oldest allowed version of every direct dependency on the oldest
+  # supported Python, and runs the suite on that.
+  #
+  # An early warning, not a gate. It is not a required check on main, so a
+  # release of something upstream cannot block a merge here - but a red run
+  # means a lower bound in pyproject.toml has become untrue and wants raising.
+  lowest-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # No `uv sync` and no lockfile. pytest and pytest-asyncio get the lower
+      # bounds their configuration needs, the same ones the dev extra names.
+      - name: Install the oldest allowed versions
+        run: |
+          set -euo pipefail
+          uv venv -p 3.11 /tmp/lowest
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct \
+            -e . "pytest>=9.1.1" "pytest-asyncio>=1.0"
+          echo "--- resolved dependency versions ---"
+          uv pip list --python /tmp/lowest/bin/python
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          /tmp/lowest/bin/python -m pytest -q -p no:cacheprovider
+
   # The image and the Compose file are the only part of this repository that no
   # test touches: the suite is offline Python, and a Dockerfile is neither.
   # Everything asserted here was verified by hand once, which is exactly the

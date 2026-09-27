@@ -2185,6 +2185,10 @@ order:
    interface, which belongs behind its profile. Only `linux/amd64` is built,
    because nothing publishes a second architecture yet. Every job passes with
    no key, no network and no account, see section 14.1.
+   A fifth job, `lowest-versions`, was added 2026-09-27. It installs the
+   oldest allowed version of every direct dependency on Python 3.11, with no
+   lockfile, and runs the suite, so a lower bound in `pyproject.toml` that has
+   stopped being true shows up. It is an early warning, not a required check.
    `.github/dependabot.yml` asks weekly about the dependency ranges, the
    pinned actions and the container base image.
 
