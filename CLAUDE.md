@@ -73,7 +73,7 @@ src/benethos_lexware_office_mcp/
   policy.py       # the tool policy file, and what a tool declares itself to be
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies
-  storage.py      # where downloads land, filenames made safe first
+  storage.py      # where downloads land, filenames made safe first, uploads read
   resources.py    # downloads published as MCP resources for the client
   rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
   delivery.py     # a downloaded file as content blocks: text, image, pages, blob

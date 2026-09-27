@@ -93,11 +93,6 @@ Format = Literal["pdf", "xml"]
 
 MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
 
-# Verified 2026-08-20: 5 MiB exactly is still accepted, one byte more is
-# refused with `max_file_size_exceeded`. Checked here so a caller finds out
-# before spending a request on it.
-MAX_UPLOAD = 5 * 1024 * 1024
-
 
 def max_pages_field(default: int) -> Any:
     """The `max_pages` annotation, carrying the default this process uses.
@@ -404,23 +399,6 @@ async def _deliver(
     )
 
 
-# Exactly what the API takes, measured on 2026-08-20 rather than assumed:
-# `.gif` is refused with `inacceptable_file_extension`, and `.xml` is accepted
-# and parsed as an XRechnung — a file that is not one comes back as
-# `invalid_xrechnung`. The web app states the same four types.
-#
-# The type is guessed from the extension rather than sniffed. The API
-# validates the content anyway and rejects a mislabelled or damaged file, so a
-# second opinion here would only be a second way to be wrong.
-CONTENT_TYPES: dict[str, str] = {
-    ".pdf": "application/pdf",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".xml": "application/xml",
-}
-
-
 def _save(content: bytes, name: str, settings: Settings) -> Path:
     """Write a download to disk. Blocking, run in a thread."""
     return storage.save(content, name, storage.directory_for(settings))
@@ -448,39 +426,4 @@ def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     first, so one placed in the directory cannot point out of it.
     """
     with _on_disk("read the file to upload"):
-        return _read_upload_unguarded(raw_path, allowed)
-
-
-def _read_upload_unguarded(
-    raw_path: str, allowed: Path | None
-) -> tuple[bytes, str, str]:
-    path = Path(raw_path).expanduser()
-    if not path.is_file():
-        raise ValidationError(
-            f"No file at {raw_path}. Give the path to an existing receipt."
-        )
-    if allowed is not None:
-        try:
-            path.resolve().relative_to(allowed.expanduser().resolve())
-        except (OSError, ValueError):
-            # Without the directory: it describes this machine, and the
-            # person who can change it knows where it is.
-            raise ValidationError(
-                f"{path.name} is outside the directory this server may upload "
-                "from. Move the file there, or ask the account owner about "
-                "LXO_MCP_UPLOAD_DIR."
-            ) from None
-
-    size = path.stat().st_size
-    if size > MAX_UPLOAD:
-        raise ValidationError(
-            f"{path.name} is {size / 1024 / 1024:.1f} MiB. The API accepts at "
-            "most 5 MiB, so this was not sent."
-        )
-
-    content_type = CONTENT_TYPES.get(path.suffix.lower())
-    if content_type is None:
-        accepted = ", ".join(sorted(CONTENT_TYPES))
-        found = path.suffix or "no extension"
-        raise ValidationError(f"The API does not accept {found}. It takes: {accepted}.")
-    return path.read_bytes(), path.name, content_type
+        return storage.read_upload(raw_path, allowed)

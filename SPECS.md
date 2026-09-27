@@ -96,7 +96,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `delivery.py` | A downloaded file as content blocks: text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
 | `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
-| `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
+| `storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `errors.py` | `ToolError` and its subclasses. | built |
 | `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
