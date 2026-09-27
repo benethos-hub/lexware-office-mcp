@@ -133,6 +133,13 @@ housekeeping are out of scope here — design decisions live in
   100, `null` means every page up to that, and `LXO_MCP_PDF_PAGES` above 100
   is refused. `pages` and `pagesShown` still say what was left out.
 
+### Changed
+
+- **Dependencies refreshed**: httpx2 and httpcore2 2.13.1, starlette 1.7.0,
+  uvicorn 0.54.0, pyjwt 2.15.0, platformdirs 4.12.0, idna 3.20,
+  opentelemetry-api 1.45.0 and ruff 0.16.9. No change to any tool, parameter
+  or answer.
+
 ## [0.2.4] - 2026-09-14
 
 ### Changed
