@@ -17,13 +17,7 @@ from __future__ import annotations
 
 import json
 
-from ..config import (
-    DEFAULT_APP_BASE_URL,
-    DEFAULT_BASE_URL,
-    Settings,
-    download_dir,
-)
-from ..errors import ConfigError
+from ..config import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
 from ..policy import ToolMeta, grouped_tools, known_tools, preset
 from .cost import estimate_tokens, tool_costs
 from .probe import Account, last_account
@@ -40,8 +34,11 @@ from .state import (
     API_KEY,
     BEARER_KEY,
     EDITABLE_KEYS,
+    LABELS,
     SETTING_KEYS,
     Installation,
+    downloads_dir,
+    resolved,
 )
 
 __all__ = ["credentials", "overview", "permissions"]
@@ -57,22 +54,6 @@ GROUP_LABELS: dict[str, str] = {
     "master_data": "Stammdaten",
     "sales_documents": "Verkaufsbelege",
     "vouchers": "Buchhaltungsbelege",
-}
-
-_SETTING_LABELS: dict[str, str] = {
-    "LXO_MCP_API_KEY": "API-Schlüssel",
-    "LXO_MCP_BASE_URL": "API-Adresse",
-    "LXO_MCP_APP_BASE_URL": "Web-App für Deeplinks",
-    "LXO_MCP_TOOL_POLICY": "Rechtedatei",
-    "LXO_MCP_DOWNLOAD_DIR": "Downloads",
-    "LXO_MCP_UPLOAD_DIR": "Uploads nur aus",
-    "LXO_MCP_TIMEOUT": "Zeitlimit je Anfrage (s)",
-    "LXO_MCP_RATE": "Anfragen pro Sekunde",
-    "LXO_MCP_BURST": "Burst",
-    "LXO_MCP_PAGE_SIZE": "Zeilen je Seite",
-    "LXO_MCP_PDF_PAGES": "PDF-Seiten je Ansicht",
-    "LXO_MCP_LOG_LEVEL": "Protokollstufe",
-    "LXO_MCP_BEARER_TOKEN": "HTTP-Token",
 }
 
 # What the API cannot take back, and what that actually means for the record.
@@ -132,45 +113,6 @@ def _cost_note(characters: int) -> str:
 # --- overview --------------------------------------------------------------
 
 
-def _downloads(settings: Settings, unresolved: str | None = None) -> str:
-    """The download directory, or why there is none.
-
-    Without a home and without ``LXO_MCP_DOWNLOAD_DIR`` nothing resolves, and
-    the page says so in the server's own words rather than failing to render.
-    """
-    try:
-        return str(settings.download_path or download_dir())
-    except ConfigError as exc:
-        return str(exc) if unresolved is None else unresolved
-
-
-def _resolved(inst: Installation) -> dict[str, str]:
-    """What each setting actually is in this process, not what a file says."""
-    settings = inst.settings
-    return {
-        "LXO_MCP_API_KEY": "gesetzt" if settings.api_key else "nicht gesetzt",
-        "LXO_MCP_BASE_URL": settings.base_url,
-        "LXO_MCP_APP_BASE_URL": settings.app_base_url,
-        "LXO_MCP_TOOL_POLICY": str(inst.policy_path),
-        "LXO_MCP_DOWNLOAD_DIR": _downloads(settings),
-        "LXO_MCP_UPLOAD_DIR": (
-            str(settings.upload_path) if settings.upload_path else "überall"
-        ),
-        "LXO_MCP_TIMEOUT": f"{settings.timeout:g}",
-        "LXO_MCP_RATE": f"{settings.rate:g}",
-        "LXO_MCP_BURST": str(settings.burst),
-        "LXO_MCP_PAGE_SIZE": str(settings.page_size),
-        "LXO_MCP_PDF_PAGES": str(settings.pdf_pages),
-        "LXO_MCP_LOG_LEVEL": settings.log_level,
-        # A state, not a value: the overview is the page someone
-        # screenshots. The credentials page shows the token itself,
-        # where it exists to be copied.
-        "LXO_MCP_BEARER_TOKEN": (
-            "gesetzt" if settings.bearer_token else "nicht gesetzt"
-        ),
-    }
-
-
 def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     """What this installation is, which files it reads, and what it may do."""
     # Measured first, and not only because the figure is wanted below:
@@ -178,13 +120,13 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     # each one is registered. Asking `known_tools()` before this returns an
     # empty registry in any process that has not built one.
     costs = tool_costs(inst.settings)
-    resolved = _resolved(inst)
+    values = resolved(inst)
     # The file once, for the whole table, rather than once per row.
     env = inst.file_env()
     rows = "".join(
-        f"<tr><td>{esc(_SETTING_LABELS.get(key, key))}<br>"
+        f"<tr><td>{esc(LABELS[key])}<br>"
         f"<code>{esc(key)}</code></td>"
-        f"<td>{esc(resolved[key])}</td>"
+        f"<td>{esc(values[key])}</td>"
         f"<td>{source_badge(inst.source_of(key, env), inst.source_detail(key, env))}"
         "</td></tr>"
         for key in SETTING_KEYS
@@ -316,7 +258,7 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
     """Where the key is entered, and the settings that are not secret."""
     has_key = inst.has_api_key()
     env = inst.file_env()
-    resolved = _resolved(inst)
+    values = resolved(inst)
     source = inst.source_of(API_KEY, env)
     shadowed = inst.shadowed(API_KEY)
     bearer_badge = source_badge(
@@ -332,13 +274,13 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
         )
 
     fields = "".join(
-        f'<label class="fld">{esc(_SETTING_LABELS.get(key, key))} '
+        f'<label class="fld">{esc(LABELS[key])} '
         f"<code>{esc(key)}</code> "
         f"{source_badge(inst.source_of(key, env), inst.source_detail(key, env))}"
         "</label>"
         f'<input type="text" name="{esc(key)}" '
         f'value="{esc(env.get(key, ""))}" '
-        f'placeholder="{esc(_placeholder(key, resolved))}">'
+        f'placeholder="{esc(_placeholder(key, values))}">'
         for key in EDITABLE_KEYS
     )
 
@@ -398,16 +340,16 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
     return page("Zugangsdaten", body, here="/credentials", chip=_chip(last_account()))
 
 
-def _placeholder(key: str, resolved: dict[str, str]) -> str:
+def _placeholder(key: str, values: dict[str, str]) -> str:
     """What an empty field means: the built-in default, or what applies now."""
     defaults = {
         "LXO_MCP_BASE_URL": DEFAULT_BASE_URL,
         "LXO_MCP_APP_BASE_URL": DEFAULT_APP_BASE_URL,
-        "LXO_MCP_DOWNLOAD_DIR": _downloads(Settings(), unresolved=""),
+        "LXO_MCP_DOWNLOAD_DIR": downloads_dir(Settings(), unresolved=""),
     }
     if key in defaults:
         return defaults[key]
-    return resolved.get(key, "")
+    return values.get(key, "")
 
 
 # --- permissions -----------------------------------------------------------
