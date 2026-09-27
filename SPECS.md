@@ -1033,19 +1033,21 @@ exposed one tool per path.
 
 **What the tool list actually costs, measured 2026-08-21, again on
 2026-08-22 with the annotations below, again on 2026-08-23 after
-`create_voucher` lost a parameter that could not work, and again on
-2026-09-27.** Serialized as the compact JSON a `tools/list` answer is,
-twenty-five tools come to **52,298 characters**, around 2,092 each. Roughly
+`create_voucher` lost a parameter that could not work, and twice on
+2026-09-27, the second time after the documentation review added
+`voucher_number`, three sort properties and `finalize`.** Serialized as the
+compact JSON a `tools/list` answer is, twenty-five tools come to **53,198
+characters**, around 2,127 each. Roughly
 13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
 than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 33,481 | 64% |
-| Tool descriptions, the part under a ceiling | 11,272 | 22% |
+| Input schemas | 34,173 | 64% |
+| Tool descriptions, the part under a ceiling | 11,169 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
-| Names, titles and the rest | ~2,164 | 4% |
+| Names, titles and the rest | ~2,475 | 5% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
@@ -1076,21 +1078,21 @@ consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 33,469
-characters of input schema, 13,264 are prose from `Field(description=...)` and
-the remaining 20,205 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,173
+characters of input schema, 13,516 are prose from `Field(description=...)` and
+the remaining 20,657 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
-where it should be watched: `create_voucher` spends 1,744 characters on
-seventeen parameter descriptions, nearly four times its own description.
+where it should be watched: `create_voucher` spends 1,634 characters on
+sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,139), `create_voucher` (4,334), `update_contact` (3,965), `create_contact`
-(3,907), `search_vouchers` (3,378) and `update_voucher` (3,359) come to 48% of
+(5,293), `create_voucher` (4,288), `update_voucher` (4,145), `create_contact`
+(4,072), `update_contact` (4,023) and `search_vouchers` (3,770) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 22,620 characters, a little under half.
+`read-only` installation sends 23,563 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
