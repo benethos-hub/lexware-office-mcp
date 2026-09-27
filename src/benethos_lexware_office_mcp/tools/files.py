@@ -27,7 +27,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel, Field
 
-from .. import rendering, resources, storage
+from .. import formatting, rendering, resources, storage
 from ..client import ClientProvider
 from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
@@ -349,7 +349,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = await asyncio.to_thread(
             _read_upload, path, settings.upload_path
         )
-        return dict(await provider.get().upload_file(content, name, content_type))
+        return formatting.compact_object(
+            await provider.get().upload_file(content, name, content_type)
+        )
 
     @classify("write", "files", "create", permanence="books")
     async def attach_file_to_voucher(
@@ -389,7 +391,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         content, name, content_type = await asyncio.to_thread(
             _read_upload, path, settings.upload_path
         )
-        return dict(
+        return formatting.compact_object(
             await provider.get().attach_file(voucher_id, content, name, content_type)
         )
 
