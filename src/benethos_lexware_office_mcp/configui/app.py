@@ -432,32 +432,26 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def _permissions(self, form: Form) -> None:
-        inst = self.installation
-        action = _field(form, "action")
+        """One form, seven buttons: the button's value says which."""
         chosen = [name for name in form.get("tool", []) if name in known_tools()]
-
-        if action == "load":
-            self._load_profile(form)
-            return
-        if action == "profile-save":
-            self._save_profile(form, chosen)
-            return
-        if action == "profile-overwrite":
-            self._overwrite_profile(form, chosen)
-            return
-        if action == "profile-delete":
-            self._delete_profile(form)
-            return
-        if action == "policy-export":
-            self._export()
-            return
-        if action == "policy-import":
-            self._import_policy(form, chosen)
-            return
-        if action != "save":
+        actions: dict[str, Callable[[], None]] = {
+            "save": lambda: self._save_policy(chosen),
+            "load": lambda: self._load_profile(form),
+            "profile-save": lambda: self._save_profile(form, chosen),
+            "profile-overwrite": lambda: self._overwrite_profile(form, chosen),
+            "profile-delete": lambda: self._delete_profile(form),
+            "policy-export": self._export,
+            "policy-import": lambda: self._import_policy(form, chosen),
+        }
+        action = actions.get(_field(form, "action"))
+        if action is None:
             self._not_found()
             return
+        action()
 
+    def _save_policy(self, chosen: list[str]) -> None:
+        """Write the file. The one action here that changes what a server does."""
+        inst = self.installation
         flags = {name: name in chosen for name in known_tools()}
         try:
             inst.policy.save(flags)
