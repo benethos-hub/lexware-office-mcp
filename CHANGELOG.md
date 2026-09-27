@@ -175,6 +175,11 @@ housekeeping are out of scope here — design decisions live in
   description said the API sorts on the voucher date and nothing else, and
   `sort` offered only that. The API honours `voucherNumber`, `createdDate`
   and `updatedDate` as well, each way round.
+- **`update_voucher` can book an unchecked voucher.** A receipt sent with
+  `upload_file` arrives `unchecked`, and could be filled in but never
+  booked: the update left it unchecked. `finalize`, together with `confirm`,
+  now moves it to `open`. It is refused for a voucher in any other state
+  before anything is written.
 
 ## [0.2.4] - 2026-09-14
 

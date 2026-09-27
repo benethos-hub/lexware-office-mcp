@@ -437,6 +437,20 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             float | None, Field(description="New total tax.")
         ] = None,
         remark: Annotated[str | None, Field(description="New note.")] = None,
+        finalize: Annotated[
+            bool,
+            Field(
+                description=(
+                    "Book an unchecked voucher, such as one upload_file made, "
+                    "by moving it to open. Only when the user asked for that. "
+                    "Needs confirm."
+                )
+            ),
+        ] = False,
+        confirm: Annotated[
+            bool,
+            Field(description="Required only for finalize. Ignored otherwise."),
+        ] = False,
     ) -> dict[str, Any]:
         """Change a bookkeeping voucher that is already recorded.
 
@@ -444,9 +458,19 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         shows what is there and carries the `version` this needs. Two API
         calls. Passing `items` **replaces** every line rather than adding one.
 
+        An `unchecked` voucher takes new data and stays unchecked until
+        `finalize` books it, which needs its number, date, contact and lines.
+
         If the voucher changed since that read, nothing is written. One that
         is already paid or booked may be refused whatever the version.
         """
+        if finalize and not confirm:
+            raise ValidationError(
+                "finalize books the voucher and the API cannot take it back. "
+                "Use it only when the user asked to book it, and pass "
+                "confirm=true as well. Leaving finalize unset changes the "
+                "voucher and leaves it unchecked."
+            )
         if contact_id is not None and use_collective_contact:
             raise ValidationError(
                 "Pass contact_id or use_collective_contact, not both: a voucher "
@@ -455,6 +479,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         client = provider.get()
         current = await client.voucher(voucher_id)
         require_version(current, version, noun="voucher", reader="get_voucher")
+        status = current.get("voucherStatus")
+        if finalize and status != "unchecked":
+            raise ValidationError(
+                f"finalize only books an unchecked voucher, and this one is "
+                f"{status}. Nothing was written."
+            )
 
         body = voucher_body(
             base=current,
@@ -467,6 +497,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             total_gross_amount=total_gross_amount,
             total_tax_amount=total_tax_amount,
             remark=remark,
+            finalize=finalize,
         )
         return formatting.compact_object(await client.update_voucher(voucher_id, body))
 

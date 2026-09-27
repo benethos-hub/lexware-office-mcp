@@ -2,9 +2,9 @@
 
 Every fixture here is a shape the live API returned on 2026-08-20, with
 placeholder identifiers. The write half was exercised against the same test
-account, which is where two of the assertions below come from: that a PUT must
-not echo ``voucherStatus``, and that payment information does not exist for a
-voucher that has not been booked.
+account, which is where two of the assertions below come from: that a PUT
+carries ``voucherStatus`` only to book, and that payment information does not
+exist for a voucher that has not been booked.
 """
 
 from __future__ import annotations
@@ -357,7 +357,7 @@ def test_the_collective_contact_clears_a_named_one() -> None:
 
 
 def test_an_update_does_not_echo_the_status_back() -> None:
-    """Verified live: a PUT carrying voucherStatus is refused outright.
+    """Verified live: a PUT carrying any status but `open` is refused.
 
     Contacts accept their read-only fields and ignore them. Vouchers do not,
     and the offline suite would never have caught the difference.
@@ -629,6 +629,76 @@ async def test_update_voucher_can_move_it_back_to_the_collective_contact() -> No
     sent = handler.body(1)
     assert sent["useCollectiveContact"] is True
     assert "contactId" not in sent
+    await provider.aclose()
+
+
+UNCHECKED = {**VOUCHER, "voucherStatus": "unchecked"}
+
+
+async def test_finalize_books_an_unchecked_voucher() -> None:
+    """Measured 2026-09-27: `open` is the one status a PUT may carry, and
+    without it an unchecked voucher takes the data and stays unchecked."""
+    handler = Scripted((200, UNCHECKED), (200, WRITTEN))
+    server, provider = server_with(handler)
+
+    await server.call_tool(
+        "update_voucher",
+        {
+            "voucher_id": "PLACEHOLDER-VOUCHER-1",
+            "version": 3,
+            "finalize": True,
+            "confirm": True,
+        },
+    )
+
+    assert handler.body(1)["voucherStatus"] == "open"
+    await provider.aclose()
+
+
+async def test_an_update_without_finalize_sends_no_status() -> None:
+    """The API refuses every other value, `unchecked` included."""
+    handler = Scripted((200, UNCHECKED), (200, WRITTEN))
+    server, provider = server_with(handler)
+
+    await server.call_tool(
+        "update_voucher",
+        {"voucher_id": "PLACEHOLDER-VOUCHER-1", "version": 3, "remark": "x"},
+    )
+
+    assert "voucherStatus" not in handler.body(1)
+    await provider.aclose()
+
+
+async def test_finalize_without_confirm_never_reaches_the_api() -> None:
+    handler = Scripted((200, UNCHECKED), (200, WRITTEN))
+    server, provider = server_with(handler)
+
+    with pytest.raises(ToolError, match="confirm"):
+        await server.call_tool(
+            "update_voucher",
+            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "version": 3, "finalize": True},
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
+async def test_finalize_on_a_voucher_that_is_not_unchecked_writes_nothing() -> None:
+    handler = Scripted((200, {**VOUCHER, "voucherStatus": "open"}), (200, WRITTEN))
+    server, provider = server_with(handler)
+
+    with pytest.raises(ToolError, match="is open"):
+        await server.call_tool(
+            "update_voucher",
+            {
+                "voucher_id": "PLACEHOLDER-VOUCHER-1",
+                "version": 3,
+                "finalize": True,
+                "confirm": True,
+            },
+        )
+
+    assert handler.methods == ["GET"]
     await provider.aclose()
 
 

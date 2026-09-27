@@ -228,9 +228,10 @@ TaxType = Literal["net", "gross", "vatfree"]
 
 # Fields a voucher carries when read but refuses when written back. Contacts
 # accept their read-only fields and ignore them, vouchers do not: a PUT that
-# echoes `voucherStatus` is refused outright with `voucherStatus:
-# invalid_value`. Verified 2026-08-20, which is the only way this would have
-# been found — the offline suite mocks the API and would have stayed green.
+# echoes `voucherStatus` is refused with `voucherStatus: invalid_value` for
+# every status but `open`, which books an unchecked voucher and is sent only
+# for `finalize`. Verified 2026-08-20 and, for the one exception, 2026-09-27 -
+# the offline suite mocks the API and would have stayed green either way.
 VOUCHER_PUT_DROP = (
     "voucherStatus",
     "contactName",
@@ -285,6 +286,7 @@ def voucher_body(
     total_gross_amount: float | None = None,
     total_tax_amount: float | None = None,
     remark: str | None = None,
+    finalize: bool = False,
 ) -> dict[str, Any]:
     """Build the body for creating or updating a bookkeeping voucher.
 
@@ -298,11 +300,15 @@ def voucher_body(
     tax type alone sends the totals it read back, untouched - a voucher made
     from an upload holds no lines, and adding up nothing gave it zero.
 
-    **No ``voucherStatus`` is ever sent.** A POST carrying one is refused with
-    ``voucherStatus: invalid_value``, measured on 2026-08-23 across three
-    voucher types, and a PUT carrying one is refused the same way - which is
-    what :data:`VOUCHER_PUT_DROP` strips out of the record being merged. The
-    state a voucher is created in is the API's to decide.
+    **No ``voucherStatus`` is sent, with one exception.** A POST carrying one
+    is refused with ``voucherStatus: invalid_value``, measured on 2026-08-23
+    across three voucher types, and :data:`VOUCHER_PUT_DROP` strips the one
+    in the record being merged. The exception is ``finalize``: a PUT
+    carrying ``open`` is the one status change the API allows, turning an
+    ``unchecked`` voucher into a booked one. Measured 2026-09-27: ``open`` is
+    accepted, ``unchecked`` and ``paid`` are refused with ``invalid_value``,
+    and without ``open`` an unchecked voucher takes the new data and stays
+    unchecked.
     """
     body: dict[str, Any] = (
         {k: v for k, v in base.items() if k not in VOUCHER_PUT_DROP}
@@ -317,6 +323,8 @@ def voucher_body(
     _set(body, "shippingDate", shipping_date)
     _set(body, "taxType", tax_type)
     _set(body, "remark", remark)
+    if finalize:
+        body["voucherStatus"] = "open"
 
     if contact_id is not None:
         body["contactId"] = contact_id

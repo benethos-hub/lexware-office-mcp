@@ -647,10 +647,17 @@ arriving.
   four: without it the POST is refused with `voucherNumber: missing_entity`.
   The parameter was optional and is now required, so the schema refuses the
   call before it costs anything.
-- **A PUT must not echo `voucherStatus`.** Unlike a contact, which accepts its
-  read-only fields and ignores them, a voucher is refused outright with
-  `voucherStatus: invalid_value`. `payloads.VOUCHER_PUT_DROP` is what strips
-  it, along with `contactName`, the timestamps and `organizationId`.
+- **A PUT carries `voucherStatus` only to book.** Unlike a contact, which
+  accepts its read-only fields and ignores them, a voucher refuses every
+  status but one with `voucherStatus: invalid_value`: `unchecked` and `paid`
+  are refused, `open` is accepted, measured 2026-09-27.
+  `payloads.VOUCHER_PUT_DROP` strips the status from the record being
+  merged, along with `contactName`, the timestamps and `organizationId`.
+  `open` is what books an `unchecked` voucher, the one status change the
+  documentation allows, and `update_voucher` sends it only for `finalize`
+  with `confirm`. Without it an unchecked voucher takes new data and stays
+  unchecked - the documentation says it cannot be updated at all, which is
+  not what the API does.
 - **The API checks the totals against the lines** and refuses a mismatch with
   `totalGrossAmount: invalid_total_amount`, and the tax against the tax type
   with `voucherItems[0].taxAmount: invalid_taxamount`. Every voucher
@@ -1122,7 +1129,7 @@ arguments cost three to four times what the simple ones do.
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and sends only the leading figure whenever the price, the side or the rate changes, so a new rate is never sent beside two prices it contradicts. The API would tolerate that - measured 2026-09-27, a new rate beside both old prices is accepted and the other side recomputed, for `NET` and `GROSS` alike - but a body should not depend on it. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
-| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
@@ -2156,7 +2163,7 @@ belongs in section 5: the profile response shape, the per-endpoint page
 ceiling, the 404 and 400 error bodies including the `IssueList`-only form, the
 three-character minimum on the contact filters, the voucher type and status
 enums, that a stale version arrives as 406 rather than 409, that a voucher PUT
-must not echo its status, the upload contract and its 5 MiB ceiling, that
+carries a status only to book, the upload contract and its 5 MiB ceiling, that
 master data comes back as a bare list, that a key can be created inside a test
 account, and that the bucket paces real calls (five tool calls at rate 1.5 took
 2.69 seconds).
