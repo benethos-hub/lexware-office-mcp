@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.2.4.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.3.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -41,9 +41,11 @@ one server instance serves several Lexware accounts.
 **Deliberately gated rather than excluded:** finalizing a document and
 deleting an article. Both need a decision from the account owner rather than
 from a model, and both are governed by the permission model in section 9.
-Booking a voucher stood here too until 2026-08-21, when it turned out to be
-something this API cannot do at all - see section 5, which measures the
-absence of every state transition.
+Booking a voucher stood here too until 2026-08-21, when it looked like
+something this API cannot do at all. On 2026-09-27 the one transition it does
+have turned up: an `unchecked` voucher is booked by a PUT carrying `open`.
+It sits on `update_voucher` as `finalize`, gated by `confirm` like the
+finalize of a sales document - see section 5.
 
 ## 3. Naming
 
@@ -425,6 +427,7 @@ written through it stays, because there is no call that removes it.
 | `upload_file` | a file **and a voucher** | no |
 | `attach_file_to_voucher` | an attachment | no — nothing detaches a file |
 | `update_contact`, `update_voucher`, `update_article` | a changed record | no undo, but the record can be changed again |
+| `update_voucher` with `finalize` | a booked voucher, where it was `unchecked` | no — nothing turns a booked voucher back |
 
 **The web app is the other half of this, and this project cannot measure it.**
 What it can do is read the vendor's own help pages, which is what the
@@ -474,11 +477,13 @@ exactly, while the tools sitting quietly under `--tools write` are the ones
 that leave marks in someone's bookkeeping. Section 9 says so where the presets
 are described, because a preset name cannot carry that distinction.
 
-### The API has no state transitions, verified 2026-08-21
+### The API has one state transition, verified 2026-08-21 and 2026-09-27
 
-A record is created in the state it will keep, or it is not created. There is
-no call that moves an existing one from one state to another, which explains
-several things that otherwise look like separate quirks.
+A record is created in the state it will keep, or it is not created - with a
+single exception, found on 2026-09-27: a bookkeeping voucher in `unchecked`
+is booked by a PUT carrying `voucherStatus: open`. No other call moves an
+existing record from one state to another, which explains several things
+that otherwise look like separate quirks.
 
 Measured by sending each of these and reading the answer, with bodies empty so
 nothing could be created or changed:
@@ -491,14 +496,18 @@ nothing could be created or changed:
 | `DELETE /v1/invoices/{id}` | 404 |
 | `POST /v1/vouchers/{id}/book` | 404 |
 | `PUT /v1/vouchers/{id}/status` | 404 |
+| `PUT /v1/vouchers/{id}` with `voucherStatus: open`, on an `unchecked` voucher | **200**, booked (2026-09-27) |
+| the same with `unchecked` or `paid` | 406, `voucherStatus: invalid_value` |
 
 - **A sales document cannot be changed, finalized or deleted after creation.**
   `?finalize=true` is a parameter on the creation, not an operation on a
   draft. A draft is edited or removed in the web app or not at all.
-- **A bookkeeping voucher cannot be booked, and it cannot be parked either.**
-  The API sets the status itself and refuses any request that names one:
-  `voucherStatus: invalid_value`, on a POST as much as on a PUT. What a
-  voucher is created as is not the caller's to decide.
+- **A bookkeeping voucher can be booked once, from `unchecked`, and never
+  parked.** The API sets the status on a POST itself and refuses one that
+  names it. A PUT refuses every status but `open`, which books an unchecked
+  voucher - the state `upload_file` leaves a receipt in. The 2026-08-21
+  probes never tried that, because they sent empty bodies to invented
+  routes, and the documentation had described it all along.
 - **Only an article can be deleted**, which makes `delete` the one
   irreversible effect this API offers and the only member of the
   `irreversible` preset there will be until the API grows.
@@ -506,7 +515,8 @@ nothing could be created or changed:
 This is why `policy.Effect` lists `create`, `update` and `delete` and nothing
 else. `book` and `finalize` were in that vocabulary until this was measured,
 and a classification naming operations the API cannot perform invites a tool
-that cannot be written.
+that cannot be written. The one transition found since is a parameter of an
+update rather than a tool of its own, so the vocabulary stays as it is.
 
 ### Creating a sales document, verified 2026-08-21
 
@@ -1061,7 +1071,14 @@ rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
 **Annotations, and why they cost what they cost.** Every tool carries the MCP
 hints, derived in `tools/_base.py` from what `@classify` already recorded
 rather than written out per tool: a tool cannot then say one thing to the
-policy file and another to a client. `read_only_hint` follows `access`.
+policy file and another to a client. `read_only_hint` follows `access`,
+which makes it true for `download_document` and `download_file` although
+both save a file. The protocol defines the hint as "does not modify its
+environment", and the only change they make is a new file in the download
+directory: nothing in Lexware, never an overwrite, and nowhere but the
+directory the settings name. Deriving the hint from somewhere else would
+mark the two as writing in the `read-only` preset they belong to, so the
+derivation stays and this sentence is the record of the decision.
 `destructive_hint` is false for a create, which only adds, and true for an
 update or a delete - this API replaces a record rather than patching it.
 `idempotent_hint` is the same distinction seen from the other side: a second
@@ -1140,7 +1157,7 @@ arguments cost three to four times what the simple ones do.
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
-| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. |
+| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. That voucher starts `unchecked`, and since 2026-09-27 the docstring also names `update_voucher` and its `finalize` as the way to fill it in and book it. |
 
 ### Irreversible tools
 
@@ -1150,11 +1167,11 @@ the refusal says what would have happened. `create_sales_document` takes the
 same argument for `finalize`, which is the other irreversible thing that can
 be asked for here.
 
-**And that is all of them.** Booking a voucher was listed here as a third,
-and it is not possible: the API has no state transitions, measured 2026-08-21
-and written up in section 5. Nothing can be booked, finalized or voided after
-the fact, so `delete_article` is the whole of this group rather than its first
-instalment.
+**And that is all of them, with one addition.** Booking a voucher was
+listed here as a third and dropped on 2026-08-21 as impossible. On 2026-09-27
+it turned out possible for an `unchecked` voucher, and `update_voucher` takes
+`finalize` with the same `confirm` for it. Nothing else can be booked,
+finalized or voided after the fact, see section 5.
 
 It is also the only tool for which the `irreversible` preset differs from
 `write`. Until it existed the two wrote the same twenty-one flags, and the
@@ -1366,8 +1383,9 @@ already fetched stays until the client asks again, and most ask once.
 `ToolMeta.irreversible` is true for `delete` alone, which in this product is
 not a figure of speech: what is deleted is gone, and what is created mostly
 cannot be deleted at all. `book` and `finalize` were in this vocabulary until
-2026-08-21, when the API turned out to have no state transitions to name them
-after, see section 5. Nothing acts on it
+2026-08-21, when the API seemed to have no state transitions to name them
+after. The one it has, booking an unchecked voucher, is a parameter of
+`update_voucher`, see section 5. Nothing acts on it
 yet. When something does it should be a separate confirmation rather than a
 red label, or the flag is decoration.
 
@@ -2308,13 +2326,14 @@ suggested they were.
 | 0.2.2 | `--env-file` reads the file it names and no other | **released 2026-08-23** — the flag had promised that in its own help since it was added and read the named file after everything the search found, so it isolated nothing. See section 6. The search behind it follows one rule now as well, which is a decision rather than the fix |
 | 0.2.3 | Error messages reach the model again under MCP SDK 2.1 | **released 2026-09-02** — the SDK began sorting a failing tool call by the type of what was raised, and this hierarchy derived from plain `Exception`, so every sentence it sends was replaced by "Error executing tool <name>". It reached installations rather than only this checkout: the declared range already allowed 2.1. See section 12.1. The lockfile was brought current in the same release, and Dependabot had been silent since it was configured because it read `pip` rather than `uv` |
 | 0.2.4 | The image on MCP SDK 2.2 and a current HTTP stack | **released 2026-09-14** — no change to the package itself. Anyone installing from the index already resolved to SDK 2.2.0, the container did not, because it is built from the lockfile. Over stdio nothing a client sees moved, measured byte for byte. Over HTTP an idle session now expires after thirty minutes, the SDK's new default and kept, see the changelog. The seven transitive packages Dependabot never proposes came along, three of them in the transport |
+| 0.3.0 | A review's hardening, the payload fixes it found, and what the API documentation said all along | **released 2026-09-27** - a minor rather than a patch, because an installation can trip over it: only JSON `true` enables a tool, the base URLs must be `https://`, `LXO_MCP_PDF_PAGES` stops at 100, and the configuration interface answers only to a loopback name and its own port. New: `search_vouchers` by number and on four sort properties, `update_voucher` books an unchecked voucher and moves one back to the collective contact, `LXO_MCP_UPLOAD_DIR`. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture that differs from 0.2.4's only where the account holds different records |
 
-**No feature release is planned between 0.2.4 and whatever a future API
-version brings.** What was once listed as a phase of its own — booking a
-voucher, and the ZUGFeRD and XRechnung download variants — turned out on
-2026-08-21 to be one operation the API cannot perform and one that
-`download_document` and `download_file` already do through `file_format`. A
-number gets assigned when there is content for it, not before.
+**A number gets assigned when there is content for it, not before.** What
+was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
+and XRechnung download variants - turned out on 2026-08-21 to be one
+operation the API seemed unable to perform and one that `download_document`
+and `download_file` already do through `file_format`. The first of them
+arrived with 0.3.0 after all, for an unchecked voucher.
 
 ### 16.1 Answered: how a user configures the server
 

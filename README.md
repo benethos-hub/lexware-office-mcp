@@ -34,10 +34,10 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.2.4.**
+> **Status: 0.3.0.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
-> upload a receipt. `get_profile` answers which account is connected. Every
+> upload a receipt and book it. `get_profile` answers which account is connected. Every
 > tool in the table below is built, and each was exercised against a live
 > account. It speaks stdio to a client that starts it, and streamable HTTP
 > behind a bearer token where something else has to reach it - as a published
@@ -105,7 +105,7 @@ Read tools:
 | `get_contact` | One contact with addresses, roles and version |
 | `search_articles` | List articles, filtered by number, barcode or kind. The API offers no search by title |
 | `get_article` | One article with its price block and version |
-| `search_vouchers` | The central query — filter the voucher list by type, status, contact, date range and what is still open |
+| `search_vouchers` | The central query — filter the voucher list by type, status, contact, document number, date range and what is still open |
 | `get_sales_document` | Read an invoice, quotation, credit note, order confirmation, delivery note, dunning or down payment invoice in full |
 | `get_voucher` | Read a bookkeeping voucher, by id or by its document number |
 | `get_payments` | Payment status and open amount of a voucher |
@@ -125,7 +125,7 @@ Write tools. These change real accounting records, so enable them one at a time 
 | `create_article` | Add an article to the catalogue |
 | `update_article` | Change one, without touching what you did not name |
 | `create_voucher` | Record a bookkeeping voucher |
-| `update_voucher` | Change one that is already recorded |
+| `update_voucher` | Change one that is already recorded, or book a receipt that `upload_file` left unchecked |
 | `create_sales_document` | Create an invoice, quotation, credit note, order confirmation, delivery note or dunning — a draft unless you ask for it to be issued, which the assistant may only do on your explicit instruction |
 | `upload_file` | Upload a receipt, which also creates its voucher |
 | `attach_file_to_voucher` | Hang a file on a voucher that already exists |
@@ -156,7 +156,9 @@ endpoint for it, so a wrong `create_voucher` has to be corrected in the
 Lexware Office web app, and it is booked the moment it is created - the
 API accepts no status on the way in. The same applies to `upload_file`:
 uploading a receipt also creates the voucher that goes with it, so it
-leaves a record behind even though its name only mentions the file.
+leaves a record behind even though its name only mentions the file. That
+voucher starts unchecked, and `update_voucher` fills it in and, when you
+ask for it, books it.
 
 Downloads are written into the download directory on the machine the server
 runs on, and reported two ways: a **path**, which is what you want when the
@@ -279,7 +281,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.2.4"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.3.0"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -432,8 +434,10 @@ The third step is its own because it is its own decision: what is deleted is
 gone, so it should be chosen by naming it rather than by picking the largest
 option. Exactly one tool carries such an effect, `delete_article`, and that is
 not a temporary state of affairs — an article is the only thing this API can
-delete, and there is no way to book, finalize or void anything after the fact
-either.
+delete. Nothing can be finalized or voided after the fact either, and the one
+thing that can be booked afterwards, an unchecked voucher, needs the
+assistant to pass `finalize` and `confirm` to `update_voucher` - which it may
+only do when you asked for it.
 
 Without `--tools-file`, the file is searched exactly like the `.env`, lowest
 precedence first:
@@ -594,8 +598,8 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.2.4` for an exact release,
-`:0.2` to follow its patch releases. `:latest` moves with every release, and
+Pin a version for anything you depend on - `:0.3.0` for an exact release,
+`:0.3` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
