@@ -157,6 +157,9 @@ housekeeping are out of scope here — design decisions live in
   uvicorn 0.54.0, pyjwt 2.15.0, platformdirs 4.12.0, idna 3.20,
   opentelemetry-api 1.45.0 and ruff 0.16.9. No change to any tool, parameter
   or answer.
+- **`get_sales_document` tells a draft by `voucherStatus`.** Its description
+  pointed at the missing `files.documentFileId`, which Lexware has marked for
+  removal on every sales document type. The answer itself is unchanged.
 
 ### Added
 

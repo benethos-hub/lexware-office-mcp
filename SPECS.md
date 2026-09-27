@@ -575,23 +575,25 @@ still meets it.
 - The other two are as small as the account is: one payment condition and one
   print layout, both flagged as the organization's default.
 
-### Announced upstream, read 2026-09-02
+### Announced upstream, read 2026-09-02 and 2026-09-27
 
 Read from the documentation rather than measured, because a removal that has
-not happened yet cannot be measured. Both fields are still served today.
+not happened yet cannot be measured. Both are still served today.
 
-- **`files` on credit notes and delivery notes is going away.** The wording is
-  "(Deprecated, will be removed) The document id for the PDF version of the
-  credit note", and the same for a delivery note. The **download** is
-  unaffected: `download_document` fetches `/file` directly and never reads
-  that id. What weakens is the signal above — on those two types the absence
-  of a `files` block will stop meaning "still a draft, nothing rendered", and
-  `voucherStatus` becomes the field to read instead. It is in the answer
-  already, so no tool has to change for that to be possible.
-- **`/v1/credit-notes/{id}/document` is deprecated**, with the documentation
-  pointing at the `/file` subresource instead. Nothing to do: this server has
-  never called `/document`, for a reason measured 2026-08-21 and recorded
-  above — it costs one call more for the same bytes. The vendor has now
+- **`files` and `documentFileId` are going away on every sales document
+  type**, not only on credit notes and delivery notes as the reading of
+  2026-09-02 had it. The documentation's change log dates it 13.08.2025, and
+  each of the seven types carries the same "(Deprecated, will be removed)"
+  line. The **download** is unaffected: `download_document` fetches `/file`
+  directly and never reads that id. What goes is the signal above, so
+  `voucherStatus` is the field to read, and `get_sales_document` says so
+  since 2026-09-27.
+- **`/v1/{resource}/{id}/document` is deprecated for every type**, with the
+  documentation pointing at the `/file` subresource instead, and so is
+  downloading a sales document through `/v1/files`. Nothing to do: this
+  server has never called `/document`, for a reason measured 2026-08-21 and
+  recorded above - it costs one call more for the same bytes - and
+  `download_file` is for bookkeeping voucher files. The vendor has now
   arrived at the same place.
 
 Neither is dated by Lexware, so there is no deadline to plan against. The
@@ -674,11 +676,12 @@ arriving.
 - **A draft reads in full**, verified 2026-08-21. Only the download is
   refused: `GET /v1/invoices/{id}` answers with every figure on the document
   while it is still a draft. What it does not carry is `dueDate`,
-  `printLayoutId` and the `files` block, and that last absence is the reliable
-  way to tell whether there is anything to download — an `open` document
-  carries `files.documentFileId`, pointing at the same rendered file
-  `/file` serves. **On two types that signal is on borrowed time**, see
-  "Announced upstream" below.
+  `printLayoutId` and the `files` block. `voucherStatus` is the field that
+  says whether there is anything to download: `draft` has nothing, measured
+  again 2026-09-27 on a quotation. An `open` document carries
+  `files.documentFileId`, pointing at the same rendered file `/file` serves,
+  but that block is deprecated for every type, see "Announced upstream"
+  below, so nothing here reads its absence as a signal any more.
 - **A document type that does not match the id is a 404**, measured on
   2026-08-21 by reading a real invoice id through `/v1/quotations`,
   `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one

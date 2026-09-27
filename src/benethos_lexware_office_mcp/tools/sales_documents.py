@@ -109,8 +109,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         `document_type` has to match the id. A mismatch answers "not found",
         exactly as a wrong id does.
 
-        A draft reads in full but carries no `files.documentFileId`: nothing
-        has been rendered yet, and `download_document` refuses it.
+        A draft reads in full with `voucherStatus` `draft`: nothing has been
+        rendered yet, and `download_document` refuses it.
 
         For a bookkeeping voucher use `get_voucher`.
         """

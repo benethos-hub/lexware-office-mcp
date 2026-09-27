@@ -155,8 +155,9 @@ async def test_reading_an_invoice_returns_it_whole() -> None:
     await provider.aclose()
 
 
-async def test_an_open_document_says_where_its_pdf_is() -> None:
-    """`files.documentFileId` is what `download_file` would take."""
+async def test_an_open_document_passes_its_files_block_through() -> None:
+    """Deprecated upstream for every sales document type, and passed through
+    unchanged for as long as the API still sends it."""
     handler = Scripted((200, INVOICE))
     server, provider = server_with(handler)
 
@@ -167,6 +168,20 @@ async def test_an_open_document_says_where_its_pdf_is() -> None:
 
     assert result.structured_content is not None
     assert result.structured_content["files"]["documentFileId"] == "PLACEHOLDER-FILE-1"
+    await provider.aclose()
+
+
+async def test_the_description_names_the_status_not_the_deprecated_block() -> None:
+    """`files.documentFileId` is going away on every type, so a model told to
+    read a draft off its absence would be told something that stops being
+    true. `voucherStatus` stays."""
+    server, provider = server_with(Scripted())
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    description = tools["get_sales_document"].description or ""
+
+    assert "voucherStatus" in description
+    assert "documentFileId" not in description
     await provider.aclose()
 
 
