@@ -13,22 +13,14 @@ protect:
 
 from __future__ import annotations
 
-import json
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
-import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.payloads import article_body
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
-from benethos_lexware_office_mcp.server import build_server
-
-API_KEY = "test-key-0123456789"
+from helpers import Scripted, fast_client, server_with
 
 ARTICLE: dict[str, Any] = {
     "id": "PLACEHOLDER-ARTICLE-1",
@@ -73,60 +65,6 @@ WRITTEN: dict[str, Any] = {
 }
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Scripted:
-    """Answers a scripted sequence, and remembers what it was sent."""
-
-    def __init__(self, *responses: tuple[int, Any]) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        status, payload = self._responses.pop(0) if self._responses else (200, {})
-        if status == 204:
-            return httpx.Response(204)
-        return httpx.Response(status, json=payload)
-
-    @property
-    def methods(self) -> list[str]:
-        return [request.method for request in self.requests]
-
-    @property
-    def query(self) -> dict[str, list[str]]:
-        return parse_qs(urlparse(str(self.requests[-1].url)).query)
-
-    @property
-    def path(self) -> str:
-        return urlparse(str(self.requests[-1].url)).path
-
-    def body(self, index: int) -> Any:
-        return json.loads(self.requests[index].content)
-
-
-def make_client(handler: Scripted) -> LexwareClient:
-    return LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
-def server_for(handler: Scripted, page_size: int = 25) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, page_size=page_size)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
-
-
 # -- client ---------------------------------------------------------------
 
 
@@ -134,7 +72,7 @@ async def test_only_the_three_filters_that_work_are_sent() -> None:
     """An unknown parameter is ignored upstream, so sending one is worse than
     useless: it looks like a filter and answers with everything."""
     handler = Scripted((200, PAGE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.articles(
             article_number="A-0001",
             gtin="4012345678901",
@@ -154,7 +92,7 @@ async def test_only_the_three_filters_that_work_are_sent() -> None:
 
 async def test_an_unset_filter_is_left_out_entirely() -> None:
     handler = Scripted((200, PAGE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.articles()
 
     assert set(handler.query) == {"page", "size"}
@@ -163,7 +101,7 @@ async def test_an_unset_filter_is_left_out_entirely() -> None:
 async def test_a_delete_sends_nothing_and_expects_nothing_back() -> None:
     """Verified 2026-08-21: 204 with an empty body."""
     handler = Scripted((204, None))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         assert await client.delete_article("PLACEHOLDER-ARTICLE-1") is None
 
     assert handler.methods == ["DELETE"]
@@ -314,7 +252,7 @@ def test_a_field_this_project_has_never_seen_still_arrives() -> None:
 
 async def test_the_search_answers_in_the_shared_page_shape() -> None:
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool("search_articles", {"article_type": "SERVICE"})
 
@@ -327,7 +265,7 @@ async def test_the_search_answers_in_the_shared_page_shape() -> None:
 
 async def test_reading_one_returns_it_whole() -> None:
     handler = Scripted((200, ARTICLE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_article", {"article_id": "PLACEHOLDER-ARTICLE-1"}
@@ -342,7 +280,7 @@ async def test_creating_one_sends_the_four_fields_the_api_insists_on() -> None:
     """Measured 2026-08-21: title, type, unitName and price, or a 406 naming
     each one it did not get."""
     handler = Scripted((201, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "create_article",
@@ -366,7 +304,7 @@ async def test_creating_one_sends_the_four_fields_the_api_insists_on() -> None:
 
 async def test_an_update_reads_first_and_then_replaces() -> None:
     handler = Scripted((200, ARTICLE), (200, {**ARTICLE, "version": 1}))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "update_article",
@@ -381,7 +319,7 @@ async def test_an_update_reads_first_and_then_replaces() -> None:
 
 async def test_a_stale_version_is_refused_before_anything_is_sent() -> None:
     handler = Scripted((200, {**ARTICLE, "version": 3}))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(
@@ -396,7 +334,7 @@ async def test_a_stale_version_is_refused_before_anything_is_sent() -> None:
 
 async def test_a_delete_without_a_confirmation_never_reaches_the_api() -> None:
     handler = Scripted((204, None))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(
@@ -410,7 +348,7 @@ async def test_a_delete_without_a_confirmation_never_reaches_the_api() -> None:
 
 async def test_a_confirmed_delete_goes_through_and_says_what_it_removed() -> None:
     handler = Scripted((204, None))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "delete_article",
@@ -428,7 +366,7 @@ async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> N
     other list takes a page of one. The floor is in the schema, so a caller
     reading it never writes the call that fails."""
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool("search_articles", {"size": 5})
@@ -444,7 +382,7 @@ async def test_the_page_follows_the_setting_down_to_the_floor(
     """It was fixed at 25 whatever LXO_MCP_PAGE_SIZE said. A setting below the
     floor this endpoint enforces is raised to it rather than sent and refused."""
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler, page_size=page_size)
+    server, provider = server_with(handler, page_size=page_size)
 
     await server.call_tool("search_articles", {})
 
@@ -454,7 +392,7 @@ async def test_the_page_follows_the_setting_down_to_the_floor(
 
 async def test_the_page_floor_is_in_the_schema_the_client_reads() -> None:
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     size = tools["search_articles"].input_schema["properties"]["size"]
@@ -468,7 +406,7 @@ async def test_the_search_offers_no_parameter_that_looks_like_a_text_search() ->
     """The whole point of the measurement: `query` and `title` are ignored
     upstream, so offering either would be a lie in the schema."""
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     offered = set(tools["search_articles"].input_schema["properties"])
@@ -482,7 +420,7 @@ async def test_the_deleting_tool_says_the_api_has_no_way_back() -> None:
     interface it uses, and the web app is a different question. See SPECS
     section 5."""
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["delete_article"].description or ""

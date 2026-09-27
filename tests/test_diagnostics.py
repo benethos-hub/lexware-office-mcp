@@ -7,8 +7,8 @@ import pytest
 
 from benethos_lexware_office_mcp import client as client_module
 from benethos_lexware_office_mcp.config import Settings
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
+from helpers import fast_provider
 
 # The shape confirmed against a live account on 2026-08-20, with placeholder
 # identifiers. `created` is present because the API returns it and the tool has
@@ -29,19 +29,10 @@ PROFILE = {
 }
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
 @pytest.fixture
 def offline_api() -> client_module.ClientProvider:
     """The one client the server may have, pointed at a mock transport."""
-    return client_module.ClientProvider(
-        Settings(api_key="test-key-0123456789"),
-        transport=httpx.MockTransport(lambda _r: httpx.Response(200, json=PROFILE)),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
+    return fast_provider(lambda _r: httpx.Response(200, json=PROFILE))
 
 
 async def test_get_profile_is_listed_in_read_mode() -> None:

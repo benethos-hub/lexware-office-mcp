@@ -24,10 +24,9 @@ from benethos_lexware_office_mcp import rendering, resources, storage
 from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import DEFAULT_PDF_PAGES, Settings
 from benethos_lexware_office_mcp.policy import known_tools
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
+from helpers import API_KEY, Scripted, server_with
 
-API_KEY = "test-key-0123456789"
 FILE_ID = "PLACEHOLDER-FILE-1"
 
 
@@ -84,50 +83,18 @@ PDF = make_pdf()
 UPLOADED = {"id": "PLACEHOLDER-FILE-2", "voucherId": "PLACEHOLDER-VOUCHER-9"}
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Recorder:
-    """Answers with one canned response and remembers the request."""
-
-    def __init__(
-        self,
-        content: bytes = PDF,
-        status: int = 200,
-        headers: dict[str, str] | None = None,
-        json_body: Any = None,
-    ) -> None:
-        self._content = content
-        self._status = status
-        self._headers = headers or {}
-        self._json = json_body
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        if self._json is not None:
-            return httpx.Response(self._status, json=self._json)
-        return httpx.Response(
-            self._status, content=self._content, headers=self._headers
-        )
-
-    @property
-    def last(self) -> httpx.Request:
-        return self.requests[-1]
-
-
-def server_for(
-    handler: Recorder, tmp_path: Path, mode: str = "read"
-) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, download_path=tmp_path)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
+def recorder(
+    content: bytes = PDF,
+    status: int = 200,
+    headers: dict[str, str] | None = None,
+    json_body: Any = None,
+) -> Scripted:
+    """A handler that answers every request with one canned file, or one JSON."""
+    if json_body is not None:
+        return Scripted(repeat=(status, json_body))
+    return Scripted(
+        repeat=httpx.Response(status, content=content, headers=headers or {})
     )
-    return build_server(settings, provider), provider
 
 
 # -- storage --------------------------------------------------------------
@@ -227,8 +194,8 @@ def test_the_download_directory_is_created(tmp_path: Path) -> None:
 async def test_download_file_writes_the_bytes_and_reports_the_path(
     tmp_path: Path,
 ) -> None:
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
@@ -243,8 +210,8 @@ async def test_download_file_writes_the_bytes_and_reports_the_path(
 
 async def test_the_bytes_do_not_come_back_in_the_answer(tmp_path: Path) -> None:
     """Base64 in a tool result costs context and nothing can read it."""
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
@@ -259,8 +226,8 @@ async def test_a_download_asks_for_the_format_rather_than_for_json(
     tmp_path: Path,
 ) -> None:
     """The client defaults to Accept: application/json, which is wrong here."""
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     await server.call_tool("download_file", {"file_id": FILE_ID})
 
@@ -269,8 +236,8 @@ async def test_a_download_asks_for_the_format_rather_than_for_json(
 
 
 async def test_xml_is_asked_for_when_it_is_wanted(tmp_path: Path) -> None:
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     await server.call_tool("download_file", {"file_id": FILE_ID, "file_format": "xml"})
 
@@ -281,8 +248,8 @@ async def test_xml_is_asked_for_when_it_is_wanted(tmp_path: Path) -> None:
 async def test_a_document_is_fetched_from_its_own_resource_path(
     tmp_path: Path,
 ) -> None:
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     await server.call_tool(
         "download_document",
@@ -297,8 +264,8 @@ async def test_a_document_is_fetched_from_its_own_resource_path(
 
 
 async def test_a_deeplink_costs_no_api_call(tmp_path: Path) -> None:
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool(
         "get_deeplink", {"target": "invoice", "target_id": "PLACEHOLDER-DOC-1"}
@@ -398,8 +365,8 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
 ) -> None:
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("upload_file", {"path": str(receipt)})
 
@@ -414,16 +381,9 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
 
 
 def upload_server(
-    handler: Recorder, tmp_path: Path, allowed: Path
+    handler: Scripted, tmp_path: Path, allowed: Path
 ) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, download_path=tmp_path, upload_path=allowed)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
+    return server_with(handler, download_path=tmp_path, upload_path=allowed)
 
 
 @pytest.mark.parametrize("tool", ["upload_file", "attach_file_to_voucher"])
@@ -435,7 +395,7 @@ async def test_an_upload_outside_the_upload_directory_is_refused(
     inbox.mkdir()
     elsewhere = tmp_path / "private.pdf"
     elsewhere.write_bytes(PDF)
-    handler = Recorder(status=202, json_body=UPLOADED)
+    handler = recorder(status=202, json_body=UPLOADED)
     server, provider = upload_server(handler, tmp_path, inbox)
 
     arguments = {"path": str(elsewhere), "voucher_id": "PLACEHOLDER-VOUCHER-1"}
@@ -454,7 +414,7 @@ async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> 
     (inbox / "2026").mkdir(parents=True)
     receipt = inbox / "2026" / "receipt.pdf"
     receipt.write_bytes(PDF)
-    handler = Recorder(status=202, json_body=UPLOADED)
+    handler = recorder(status=202, json_body=UPLOADED)
     server, provider = upload_server(handler, tmp_path, inbox)
 
     await server.call_tool("upload_file", {"path": str(receipt)})
@@ -469,7 +429,7 @@ async def test_a_path_that_climbs_out_of_the_upload_directory_is_refused(
     inbox = tmp_path / "inbox"
     inbox.mkdir()
     (tmp_path / "private.pdf").write_bytes(PDF)
-    handler = Recorder(status=202, json_body=UPLOADED)
+    handler = recorder(status=202, json_body=UPLOADED)
     server, provider = upload_server(handler, tmp_path, inbox)
 
     with pytest.raises(ToolError, match="outside"):
@@ -489,8 +449,8 @@ async def test_an_attachment_hangs_on_a_voucher_that_already_exists(
     id alone, because no voucher was created for it."""
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
-    handler = Recorder(status=202, json_body={"id": "PLACEHOLDER-FILE-9"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body={"id": "PLACEHOLDER-FILE-9"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool(
         "attach_file_to_voucher",
@@ -513,8 +473,8 @@ async def test_an_attachment_is_never_retried(tmp_path: Path) -> None:
     way to take either off again."""
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
-    handler = Recorder(status=500, json_body={})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=500, json_body={})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -533,8 +493,8 @@ async def test_an_attachment_refuses_the_same_files_an_upload_does(
     the API would reject."""
     wrong = tmp_path / "notes.txt"
     wrong.write_text("hello", encoding="utf-8")
-    handler = Recorder(status=202, json_body={"id": "PLACEHOLDER-FILE-9"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body={"id": "PLACEHOLDER-FILE-9"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -564,8 +524,8 @@ async def test_an_upload_is_never_retried(tmp_path: Path) -> None:
     """A repeated upload is a second voucher for the same receipt."""
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
-    handler = Recorder(status=500, json_body={})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=500, json_body={})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(receipt)})
@@ -579,8 +539,8 @@ async def test_a_file_that_is_too_large_is_refused_before_the_request(
 ) -> None:
     big = tmp_path / "big.pdf"
     big.write_bytes(b"%PDF-1.4\n" + b"x" * (5 * 1024 * 1024 + 1))
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("upload_file", {"path": str(big)})
@@ -594,8 +554,8 @@ async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
     """The measured ceiling is inclusive, so the guard must not be off by one."""
     edge = tmp_path / "edge.pdf"
     edge.write_bytes(b"x" * (5 * 1024 * 1024))
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     await server.call_tool("upload_file", {"path": str(edge)})
 
@@ -606,8 +566,8 @@ async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
 async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
     note = tmp_path / "note.txt"
     note.write_text("not a receipt", encoding="utf-8")
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("upload_file", {"path": str(note)})
@@ -618,8 +578,8 @@ async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
 
 
 async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("upload_file", {"path": str(tmp_path / "nope.pdf")})
@@ -629,8 +589,8 @@ async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
 
 
 async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(tmp_path)})
@@ -644,8 +604,8 @@ async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
 
 async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
     """A path serves a client on this machine, a URI serves every other one."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
@@ -658,8 +618,8 @@ async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
 
 
 async def test_a_resource_link_comes_back_with_the_result(tmp_path: Path) -> None:
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
@@ -674,8 +634,8 @@ async def test_the_downloaded_file_can_be_read_back_as_a_resource(
     tmp_path: Path,
 ) -> None:
     """The whole point: the client asks the server for the bytes, by URI."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
     uri = (result.structured_content or {})["uri"]
@@ -689,8 +649,8 @@ async def test_the_downloaded_file_can_be_read_back_as_a_resource(
 
 async def test_nothing_is_published_before_a_download(tmp_path: Path) -> None:
     """Only what this server actually fetched is reachable."""
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     assert await server.list_resources() == []
 
@@ -703,8 +663,8 @@ async def test_nothing_is_published_before_a_download(tmp_path: Path) -> None:
 
 async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
     """Four downloads of one unchanged invoice used to leave four copies."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     results = [
         await server.call_tool("download_file", {"file_id": FILE_ID}) for _ in range(4)
@@ -720,8 +680,8 @@ async def test_the_same_document_twice_logs_no_warning(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The SDK warns for every URI registered twice, once per repeat."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     for _ in range(3):
         await server.call_tool("download_file", {"file_id": FILE_ID})
@@ -776,8 +736,8 @@ def test_reusing_a_copy_that_already_carries_a_counter(tmp_path: Path) -> None:
 async def test_a_content_type_with_parameters_is_reduced_to_the_type(
     tmp_path: Path,
 ) -> None:
-    handler = Recorder(headers={"content-type": "application/pdf;charset=UTF-8"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf;charset=UTF-8"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
@@ -787,10 +747,10 @@ async def test_a_content_type_with_parameters_is_reduced_to_the_type(
 
 async def test_a_downloaded_xml_is_published_as_xml(tmp_path: Path) -> None:
     """An XRechnung is not a PDF, and a client deciding what to do needs to know."""
-    handler = Recorder(
+    handler = recorder(
         content=b"<Invoice/>", headers={"content-type": "application/xml"}
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool(
         "download_file", {"file_id": FILE_ID, "file_format": "xml"}
@@ -823,8 +783,8 @@ async def test_an_xrechnung_may_be_uploaded(tmp_path: Path) -> None:
     """Verified 2026-08-20: .xml is accepted and parsed as an XRechnung."""
     invoice = tmp_path / "e-rechnung.xml"
     invoice.write_bytes(b"<Invoice/>")
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     await server.call_tool("upload_file", {"path": str(invoice)})
 
@@ -837,8 +797,8 @@ async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> No
     """Measured, not assumed: `inacceptable_file_extension`."""
     image = tmp_path / "scan.gif"
     image.write_bytes(b"GIF89a")
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool("upload_file", {"path": str(image)})
@@ -850,7 +810,7 @@ async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> No
 # -- reading a download into the answer -----------------------------------
 
 
-async def _downloaded(server: Any, handler: Recorder, fmt: str = "pdf") -> str:
+async def _downloaded(server: Any, handler: Scripted, fmt: str = "pdf") -> str:
     result = await server.call_tool(
         "download_file", {"file_id": FILE_ID, "file_format": fmt}
     )
@@ -859,8 +819,8 @@ async def _downloaded(server: Any, handler: Recorder, fmt: str = "pdf") -> str:
 
 async def test_a_pdf_comes_back_as_pictures_of_its_pages(tmp_path: Path) -> None:
     """A PDF itself cannot be displayed by every client, a picture can."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri})
@@ -891,10 +851,10 @@ async def test_a_rendered_page_is_sized_for_a_model_to_read(tmp_path: Path) -> N
 async def test_a_document_within_the_default_is_rendered_whole(
     tmp_path: Path,
 ) -> None:
-    handler = Recorder(
+    handler = recorder(
         content=make_pdf(pages=9), headers={"content-type": "application/pdf"}
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri})
@@ -911,10 +871,10 @@ async def test_a_longer_document_stops_at_the_default_and_says_so(
     tmp_path: Path,
 ) -> None:
     """A partial read must never look like a complete one."""
-    handler = Recorder(
+    handler = recorder(
         content=make_pdf(pages=14), headers={"content-type": "application/pdf"}
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri})
@@ -927,10 +887,10 @@ async def test_a_longer_document_stops_at_the_default_and_says_so(
 
 
 async def test_null_asks_for_all_of_them(tmp_path: Path) -> None:
-    handler = Recorder(
+    handler = recorder(
         content=make_pdf(pages=14), headers={"content-type": "application/pdf"}
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
@@ -956,10 +916,10 @@ async def test_the_default_is_stated_where_the_model_reads_it() -> None:
 
 async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> None:
     """And is told what was left behind, rather than being let believe it is all."""
-    handler = Recorder(
+    handler = recorder(
         content=make_pdf(pages=9), headers={"content-type": "application/pdf"}
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri, "max_pages": 2})
@@ -1014,7 +974,7 @@ async def test_rendering_runs_off_the_event_loop(
 ) -> None:
     """Seconds of CPU on the loop would hold every other call up."""
     (tmp_path / "invoice.pdf").write_bytes(PDF)
-    server, provider = server_for(Recorder(), tmp_path)
+    server, provider = server_with(recorder(), download_path=tmp_path)
     real = rendering.pdf_pages_as_png
     seen: list[int] = []
 
@@ -1038,7 +998,7 @@ async def test_every_page_means_at_most_the_ceiling(
 
     monkeypatch.setattr(files_tools, "MAX_PDF_PAGES", 2)
     (tmp_path / "long.pdf").write_bytes(make_pdf(pages=3))
-    server, provider = server_for(Recorder(), tmp_path)
+    server, provider = server_with(recorder(), download_path=tmp_path)
 
     result = await server.call_tool(
         "read_download", {"uri": "lexware://download/long.pdf", "max_pages": None}
@@ -1050,7 +1010,7 @@ async def test_every_page_means_at_most_the_ceiling(
 
 
 async def test_asking_for_more_than_the_ceiling_is_refused(tmp_path: Path) -> None:
-    server, provider = server_for(Recorder(), tmp_path)
+    server, provider = server_with(recorder(), download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -1068,10 +1028,10 @@ def test_asking_for_more_pages_than_there_are_is_not_an_error() -> None:
 
 async def test_a_damaged_pdf_says_what_happened(tmp_path: Path) -> None:
     """Rather than a stack trace, or an empty answer that looks like success."""
-    handler = Recorder(
+    handler = recorder(
         content=b"%PDF-1.4 not really", headers={"content-type": "application/pdf"}
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     with pytest.raises(ToolError) as excinfo:
@@ -1086,8 +1046,8 @@ async def test_something_that_is_not_a_document_still_comes_back_as_a_blob(
 ) -> None:
     """The fallback is still there for anything with no better shape."""
     (tmp_path / "archive.bin").write_bytes(b"\x00\x01\x02")
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool(
         "read_download", {"uri": "lexware://download/archive.bin"}
@@ -1101,8 +1061,8 @@ async def test_something_that_is_not_a_document_still_comes_back_as_a_blob(
 async def test_an_xrechnung_comes_back_as_readable_text(tmp_path: Path) -> None:
     """The case worth having: an e-invoice a model can actually use."""
     invoice = b'<?xml version="1.0"?><Invoice><Total>119.00</Total></Invoice>'
-    handler = Recorder(content=invoice, headers={"content-type": "application/xml"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(content=invoice, headers={"content-type": "application/xml"})
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler, fmt="xml")
 
     result = await server.call_tool("read_download", {"uri": uri})
@@ -1115,14 +1075,14 @@ async def test_an_xrechnung_comes_back_as_readable_text(tmp_path: Path) -> None:
 
 async def test_an_image_comes_back_as_an_image(tmp_path: Path) -> None:
     png = b"\x89PNG\r\n\x1a\n" + b"payload"
-    handler = Recorder(
+    handler = recorder(
         content=png,
         headers={
             "content-type": "image/png",
             "content-disposition": "inline; filename=scan.png;",
         },
     )
-    server, provider = server_for(handler, tmp_path)
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri})
@@ -1137,8 +1097,8 @@ async def test_an_image_comes_back_as_an_image(tmp_path: Path) -> None:
 
 async def test_reading_costs_no_api_call(tmp_path: Path) -> None:
     """The file is already on the server's disk."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
     before = len(handler.requests)
 
@@ -1150,8 +1110,8 @@ async def test_reading_costs_no_api_call(tmp_path: Path) -> None:
 
 async def test_rendering_does_not_touch_the_file_it_read(tmp_path: Path) -> None:
     """A download stays exactly what the API sent, whatever is shown from it."""
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
     downloaded = await server.call_tool("download_file", {"file_id": FILE_ID})
     path = Path((downloaded.structured_content or {})["path"])
 
@@ -1165,8 +1125,8 @@ async def test_rendering_does_not_touch_the_file_it_read(tmp_path: Path) -> None
 
 async def test_only_this_servers_downloads_can_be_read(tmp_path: Path) -> None:
     """Not a file reader. Anything outside the published set is refused."""
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     for outside in (
         "file:///C:/Windows/win.ini",
@@ -1180,8 +1140,8 @@ async def test_only_this_servers_downloads_can_be_read(tmp_path: Path) -> None:
 
 
 async def test_a_download_that_was_never_made_is_a_not_found(tmp_path: Path) -> None:
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(
@@ -1197,8 +1157,8 @@ async def test_something_far_too_large_is_refused_rather_than_inlined(
 ) -> None:
     """Base64 of a big file would swallow the whole answer."""
     huge = b"%PDF-1.4" + b"x" * (5 * 1024 * 1024 + 1)
-    handler = Recorder(content=huge, headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(content=huge, headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
     uri = await _downloaded(server, handler)
 
     with pytest.raises(ToolError) as excinfo:
@@ -1236,8 +1196,8 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
     died with that run.
     """
     (tmp_path / "invoice.pdf").write_bytes(PDF)
-    handler = Recorder()
-    fresh, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    fresh, provider = server_with(handler, download_path=tmp_path)
 
     listed = await fresh.list_resources()
     assert [r.name for r in listed] == ["invoice.pdf"]
@@ -1264,8 +1224,8 @@ async def test_a_file_put_there_by_hand_is_readable_under_the_name_listed(
 ) -> None:
     """Listed under its own name, it has to be found under that name too."""
     (tmp_path / "my invoice.pdf").write_bytes(PDF)
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     listed = await server.list_resources()
     assert [str(r.uri) for r in listed] == ["lexware://download/my invoice.pdf"]
@@ -1348,8 +1308,8 @@ async def test_a_download_that_cannot_be_saved_says_why(
         raise failure
 
     monkeypatch.setattr(storage, "save", refuse)
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError, match="Could not save the download") as excinfo:
         await server.call_tool("download_file", {"file_id": FILE_ID})
@@ -1364,8 +1324,8 @@ async def test_a_download_that_cannot_be_read_back_says_why(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "invoice.pdf").write_bytes(PDF)
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     def locked(_self: Path) -> bytes:
         raise PermissionError(13, "Permission denied", str(tmp_path))
@@ -1386,8 +1346,8 @@ async def test_a_file_that_cannot_be_read_for_upload_says_why(
 ) -> None:
     receipt = tmp_path / "receipt.pdf"
     receipt.write_bytes(PDF)
-    handler = Recorder(status=202, json_body=UPLOADED)
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
 
     def locked(_self: Path) -> bytes:
         raise PermissionError(13, "Permission denied", str(receipt))
@@ -1414,8 +1374,8 @@ async def test_building_a_server_does_not_create_a_download_directory(
 async def test_the_content_type_comes_from_the_name_on_disk(tmp_path: Path) -> None:
     """Which is the name the API itself chose, in its Content-Disposition."""
     (tmp_path / "e-rechnung.xml").write_bytes(b"<Invoice/>")
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool(
         "read_download", {"uri": "lexware://download/e-rechnung.xml"}
@@ -1432,8 +1392,8 @@ async def test_a_uri_cannot_climb_out_of_the_download_directory(
     """The name comes from the caller, so it is sanitized like any other input."""
     secret = tmp_path.parent / "secret.pdf"
     secret.write_bytes(b"not yours")
-    handler = Recorder()
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder()
+    server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -1444,17 +1404,10 @@ async def test_a_uri_cannot_climb_out_of_the_download_directory(
 
 async def test_the_page_default_follows_the_configuration(tmp_path: Path) -> None:
     """An operator with a tight context budget can lower it once, not per call."""
-    handler = Recorder(
+    handler = recorder(
         content=make_pdf(pages=8), headers={"content-type": "application/pdf"}
     )
-    settings = Settings(api_key=API_KEY, download_path=tmp_path, pdf_pages=2)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    server = build_server(settings, provider)
+    server, provider = server_with(handler, download_path=tmp_path, pdf_pages=2)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri})
@@ -1477,17 +1430,10 @@ async def test_a_configured_default_is_stated_in_the_schema_too() -> None:
 
 
 async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> None:
-    handler = Recorder(
+    handler = recorder(
         content=make_pdf(pages=8), headers={"content-type": "application/pdf"}
     )
-    settings = Settings(api_key=API_KEY, download_path=tmp_path, pdf_pages=2)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    server = build_server(settings, provider)
+    server, provider = server_with(handler, download_path=tmp_path, pdf_pages=2)
     uri = await _downloaded(server, handler)
 
     result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
@@ -1514,8 +1460,8 @@ async def test_a_download_says_where_the_bytes_are_and_nothing_else(
     They were joined once and the join is what let a broken link ride along
     with a working download for two days.
     """
-    handler = Recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_for(handler, tmp_path)
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
 
     result = await server.call_tool(tool, args)
 

@@ -9,23 +9,17 @@ voucher that has not been booked.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
-from urllib.parse import parse_qs, urlparse
 
-import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.payloads import VoucherItem, voucher_body
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
+from helpers import Scripted, fast_client, server_with
 
-API_KEY = "test-key-0123456789"
 CATEGORY = "PLACEHOLDER-CATEGORY-ID"
 
 VOUCHER = {
@@ -108,65 +102,13 @@ LINE = {
 }
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Scripted:
-    """Answers a scripted sequence, and remembers what it was sent."""
-
-    def __init__(self, *responses: tuple[int, Any]) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        status, payload = self._responses.pop(0) if self._responses else (200, {})
-        return httpx.Response(status, json=payload)
-
-    @property
-    def methods(self) -> list[str]:
-        return [request.method for request in self.requests]
-
-    @property
-    def query(self) -> dict[str, list[str]]:
-        return parse_qs(urlparse(str(self.requests[-1].url)).query)
-
-    @property
-    def path(self) -> str:
-        return urlparse(str(self.requests[-1].url)).path
-
-    def body(self, index: int) -> Any:
-        return json.loads(self.requests[index].content)
-
-
-def make_client(handler: Scripted) -> LexwareClient:
-    return LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
-def server_for(handler: Scripted, mode: str = "read") -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
-
-
 # -- client ---------------------------------------------------------------
 
 
 async def test_the_two_required_parameters_are_always_sent() -> None:
     """The API refuses the request without them, so no caller may omit them."""
     handler = Scripted((200, PAGE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.voucherlist(voucher_type="any", voucher_status="any")
 
     assert handler.query["voucherType"] == ["any"]
@@ -175,7 +117,7 @@ async def test_the_two_required_parameters_are_always_sent() -> None:
 
 async def test_the_optional_filters_reach_the_query_string() -> None:
     handler = Scripted((200, PAGE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.voucherlist(
             voucher_type="invoice",
             voucher_status="open",
@@ -199,7 +141,7 @@ async def test_the_optional_filters_reach_the_query_string() -> None:
 
 async def test_only_one_page_is_fetched() -> None:
     handler = Scripted((200, {**PAGE, "totalPages": 40, "last": False}))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.voucherlist(voucher_type="any", voucher_status="any")
 
     assert len(handler.requests) == 1
@@ -207,7 +149,7 @@ async def test_only_one_page_is_fetched() -> None:
 
 async def test_payments_are_read_by_the_voucher_id() -> None:
     handler = Scripted((200, PAYMENTS))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.payments("PLACEHOLDER-VOUCHER-1")
 
     assert handler.path == "/v1/payments/PLACEHOLDER-VOUCHER-1"
@@ -422,7 +364,7 @@ async def test_the_search_description_says_it_is_the_way_in() -> None:
 
 async def test_the_default_search_asks_for_everything() -> None:
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool("search_vouchers", {})
 
@@ -434,7 +376,7 @@ async def test_the_default_search_asks_for_everything() -> None:
 
 async def test_get_voucher_refuses_both_ways_of_naming_one() -> None:
     handler = Scripted((200, VOUCHER))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(
@@ -448,7 +390,7 @@ async def test_get_voucher_refuses_both_ways_of_naming_one() -> None:
 
 async def test_get_voucher_refuses_neither() -> None:
     handler = Scripted((200, VOUCHER))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool("get_voucher", {})
@@ -459,7 +401,7 @@ async def test_get_voucher_refuses_neither() -> None:
 
 async def test_a_number_that_matches_one_voucher_returns_it() -> None:
     handler = Scripted((200, {**PAGE, "content": [VOUCHER]}))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool("get_voucher", {"voucher_number": "MCP-0001"})
 
@@ -471,7 +413,7 @@ async def test_a_number_that_matches_one_voucher_returns_it() -> None:
 
 async def test_get_voucher_by_id_reads_the_record_directly() -> None:
     handler = Scripted((200, VOUCHER))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_voucher", {"voucher_id": "PLACEHOLDER-VOUCHER-1"}
@@ -485,7 +427,7 @@ async def test_get_voucher_by_id_reads_the_record_directly() -> None:
 
 async def test_get_payments_reports_what_is_still_outstanding() -> None:
     handler = Scripted((200, PAYMENTS))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_payments", {"voucher_id": "PLACEHOLDER-VOUCHER-1"}
@@ -499,7 +441,7 @@ async def test_get_payments_reports_what_is_still_outstanding() -> None:
 
 async def test_a_number_that_matches_nothing_is_a_not_found() -> None:
     handler = Scripted((200, {**PAGE, "content": [], "totalElements": 0}))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("get_voucher", {"voucher_number": "NOPE"})
@@ -512,7 +454,7 @@ async def test_an_ambiguous_number_names_the_candidates() -> None:
     """Numbers are unique by convention, not by constraint. Seen live."""
     second = {**VOUCHER, "id": "PLACEHOLDER-VOUCHER-2"}
     handler = Scripted((200, {**PAGE, "content": [VOUCHER, second]}))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("get_voucher", {"voucher_number": "MCP-0001"})
@@ -525,7 +467,7 @@ async def test_an_ambiguous_number_names_the_candidates() -> None:
 
 async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
     handler = Scripted((201, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "create_voucher",
@@ -558,7 +500,7 @@ async def test_a_create_never_offers_to_set_the_status() -> None:
     is exactly what an offline suite cannot notice. `upload_file` still files
     a document as unchecked, so the state is reachable, just not from here.
     """
-    server, _provider = server_for(Scripted((201, WRITTEN)))
+    server, _provider = server_with(Scripted((201, WRITTEN)))
     schema = {tool.name: tool.input_schema for tool in await server.list_tools()}[
         "create_voucher"
     ]
@@ -574,7 +516,7 @@ async def test_a_voucher_number_is_required_because_the_api_insists() -> None:
     schema turns a wasted call that books nothing into an argument error the
     caller sees before anything is sent.
     """
-    server, _provider = server_for(Scripted((201, WRITTEN)))
+    server, _provider = server_with(Scripted((201, WRITTEN)))
     schema = {tool.name: tool.input_schema for tool in await server.list_tools()}[
         "create_voucher"
     ]
@@ -585,7 +527,7 @@ async def test_a_voucher_number_is_required_because_the_api_insists() -> None:
 async def test_a_create_is_never_retried() -> None:
     """A repeated create is a second booking of the same amount."""
     handler = Scripted((500, {}), (201, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -605,7 +547,7 @@ async def test_a_create_is_never_retried() -> None:
 
 async def test_update_voucher_reads_before_it_replaces() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "update_voucher",
@@ -625,7 +567,7 @@ async def test_update_voucher_can_move_it_back_to_the_collective_contact() -> No
     2026-09-27: the PUT that sets it and drops the contact id is accepted."""
     named = {**VOUCHER, "useCollectiveContact": False, "contactId": "PLACEHOLDER-C"}
     handler = Scripted((200, named), (200, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "update_voucher",
@@ -644,7 +586,7 @@ async def test_update_voucher_can_move_it_back_to_the_collective_contact() -> No
 
 async def test_a_named_and_the_collective_contact_at_once_is_refused() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError, match="not both"):
         await server.call_tool(
@@ -663,7 +605,7 @@ async def test_a_named_and_the_collective_contact_at_once_is_refused() -> None:
 
 async def test_a_stale_version_stops_before_the_write() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(

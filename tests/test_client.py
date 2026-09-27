@@ -20,43 +20,13 @@ from benethos_lexware_office_mcp.errors import (
     register_secret,
 )
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
-
-API_KEY = "test-key-0123456789"
-
-
-class Recorder:
-    """A MockTransport handler that replays a scripted list of responses."""
-
-    def __init__(self, *responses: httpx.Response | Exception) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        item = self._responses.pop(0) if self._responses else httpx.Response(200)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-    @property
-    def calls(self) -> int:
-        return len(self.requests)
+from helpers import API_KEY, Scripted, fast_client, no_sleep
 
 
 def make_client(*responses: httpx.Response | Exception, **kw: Any) -> LexwareClient:
     """A client whose bucket and sleep never touch real time."""
-    handler = Recorder(*responses)
-    settings = Settings(api_key=API_KEY, **kw)
-
-    async def no_sleep(_seconds: float) -> None:
-        return None
-
-    client = LexwareClient(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=no_sleep),
-        sleep=no_sleep,
-    )
+    handler = Scripted(*responses)
+    client = fast_client(handler, **kw)
     client.handler = handler  # type: ignore[attr-defined]
     return client
 
@@ -73,7 +43,7 @@ async def test_a_successful_call_sends_the_bearer_token() -> None:
 
 async def test_a_missing_key_is_refused_before_any_request() -> None:
     client = LexwareClient(
-        Settings(), transport=httpx.MockTransport(Recorder()), bucket=TokenBucket(99, 9)
+        Settings(), transport=httpx.MockTransport(Scripted()), bucket=TokenBucket(99, 9)
     )
     with pytest.raises(ConfigError):
         await client.request("GET", "/v1/profile")
@@ -442,7 +412,7 @@ async def test_retry_after_is_honoured() -> None:
     async def record(seconds: float) -> None:
         slept.append(seconds)
 
-    handler = Recorder(
+    handler = Scripted(
         httpx.Response(429, headers={"Retry-After": "7"}), httpx.Response(200)
     )
     client = LexwareClient(
@@ -465,7 +435,7 @@ async def test_a_retry_after_beyond_the_cap_is_not_slept_through(seconds: str) -
     async def record(delay: float) -> None:
         slept.append(delay)
 
-    handler = Recorder(
+    handler = Scripted(
         httpx.Response(429, headers={"Retry-After": seconds}), httpx.Response(200)
     )
     client = LexwareClient(
@@ -499,18 +469,14 @@ async def test_every_request_passes_the_bucket() -> None:
         async def acquire(self, tokens: int = 1) -> None:
             acquired.append(tokens)
 
-    handler = Recorder(httpx.Response(500), httpx.Response(500), httpx.Response(200))
+    handler = Scripted(httpx.Response(500), httpx.Response(500), httpx.Response(200))
     client = LexwareClient(
         Settings(api_key=API_KEY),
         transport=httpx.MockTransport(handler),
         bucket=CountingBucket(1000.0, 100),
-        sleep=_no_sleep,
+        sleep=no_sleep,
     )
     await client.request("GET", "/v1/profile")
     await client.aclose()
 
     assert len(acquired) == 3
-
-
-async def _no_sleep(_seconds: float) -> None:
-    return None

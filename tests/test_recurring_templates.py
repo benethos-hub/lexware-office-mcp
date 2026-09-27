@@ -16,19 +16,12 @@ carry, and no `paymentConditions`, which it does. Passing everything but
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
-import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
-from benethos_lexware_office_mcp.config import Settings
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
-from benethos_lexware_office_mcp.server import build_server
-
-API_KEY = "test-key-0123456789"
+from helpers import Scripted, fast_client, server_with
 
 # The schedule. `finalize` false is the setting that makes each run leave a
 # draft rather than issuing and mailing an invoice, and `executionStatus`
@@ -117,55 +110,12 @@ PAGE: dict[str, Any] = {
 }
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Scripted:
-    def __init__(self, *responses: tuple[int, Any]) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        status, payload = self._responses.pop(0) if self._responses else (200, {})
-        return httpx.Response(status, json=payload)
-
-    @property
-    def query(self) -> dict[str, list[str]]:
-        return parse_qs(urlparse(str(self.requests[-1].url)).query)
-
-    @property
-    def path(self) -> str:
-        return urlparse(str(self.requests[-1].url)).path
-
-
-def make_client(handler: Scripted) -> LexwareClient:
-    return LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
-def server_for(handler: Scripted, page_size: int = 25) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY, page_size=page_size)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
-
-
 # -- client ---------------------------------------------------------------
 
 
 async def test_the_page_is_asked_for_by_paging_alone() -> None:
     handler = Scripted((200, PAGE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.recurring_templates(page=1, size=50)
 
     assert handler.path == "/v1/recurring-templates"
@@ -174,7 +124,7 @@ async def test_the_page_is_asked_for_by_paging_alone() -> None:
 
 async def test_a_sort_is_passed_through_and_omitted_when_unset() -> None:
     handler = Scripted((200, PAGE), (200, PAGE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.recurring_templates(sort="nextExecutionDate,ASC")
         assert handler.query["sort"] == ["nextExecutionDate,ASC"]
         await client.recurring_templates()
@@ -183,7 +133,7 @@ async def test_a_sort_is_passed_through_and_omitted_when_unset() -> None:
 
 async def test_one_template_is_read_from_its_own_path() -> None:
     handler = Scripted((200, TEMPLATE))
-    async with make_client(handler) as client:
+    async with fast_client(handler) as client:
         await client.recurring_template("PLACEHOLDER-TEMPLATE-1")
 
     assert handler.path == "/v1/recurring-templates/PLACEHOLDER-TEMPLATE-1"
@@ -252,7 +202,7 @@ def test_a_row_keeps_what_a_caller_chooses_by() -> None:
 
 async def test_without_an_id_a_page_comes_back() -> None:
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool("get_recurring_templates", {})
 
@@ -267,7 +217,7 @@ async def test_the_page_follows_the_page_size_setting(page_size: int) -> None:
     """It was fixed at 25 whatever LXO_MCP_PAGE_SIZE said. This endpoint
     takes a page of one up to 250, measured 2026-09-27."""
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler, page_size=page_size)
+    server, provider = server_with(handler, page_size=page_size)
 
     await server.call_tool("get_recurring_templates", {})
 
@@ -277,7 +227,7 @@ async def test_the_page_follows_the_page_size_setting(page_size: int) -> None:
 
 async def test_with_an_id_that_one_template_comes_back() -> None:
     handler = Scripted((200, TEMPLATE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "get_recurring_templates", {"template_id": "PLACEHOLDER-TEMPLATE-1"}
@@ -293,7 +243,7 @@ async def test_a_sort_the_api_refuses_never_leaves_the_server() -> None:
     """Measured 2026-08-21: `title` comes back as "must be one of" four dates,
     so the schema offers those four and nothing else."""
     handler = Scripted((200, PAGE))
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool("get_recurring_templates", {"sort": "title,ASC"})
@@ -304,7 +254,7 @@ async def test_a_sort_the_api_refuses_never_leaves_the_server() -> None:
 
 async def test_the_description_says_reading_is_all_there_is() -> None:
     handler = Scripted()
-    server, provider = server_for(handler)
+    server, provider = server_with(handler)
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     description = tools["get_recurring_templates"].description or ""

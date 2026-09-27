@@ -15,21 +15,13 @@ from benethos_lexware_office_mcp.client import ClientProvider
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
+from helpers import fast_provider, no_sleep
 
 PROFILE = {"organizationId": "PLACEHOLDER", "companyName": "Example GmbH"}
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-def offline_provider(settings: Settings) -> ClientProvider:
-    return ClientProvider(
-        settings,
-        transport=httpx.MockTransport(lambda _r: httpx.Response(200, json=PROFILE)),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
+def _profile(_request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json=PROFILE)
 
 
 def test_the_provider_hands_out_the_same_client_every_time() -> None:
@@ -56,9 +48,9 @@ async def test_repeated_tool_calls_share_one_bucket() -> None:
     settings = Settings(api_key="k" * 20)
     provider = ClientProvider(
         settings,
-        transport=httpx.MockTransport(lambda _r: httpx.Response(200, json=PROFILE)),
+        transport=httpx.MockTransport(_profile),
         bucket=CountingBucket(1000.0, 100),
-        sleep=_no_sleep,
+        sleep=no_sleep,
     )
     server = build_server(settings, provider)
 
@@ -71,7 +63,7 @@ async def test_repeated_tool_calls_share_one_bucket() -> None:
 
 
 async def test_closing_the_provider_releases_the_client() -> None:
-    provider = offline_provider(Settings(api_key="k" * 20))
+    provider = fast_provider(_profile, settings=Settings(api_key="k" * 20))
     provider.get()
     await provider.aclose()
     assert provider._client is None

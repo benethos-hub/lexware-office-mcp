@@ -9,27 +9,20 @@ behaviour asserted here comes from. See SPECS.md section 5.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
-from urllib.parse import parse_qs, urlparse
 
-import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import (
     ConflictError,
     NotFoundError,
     ValidationError,
 )
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import build_server
-
-API_KEY = "test-key-0123456789"
+from helpers import API_KEY, Scripted, always, fast_client, fast_provider, server_with
 
 COMPANY = {
     "id": "PLACEHOLDER-CONTACT-1",
@@ -114,64 +107,21 @@ PAGE = {
 }
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
-class Capturing:
-    """Answers every request with ``payload`` and remembers what was asked."""
-
-    def __init__(self, payload: Any, status: int = 200) -> None:
-        self._payload = payload
-        self._status = status
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        return httpx.Response(self._status, json=self._payload)
-
-    @property
-    def query(self) -> dict[str, list[str]]:
-        return parse_qs(urlparse(str(self.requests[-1].url)).query)
-
-    @property
-    def path(self) -> str:
-        return urlparse(str(self.requests[-1].url)).path
-
-
-def make_client(handler: Capturing) -> LexwareClient:
-    return LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
-def make_provider(handler: Capturing, **kw: Any) -> ClientProvider:
-    return ClientProvider(
-        Settings(api_key=API_KEY, **kw),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-
-
 # -- client ---------------------------------------------------------------
 
 
 async def test_only_the_filters_that_were_given_are_sent() -> None:
     """An unset filter has to be absent, not the string "None"."""
-    handler = Capturing(PAGE)
-    async with make_client(handler) as client:
+    handler = always(PAGE)
+    async with fast_client(handler) as client:
         await client.contacts(name="Beispiel", page=2, size=50)
 
     assert handler.query == {"page": ["2"], "size": ["50"], "name": ["Beispiel"]}
 
 
 async def test_every_filter_reaches_the_query_string() -> None:
-    handler = Capturing(PAGE)
-    async with make_client(handler) as client:
+    handler = always(PAGE)
+    async with fast_client(handler) as client:
         await client.contacts(
             name="Beispiel", email="example", number=10001, customer=True, vendor=True
         )
@@ -187,16 +137,16 @@ async def test_every_filter_reaches_the_query_string() -> None:
 
 async def test_one_page_is_fetched_and_no_more() -> None:
     """Walking every page would spend the account's whole rate limit."""
-    handler = Capturing({**PAGE, "totalPages": 40, "last": False})
-    async with make_client(handler) as client:
+    handler = always({**PAGE, "totalPages": 40, "last": False})
+    async with fast_client(handler) as client:
         await client.contacts()
 
     assert len(handler.requests) == 1
 
 
 async def test_a_single_contact_is_read_by_id() -> None:
-    handler = Capturing(COMPANY)
-    async with make_client(handler) as client:
+    handler = always(COMPANY)
+    async with fast_client(handler) as client:
         await client.contact("PLACEHOLDER-CONTACT-1")
 
     assert handler.path == "/v1/contacts/PLACEHOLDER-CONTACT-1"
@@ -204,8 +154,8 @@ async def test_a_single_contact_is_read_by_id() -> None:
 
 async def test_an_unknown_contact_id_is_a_not_found() -> None:
     """Verified against a live account 2026-08-20: an unused UUID gives 404."""
-    handler = Capturing({}, status=404)
-    async with make_client(handler) as client:
+    handler = always({}, status=404)
+    async with fast_client(handler) as client:
         with pytest.raises(NotFoundError):
             await client.contact("00000000-0000-0000-0000-000000000000")
 
@@ -226,8 +176,8 @@ async def test_a_rejected_filter_names_the_field_and_the_reason() -> None:
         ],
         "requestId": "PLACEHOLDER-REQUEST-ID",
     }
-    handler = Capturing(body, status=400)
-    async with make_client(handler) as client:
+    handler = always(body, status=400)
+    async with fast_client(handler) as client:
         with pytest.raises(ValidationError) as excinfo:
             await client.contacts()
 
@@ -296,8 +246,8 @@ def test_a_block_that_exists_but_is_all_empty_yields_nothing() -> None:
 async def test_an_issue_with_only_one_half_still_says_something() -> None:
     """Not every issue carries both a source and a key, and half is not none."""
     body = {"IssueList": [{"source": "voucherDate"}, {"i18nKey": "missing_value"}, "?"]}
-    handler = Capturing(body, status=400)
-    async with make_client(handler) as client:
+    handler = always(body, status=400)
+    async with fast_client(handler) as client:
         with pytest.raises(ValidationError) as excinfo:
             await client.contacts()
 
@@ -382,8 +332,8 @@ async def test_the_search_description_points_at_the_follow_up_tool() -> None:
 
 async def test_the_schema_stops_a_two_character_search_before_it_is_sent() -> None:
     """The API rejects it with a message about "size", which explains nothing."""
-    handler = Capturing(PAGE)
-    provider = make_provider(handler)
+    handler = always(PAGE)
+    provider = fast_provider(handler)
     server = build_server(Settings(api_key=API_KEY), provider)
 
     with pytest.raises(ToolError) as excinfo:
@@ -395,8 +345,8 @@ async def test_the_schema_stops_a_two_character_search_before_it_is_sent() -> No
 
 
 async def test_search_contacts_returns_rows_and_page_info() -> None:
-    handler = Capturing(PAGE)
-    provider = make_provider(handler)
+    handler = always(PAGE)
+    provider = fast_provider(handler)
     server = build_server(Settings(api_key=API_KEY), provider)
 
     result = await server.call_tool("search_contacts", {"name": "Beispiel"})
@@ -413,8 +363,8 @@ async def test_search_contacts_returns_rows_and_page_info() -> None:
 
 
 async def test_the_role_filter_becomes_the_flag_the_api_understands() -> None:
-    handler = Capturing(PAGE)
-    provider = make_provider(handler)
+    handler = always(PAGE)
+    provider = fast_provider(handler)
     server = build_server(Settings(api_key=API_KEY), provider)
 
     await server.call_tool("search_contacts", {"role": "vendor"})
@@ -426,8 +376,8 @@ async def test_the_role_filter_becomes_the_flag_the_api_understands() -> None:
 
 
 async def test_role_any_constrains_nothing() -> None:
-    handler = Capturing(PAGE)
-    provider = make_provider(handler)
+    handler = always(PAGE)
+    provider = fast_provider(handler)
     server = build_server(Settings(api_key=API_KEY), provider)
 
     await server.call_tool("search_contacts", {})
@@ -438,8 +388,8 @@ async def test_role_any_constrains_nothing() -> None:
 
 
 async def test_the_page_size_default_comes_from_the_settings() -> None:
-    handler = Capturing(PAGE)
-    provider = make_provider(handler, page_size=7)
+    handler = always(PAGE)
+    provider = fast_provider(handler, page_size=7)
     server = build_server(Settings(api_key=API_KEY, page_size=7), provider)
 
     await server.call_tool("search_contacts", {})
@@ -449,8 +399,8 @@ async def test_the_page_size_default_comes_from_the_settings() -> None:
 
 
 async def test_get_contact_returns_the_full_record() -> None:
-    handler = Capturing(COMPANY)
-    provider = make_provider(handler)
+    handler = always(COMPANY)
+    provider = fast_provider(handler)
     server = build_server(Settings(api_key=API_KEY), provider)
 
     result = await server.call_tool(
@@ -467,26 +417,6 @@ async def test_get_contact_returns_the_full_record() -> None:
 # -- writing --------------------------------------------------------------
 
 
-class Scripted:
-    """Answers a scripted sequence, and remembers what it was sent."""
-
-    def __init__(self, *responses: tuple[int, Any]) -> None:
-        self._responses = list(responses)
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        status, payload = self._responses.pop(0) if self._responses else (200, {})
-        return httpx.Response(status, json=payload)
-
-    @property
-    def methods(self) -> list[str]:
-        return [request.method for request in self.requests]
-
-    def body(self, index: int) -> Any:
-        return json.loads(self.requests[index].content)
-
-
 CREATED = {
     "id": "PLACEHOLDER-CONTACT-3",
     "resourceUri": "https://api.lexware.io/v1/contacts/PLACEHOLDER-CONTACT-3",
@@ -494,17 +424,6 @@ CREATED = {
     "updatedDate": "2026-08-20T15:49:29.080+02:00",
     "version": 1,
 }
-
-
-def write_server(handler: Scripted) -> tuple[Any, ClientProvider]:
-    settings = Settings(api_key=API_KEY)
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=_no_sleep),
-        sleep=_no_sleep,
-    )
-    return build_server(settings, provider), provider
 
 
 async def test_the_contact_group_is_offered_as_the_file_names_it(
@@ -528,7 +447,7 @@ async def test_the_contact_group_is_offered_as_the_file_names_it(
 
 async def test_create_contact_sends_what_the_api_requires() -> None:
     handler = Scripted((201, CREATED))
-    server, provider = write_server(handler)
+    server, provider = server_with(handler)
 
     result = await server.call_tool(
         "create_contact",
@@ -560,7 +479,7 @@ async def test_create_contact_sends_what_the_api_requires() -> None:
 async def test_a_create_is_one_call_and_is_not_retried() -> None:
     """A retried POST is a second contact nobody asked for."""
     handler = Scripted((500, {}), (201, CREATED))
-    server, provider = write_server(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError):
         await server.call_tool(
@@ -575,7 +494,7 @@ async def test_a_create_is_one_call_and_is_not_retried() -> None:
 async def test_update_contact_reads_the_record_before_replacing_it() -> None:
     """The API replaces rather than patches, so the current record is the base."""
     handler = Scripted((200, COMPANY), (200, CREATED))
-    server, provider = write_server(handler)
+    server, provider = server_with(handler)
 
     await server.call_tool(
         "update_contact",
@@ -600,7 +519,7 @@ async def test_update_contact_reads_the_record_before_replacing_it() -> None:
 async def test_a_stale_version_is_refused_before_anything_is_written() -> None:
     """Verified live: the API answers this with 406, after the round trip."""
     handler = Scripted((200, COMPANY), (200, CREATED))
-    server, provider = write_server(handler)
+    server, provider = server_with(handler)
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool(
@@ -628,8 +547,8 @@ async def test_a_stale_version_from_the_api_is_a_conflict() -> None:
             }
         ]
     }
-    handler = Capturing(body, status=406)
-    async with make_client(handler) as client:
+    handler = always(body, status=406)
+    async with fast_client(handler) as client:
         with pytest.raises(ConflictError) as excinfo:
             await client.update_contact("PLACEHOLDER-CONTACT-1", {"version": 1})
 
@@ -647,8 +566,8 @@ async def test_another_406_is_still_a_validation_error() -> None:
             }
         ]
     }
-    handler = Capturing(body, status=406)
-    async with make_client(handler) as client:
+    handler = always(body, status=406)
+    async with fast_client(handler) as client:
         with pytest.raises(ValidationError) as excinfo:
             await client.create_contact({"version": 0})
 
