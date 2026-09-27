@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-27
+
+A minor release, because an existing installation can trip over four of
+these: a policy file with `"true"` as a string, an `http://` base URL, a
+`LXO_MCP_PDF_PAGES` above 100, and a configuration interface reached under a
+name other than `127.0.0.1`, `localhost` or `::1`. None of them fails
+silently: each is named on stderr or refused with a message that says what
+to change.
+
 ### Security
 
 - **Only JSON `true` enables a tool in the policy file.** A value was read
@@ -791,7 +800,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.1...v0.2.2
