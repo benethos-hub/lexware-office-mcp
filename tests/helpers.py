@@ -26,6 +26,12 @@ from benethos_lexware_office_mcp.server import PolicyServer, build_server
 
 __all__ = [
     "API_KEY",
+    "FILE_ID",
+    "PDF",
+    "UPLOADED",
+    "downloaded",
+    "make_pdf",
+    "recorder",
     "Answer",
     "Handler",
     "Scripted",
@@ -157,3 +163,83 @@ class Scripted:
 def always(payload: Any, status: int = 200) -> Scripted:
     """A handler that answers every request with the same JSON."""
     return Scripted(repeat=(status, payload))
+
+
+# -- files ----------------------------------------------------------------
+
+FILE_ID = "PLACEHOLDER-FILE-1"
+
+
+def make_pdf(pages: int = 1, stream: bytes | None = None) -> bytes:
+    """A real PDF with real glyphs, built here rather than checked in.
+
+    The stub that used to stand in for one was never a valid document. It was
+    enough while a PDF was only ever copied around, and stopped being enough
+    the moment the server started rendering it, which is exactly the kind of
+    fixture that hides a feature not working.
+    """
+    stream = stream or (
+        b"BT /F1 12 Tf 1 0 0 1 60 760 Tm (Rechnung RE-2026-0142) Tj "
+        b"0 -20 Td (Gesamtbetrag 2.200,91 EUR) Tj ET"
+    )
+    kids = " ".join(f"{4 + n} 0 R" for n in range(pages))
+    objects = [
+        b"<</Type/Catalog/Pages 2 0 R>>",
+        f"<</Type/Pages/Kids[{kids}]/Count {pages}>>".encode(),
+        b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+    ]
+    objects += [
+        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]"
+        b"/Resources<</Font<</F1 3 0 R>>>>/Contents "
+        + str(4 + pages).encode()
+        + b" 0 R>>"
+        for _ in range(pages)
+    ]
+    objects.append(
+        b"<</Length "
+        + str(len(stream)).encode()
+        + b">>stream\n"
+        + stream
+        + b"\nendstream"
+    )
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj".encode() + body + b"endobj\n"
+    start = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += (
+        f"trailer<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{start}\n%%EOF\n"
+    ).encode()
+    return bytes(out)
+
+
+PDF = make_pdf()
+
+UPLOADED = {"id": "PLACEHOLDER-FILE-2", "voucherId": "PLACEHOLDER-VOUCHER-9"}
+
+
+def recorder(
+    content: bytes = PDF,
+    status: int = 200,
+    headers: dict[str, str] | None = None,
+    json_body: Any = None,
+) -> Scripted:
+    """A handler that answers every request with one canned file, or one JSON."""
+    if json_body is not None:
+        return Scripted(repeat=(status, json_body))
+    return Scripted(
+        repeat=httpx.Response(status, content=content, headers=headers or {})
+    )
+
+
+async def downloaded(server: Any, handler: Scripted, fmt: str = "pdf") -> str:
+    """Download the one canned file through the server, and answer its URI."""
+    result = await server.call_tool(
+        "download_file", {"file_id": FILE_ID, "file_format": fmt}
+    )
+    return (result.structured_content or {})["uri"]
