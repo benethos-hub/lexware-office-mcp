@@ -139,6 +139,10 @@ housekeeping are out of scope here — design decisions live in
   is still found, and where none exists the server says in one line to set
   `HOME` or to name the files with `--env-file` and `--tools-file`. A
   download asks for `LXO_MCP_DOWNLOAD_DIR` in the same case.
+- **`update_contact` replaces the email address and the phone number.** The
+  new value was filed under `business` or `private` beside the old one, so a
+  contact whose address sat under `office` ended up with two. It now replaces
+  what the contact had, and a contact that used one category keeps it.
 
 ### Changed
 

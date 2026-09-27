@@ -97,9 +97,9 @@ def contact_body(
     everything else is carried over unchanged, including the ``version`` that
     makes the update fail rather than overwrite if the record moved on.
 
-    Anything left at ``None`` is not a change. Fields that hold a single value
-    upstream are replaced rather than merged, because the API stores only one
-    of each anyway.
+    Anything left at ``None`` is not a change. An email address or a phone
+    number replaces every one the contact has rather than joining them, which
+    is what the tool promises.
     """
     body: dict[str, Any] = dict(base) if base else {"version": 0}
     is_company = _is_company(body, kind)
@@ -121,14 +121,11 @@ def contact_body(
             body["company"] = company
 
     if email is not None:
-        kind_key = _COMPANY_EMAIL if is_company else _PERSON_EMAIL
-        body["emailAddresses"] = {
-            **(body.get("emailAddresses") or {}),
-            kind_key: [email],
-        }
+        default = _COMPANY_EMAIL if is_company else _PERSON_EMAIL
+        body["emailAddresses"] = {_kind(body.get("emailAddresses"), default): [email]}
     if phone is not None:
-        kind_key = _COMPANY_PHONE if is_company else _PERSON_PHONE
-        body["phoneNumbers"] = {**(body.get("phoneNumbers") or {}), kind_key: [phone]}
+        default = _COMPANY_PHONE if is_company else _PERSON_PHONE
+        body["phoneNumbers"] = {_kind(body.get("phoneNumbers"), default): [phone]}
 
     addresses = dict(body.get("addresses") or {})
     if billing_address is not None:
@@ -142,6 +139,19 @@ def contact_body(
         body["note"] = note
 
     return body
+
+
+def _kind(current: Any, default: str) -> str:
+    """The category a replacing email address or phone number is filed under.
+
+    The one the contact already uses when it uses exactly one, so an address
+    kept under ``office`` stays there. Otherwise the default for this kind of
+    contact. Either way the value replaces the whole block: merged into it, a
+    new address under ``business`` sat beside the old one under ``office``,
+    and the contact had two. Measured 2026-09-27.
+    """
+    used = [key for key, value in (current or {}).items() if value]
+    return used[0] if len(used) == 1 else default
 
 
 def _is_company(body: dict[str, Any], kind: ContactKind | None) -> bool:

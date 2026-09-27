@@ -45,8 +45,8 @@ Email = Annotated[
     str | None,
     Field(
         description=(
-            "One email address. A contact holds at most one per category, so "
-            "this replaces the existing one rather than adding to it."
+            "One email address. On an update it replaces the ones the "
+            "contact has rather than adding another."
         )
     ),
 ]
