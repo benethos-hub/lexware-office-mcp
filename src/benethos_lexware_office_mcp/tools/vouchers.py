@@ -388,6 +388,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         contact_id: Annotated[
             str | None, Field(description="Move it to a different contact, by id.")
         ] = None,
+        use_collective_contact: Annotated[
+            bool | None,
+            Field(
+                description=(
+                    "True moves it to the collective contact instead of a "
+                    "named one. Not together with contact_id."
+                )
+            ),
+        ] = None,
         items: Annotated[
             list[VoucherItem] | None,
             Field(
@@ -415,6 +424,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         If the voucher changed since that read, nothing is written. One that
         is already paid or booked may be refused whatever the version.
         """
+        if contact_id is not None and use_collective_contact:
+            raise ValidationError(
+                "Pass contact_id or use_collective_contact, not both: a voucher "
+                "belongs either to a named contact or to the collective one."
+            )
         client = provider.get()
         current = await client.voucher(voucher_id)
         if current.get("version") != version:
@@ -431,6 +445,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             voucher_date=voucher_date,
             due_date=due_date,
             contact_id=contact_id,
+            use_collective_contact=use_collective_contact,
             items=items,
             total_gross_amount=total_gross_amount,
             total_tax_amount=total_tax_amount,

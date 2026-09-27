@@ -155,6 +155,13 @@ housekeeping are out of scope here — design decisions live in
   opentelemetry-api 1.45.0 and ruff 0.16.9. No change to any tool, parameter
   or answer.
 
+### Added
+
+- **`update_voucher` takes `use_collective_contact`.** A voucher could be
+  moved to a named contact but not back to the collective one, which only
+  `create_voucher` could choose. Passing it together with `contact_id` is
+  refused before anything is sent.
+
 ## [0.2.4] - 2026-09-14
 
 ### Changed

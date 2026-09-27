@@ -620,6 +620,47 @@ async def test_update_voucher_reads_before_it_replaces() -> None:
     await provider.aclose()
 
 
+async def test_update_voucher_can_move_it_back_to_the_collective_contact() -> None:
+    """Only a create could choose the collective contact before. Measured
+    2026-09-27: the PUT that sets it and drops the contact id is accepted."""
+    named = {**VOUCHER, "useCollectiveContact": False, "contactId": "PLACEHOLDER-C"}
+    handler = Scripted((200, named), (200, WRITTEN))
+    server, provider = server_for(handler)
+
+    await server.call_tool(
+        "update_voucher",
+        {
+            "voucher_id": "PLACEHOLDER-VOUCHER-1",
+            "version": 3,
+            "use_collective_contact": True,
+        },
+    )
+
+    sent = handler.body(1)
+    assert sent["useCollectiveContact"] is True
+    assert "contactId" not in sent
+    await provider.aclose()
+
+
+async def test_a_named_and_the_collective_contact_at_once_is_refused() -> None:
+    handler = Scripted((200, VOUCHER), (200, WRITTEN))
+    server, provider = server_for(handler)
+
+    with pytest.raises(ToolError, match="not both"):
+        await server.call_tool(
+            "update_voucher",
+            {
+                "voucher_id": "PLACEHOLDER-VOUCHER-1",
+                "version": 3,
+                "contact_id": "PLACEHOLDER-C",
+                "use_collective_contact": True,
+            },
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 async def test_a_stale_version_stops_before_the_write() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
     server, provider = server_for(handler)
