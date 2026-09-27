@@ -172,11 +172,14 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     # empty registry in any process that has not built one.
     costs = tool_costs(inst.settings)
     resolved = _resolved(inst)
+    # The file once, for the whole table, rather than once per row.
+    env = inst.file_env()
     rows = "".join(
         f"<tr><td>{esc(_SETTING_LABELS.get(key, key))}<br>"
         f"<code>{esc(key)}</code></td>"
         f"<td>{esc(resolved[key])}</td>"
-        f"<td>{source_badge(inst.source_of(key), inst.source_detail(key))}</td></tr>"
+        f"<td>{source_badge(inst.source_of(key, env), inst.source_detail(key, env))}"
+        "</td></tr>"
         for key in SETTING_KEYS
     )
 
@@ -305,8 +308,13 @@ def _files_table(inst: Installation) -> str:
 def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     """Where the key is entered, and the settings that are not secret."""
     has_key = inst.has_api_key()
-    source = inst.source_of(API_KEY)
+    env = inst.file_env()
+    resolved = _resolved(inst)
+    source = inst.source_of(API_KEY, env)
     shadowed = inst.shadowed(API_KEY)
+    bearer_badge = source_badge(
+        inst.source_of(BEARER_KEY, env), inst.source_detail(BEARER_KEY, env)
+    )
 
     warning = ""
     if shadowed:
@@ -319,10 +327,11 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
     fields = "".join(
         f'<label class="fld">{esc(_SETTING_LABELS.get(key, key))} '
         f"<code>{esc(key)}</code> "
-        f"{source_badge(inst.source_of(key), inst.source_detail(key))}</label>"
+        f"{source_badge(inst.source_of(key, env), inst.source_detail(key, env))}"
+        "</label>"
         f'<input type="text" name="{esc(key)}" '
-        f'value="{esc(inst.file_env().get(key, ""))}" '
-        f'placeholder="{esc(_placeholder(inst, key))}">'
+        f'value="{esc(env.get(key, ""))}" '
+        f'placeholder="{esc(_placeholder(key, resolved))}">'
         for key in EDITABLE_KEYS
     )
 
@@ -332,7 +341,7 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
 <p>Der Schlüssel wird nach <code>{esc(str(inst.env_path))}</code> geschrieben.
    Er wird nie angezeigt, nie protokolliert und geht in keinen Export mit.</p>
 <p>Zustand: <strong>{"hinterlegt" if has_key else "nicht hinterlegt"}</strong>
-   {source_badge(source, inst.source_detail(API_KEY)) if has_key else ""}</p>
+   {source_badge(source, inst.source_detail(API_KEY, env)) if has_key else ""}</p>
 
 <form method="post" action="/credentials">{_csrf(csrf)}
   <label class="fld" for="api_key">API-Schlüssel</label>
@@ -357,9 +366,9 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
    niemandem.</p>
 <form method="post" action="/bearer">{_csrf(csrf)}
   <label class="fld" for="bearer">Token <code>{esc(BEARER_KEY)}</code>
-    {source_badge(inst.source_of(BEARER_KEY), inst.source_detail(BEARER_KEY))}</label>
+    {bearer_badge}</label>
   <input type="text" id="bearer" name="bearer" autocomplete="off"
-         value="{esc(inst.file_env().get(BEARER_KEY, ""))}"
+         value="{esc(env.get(BEARER_KEY, ""))}"
          placeholder="noch keins">
   <p><button type="submit" name="action" value="save">Token speichern</button>
      <button type="submit" name="action" value="generate">Neu erzeugen</button></p>
@@ -382,7 +391,8 @@ def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> byt
     return page("Zugangsdaten", body, here="/credentials", chip=_chip(last_account()))
 
 
-def _placeholder(inst: Installation, key: str) -> str:
+def _placeholder(key: str, resolved: dict[str, str]) -> str:
+    """What an empty field means: the built-in default, or what applies now."""
     defaults = {
         "LXO_MCP_BASE_URL": DEFAULT_BASE_URL,
         "LXO_MCP_APP_BASE_URL": DEFAULT_APP_BASE_URL,
@@ -390,7 +400,7 @@ def _placeholder(inst: Installation, key: str) -> str:
     }
     if key in defaults:
         return defaults[key]
-    return _resolved(inst).get(key, "")
+    return resolved.get(key, "")
 
 
 # --- permissions -----------------------------------------------------------

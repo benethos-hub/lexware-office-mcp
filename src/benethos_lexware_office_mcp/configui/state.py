@@ -139,7 +139,7 @@ class Installation:
             return None
         return applies
 
-    def source_of(self, key: str) -> str:
+    def source_of(self, key: str, env: dict[str, str] | None = None) -> str:
         """Where this value comes from, in the order that decides.
 
         A file is asked before the command line for one reason: the policy
@@ -147,10 +147,14 @@ class Installation:
         from ``LXO_MCP_TOOL_POLICY`` in a file, and calling the second one
         "Aufruf" would be wrong. When nothing names it at all, the search
         found it - which is not the same as a built-in default either.
+
+        ``env`` is the file's content as :meth:`file_env` read it, for a page
+        that asks about every setting in one go and wants the file read once
+        rather than once per row. Left out, the file is read here.
         """
         if os.environ.get(key, "").strip():
             return ENV_SOURCE
-        if self.source_file(key) is not None:
+        if self.source_file(key, env) is not None:
             return FILE_SOURCE
         if key == POLICY_KEY:
             return (
@@ -160,7 +164,7 @@ class Installation:
             )
         return DEFAULT_SOURCE
 
-    def source_file(self, key: str) -> Path | None:
+    def source_file(self, key: str, env: dict[str, str] | None = None) -> Path | None:
         """The ``.env`` that supplies this value, if a file does.
 
         There is only one it can be. The settings this page reports were
@@ -169,15 +173,17 @@ class Installation:
         """
         if self.shadowed(key):
             return None
-        if read_env_file(self.env_path).get(key, "").strip():
+        if env is None:
+            env = self.file_env()
+        if env.get(key, "").strip():
             return self.env_path
         return None
 
-    def source_detail(self, key: str) -> str:
+    def source_detail(self, key: str, env: dict[str, str] | None = None) -> str:
         """A tooltip for the badge: which file, or which variable."""
         if self.shadowed(key):
             return f"Umgebungsvariable {key}"
-        supplier = self.source_file(key)
+        supplier = self.source_file(key, env)
         if supplier is not None:
             return str(supplier)
         if key == POLICY_KEY:
