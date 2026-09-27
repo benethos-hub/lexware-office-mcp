@@ -65,6 +65,7 @@ The planned structure, see SPECS.md section 4 for the full table.
 ```
 src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
+  cli.py          # the console script: arguments, --tools, setup, starting the server
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
   config.py       # settings resolution, credential lookup
   client.py       # ALL HTTP access: auth, retries, error mapping

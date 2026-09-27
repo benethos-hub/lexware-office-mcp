@@ -85,7 +85,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 
 | Module | Responsibility | State |
 |--------|----------------|-------|
-| `server.py` | The `PolicyServer` instance, which is an `MCPServer` listing only what the policy file allows, plus tool registration, the CLI and `main()`. | built |
+| `server.py` | The `PolicyServer`, an `MCPServer` listing only what the policy file allows, and `build_server`, which makes one from the settings and fills the tool registry. | built |
+| `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
 | `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, error normalization. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |

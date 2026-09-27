@@ -71,7 +71,7 @@ dev = [
 [project.scripts]
 # One name only, identical to the distribution name, so every identifier
 # matches and `uvx benethos-lexware-office-mcp` works.
-benethos-lexware-office-mcp = "benethos_lexware_office_mcp.server:main"
+benethos-lexware-office-mcp = "benethos_lexware_office_mcp.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/benethos_lexware_office_mcp"]
