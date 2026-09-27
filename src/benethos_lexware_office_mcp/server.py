@@ -230,7 +230,13 @@ def build_server(
         policy=policy,
     )
     register_tools(server, settings, provider or ClientProvider(settings))
-    resources.publish_existing(server, settings.download_path or download_dir())
+    try:
+        downloads = settings.download_path or download_dir()
+    except ConfigError:
+        # No home and no LXO_MCP_DOWNLOAD_DIR: nothing to publish, and a
+        # download says what to set when one is asked for.
+        return server
+    resources.publish_existing(server, downloads)
     return server
 
 
@@ -591,7 +597,16 @@ def main(argv: list[str] | None = None) -> None:
     if broken is not None and args.command != "setup":
         print(str(broken), file=sys.stderr)
         raise SystemExit(2)
+    # The same for one found later, such as no home to find a file in.
+    try:
+        _run(args, settings, named_env)
+    except ConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from None
 
+
+def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -> None:
+    """What the command line asked for, once the settings have been read."""
     # The command line wins over the environment, which wins over the search.
     # Left unset it stays None, so the search decides - and no absolute path
     # from this machine has to appear in --help to explain that.
@@ -639,11 +654,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if settings.transport != "stdio":
         settings = _bearer_token_in_place(settings, _env_in_effect(named_env))
-        try:
-            require_bearer(settings)
-        except ConfigError as exc:
-            print(str(exc), file=sys.stderr)
-            raise SystemExit(2) from None
+        require_bearer(settings)
 
     server = build_server(settings)
     _report_what_is_enabled(settings)
