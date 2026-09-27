@@ -91,6 +91,10 @@ live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
   shapes/         # one timestamped capture per run
+.github/workflows/
+  ci.yml          # lint, test, fresh-install, docker, and lowest-versions:
+                  # the oldest allowed dependencies, an early warning only
+  publish.yml     # a published release -> PyPI and the container image
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
@@ -348,3 +352,7 @@ fallen behind, so the list is short on purpose. In this order:
   nothing about it is still open. Then delete the branch. Merging after each
   commit defeats the point of branching. Once a remote exists, the merge goes
   through a pull request instead and `main` is no longer written directly.
+- **Every CI job has to pass before a merge, except `lowest-versions`.** That
+  one installs the oldest versions `pyproject.toml` allows and is an early
+  warning, not a required check. When it goes red, raise the lower bound it
+  names on a branch of its own rather than holding up the work in flight.
