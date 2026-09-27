@@ -1071,7 +1071,14 @@ rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
 **Annotations, and why they cost what they cost.** Every tool carries the MCP
 hints, derived in `tools/_base.py` from what `@classify` already recorded
 rather than written out per tool: a tool cannot then say one thing to the
-policy file and another to a client. `read_only_hint` follows `access`.
+policy file and another to a client. `read_only_hint` follows `access`,
+which makes it true for `download_document` and `download_file` although
+both save a file. The protocol defines the hint as "does not modify its
+environment", and the only change they make is a new file in the download
+directory: nothing in Lexware, never an overwrite, and nowhere but the
+directory the settings name. Deriving the hint from somewhere else would
+mark the two as writing in the `read-only` preset they belong to, so the
+derivation stays and this sentence is the record of the decision.
 `destructive_hint` is false for a create, which only adds, and true for an
 update or a delete - this API replaces a record rather than patching it.
 `idempotent_hint` is the same distinction seen from the other side: a second
