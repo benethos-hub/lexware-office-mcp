@@ -66,7 +66,19 @@ SearchStatus = Literal[
 # `sort` is the one place the API is stricter than it looks: only the voucher
 # date can be sorted on, and anything else is refused as "parameter 'sort' is
 # invalid".
-SortOrder = Literal["voucherDate,DESC", "voucherDate,ASC"]
+# The four properties the API sorts the voucher list on, each way round.
+# Measured 2026-09-27: all four are honoured, and anything else is refused
+# with "parameter 'sort' is invalid".
+SortOrder = Literal[
+    "voucherDate,DESC",
+    "voucherDate,ASC",
+    "voucherNumber,DESC",
+    "voucherNumber,ASC",
+    "createdDate,DESC",
+    "createdDate,ASC",
+    "updatedDate,DESC",
+    "updatedDate,ASC",
+]
 
 VoucherId = Annotated[
     str,
@@ -165,8 +177,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             SortOrder,
             Field(
                 description=(
-                    "Ordering. Newest first by default. The API sorts on the "
-                    "voucher date and nothing else."
+                    "Ordering. Newest voucher date first by default. "
+                    "createdDate and updatedDate are when it was entered or "
+                    "last changed."
                 )
             ),
         ] = "voucherDate,DESC",

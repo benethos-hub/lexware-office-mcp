@@ -153,6 +153,32 @@ async def test_search_vouchers_finds_a_document_by_its_number() -> None:
     await provider.aclose()
 
 
+@pytest.mark.parametrize(
+    "sort", ["voucherNumber,ASC", "createdDate,DESC", "updatedDate,ASC"]
+)
+async def test_every_sort_the_api_honours_is_offered(sort: str) -> None:
+    """The tool said the API sorts on the voucher date and nothing else.
+    Measured 2026-09-27: number, created and updated date are honoured too."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_with(handler)
+
+    await server.call_tool("search_vouchers", {"sort": sort})
+
+    assert handler.query["sort"] == [sort]
+    await provider.aclose()
+
+
+async def test_an_unknown_sort_never_leaves_the_server() -> None:
+    handler = Scripted((200, PAGE))
+    server, provider = server_with(handler)
+
+    with pytest.raises(ToolError):
+        await server.call_tool("search_vouchers", {"sort": "title,ASC"})
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 async def test_without_a_number_no_number_filter_is_sent() -> None:
     handler = Scripted((200, PAGE))
     async with fast_client(handler) as client:

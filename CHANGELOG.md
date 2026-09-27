@@ -171,6 +171,10 @@ housekeeping are out of scope here — design decisions live in
   number in one call, sales documents included, which until now only
   `get_voucher` could do and only for bookkeeping vouchers. The number is
   matched in full, ignoring case.
+- **`search_vouchers` sorts by number, creation and last change too.** Its
+  description said the API sorts on the voucher date and nothing else, and
+  `sort` offered only that. The API honours `voucherNumber`, `createdDate`
+  and `updatedDate` as well, each way round.
 
 ## [0.2.4] - 2026-09-14
 

@@ -616,8 +616,12 @@ arriving.
   transferred, sepadebit, overdue, accepted, rejected, unchecked`. **`dunning`
   is not accepted**, so dunnings cannot be found through the voucher list at
   all.
-- **`sort` accepts only the voucher date**, ascending or descending. Anything
-  else is refused with "parameter 'sort' is invalid".
+- **`sort` accepts four properties**, each ascending or descending:
+  `voucherDate`, `voucherNumber`, `createdDate` and `updatedDate`, as the
+  documentation says. Anything else is refused with "parameter 'sort' is
+  invalid". This line said "only the voucher date" from 2026-08-20 until a
+  live read on 2026-09-27 found all four honoured, so the tool offered one
+  of them and told the model the others did not exist.
 - **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
   answers 404, so a wrong entry has to be corrected in the web app. It is
   booked as `open` the moment it is created.
