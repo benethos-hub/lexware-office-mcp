@@ -93,6 +93,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `delivery.py` | A downloaded file as content blocks: text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
 | `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
 | `storage.py` | Where downloads land on disk. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |

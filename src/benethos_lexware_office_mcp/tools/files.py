@@ -9,7 +9,6 @@ wants, and as a **resource link**, which is what everyone else needs. See
 from __future__ import annotations
 
 import asyncio
-import base64
 import contextlib
 import inspect
 from collections.abc import Iterator
@@ -19,16 +18,12 @@ from typing import Annotated, Any, Literal
 import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.types import (
-    BlobResourceContents,
     CallToolResult,
-    ContentBlock,
-    EmbeddedResource,
-    ImageContent,
     TextContent,
 )
 from pydantic import BaseModel, Field
 
-from .. import formatting, rendering, resources, storage
+from .. import delivery, formatting, resources, storage
 from ..client import ClientProvider
 from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
@@ -93,10 +88,6 @@ class Delivered(BaseModel):
 # ceiling on damage rather than a working size. It is the same 5 MiB the API
 # accepts for an upload, so there is one number to remember.
 MAX_INLINE = 5 * 1024 * 1024
-
-# Types a model can actually read. XML is the one that matters: an XRechnung
-# is an invoice in text form.
-TEXT_TYPES = ("application/xml", "text/xml", "application/json")
 
 Format = Literal["pdf", "xml"]
 
@@ -369,91 +360,7 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
             "put in an answer. It is on disk already, so use the path the "
             "download reported."
         )
-    return _inline(uri, payload, mime, max_pages)
-
-
-def _inline(
-    uri: str, payload: bytes, mime: str, max_pages: int | None = None
-) -> CallToolResult:
-    """Choose the content block that makes this file usable.
-
-    Four shapes, because the same bytes are worth different things: text a
-    model can read, an image it can see, a PDF turned into pictures of its
-    pages so that it can be seen at all, and a blob only the client can do
-    anything with.
-    """
-    summary = {"uri": uri, "mimeType": mime, "size": len(payload)}
-
-    if mime == "application/pdf":
-        return _rendered(uri, payload, summary, max_pages)
-
-    if mime.startswith("text/") or mime in TEXT_TYPES:
-        text = payload.decode("utf-8", errors="replace")
-        return CallToolResult(
-            content=[TextContent(type="text", text=text)],
-            structured_content={**summary, "deliveredAs": "text"},
-        )
-
-    encoded = base64.b64encode(payload).decode("ascii")
-    if mime.startswith("image/"):
-        return CallToolResult(
-            content=[ImageContent(type="image", data=encoded, mime_type=mime)],
-            structured_content={**summary, "deliveredAs": "image"},
-        )
-
-    return CallToolResult(
-        content=[
-            EmbeddedResource(
-                type="resource",
-                resource=BlobResourceContents(uri=uri, mime_type=mime, blob=encoded),
-            )
-        ],
-        structured_content={**summary, "deliveredAs": "binary"},
-    )
-
-
-def _rendered(
-    uri: str, payload: bytes, summary: dict[str, Any], max_pages: int | None
-) -> CallToolResult:
-    """A PDF as pictures of its pages."""
-    try:
-        pages, total = rendering.pdf_pages_as_png(payload, max_pages=max_pages)
-    except Exception as exc:  # pypdfium2 raises its own errors
-        raise ValidationError(
-            f"{uri} could not be rendered: {exc}. It may be encrypted or "
-            "damaged. The file itself is on disk either way."
-        ) from exc
-
-    if not pages:
-        raise ValidationError(f"{uri} has no pages to show.")
-
-    blocks: list[ContentBlock] = [
-        TextContent(
-            type="text",
-            text=(
-                f"{total} page{'s' if total != 1 else ''}, all rendered."
-                if len(pages) == total
-                else f"{total} pages, showing the first {len(pages)}."
-            ),
-        )
-    ]
-    blocks += [
-        ImageContent(
-            type="image",
-            data=base64.b64encode(page.png).decode("ascii"),
-            mime_type="image/png",
-        )
-        for page in pages
-    ]
-    return CallToolResult(
-        content=blocks,
-        structured_content={
-            **summary,
-            "deliveredAs": "pages",
-            "pages": total,
-            "pagesShown": len(pages),
-        },
-    )
+    return delivery.inline(uri, payload, mime, max_pages)
 
 
 async def _deliver(
