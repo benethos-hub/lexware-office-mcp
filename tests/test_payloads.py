@@ -206,6 +206,23 @@ def test_a_person_is_recognised_from_the_record_being_updated() -> None:
     assert body["emailAddresses"] == {"private": ["neu@example.invalid"]}
 
 
+def test_an_empty_company_key_does_not_make_a_person_a_company() -> None:
+    """The key alone decided, so a `company: null` turned a person's email
+    into a business one and wrote a name into an empty company block."""
+    person = {
+        "version": 1,
+        "roles": {"customer": {}},
+        "company": None,
+        "person": {"lastName": "Muster"},
+    }
+
+    body = contact_body(base=person, email="neu@example.invalid", name="Anders")
+
+    assert body["emailAddresses"] == {"private": ["neu@example.invalid"]}
+    assert body["person"]["lastName"] == "Anders"
+    assert not body.get("company")
+
+
 def test_adding_a_role_keeps_the_number_the_other_one_already_has() -> None:
     body = contact_body(base=CURRENT, roles=["customer", "vendor"])
     assert body["roles"]["customer"] == {"number": 10003}

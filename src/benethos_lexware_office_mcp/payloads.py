@@ -160,10 +160,14 @@ def _is_company(body: dict[str, Any], kind: ContactKind | None) -> bool:
     On an update the caller does not say, and must not have to: a contact
     cannot change from a company into a person, and the API refuses a record
     carrying both.
+
+    Read off the block's content, not off the key: a person read back from
+    the API has no ``company`` key at all (measured 2026-09-27), but a record
+    that carries one as ``null`` beside a ``person`` block is still a person.
     """
     if kind is not None:
         return kind == "company"
-    return "company" in body
+    return bool(body.get("company")) and not body.get("person")
 
 
 def _apply_identity(
