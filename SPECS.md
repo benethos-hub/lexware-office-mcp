@@ -41,9 +41,11 @@ one server instance serves several Lexware accounts.
 **Deliberately gated rather than excluded:** finalizing a document and
 deleting an article. Both need a decision from the account owner rather than
 from a model, and both are governed by the permission model in section 9.
-Booking a voucher stood here too until 2026-08-21, when it turned out to be
-something this API cannot do at all - see section 5, which measures the
-absence of every state transition.
+Booking a voucher stood here too until 2026-08-21, when it looked like
+something this API cannot do at all. On 2026-09-27 the one transition it does
+have turned up: an `unchecked` voucher is booked by a PUT carrying `open`.
+It sits on `update_voucher` as `finalize`, gated by `confirm` like the
+finalize of a sales document - see section 5.
 
 ## 3. Naming
 
@@ -474,11 +476,13 @@ exactly, while the tools sitting quietly under `--tools write` are the ones
 that leave marks in someone's bookkeeping. Section 9 says so where the presets
 are described, because a preset name cannot carry that distinction.
 
-### The API has no state transitions, verified 2026-08-21
+### The API has one state transition, verified 2026-08-21 and 2026-09-27
 
-A record is created in the state it will keep, or it is not created. There is
-no call that moves an existing one from one state to another, which explains
-several things that otherwise look like separate quirks.
+A record is created in the state it will keep, or it is not created - with a
+single exception, found on 2026-09-27: a bookkeeping voucher in `unchecked`
+is booked by a PUT carrying `voucherStatus: open`. No other call moves an
+existing record from one state to another, which explains several things
+that otherwise look like separate quirks.
 
 Measured by sending each of these and reading the answer, with bodies empty so
 nothing could be created or changed:
@@ -491,14 +495,18 @@ nothing could be created or changed:
 | `DELETE /v1/invoices/{id}` | 404 |
 | `POST /v1/vouchers/{id}/book` | 404 |
 | `PUT /v1/vouchers/{id}/status` | 404 |
+| `PUT /v1/vouchers/{id}` with `voucherStatus: open`, on an `unchecked` voucher | **200**, booked (2026-09-27) |
+| the same with `unchecked` or `paid` | 406, `voucherStatus: invalid_value` |
 
 - **A sales document cannot be changed, finalized or deleted after creation.**
   `?finalize=true` is a parameter on the creation, not an operation on a
   draft. A draft is edited or removed in the web app or not at all.
-- **A bookkeeping voucher cannot be booked, and it cannot be parked either.**
-  The API sets the status itself and refuses any request that names one:
-  `voucherStatus: invalid_value`, on a POST as much as on a PUT. What a
-  voucher is created as is not the caller's to decide.
+- **A bookkeeping voucher can be booked once, from `unchecked`, and never
+  parked.** The API sets the status on a POST itself and refuses one that
+  names it. A PUT refuses every status but `open`, which books an unchecked
+  voucher - the state `upload_file` leaves a receipt in. The 2026-08-21
+  probes never tried that, because they sent empty bodies to invented
+  routes, and the documentation had described it all along.
 - **Only an article can be deleted**, which makes `delete` the one
   irreversible effect this API offers and the only member of the
   `irreversible` preset there will be until the API grows.
@@ -506,7 +514,8 @@ nothing could be created or changed:
 This is why `policy.Effect` lists `create`, `update` and `delete` and nothing
 else. `book` and `finalize` were in that vocabulary until this was measured,
 and a classification naming operations the API cannot perform invites a tool
-that cannot be written.
+that cannot be written. The one transition found since is a parameter of an
+update rather than a tool of its own, so the vocabulary stays as it is.
 
 ### Creating a sales document, verified 2026-08-21
 
@@ -1150,11 +1159,11 @@ the refusal says what would have happened. `create_sales_document` takes the
 same argument for `finalize`, which is the other irreversible thing that can
 be asked for here.
 
-**And that is all of them.** Booking a voucher was listed here as a third,
-and it is not possible: the API has no state transitions, measured 2026-08-21
-and written up in section 5. Nothing can be booked, finalized or voided after
-the fact, so `delete_article` is the whole of this group rather than its first
-instalment.
+**And that is all of them, with one addition.** Booking a voucher was
+listed here as a third and dropped on 2026-08-21 as impossible. On 2026-09-27
+it turned out possible for an `unchecked` voucher, and `update_voucher` takes
+`finalize` with the same `confirm` for it. Nothing else can be booked,
+finalized or voided after the fact, see section 5.
 
 It is also the only tool for which the `irreversible` preset differs from
 `write`. Until it existed the two wrote the same twenty-one flags, and the
@@ -1366,8 +1375,9 @@ already fetched stays until the client asks again, and most ask once.
 `ToolMeta.irreversible` is true for `delete` alone, which in this product is
 not a figure of speech: what is deleted is gone, and what is created mostly
 cannot be deleted at all. `book` and `finalize` were in this vocabulary until
-2026-08-21, when the API turned out to have no state transitions to name them
-after, see section 5. Nothing acts on it
+2026-08-21, when the API seemed to have no state transitions to name them
+after. The one it has, booking an unchecked voucher, is a parameter of
+`update_voucher`, see section 5. Nothing acts on it
 yet. When something does it should be a separate confirmation rather than a
 red label, or the flag is decoration.
 
@@ -2309,12 +2319,12 @@ suggested they were.
 | 0.2.3 | Error messages reach the model again under MCP SDK 2.1 | **released 2026-09-02** — the SDK began sorting a failing tool call by the type of what was raised, and this hierarchy derived from plain `Exception`, so every sentence it sends was replaced by "Error executing tool <name>". It reached installations rather than only this checkout: the declared range already allowed 2.1. See section 12.1. The lockfile was brought current in the same release, and Dependabot had been silent since it was configured because it read `pip` rather than `uv` |
 | 0.2.4 | The image on MCP SDK 2.2 and a current HTTP stack | **released 2026-09-14** — no change to the package itself. Anyone installing from the index already resolved to SDK 2.2.0, the container did not, because it is built from the lockfile. Over stdio nothing a client sees moved, measured byte for byte. Over HTTP an idle session now expires after thirty minutes, the SDK's new default and kept, see the changelog. The seven transitive packages Dependabot never proposes came along, three of them in the transport |
 
-**No feature release is planned between 0.2.4 and whatever a future API
-version brings.** What was once listed as a phase of its own — booking a
-voucher, and the ZUGFeRD and XRechnung download variants — turned out on
-2026-08-21 to be one operation the API cannot perform and one that
-`download_document` and `download_file` already do through `file_format`. A
-number gets assigned when there is content for it, not before.
+**A number gets assigned when there is content for it, not before.** What
+was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
+and XRechnung download variants - turned out on 2026-08-21 to be one
+operation the API seemed unable to perform and one that `download_document`
+and `download_file` already do through `file_format`. The first of them
+arrived with 0.3.0 after all, for an unchecked voucher.
 
 ### 16.1 Answered: how a user configures the server
 

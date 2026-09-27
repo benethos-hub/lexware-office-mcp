@@ -62,10 +62,11 @@ Access = Literal["read", "write"]
 # nothing else does.
 #
 # `book` and `finalize` stood in this vocabulary until 2026-08-21 and were
-# removed, because the API can perform neither on a record that exists: it
-# has no state transitions at all. A document is created in its final state
-# or not at all, and `finalize` is a query parameter on the creation rather
-# than an operation. See SPECS.md section 5.
+# removed, because the API performs neither as an operation of its own. A
+# document is created in its final state or not at all, and `finalize` is a
+# query parameter on the creation. The one transition the API has - booking
+# an unchecked voucher, found 2026-09-27 - is a parameter of an update, so it
+# needs no effect of its own. See SPECS.md section 5.
 Effect = Literal["", "create", "update", "delete"]
 
 IRREVERSIBLE: tuple[Effect, ...] = ("delete",)
