@@ -12,6 +12,7 @@ import pytest
 
 from benethos_lexware_office_mcp import __version__
 from benethos_lexware_office_mcp.config import Settings, settings_sample
+from benethos_lexware_office_mcp.policy import ToolPolicy
 from benethos_lexware_office_mcp.server import build_server, main
 
 
@@ -119,7 +120,7 @@ def test_starting_the_server_reports_what_is_enabled(
     started: list[bool] = []
     monkeypatch.setattr(
         "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: _FakeServer(started),
+        lambda settings: _FakeServer(started, settings),
     )
 
     with caplog.at_level("WARNING"):
@@ -144,7 +145,7 @@ def test_starting_with_write_tools_on_says_which_ones(
     )
     monkeypatch.setattr(
         "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: _FakeServer([]),
+        lambda settings: _FakeServer([], settings),
     )
 
     with caplog.at_level("WARNING"):
@@ -157,8 +158,10 @@ def test_starting_with_write_tools_on_says_which_ones(
 class _FakeServer:
     """Stands in for MCPServer so the test never opens stdio."""
 
-    def __init__(self, started: list[bool]) -> None:
+    def __init__(self, started: list[bool], settings: Settings) -> None:
         self._started = started
+        # What the real one reports on at startup.
+        self.policy = ToolPolicy(settings.policy_file())
 
     def run(self) -> None:
         self._started.append(True)
@@ -190,7 +193,7 @@ def test_a_named_env_file_configures_the_server(
     seen: list[Settings] = []
     monkeypatch.setattr(
         "benethos_lexware_office_mcp.server.build_server",
-        lambda settings: seen.append(settings) or _FakeServer([]),
+        lambda settings: seen.append(settings) or _FakeServer([], settings),
     )
 
     main(["--env-file", str(env_file), "--log-level", "ERROR"])

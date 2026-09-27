@@ -26,13 +26,17 @@ from typing import Any, cast
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
+from mcp.server.session import ServerSession
+from mcp.types import Resource, Tool
 
 from . import __version__, configui, resources
 from .client import ClientProvider
 from .config import (
     LOG_LEVELS,
+    LOOPBACK_NAMES,
     TRANSPORTS,
     Settings,
+    csv_tuple,
     download_dir,
     load_settings,
     resolve_config_file,
@@ -100,7 +104,7 @@ class PolicyServer(MCPServer):
     def __init__(self, *args: Any, policy: ToolPolicy, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._policy = policy
-        self._sessions: set[Any] = set()
+        self._sessions: set[ServerSession] = set()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
         # Bound once, here, rather than per transport: `run_stdio_async` and
@@ -114,7 +118,7 @@ class PolicyServer(MCPServer):
             NotificationOptions(tools_changed=True),
         )
 
-    async def list_tools(self) -> list[Any]:
+    async def list_tools(self) -> list[Tool]:
         # One reading of the file for the whole list. Asking `enabled` per
         # tool would open and parse it once per tool, which is fifteen times
         # for an answer that has to be consistent anyway - a file edited
@@ -133,7 +137,7 @@ class PolicyServer(MCPServer):
         allowed = self._policy.as_map()
         return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
 
-    async def list_resources(self) -> list[Any]:
+    async def list_resources(self) -> list[Resource]:
         # Registered at startup from whatever is on disk, but offered only
         # under the same file that decides the tools: with every download
         # tool off, the files they left behind are not a way around that.
@@ -649,7 +653,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
         http_host=args.host or settings.http_host,
         http_port=args.port or settings.http_port,
         http_path=args.path,
-        allowed_hosts=_host_list(args.allowed_hosts) or settings.allowed_hosts,
+        allowed_hosts=csv_tuple(args.allowed_hosts) or settings.allowed_hosts,
     )
 
     if settings.transport != "stdio":
@@ -657,7 +661,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
         require_bearer(settings)
 
     server = build_server(settings)
-    _report_what_is_enabled(settings)
+    _report_what_is_enabled(server.policy)
 
     if settings.transport == "stdio":
         server.run()
@@ -717,13 +721,6 @@ def _env_in_effect(named: Path | None) -> Path:
     return named if named is not None else resolve_config_file(".env")
 
 
-def _host_list(raw: str | None) -> tuple[str, ...]:
-    """Split a comma-separated ``--allowed-hosts`` value, ignoring blanks."""
-    if not raw:
-        return ()
-    return tuple(part for part in (piece.strip() for piece in raw.split(",")) if part)
-
-
 def _report_where_it_listens(settings: Settings) -> None:
     """Say on stderr what is being served and to whom.
 
@@ -739,7 +736,7 @@ def _report_where_it_listens(settings: Settings) -> None:
         settings.http_port,
         settings.http_path,
     )
-    if settings.http_host not in ("127.0.0.1", "localhost", "::1"):
+    if settings.http_host not in LOOPBACK_NAMES:
         log.warning(
             "Bound to %s, so this port is reachable from outside this machine. "
             "In a container that is what the published port is for. Anywhere "
@@ -748,14 +745,13 @@ def _report_where_it_listens(settings: Settings) -> None:
         )
 
 
-def _report_what_is_enabled(settings: Settings) -> None:
+def _report_what_is_enabled(policy: ToolPolicy) -> None:
     """Say on stderr what this process may do, and how to change it.
 
     A server offering nothing looks broken from the client, where the tool
     list is simply empty. Naming the file and the command turns that into
     something a person can act on.
     """
-    policy = ToolPolicy(settings.policy_file())
     enabled = [name for name, on in policy.as_map().items() if on]
     if not policy.exists():
         logger.warning(

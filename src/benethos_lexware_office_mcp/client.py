@@ -44,7 +44,7 @@ from .errors import (
     UpstreamError,
     ValidationError,
 )
-from .ratelimit import TokenBucket
+from .ratelimit import Sleeper, TokenBucket
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +221,7 @@ class LexwareClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         bucket: TokenBucket | None = None,
-        sleep: Any = None,
+        sleep: Sleeper | None = None,
     ) -> None:
         self.settings = settings
         self._bucket = bucket or TokenBucket(settings.rate, settings.burst)

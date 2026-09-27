@@ -43,15 +43,24 @@ from .envfile import read_env_file as _parse_env_file
 from .errors import ConfigError, register_secret
 
 __all__ = [
+    "DEFAULT_APP_BASE_URL",
+    "DEFAULT_BASE_URL",
+    "DEFAULT_PAGE_SIZE",
     "DEFAULT_PDF_PAGES",
-    "MAX_PDF_PAGES",
+    "LOG_LEVELS",
+    "LOOPBACK_NAMES",
     "MAX_PAGE_SIZE",
+    "MAX_PDF_PAGES",
+    "TRANSPORTS",
     "Settings",
     "config_dir",
+    "csv_tuple",
     "download_dir",
     "env_file_in_effect",
     "load_settings",
+    "resolve_config_file",
     "settings_sample",
+    "tool_policy_file",
 ]
 
 APP_NAME = "benethos-lexware-office-mcp"
@@ -101,6 +110,10 @@ DEFAULT_LOG_LEVEL = "INFO"
 # saying they mean to.
 DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_HTTP_PORT = 8770
+# The names under which a bind reaches this machine only. Checked wherever a
+# bind address or a Host header decides whether somebody else could be on
+# the other end.
+LOOPBACK_NAMES: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1"})
 DEFAULT_HTTP_PATH = "/mcp"
 TRANSPORTS: tuple[str, ...] = ("stdio", "streamable-http", "sse")
 DEFAULT_TRANSPORT = "stdio"
@@ -220,6 +233,17 @@ def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
             return path
     config_dir()  # raises when there is no home, and so nowhere to create one
     return candidates[0]
+
+
+def csv_tuple(raw: str | None) -> tuple[str, ...]:
+    """A comma-separated list from the environment or the command line.
+
+    Blanks are dropped, so a trailing comma or a stray space is not an
+    entry, and nothing means an empty tuple rather than a tuple of nothing.
+    """
+    if not raw:
+        return ()
+    return tuple(part for part in (piece.strip() for piece in raw.split(",")) if part)
 
 
 def _flag(raw: str | None) -> bool:
@@ -409,10 +433,7 @@ def load_settings(
     exit_on_change = _flag(get("EXIT_ON_CONFIG_CHANGE"))
     generate_token = _flag(get("GENERATE_BEARER_TOKEN"))
 
-    allowed = get("ALLOWED_HOSTS") or ""
-    allowed_hosts = tuple(
-        part for part in (p.strip() for p in allowed.split(",")) if part
-    )
+    allowed_hosts = csv_tuple(get("ALLOWED_HOSTS"))
 
     return Settings(
         api_key=api_key,

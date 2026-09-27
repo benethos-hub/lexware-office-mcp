@@ -8,6 +8,7 @@ from the init would close the circle.
 from __future__ import annotations
 
 import inspect
+from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
@@ -113,7 +114,7 @@ def require_version(
     )
 
 
-def register_tool(server: MCPServer, func: Any) -> None:
+def register_tool(server: MCPServer, func: Callable[..., Awaitable[Any]]) -> None:
     """Register one tool, with its description tidied first.
 
     Every tool is registered, whatever the policy says. What the policy

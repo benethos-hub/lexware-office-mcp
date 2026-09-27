@@ -17,10 +17,12 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
+import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.types import (
     BlobResourceContents,
     CallToolResult,
+    ContentBlock,
     EmbeddedResource,
     ImageContent,
     TextContent,
@@ -422,7 +424,11 @@ def permalink(
 
 
 def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
-    """Find a download, read it and build the answer. Blocking, run in a thread."""
+    """Find a download, read it and build the answer. Blocking, run in a thread.
+
+    ``Any`` for the same reason as :func:`_deliver`: the tool declares
+    :class:`Delivered` for its schema and passes the ``CallToolResult`` on.
+    """
     with _on_disk("read the download"):
         found = storage.resolve(
             uri[len(resources.SCHEME) :], storage.directory_for(settings)
@@ -440,7 +446,9 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
     return _inline(uri, payload, mime, max_pages)
 
 
-def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -> Any:
+def _inline(
+    uri: str, payload: bytes, mime: str, max_pages: int | None = None
+) -> CallToolResult:
     """Choose the content block that makes this file usable.
 
     Four shapes, because the same bytes are worth different things: text a
@@ -480,7 +488,7 @@ def _inline(uri: str, payload: bytes, mime: str, max_pages: int | None = None) -
 
 def _rendered(
     uri: str, payload: bytes, summary: dict[str, Any], max_pages: int | None
-) -> Any:
+) -> CallToolResult:
     """A PDF as pictures of its pages."""
     try:
         pages, total = rendering.pdf_pages_as_png(payload, max_pages=max_pages)
@@ -493,7 +501,7 @@ def _rendered(
     if not pages:
         raise ValidationError(f"{uri} has no pages to show.")
 
-    blocks: list[Any] = [
+    blocks: list[ContentBlock] = [
         TextContent(
             type="text",
             text=(
@@ -523,7 +531,7 @@ def _rendered(
 
 
 async def _deliver(
-    response: Any,
+    response: httpx.Response,
     server: MCPServer,
     settings: Settings,
     *,

@@ -27,6 +27,7 @@ import secrets
 import sys
 import threading
 import webbrowser
+from collections.abc import Callable
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -34,7 +35,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .. import __version__
-from ..config import ConfigError, load_settings
+from ..config import LOOPBACK_NAMES, ConfigError, load_settings
 from ..envfile import update_env_file
 from ..policy import known_tools
 from . import pages, probe, transfer
@@ -56,7 +57,6 @@ _SESSION_COOKIE = "lxo_config"
 # The largest form this interface accepts. An imported policy file is the
 # biggest thing any of them carries, and that is a few kilobytes.
 MAX_BODY = 1024 * 1024
-_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 # The name the file has on disk, so a download can simply replace one.
 _EXPORT_NAME = "tools.json"
@@ -181,7 +181,7 @@ class Handler(BaseHTTPRequestHandler):
         port still works.
         """
         target = _host_and_port(self.headers.get("Host", ""))
-        return target is not None and target[0] in _LOOPBACK
+        return target is not None and target[0] in LOOPBACK_NAMES
 
     def _origin_ok(self) -> bool:
         """Whether a state-changing request came from this page.
@@ -203,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.scheme != "http":
             return False
         target = _host_and_port(self.headers.get("Host", ""))
-        if target is None or target[0] not in _LOOPBACK:
+        if target is None or target[0] not in LOOPBACK_NAMES:
             return False
         try:
             origin = ((parsed.hostname or "").lower(), parsed.port or 80)
@@ -666,7 +666,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _page_with(
         self,
-        render: Any,
+        render: Callable[..., bytes],
         text: str,
         *,
         kind: str = "",
@@ -740,7 +740,7 @@ def serve(
     reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
     url = f"http://{reachable}:{port}/"
     print(f"Konfiguration im Browser: {url}", file=sys.stderr)
-    if host not in _LOOPBACK:
+    if host not in LOOPBACK_NAMES:
         print(
             f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
             "aus erreichbar. Die Seiten haben keine Anmeldung und antworten "
