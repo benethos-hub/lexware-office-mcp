@@ -107,7 +107,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/articles.py` | Articles, read, written and deleted. | built |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
 | `tools/sales_documents.py` | The seven sales document types, the path segment each one lives behind, and the templates that repeat them. | built |
-| `tools/files.py` | Upload, download, rendered documents, deeplinks. | built |
+| `tools/files.py` | Upload, download, rendered documents. | built |
+| `tools/deeplinks.py` | Links into the web app, built from ids without an API call. Classified under `files`, so the policy file and the interface group it as before. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
 
 **Layer rule:** tool functions stay thin. Every HTTP call lives in

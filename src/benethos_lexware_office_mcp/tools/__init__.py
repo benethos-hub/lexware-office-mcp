@@ -17,6 +17,7 @@ from ..config import Settings
 from . import (
     articles,
     contacts,
+    deeplinks,
     diagnostics,
     files,
     master_data,
@@ -37,6 +38,7 @@ _MODULES: Sequence[Registrar] = (
     vouchers.register,
     sales_documents.register,
     files.register,
+    deeplinks.register,
     master_data.register,
 )
 
