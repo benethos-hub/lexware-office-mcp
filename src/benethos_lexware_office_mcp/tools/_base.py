@@ -15,9 +15,10 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..config import MAX_PAGE_SIZE
+from ..errors import ConflictError
 from ..policy import ToolPolicy, guarded, known_tools
 
-__all__ = ["PageNumber", "PageSize", "register_tool"]
+__all__ = ["PageNumber", "PageSize", "register_tool", "require_version"]
 
 # Every list tool takes the same two parameters, and every parameter
 # description is sent to the model on every request. Declaring them once keeps
@@ -87,6 +88,28 @@ def _annotations(name: str) -> ToolAnnotations | None:
         # are - the update spends a version it no longer has and is refused,
         # the delete finds nothing left to remove.
         idempotent_hint=meta.effect != "create",
+    )
+
+
+def require_version(
+    current: dict[str, Any], version: int, *, noun: str, reader: str
+) -> None:
+    """Refuse an update written against a version the record has moved past.
+
+    Every update reads the record first and merges into it, so the version
+    the caller quotes is checked here, before anything is sent. The API
+    would refuse it too, but its wording for this is ``version:
+    invalid_value`` behind a 406, and a caller told to read the record again
+    with the tool that reads it can act on that.
+    """
+    found = current.get("version")
+    if found == version:
+        return
+    raise ConflictError(
+        f"This {noun} is at version {found}, but the update was written "
+        f"against version {version}. Somebody changed it in between. Read it "
+        f"again with {reader}, check whether your change still applies, then "
+        "retry."
     )
 
 

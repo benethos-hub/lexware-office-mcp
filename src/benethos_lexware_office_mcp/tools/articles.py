@@ -23,10 +23,10 @@ from pydantic import Field
 from .. import formatting
 from ..client import ClientProvider
 from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
-from ..errors import ConflictError, ValidationError
+from ..errors import ValidationError
 from ..payloads import ArticleType, article_body
 from ..policy import classify
-from ._base import PageNumber, register_tool
+from ._base import PageNumber, register_tool, require_version
 
 __all__ = ["register"]
 
@@ -257,13 +257,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         client = provider.get()
         current = await client.article(article_id)
-        if current.get("version") != version:
-            raise ConflictError(
-                f"This article is at version {current.get('version')}, but the "
-                f"update was written against version {version}. Somebody "
-                "changed it in between. Read it again with get_article, check "
-                "whether your change still applies, then retry."
-            )
+        require_version(current, version, noun="article", reader="get_article")
 
         body = article_body(
             base=current,
