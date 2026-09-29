@@ -105,3 +105,41 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
 
     assert found == ["0.0.1"]
     assert found != [benethos_lexware_office_mcp.__version__]
+
+
+# -- what Docker keeps of the output ----------------------------------------
+
+COMPOSE = REPO / "compose.yaml"
+
+
+def test_compose_caps_the_log_docker_keeps() -> None:
+    """Five files of 10 MB, the json-file driver's own rotation.
+
+    Without it Docker keeps every access line for the life of the container,
+    and a restart is the same container. Read as text rather than parsed:
+    the check is that the block exists with these values, and a YAML parser
+    is not a dependency of this project.
+    """
+    text = COMPOSE.read_text(encoding="utf-8")
+
+    block = re.search(r"^x-logging: &logging\n((?:  .*\n)+)", text, flags=re.MULTILINE)
+    assert block is not None, "the shared logging block is gone"
+    assert "driver: json-file" in block.group(1)
+    assert 'max-size: "10m"' in block.group(1)
+    assert 'max-file: "5"' in block.group(1)
+
+
+def test_every_compose_service_uses_the_log_cap() -> None:
+    """A service added later without the reference would log without limit."""
+    text = COMPOSE.read_text(encoding="utf-8")
+    services = text.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    names = re.findall(r"^  ([a-z][\w-]*):\n", services, flags=re.MULTILINE)
+
+    assert names == ["benethos-lexware-office-mcp", "setup"]
+    assert services.count("    logging: *logging\n") == len(names)
+
+
+def test_the_readme_run_example_caps_the_log_as_well() -> None:
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+
+    assert "--log-opt max-size=10m --log-opt max-file=5" in readme

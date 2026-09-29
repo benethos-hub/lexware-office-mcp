@@ -19,6 +19,19 @@
 
 name: benethos-lexware-office-mcp
 
+# What Docker keeps of a container's output, at most: five files of 10 MB,
+# the oldest dropped first. Without it the json-file driver keeps everything
+# for as long as the container exists, and a restart - `unless-stopped`, or
+# the server ending on a changed .env - is the same container. The server
+# writes one access line per HTTP request on stdout, refused ones included,
+# and its own log on stderr, so a port that is reachable grows the log
+# whether or not anyone is using it. 50 MB is weeks of ordinary use.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   benethos-lexware-office-mcp:
     # As shipped: BUILD from this checkout. To run the published image
@@ -42,6 +55,7 @@ services:
       # the 127.0.0.1 prefix only behind a proxy that authenticates for you.
       - "127.0.0.1:8770:8770"
     restart: unless-stopped
+    logging: *logging
     environment:
       # No bearer token here on purpose. The container makes one on first
       # start and keeps it in the config volume, and the configuration
@@ -116,6 +130,7 @@ services:
     # No restart policy: this is meant to be stopped when you are done, and a
     # page that takes an API key should not come back by itself.
     restart: "no"
+    logging: *logging
     volumes:
       - config:/config
       - downloads:/downloads

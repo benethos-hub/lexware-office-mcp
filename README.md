@@ -620,11 +620,17 @@ As shipped, `compose.yaml` builds from this checkout. Two commented lines in
 each of its two services switch it to the published image, and that file is
 then the only thing you need from here.
 
+Docker keeps at most five log files of 10 MB for each service, the oldest
+dropped first. The server writes a line for every request it receives,
+refused ones included, so without a cap a reachable port would grow the log
+for as long as the container exists.
+
 ### As single containers
 
 ```bash
 docker run -d --name lexware-office-mcp \
   --restart unless-stopped \
+  --log-opt max-size=10m --log-opt max-file=5 \
   -p 127.0.0.1:8770:8770 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
   ghcr.io/benethos-hub/lexware-office-mcp:latest
