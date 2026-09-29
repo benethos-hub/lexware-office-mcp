@@ -2335,6 +2335,31 @@ operation the API seemed unable to perform and one that `download_document`
 and `download_file` already do through `file_format`. The first of them
 arrived with 0.3.0 after all, for an unchecked voucher.
 
+**Next, noted 2026-09-29 and not started.** Each is its own work stream,
+scoped before it is built.
+
+- **The resource list grows with the download directory.** Every file there
+  is published as an MCP resource and returned by `resources/list`, and
+  nothing ever removes a download. A document that has not changed reuses
+  its file, so the directory grows only with distinct documents, but it
+  grows without a bound, and so does the list a client receives. To decide:
+  whether the list needs a limit, paging or an age, or whether the directory
+  itself does.
+- **A logging concept.** What is logged today follows from library defaults
+  rather than from a decision. Over HTTP, uvicorn writes an access line per
+  request to stdout. At `INFO`, httpx writes one line per API call to stderr
+  with the full URL, and a contact search carries a name or an email address
+  in its query, so a customer's details end up in a log that outlives the
+  call. To decide: which logger says what at which level, what a line may
+  contain, and what the container keeps. The size is capped since
+  2026-09-29, the content is not considered yet.
+- **Refactoring at file level and at code level.** The review's refactoring
+  (0.3.0) cut the modules it named. A second pass looks at the files as they
+  are now - the largest are `configui/app.py`, `client.py`,
+  `configui/pages.py`, `payloads.py` and `cli.py`, each between 550 and 760
+  lines - and at duplication and complexity inside them. Its scope comes
+  first, as a list, before any file moves.
+
 ### 16.1 Answered: how a user configures the server
 
 **Settled on 2026-08-21 by building the interface**, the third of the four
