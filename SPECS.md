@@ -770,6 +770,16 @@ arriving.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr
   (`logging.basicConfig(stream=sys.stderr)`).
+- **What Docker keeps of a container's output is capped**, since 2026-09-29:
+  `compose.yaml` gives both services the `json-file` driver with five files
+  of 10 MB. Over HTTP stdout is not a protocol stream, and uvicorn writes one
+  access line to it per request, refused ones included, while this server's
+  own log goes to stderr - measured on the 0.3.0 image at about 60 bytes per
+  line on each. Without a cap Docker keeps all of it for the life of the
+  container, and a restart, whether `unless-stopped` or the watch above, is
+  the same container. The health check connects to the port without a
+  request and adds nothing. A `docker run` sets the same cap with
+  `--log-opt`, which the README shows.
 - **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
   `--env-file` today, plus the transport flags when HTTP arrives. `--mode` and
   `--download-dir` were planned here and never built: the mode is gone with

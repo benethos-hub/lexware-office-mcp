@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **`compose.yaml` caps what Docker keeps of the logs**: five files of 10 MB
+  per service, the oldest dropped first. The server writes a line for every
+  HTTP request, refused ones included, and Docker kept all of it for as long
+  as the container existed, restarts included. The README's `docker run`
+  example sets the same cap.
+
 ## [0.3.0] - 2026-09-27
 
 A minor release, because an existing installation can trip over four of
