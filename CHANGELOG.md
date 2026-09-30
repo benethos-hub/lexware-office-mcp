@@ -35,6 +35,11 @@ housekeeping are out of scope here — design decisions live in
   told. A broken policy or profile file is named with the reason it could
   not be read - the error's class, and the system's reason or the position
   in the JSON - rather than with the error's whole text.
+- **Every API call is a line of this server's own at `DEBUG`**, in place of
+  the one httpx wrote: method, path, status, milliseconds, which attempt,
+  and how long it waited for the rate limiter. The path shows resource names
+  and ids and nothing else. A retry, the circuit breaker holding requests
+  back and a rejected API key are each a `WARNING`.
 
 ## [0.3.0] - 2026-09-27
 
