@@ -110,6 +110,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **The tool policy and the saved profiles are written whole or not at
+  all**, the way the `.env` already was. They were written in place, and a
+  running server that reads the policy the moment it changes could catch it
+  half-written, fall back to nothing enabled and tell its clients twice. A
+  new policy or profiles file is readable by its owner only.
 - **A text line in `create_sales_document` needs only its text.** The
   schema demanded a quantity, a unit, a price and a tax rate for every
   line, and a text line then dropped all four, so the model had to invent

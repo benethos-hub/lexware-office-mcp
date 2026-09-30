@@ -19,7 +19,7 @@ import stat
 import tempfile
 from pathlib import Path
 
-__all__ = ["read_env_file", "update_env_file"]
+__all__ = ["read_env_file", "update_env_file", "write_atomically"]
 
 
 def read_env_file(path: Path) -> dict[str, str]:
@@ -89,7 +89,7 @@ def update_env_file(path: Path, updates: dict[str, str]) -> None:
     lines.extend(
         f"{key}={value}" for key, value in updates.items() if key not in written
     )
-    _replace(path, ("\n".join(lines) + "\n").encode("utf-8"))
+    write_atomically(path, ("\n".join(lines) + "\n").encode("utf-8"))
 
 
 def _one_line(text: str) -> bool:
@@ -102,8 +102,13 @@ def _one_line(text: str) -> bool:
     return "\x00" not in text and len(f"a{text}a".splitlines()) == 1
 
 
-def _replace(path: Path, content: bytes) -> None:
-    """Write ``content`` to ``path`` atomically, owner-only when new."""
+def write_atomically(path: Path, content: bytes) -> None:
+    """Write ``content`` to ``path`` atomically, owner-only when new.
+
+    For every configuration file this server writes, not only the ``.env``:
+    a running server watches the policy file and reads it when it changes,
+    and a file written in place can be read half-written.
+    """
     # A link is followed, so the file it names is updated and the link stays.
     target = path.resolve() if path.is_symlink() else path
     target.parent.mkdir(parents=True, exist_ok=True)

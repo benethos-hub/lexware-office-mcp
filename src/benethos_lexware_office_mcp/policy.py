@@ -36,6 +36,7 @@ from typing import Any, Literal, TypeVar, cast
 
 from . import logbook
 from .errors import PermissionDeniedError
+from .settings.envfile import write_atomically
 
 __all__ = [
     "Access",
@@ -258,9 +259,10 @@ class ToolPolicy:
         if self._path is None:
             raise ValueError("This policy has no file to write to.")
         clean = {name: bool(flags.get(name, False)) for name in sorted(_REGISTRY)}
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(clean, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+        # Atomically: a running server reads this file the moment it changes.
+        write_atomically(
+            self._path,
+            (json.dumps(clean, indent=1, ensure_ascii=False) + "\n").encode("utf-8"),
         )
 
 

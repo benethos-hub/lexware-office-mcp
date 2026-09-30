@@ -495,3 +495,26 @@ def test_the_command_line_sync_does_not_serve(
     main(["--tools", "sync", "--tools-file", str(policy)])
 
     assert capsys.readouterr().out == "", "stdout carries the JSON-RPC stream"
+
+
+def test_a_write_that_fails_leaves_the_old_file_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Written beside and moved into place: a running server reads it on change.
+
+    Written in place, a server that read it at the wrong moment got half a
+    JSON document, fell back to nothing enabled and told its clients twice.
+    """
+    path = tmp_path / "tools.json"
+    path.write_text('{"get_profile": true}', encoding="utf-8")
+
+    def interrupted(src: object, dst: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr("os.replace", interrupted)
+
+    with pytest.raises(OSError):
+        ToolPolicy(path).save({"get_profile": False})
+
+    assert path.read_text(encoding="utf-8") == '{"get_profile": true}'
+    assert [p.name for p in tmp_path.iterdir()] == ["tools.json"]

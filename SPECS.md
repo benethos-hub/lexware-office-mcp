@@ -134,7 +134,7 @@ below it:
 | `records` | `errors` |
 | `api` | the three above, `records` |
 | `files` | the three above |
-| `policy` | `errors`, `logbook` |
+| `policy` | `errors`, `logbook`, `settings` |
 | `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
 | `server` | `tools`, `policy`, `api`, `files` and the three above |
 | `transport` | `server` and the three above |
