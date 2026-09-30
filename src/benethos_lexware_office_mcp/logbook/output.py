@@ -16,7 +16,7 @@ from typing import TextIO
 
 from .access import ACCESS_LOGGER, AccessLines
 
-__all__ = ["LIBRARIES", "PACKAGE", "configure", "untouched_root"]
+__all__ = ["LIBRARIES", "PACKAGE", "configure", "source", "untouched_root"]
 
 PACKAGE = __name__.split(".")[0]
 
@@ -67,18 +67,36 @@ def untouched_root() -> Iterator[None]:
         root.setLevel(level)
 
 
-class _Where(logging.Filter):
-    """The logger's name, without this package in front of it.
+# What a line names as its source, where that is not the logger's own name.
+# uvicorn calls its server log `uvicorn.error`, after the error log of the
+# classic web servers, into which a server writes everything about itself.
+# Spelled out, an ordinary start reads like a failure.
+_SOURCES = {
+    PACKAGE: "server",
+    ACCESS_LOGGER: "http",
+    _UVICORN: "uvicorn",
+    "uvicorn": "uvicorn",
+}
+
+
+def source(name: str) -> str:
+    """The short name a line carries for the logger called ``name``.
 
     ``client`` rather than ``benethos_lexware_office_mcp.client``: every line
-    of this server would otherwise start with the same thirty characters. A
-    library's name is left whole, so ``uvicorn.error`` still says whose it is.
+    of this server would otherwise start with the same thirty characters. Any
+    other library's name is left whole, so a line still says whose it is.
     """
+    prefix = f"{PACKAGE}."
+    if name.startswith(prefix):
+        return name[len(prefix) :]
+    return _SOURCES.get(name, name)
+
+
+class _Where(logging.Filter):
+    """Puts :func:`source` on the record, where the format finds it."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        name = record.name
-        prefix = f"{PACKAGE}."
-        record.where = name[len(prefix) :] if name.startswith(prefix) else name
+        record.where = source(record.name)
         return True
 
 

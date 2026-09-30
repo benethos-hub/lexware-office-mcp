@@ -46,6 +46,9 @@ housekeeping are out of scope here — design decisions live in
   lost its query string. At `INFO` it appears only for a refused request,
   one answered with 400 or above, which carries the client address that
   tried. `DEBUG` shows every request.
+- **uvicorn's lines are named `uvicorn`, and its request line `http`**,
+  where they carried the logger names `uvicorn.error` and `uvicorn.access`.
+  The first made an ordinary start read like a failure.
 - **The first line says which version started over which transport**, and a
   line at `INFO` says when the tool list changed and how many clients were
   told. A broken policy or profile file is named with the reason it could

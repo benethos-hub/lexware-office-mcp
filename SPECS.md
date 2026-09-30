@@ -1871,6 +1871,14 @@ not answer to, with the client address that tried. That line is the record
 of a refused bearer token, so the server writes none of its own. The SDK
 writes a refused `Host` header as a warning itself.
 
+**A line names its source in short.** This server's loggers without the
+package in front, `tools` rather than `benethos_lexware_office_mcp.tools`,
+and the package itself as `server`. uvicorn's request line is `http`, and
+its own lines, from `uvicorn.error` and `uvicorn`, are `uvicorn`: it names
+its server log after the error log of the classic web servers, into which a
+server writes everything about itself, and spelled out an ordinary start
+reads like a failure. Any other logger keeps its full name.
+
 **The catalogue**, by module. The logger name a line carries is in brackets
 where it differs.
 

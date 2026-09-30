@@ -20,6 +20,7 @@ from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER, AccessLine
 from benethos_lexware_office_mcp.logbook.output import (
     LIBRARIES,
     PACKAGE,
+    source,
     untouched_root,
 )
 from benethos_lexware_office_mcp.settings import Settings
@@ -78,7 +79,25 @@ def test_lines_carry_the_logger_name_without_the_package() -> None:
 
     lines = stream.getvalue().splitlines()
     assert lines[0].endswith("INFO client: a line")
-    assert lines[1].endswith("INFO uvicorn.error: theirs")
+    assert lines[1].endswith("INFO uvicorn: theirs")
+
+
+@pytest.mark.parametrize(
+    ("name", "shown"),
+    [
+        (PACKAGE, "server"),
+        (f"{PACKAGE}.tools", "tools"),
+        ("uvicorn.access", "http"),
+        # Named for the error log of the classic web servers, and carrying
+        # every line about the server itself: a start is not an error.
+        ("uvicorn.error", "uvicorn"),
+        ("uvicorn", "uvicorn"),
+        ("httpx", "httpx"),
+        ("somebody.else", "somebody.else"),
+    ],
+)
+def test_each_logger_is_named_by_its_short_source(name: str, shown: str) -> None:
+    assert source(name) == shown
 
 
 def test_configuring_twice_does_not_print_twice() -> None:
