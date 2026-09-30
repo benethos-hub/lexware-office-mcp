@@ -110,6 +110,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **A text line in `create_sales_document` needs only its text.** The
+  schema demanded a quantity, a unit, a price and a tax rate for every
+  line, and a text line then dropped all four, so the model had to invent
+  values that went nowhere. They are optional in the schema now, and a
+  priced line without one of them is refused before any request, naming
+  what is missing.
 - **`create_contact` and `update_contact` refuse a field the contact has
   no place for.** A VAT id or a tax number on a person, or a first name or
   a salutation on a company, was left out of the request, and the call

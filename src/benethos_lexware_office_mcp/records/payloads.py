@@ -434,6 +434,17 @@ def _line_item_body(
         _set(body, "description", item.description)
         return body
 
+    missing = [
+        name
+        for name in ("quantity", "unit_name", "unit_price", "tax_rate_percent")
+        if getattr(item, name) is None
+    ]
+    if missing:
+        raise ValidationError(
+            f"The line {item.name!r} needs {', '.join(missing)}. Only a 'text' "
+            "line goes without them."
+        )
+
     amount_key = "grossAmount" if tax_type == "gross" else "netAmount"
     body = {
         "type": item.item_type,

@@ -1112,15 +1112,16 @@ exposed one tool per path.
 2026-08-22 with the annotations below, again on 2026-08-23 after
 `create_voucher` lost a parameter that could not work, and twice on
 2026-09-27, the second time after the documentation review added
-`voucher_number`, three sort properties and `finalize`.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **53,198
-characters**, around 2,127 each. Roughly
+`voucher_number`, three sort properties and `finalize`, and on 2026-09-30
+after the four price fields of a sales line became optional for a text
+line.** Serialized as the compact JSON a `tools/list` answer is,
+twenty-five tools come to **53,315 characters**, around 2,133 each. Roughly
 13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
 than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,173 | 64% |
+| Input schemas | 34,290 | 64% |
 | Tool descriptions, the part under a ceiling | 11,169 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
