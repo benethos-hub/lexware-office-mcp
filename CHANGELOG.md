@@ -50,6 +50,12 @@ housekeeping are out of scope here — design decisions live in
   for a refusal by the API its status and error codes: `update_voucher
   refused: ConflictError 406 version: invalid_value`. Arguments that do not
   match a tool's schema are named by field.
+- **The configuration interface leaves a trace of what it changed.** Saving
+  the API key, the bearer token, a setting, the tool policy or a profile is
+  a line on stderr, and switching on a tool that can write is a `WARNING`
+  that names it. So is a request one of its guards refused, and a file it
+  could not write. The key, the token and a setting's value are never in a
+  line, only which setting changed. The pages keep no request log.
 
 ## [0.3.0] - 2026-09-27
 

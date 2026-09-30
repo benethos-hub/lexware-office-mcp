@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .. import __version__
+from .. import __version__, logbook
 from ..config import LOOPBACK_NAMES, ConfigError, load_settings
 from ..envfile import update_env_file
 from ..policy import known_tools
@@ -220,6 +220,7 @@ class Handler(BaseHTTPRequestHandler):
     # --- routing -----------------------------------------------------------
 
     def _wrong_host(self) -> None:
+        logbook.configui.request_refused("host")
         self._send(
             403,
             page(
@@ -259,6 +260,7 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             length = -1
         if not 0 <= length <= MAX_BODY:
+            logbook.configui.request_refused("size")
             self.close_connection = True
             self._send(413, page("Zu groß", "<p>Diese Anfrage ist zu groß.</p>"))
             return
@@ -281,12 +283,14 @@ class Handler(BaseHTTPRequestHandler):
             self._not_found()
             return
         if not self._origin_ok():
+            logbook.configui.request_refused("origin")
             self._deny(
                 "Abgelehnt: die Anfrage kam nicht von dieser Seite "
                 "(Origin oder Referer ist nicht lokal)."
             )
             return
         if not self._csrf_ok(form):
+            logbook.configui.request_refused("token")
             self._deny(
                 "Abgelehnt: das Sicherheitstoken fehlt oder passt nicht. "
                 "Seite neu laden und noch einmal absenden."
@@ -323,6 +327,7 @@ class Handler(BaseHTTPRequestHandler):
             probe_settings = dataclasses.replace(inst.settings, api_key=key)
             verified, message = probe.check(probe_settings)
             if verified is None:
+                logbook.configui.key_refused()
                 self._page_with(
                     pages.credentials,
                     f"Nicht gespeichert. {message}",
@@ -337,6 +342,7 @@ class Handler(BaseHTTPRequestHandler):
                 pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
             )
             return
+        logbook.configui.key_saved(inst.env_path.name, verified is not None)
         inst.reload()
         suffix = (
             " Ungeprüft übernommen."
@@ -386,6 +392,9 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        logbook.configui.token_saved(
+            inst.env_path.name, _field(form, "action") == "generate"
+        )
         inst.reload()
         shadow = (
             " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
@@ -424,6 +433,7 @@ class Handler(BaseHTTPRequestHandler):
                 pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
             )
             return
+        logbook.configui.settings_saved(inst.env_path.name, list(submitted))
         inst.reload()
         self._page_with(
             pages.credentials,
@@ -461,6 +471,9 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         writers = sorted(n for n in chosen if known_tools()[n].access == "write")
+        logbook.configui.policy_saved(
+            inst.policy_path, len(chosen), len(flags), writers
+        )
         text = f"{len(chosen)} von {len(flags)} Tools aktiv."
         if writers:
             text += (
@@ -543,6 +556,7 @@ class Handler(BaseHTTPRequestHandler):
                 opened="profiles",
             )
             return
+        logbook.configui.profile_saved(profile.name, len(profile.tools), False)
         self._page_with(
             pages.permissions,
             f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
@@ -576,6 +590,7 @@ class Handler(BaseHTTPRequestHandler):
                 opened="profiles",
             )
             return
+        logbook.configui.profile_saved(profile.name, len(profile.tools), True)
         self._page_with(
             pages.permissions,
             f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
@@ -588,6 +603,8 @@ class Handler(BaseHTTPRequestHandler):
     def _delete_profile(self, form: Form) -> None:
         name = _field(form, "profile")
         gone = self.installation.profiles.delete(name)
+        if gone:
+            logbook.configui.profile_deleted(name)
         self._page_with(
             pages.permissions,
             f"Profil {name} gelöscht." if gone else f"Kein Profil namens {name}.",
@@ -694,7 +711,11 @@ def _write_failed(path: Path, exc: OSError | ValueError) -> str:
     One sentence for the three files this interface writes. The path is
     shown: this page is read by the person sitting at the machine, who is
     the one who can do something about a directory they do not own.
+
+    Called exactly where a write failed, so it is also where stderr hears
+    of it.
     """
+    logbook.configui.write_failed(path, exc)
     if isinstance(exc, ValueError):
         return f"Nicht gespeichert: {exc}"
     return f"Konnte {path} nicht schreiben: {exc.strerror or exc}"
