@@ -186,6 +186,18 @@ def test_a_wrong_token_is_refused(browser: Browser) -> None:
     assert "Sicherheitstoken" in body
 
 
+def test_a_token_with_a_non_ascii_character_is_refused_too(browser: Browser) -> None:
+    """`compare_digest` raises on such a string rather than answering False.
+
+    With a session cookie in place, or the check ends before comparing.
+    """
+    browser.token()
+    status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nöpe")
+
+    assert status == 403
+    assert "Sicherheitstoken" in body
+
+
 @pytest.mark.parametrize("host", ["attacker.example:8770", "192.168.1.20:8770", ""])
 def test_a_page_addressed_by_another_name_is_refused(
     browser: Browser, host: str

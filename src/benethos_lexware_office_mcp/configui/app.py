@@ -215,7 +215,11 @@ class Handler(BaseHTTPRequestHandler):
         if self._fresh_cookie:
             return False  # no session cookie was presented at all
         sent = field(form, "_csrf")
-        return bool(sent) and secrets.compare_digest(sent, self._session)
+        # As bytes: on two strings compare_digest raises TypeError for a
+        # character outside ASCII, which a form field can carry.
+        return bool(sent) and secrets.compare_digest(
+            sent.encode(), self._session.encode()
+        )
 
     # --- routing -----------------------------------------------------------
 

@@ -110,6 +110,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **A security token with a character outside ASCII is refused** by the
+  configuration interface like any other wrong token, where it ended the
+  request without an answer.
 - **Deleting a profile the configuration interface cannot write is
   reported** on the page, as saving and overwriting one already were, where
   the browser got a dropped connection.
