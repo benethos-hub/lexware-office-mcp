@@ -392,11 +392,13 @@ Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
 
-Two things worth knowing. It **binds `127.0.0.1` and nothing else** — the
-pages have no password, which is only defensible while they cannot be reached
-from another machine, so there is no option to change it. And it is a
-**separate command**: the MCP server never serves HTTP, and a client such as
-Claude Desktop starts that one, not this.
+Two things worth knowing. It **binds `127.0.0.1`** — the pages have no
+password, which is only defensible while they cannot be reached from another
+machine. `--host` exists for a container, where the host-side publish keeps
+the port local, see [In a container](#in-a-container). Anywhere else a bind
+beyond loopback leaves the pages open to whoever reaches the port, and the
+start says so. And it is a **separate command**: the MCP server never serves
+HTTP, and a client such as Claude Desktop starts that one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
 and `--tools-file` say which files it edits. Unlike everywhere else those

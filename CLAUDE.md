@@ -111,10 +111,14 @@ live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
   shapes/         # one timestamped capture per run
-.github/workflows/
-  ci.yml          # lint, test, fresh-install, docker, and lowest-versions:
+.github/
+  dependabot.yml  # the declared ranges, the pinned actions and the pinned images
+  scripts/
+    tag_matches_version.py  # a release tag has to be the package version
+  workflows/
+    ci.yml        # lint, test, fresh-install, docker, and lowest-versions:
                   # the oldest allowed dependencies, an early warning only
-  publish.yml     # a published release -> PyPI and the container image
+    publish.yml   # a published release -> PyPI and the container image
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -322,15 +326,18 @@ fallen behind, so the list is short on purpose. In this order:
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
    README's status line, pin example and exact image tag, both exact tags in
-   `compose.yaml`, the SPECS status line and a roadmap row, and the
-   changelog section with its link reference. Then `uv lock`, which carries
+   `compose.yaml`, the SPECS status line, a roadmap row and the example
+   start line in section 11.2, and the changelog section with its link
+   reference. Then `uv lock`, which carries
    the package's own version. The guards in `tests/test_packaging.py` catch
    most of a missed one. **The minor line** (`:0.4` in the README and
    `compose.yaml`) changes only with a minor release - the image tag itself
    follows the release tag when the image is built.
 4. **The coverage percentage**, re-read against the static badge.
 5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
-   which fires `publish.yml`.
+   which fires `publish.yml`. Both of its jobs stop when the tag is not
+   `v` plus the version in `pyproject.toml`, so a tag ahead of step 3
+   publishes nothing rather than an image with the old code.
 6. **Verify the delivered artefacts, not the build.** The PyPI simple index
    with a cache-busting query - the JSON API lags for minutes after an upload
    and has reported a finished release as missing. The ghcr index manifest
@@ -368,8 +375,9 @@ fallen behind, so the list is short on purpose. In this order:
 - The commit identity is configured repo-locally. Verify it survives a
   re-clone or re-init, because a global identity would otherwise be used
   instead.
-- End commit messages with
-  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+- End commit messages with a `Co-Authored-By` line naming the Claude model
+  that did the work, as the session reports it, for example
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Ship changes on a branch. One work stream, one branch — a branch covers the
   piece of work being done including the fixes found along the way, not one
   branch per file. Open the next branch when the *topic* changes, not when the
