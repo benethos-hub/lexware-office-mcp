@@ -101,7 +101,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
-| `files/storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
+| `files/storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, because one whose contents match is reused rather than copied, and because the directory is a cache kept to its newest downloads, see section 13. | built |
 | `files/resources.py` | Downloaded files as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. Both the list, bounded to the newest downloads, and the reads are answered from the download directory, not from a registry. See section 13. | built |
 | `files/rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `files/delivery.py` | A download as an answer: a file saved to disk as a line and a resource link, or a file put into the conversation as text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
@@ -1841,7 +1841,7 @@ nothing else.
 |---|---|---|
 | `ERROR` | a crash, with its traceback, written by the SDK | a tool raised something that is not a `ToolError` |
 | `WARNING` | refused or failed, the server carries on | a tool refused by the policy or the API, a retry, the breaker, a rejected key, writing tools switched on |
-| `INFO` | what changed, what was read, the lifecycle | start, every tool call, the tool list changing, a save in the interface |
+| `INFO` | what changed, what was read, the lifecycle | start, every tool call, the tool list changing, older downloads deleted, a save in the interface |
 | `DEBUG` | the steps, without content | every API attempt with its status and duration, a reused download |
 
 **Reading is `INFO` like writing**, decided 2026-09-30: the log is where the
@@ -1884,7 +1884,8 @@ where it differs.
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
-| `files` (`storage`) | `DEBUG` | a download that reused an identical file, by size |
+| `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name |
+| | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted |
 | | `WARNING` | the policy with writing tools on and which, a key the account refused, a request a guard refused, a file that could not be written, unreadable profiles |
 
