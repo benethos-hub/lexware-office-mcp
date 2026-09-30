@@ -65,6 +65,13 @@ class ConfigServer(ThreadingHTTPServer):
 
     installation: Installation
 
+    # On Windows SO_REUSEADDR lets a second process bind a port another one is
+    # listening on, and connections then go to whichever bound it first - an
+    # older interface, or another program, would get the browser and the key.
+    # Elsewhere it only allows a restart while old connections linger, which
+    # is harmless and worth keeping.
+    allow_reuse_address = sys.platform != "win32"
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.sessions: set[str] = set()
@@ -324,7 +331,15 @@ def serve(
     command shares an entry point with a server for which stdout is the
     protocol, and one habit is easier to keep than two.
     """
-    server = ConfigServer((host, port), Handler)
+    try:
+        server = ConfigServer((host, port), Handler)
+    except OSError as exc:
+        print(
+            f"Konnte {host}:{port} nicht öffnen: {exc.strerror or exc}. Läuft "
+            "die Oberfläche schon? Sonst mit --port einen anderen Port wählen.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
     server.installation = installation
     # The address a person opens, which is not always the one that was bound:
     # 0.0.0.0 is a bind, not a destination.

@@ -110,6 +110,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **On Windows, `setup` no longer starts on a port already in use.** It
+  bound the port anyway, and the browser kept talking to whatever had it
+  first - an interface started earlier, or another program - which then
+  received the key typed in. A taken port now ends `setup` with one line
+  that says so and suggests `--port`.
 - **Ctrl+C ends in one line and exit code 130, not a traceback.** Over
   HTTP, uvicorn shut down cleanly and then raised the interrupt again, and
   stdio ended in it as well, so stopping the server by hand printed a

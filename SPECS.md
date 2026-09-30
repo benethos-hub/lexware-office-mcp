@@ -954,6 +954,14 @@ has to be one this process issued, because cookies are not scoped by port: a
 page on another local port can set the cookie to a value of its choosing and
 put the same value in its form.
 
+**A port in use ends the start.** On Windows `SO_REUSEADDR`, which the
+standard library's HTTP server sets, lets a second process bind a port
+another is listening on, and connections keep going to the first - so a
+second interface came up, and the key typed into the browser reached the
+old one or another program. It is off there, and a taken port ends `setup`
+with one line. Elsewhere the option only allows a restart while old
+connections linger, and stays on.
+
 The API base URLs must be `https://`. The key travels to `LXO_MCP_BASE_URL` on
 every request, so the page cannot be used to point it somewhere in the clear,
 and `load_settings` refuses the same for the server.

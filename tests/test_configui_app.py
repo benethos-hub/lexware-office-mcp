@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 import pytest
 
 from benethos_lexware_office_mcp.configui import probe, transfer
-from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
+from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serve
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
@@ -907,3 +907,31 @@ def test_a_write_that_failed_is_a_warning(
     browser.post("/permissions", {"action": "save", "tool": ["get_profile"]})
 
     assert f"Could not write {installation.policy_path}:" in lines.text
+
+
+def test_a_second_interface_cannot_take_a_port_already_served() -> None:
+    """On Windows SO_REUSEADDR let it, and the first one kept the browser."""
+    first = ConfigServer(("127.0.0.1", 0), Handler)
+    try:
+        with pytest.raises(OSError):
+            ConfigServer(("127.0.0.1", first.server_address[1]), Handler)
+    finally:
+        first.server_close()
+
+
+def test_a_taken_port_is_one_line_and_no_traceback(
+    installation: Installation, capsys: pytest.CaptureFixture[str]
+) -> None:
+    taken = socket.socket()
+    taken.bind(("127.0.0.1", 0))
+    taken.listen()
+    try:
+        with pytest.raises(SystemExit) as ended:
+            serve(installation, port=taken.getsockname()[1], open_browser=False)
+    finally:
+        taken.close()
+
+    assert ended.value.code == 1
+    err = capsys.readouterr().err
+    assert "--port" in err
+    assert "Traceback" not in err
