@@ -89,7 +89,7 @@ async def _ask(
     """One request through the shared client, which is the only kind there is.
 
     A bare ``httpx`` call here would sit outside the one token bucket that
-    ``client.py`` owns, and the upstream limit is counted per account rather
+    ``api/connection.py`` owns, and the upstream limit is counted per account rather
     than per program. See SPECS.md section 10.1.
     """
     owned = provider is None

@@ -120,8 +120,9 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `tools/deeplinks.py` | Links into the web app, built from ids without an API call. Classified under `files`, so the policy file and the interface group it as before. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
 
-**Layer rule:** tool functions stay thin. Every HTTP call lives in
-`client.py`, never in a tool function.
+**Layer rule:** tool functions stay thin. Every endpoint is a method on
+`api/client.py` and every request goes through `api/connection.py`, never
+through a tool function.
 
 **Import rule.** The package is layered, and `tests/test_layers.py` reads
 every import statement to hold it there. A layer imports only what sits
@@ -1471,7 +1472,7 @@ what can be counted honestly — a token count would need a tokenizer for a
 model this server does not know it is talking to, so the token figure beside
 them is labelled as an estimate and derived from a fixed ratio.
 
-## 10. Client behaviour (`client.py`)
+## 10. Client behaviour (`api/`)
 
 - One shared `httpx.AsyncClient` with `Authorization: Bearer` set once, a
   connection pool, and `LXO_MCP_TIMEOUT`.
@@ -2498,7 +2499,8 @@ and `download_file` already do through `file_format`. The first of them
 arrived with 0.3.0 after all, for an unchecked voucher.
 
 **Next, noted 2026-09-29.** Each is its own work stream, scoped before it is
-built. The logging concept is done, the other two are not started.
+built. The logging concept and the refactoring are done, the resource list
+is not started.
 
 - **The resource list grows with the download directory.** Every file there
   is published as an MCP resource and returned by `resources/list`, and
@@ -2508,12 +2510,9 @@ built. The logging concept is done, the other two are not started.
   whether the list needs a limit, paging or an age, or whether the directory
   itself does.
 - **A logging concept.** Built 2026-09-30, see section 11.2.
-- **Refactoring at file level and at code level.** The review's refactoring
-  (0.3.0) cut the modules it named. A second pass looks at the files as they
-  are now - the largest are `configui/app.py`, `client.py`,
-  `configui/pages.py`, `payloads.py` and `cli.py`, each between 500 and 780
-  lines on 2026-09-30 - and at duplication and complexity inside them. Its scope comes
-  first, as a list, before any file moves.
+- **Refactoring at file level and at code level.** Built 2026-09-30: the
+  package is layered into subpackages, see the table and the import rule
+  in section 4, and `tests/test_layers.py` holds the order.
 
 ### 16.1 Answered: how a user configures the server
 

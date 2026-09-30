@@ -29,7 +29,7 @@ How to work in this repository. Read this before making changes. See
 4. **stdio is sacred.** stdout carries the MCP JSON-RPC stream. Never
    `print()` to stdout from server or library code, log to **stderr** only.
 5. **One rate limiter.** Every outbound request passes the single
-   `ratelimit.TokenBucket` that `client.py` owns — retries and pagination
+   `ratelimit.TokenBucket` that `api/connection.py` owns — retries and pagination
    follow-ups included. The upstream limit is global across all endpoints, so a
    second bucket anywhere is a bug. See SPECS.md section 10.1. **A throwaway
    probe script is not an exception**: build a `LexwareClient` rather than a
@@ -117,15 +117,16 @@ live/             # talks to a real account, run by hand, outside testpaths
   publish.yml     # a published release -> PyPI and the container image
 ```
 
-Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
-new HTTP call goes in `client.py`, never in a tool function. Which layer may
+Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
+endpoint is a method on `api/client.py`, the request mechanics stay in
+`api/connection.py`, and neither lives in a tool function. Which layer may
 import which is a table in `tests/test_layers.py`, see SPECS.md section 4: a
 new module or subpackage needs a row there, and an import against the order
 fails the suite.
 
 ## How to add or change a tool
 
-1. Add the request to `client.py`, using `request()` so the shared limiter and
+1. Add the endpoint to `api/client.py`, using `request()` so the shared limiter and
    the retry rules apply automatically. Never retry a POST yourself. A
    refused answer becomes a `ToolError` in `api/refusal.py`, so a new
    status or a new body shape is taught there, not in the client. Pass the
