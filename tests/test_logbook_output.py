@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import io
 import logging
+import subprocess
+import sys
 
 import pytest
 
@@ -171,3 +173,41 @@ def test_nothing_reaches_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "to stderr" in captured.err
+
+
+def test_the_sdks_handler_is_replaced_rather_than_joined() -> None:
+    """Every MCPServer the SDK builds puts a RichHandler on the root logger."""
+    rich_logging = pytest.importorskip("rich.logging")
+    logging.getLogger().addHandler(rich_logging.RichHandler())
+
+    _stream("INFO")
+
+    assert not any(
+        type(h).__module__.startswith("rich.") for h in logging.getLogger().handlers
+    )
+
+
+def test_in_a_fresh_process_each_line_appears_once_at_the_level_asked_for() -> None:
+    """The order a real start has: the server module imported first.
+
+    Its import builds an MCPServer, which is when the SDK's handler arrives,
+    and only afterwards is the level read from the command line.
+    """
+    script = "\n".join(
+        [
+            "import logging",
+            "import benethos_lexware_office_mcp.server",
+            "from benethos_lexware_office_mcp import logbook",
+            "logbook.configure('WARNING')",
+            "log = logging.getLogger('benethos_lexware_office_mcp.probe')",
+            "log.warning('seen once')",
+            "log.info('not seen')",
+        ]
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=True
+    )
+
+    assert done.stdout == ""
+    assert done.stderr.count("seen once") == 1
+    assert "not seen" not in done.stderr

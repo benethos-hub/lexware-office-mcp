@@ -1808,6 +1808,14 @@ nothing else.
 **Reading is `INFO` like writing**, decided 2026-09-30: the log is where the
 account owner sees what the assistant looked at as well as what it changed.
 
+**One handler, and it is this server's.** Every `MCPServer` the SDK builds
+calls `logging.basicConfig` with a `RichHandler`, and the first is built
+when `server.py` is imported, before the command line is read. Until
+2026-09-30 that made this server's own `basicConfig` a no-op, so the level
+setting was ignored and every line was wrapped to a console's width.
+`logbook.configure` removes that handler and installs its own, and a test in
+a fresh process holds the import order a real start has.
+
 **The libraries stay at `WARNING`, and there is no switch to lower them.**
 httpx and httpcore name every request with its URL, and the SDK writes a
 failed tool's message at `INFO`, which quotes the arguments. The server

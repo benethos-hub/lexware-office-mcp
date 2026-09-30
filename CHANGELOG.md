@@ -57,6 +57,15 @@ housekeeping are out of scope here — design decisions live in
   could not write. The key, the token and a setting's value are never in a
   line, only which setting changed. The pages keep no request log.
 
+### Fixed
+
+- **`LXO_MCP_LOG_LEVEL` and `--log-level` take effect.** They were ignored:
+  the MCP SDK put a handler of its own on the root logger when the server
+  module was imported, before the setting was read, so the level stayed at
+  the SDK's `INFO` whatever it said, and every line was wrapped to the width
+  of a console. That handler is now replaced by this server's, and each line
+  appears once, on one line.
+
 ## [0.3.0] - 2026-09-27
 
 A minor release, because an existing installation can trip over four of

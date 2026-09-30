@@ -38,6 +38,20 @@ FORMAT = "%(asctime)s %(levelname)s %(where)s: %(message)s"
 _MARK = "_lxo_logbook"
 
 
+def _installed_by_the_sdk(handler: logging.Handler) -> bool:
+    """The handler the SDK puts on the root logger, a ``RichHandler``.
+
+    Every ``MCPServer`` it builds calls ``logging.basicConfig`` with one, and
+    the first is built when ``server.py`` is imported - before the command
+    line has been read, let alone this module called. Left in place, every
+    line appeared twice, once wrapped to the width of a console, and a
+    ``basicConfig`` of this server's own came too late to do anything. That
+    is what the level setting had been until 2026-09-30: ignored, with the
+    SDK's ``INFO`` in its place.
+    """
+    return type(handler).__module__.startswith("rich.")
+
+
 class _Where(logging.Filter):
     """The logger's name, without this package in front of it.
 
@@ -57,12 +71,14 @@ def configure(level: str, stream: TextIO | None = None) -> None:
     """Send every line to ``stream``, stderr unless given, at these levels.
 
     Safe to call again: the handler it installed the last time is replaced,
-    and so is the filter on uvicorn's request lines.
+    and so is the filter on uvicorn's request lines. The SDK's handler is
+    removed, see :func:`_installed_by_the_sdk`.
     """
     own = logging.getLevelNamesMapping()[level.upper()]
     root = logging.getLogger()
-    for handler in [h for h in root.handlers if getattr(h, _MARK, False)]:
-        root.removeHandler(handler)
+    for old in root.handlers[:]:
+        if getattr(old, _MARK, False) or _installed_by_the_sdk(old):
+            root.removeHandler(old)
     handler = logging.StreamHandler(stream or sys.stderr)
     setattr(handler, _MARK, True)
     handler.addFilter(_Where())
@@ -79,6 +95,6 @@ def configure(level: str, stream: TextIO | None = None) -> None:
 
     access = logging.getLogger(ACCESS_LOGGER)
     access.setLevel(logging.INFO)
-    for old in [f for f in access.filters if isinstance(f, AccessLines)]:
-        access.removeFilter(old)
+    for stale in [f for f in access.filters if isinstance(f, AccessLines)]:
+        access.removeFilter(stale)
     access.addFilter(AccessLines(everything=own <= logging.DEBUG))
