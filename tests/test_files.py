@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -164,20 +165,6 @@ async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
     await provider.aclose()
 
 
-async def test_the_same_document_twice_logs_no_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The SDK warns for every URI registered twice, once per repeat."""
-    handler = recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_with(handler, download_path=tmp_path)
-
-    for _ in range(3):
-        await server.call_tool("download_file", {"file_id": FILE_ID})
-
-    assert "already exists" not in caplog.text
-    await provider.aclose()
-
-
 def test_a_reused_download_is_noted_without_its_name(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -188,6 +175,25 @@ def test_a_reused_download_is_noted_without_its_name(
 
     assert "An identical download of 7 bytes was on disk, reused it" in caplog.text
     assert "Mustermann" not in caplog.text
+
+
+async def test_a_document_fetched_again_rises_to_the_top_of_the_list(
+    tmp_path: Path,
+) -> None:
+    """The list names the newest downloads, and this one was just fetched."""
+    _aged(tmp_path, [f"{FILE_ID}.pdf", "later.pdf"])
+    (tmp_path / f"{FILE_ID}.pdf").write_bytes(PDF)
+    stamp = 1_600_000_000
+    os.utime(tmp_path / f"{FILE_ID}.pdf", (stamp, stamp))
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
+    assert [r.name for r in await server.list_resources()][0] == "later.pdf"
+
+    await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert [r.name for r in await server.list_resources()][0] == f"{FILE_ID}.pdf"
+    assert len(list(tmp_path.iterdir())) == 2, "reused, not copied"
+    await provider.aclose()
 
 
 async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:
@@ -245,7 +251,7 @@ async def test_the_download_tools_declare_what_they_return(tmp_path: Path) -> No
 
 
 async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> None:
-    """The registry lives in a process, the file does not.
+    """A process ends, the file does not.
 
     Measured over stdio on 2026-08-21: a freshly started server answered
     `resources/list` with an empty list and `resources/read` with "Unknown
@@ -334,9 +340,8 @@ def test_a_symbolic_link_in_the_download_directory_is_not_published(
     except OSError:
         pytest.skip("this account may not create symbolic links")
     (tmp_path / "invoice.pdf").write_bytes(PDF)
-    server = build_server(Settings(api_key=API_KEY))
 
-    assert resources.publish_existing(server, tmp_path) == 1
+    assert [r.name for r in resources.listed(tmp_path, 100)] == ["invoice.pdf"]
 
 
 @pytest.mark.parametrize(
@@ -437,3 +442,232 @@ async def test_the_description_sends_the_model_to_the_tool_that_links() -> None:
         assert route in stored, route
     for name in ("download_file", "download_document"):
         assert "get_deeplink" in (tools[name].description or ""), name
+
+
+# -- the list is bounded, the directory is not ------------------------------
+
+
+def _aged(directory: Path, names: list[str]) -> None:
+    """One file per name, each a minute younger than the one before."""
+    for age, name in enumerate(reversed(names)):
+        path = directory / name
+        path.write_bytes(PDF)
+        stamp = 1_700_000_000 - age * 60
+        os.utime(path, (stamp, stamp))
+
+
+async def test_the_list_names_the_newest_downloads_first_and_no_more(
+    tmp_path: Path,
+) -> None:
+    """The directory grows with every document, and the SDK sends it whole."""
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"])
+    server, provider = server_with(recorder(), download_path=tmp_path, kept_downloads=3)
+
+    listed = await server.list_resources()
+
+    assert [r.name for r in listed] == ["e.pdf", "d.pdf", "c.pdf"]
+    await provider.aclose()
+
+
+async def test_a_file_too_old_to_be_listed_is_still_readable(tmp_path: Path) -> None:
+    """Unlisted is not deleted: until the directory is cleaned, a link works."""
+    _aged(tmp_path, ["old.pdf", "new.pdf"])
+    server, provider = server_with(recorder(), download_path=tmp_path, kept_downloads=1)
+
+    assert [r.name for r in await server.list_resources()] == ["new.pdf"]
+    contents = list(await server.read_resource("lexware://download/old.pdf"))
+    assert contents[0].content == PDF
+    result = await server.call_tool(
+        "read_download", {"uri": "lexware://download/old.pdf"}
+    )
+    assert (result.structured_content or {})["deliveredAs"] == "pages"
+    await provider.aclose()
+
+
+async def test_zero_keeps_every_download_through_a_download(tmp_path: Path) -> None:
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf"])
+    server, provider = server_with(recorder(), download_path=tmp_path, kept_downloads=0)
+
+    await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert len(list(tmp_path.iterdir())) == 4
+    assert len(await server.list_resources()) == 4
+    await provider.aclose()
+
+
+async def test_a_file_removed_from_disk_is_gone_from_the_list_and_the_link(
+    tmp_path: Path,
+) -> None:
+    """Answered from the disk, so a deleted download leaves no entry behind."""
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server, provider = server_with(recorder(), download_path=tmp_path)
+    assert [r.name for r in await server.list_resources()] == ["invoice.pdf"]
+
+    (tmp_path / "invoice.pdf").unlink()
+
+    assert await server.list_resources() == []
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/invoice.pdf")
+    await provider.aclose()
+
+
+async def test_a_name_that_leaves_the_directory_is_not_read(tmp_path: Path) -> None:
+    """The URI arrives from the client, so its name is not trusted."""
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    (tmp_path / "secret.pdf").write_bytes(PDF)
+    server, provider = server_with(recorder(), download_path=downloads)
+
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/../secret.pdf")
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/..%2Fsecret.pdf")
+    await provider.aclose()
+
+
+async def test_a_directory_not_made_yet_lists_nothing_and_reads_nothing(
+    tmp_path: Path,
+) -> None:
+    """A server that has never downloaded anything, and no error for it."""
+    server = build_server(Settings(api_key=API_KEY, download_path=tmp_path / "none"))
+
+    assert await server.list_resources() == []
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/invoice.pdf")
+
+
+# -- the directory is a cache of the newest downloads -----------------------
+
+
+def test_the_clean_up_keeps_the_newest_and_deletes_the_rest(tmp_path: Path) -> None:
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf", "d.pdf"])
+
+    assert storage.prune(tmp_path, 2) == 2
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["c.pdf", "d.pdf"]
+
+
+def test_the_clean_up_leaves_what_it_did_not_write(tmp_path: Path) -> None:
+    """A subdirectory was put there by someone else, and so was a link."""
+    _aged(tmp_path, ["old.pdf", "new.pdf"])
+    (tmp_path / "kept-by-hand").mkdir()
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.pdf"
+    outside.write_bytes(PDF)
+    try:
+        (tmp_path / "link.pdf").symlink_to(outside)
+        linked = True
+    except OSError:
+        linked = False  # this account may not create symbolic links
+
+    storage.prune(tmp_path, 1)
+
+    left = {p.name for p in tmp_path.iterdir()}
+    assert left >= {"new.pdf", "kept-by-hand"}
+    assert "old.pdf" not in left
+    assert ("link.pdf" in left) is linked
+    assert outside.is_file()
+
+
+def test_a_file_that_cannot_be_deleted_waits_for_the_next_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On Windows a PDF open in a viewer cannot be deleted. No error for it."""
+    _aged(tmp_path, ["locked.pdf", "old.pdf", "new.pdf"])
+    unlink = Path.unlink
+
+    def refuse(self: Path, missing_ok: bool = False) -> None:
+        if self.name == "locked.pdf":
+            raise PermissionError(13, "The process cannot access the file")
+        unlink(self, missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+
+    assert storage.prune(tmp_path, 1) == 1
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["locked.pdf", "new.pdf"]
+
+
+def test_the_cache_directory_is_cleaned_to_its_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Not named by hand, so the default of a hundred applies."""
+    monkeypatch.setattr(storage, "download_dir", lambda: tmp_path)
+    _aged(tmp_path, [f"{n:03d}.pdf" for n in range(102)])
+
+    with caplog.at_level(logging.INFO, logger="benethos_lexware_office_mcp"):
+        assert storage.prune_for(Settings(api_key=API_KEY)) == 2
+
+    assert len(list(tmp_path.iterdir())) == 100
+    assert not (tmp_path / "000.pdf").exists()
+    assert "Deleted 2 older downloads, the newest 100 are kept" in caplog.text
+    assert "000.pdf" not in caplog.text
+
+
+def test_a_directory_named_by_hand_is_left_alone(tmp_path: Path) -> None:
+    _aged(tmp_path, [f"{n:03d}.pdf" for n in range(102)])
+
+    assert storage.prune_for(Settings(api_key=API_KEY, download_path=tmp_path)) == 0
+
+    assert len(list(tmp_path.iterdir())) == 102
+
+
+async def test_a_download_keeps_the_directory_at_its_bound(tmp_path: Path) -> None:
+    """The file just written is the newest, so the clean-up never takes it."""
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf"])
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path, kept_downloads=2)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert {p.name for p in tmp_path.iterdir()} == {"c.pdf", f"{FILE_ID}.pdf"}
+    uri = (result.structured_content or {})["uri"]
+    assert list(await server.read_resource(uri))[0].content == PDF
+    await provider.aclose()
+
+
+def test_building_a_server_to_look_at_it_deletes_nothing(tmp_path: Path) -> None:
+    """`--tools`, `setup` and the cost measurement all build one."""
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf"])
+
+    build_server(Settings(api_key=API_KEY, download_path=tmp_path, kept_downloads=1))
+
+    assert len(list(tmp_path.iterdir())) == 3
+
+
+async def test_a_download_that_is_gone_says_to_fetch_it_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The likeliest reason is the bound, and the remedy is one call away."""
+    monkeypatch.setattr(storage, "download_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.server.download_dir", lambda: tmp_path
+    )
+    server, provider = server_with(recorder())
+    uri = "lexware://download/gone.pdf"
+
+    with pytest.raises(ToolError) as refused:
+        await server.call_tool("read_download", {"uri": uri})
+    said = str(refused.value)
+
+    assert "keeps the newest 100 downloads" in said
+    assert "Download the document again." in said
+    assert str(tmp_path) not in said
+
+    with pytest.raises(ResourceNotFoundError) as excinfo:
+        await server.read_resource(uri)
+    assert "keeps the newest 100 downloads" in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_where_nothing_is_deleted_the_advice_is_only_to_fetch_it(
+    tmp_path: Path,
+) -> None:
+    server, provider = server_with(recorder(), download_path=tmp_path)
+
+    with pytest.raises(ToolError) as refused:
+        await server.call_tool("read_download", {"uri": "lexware://download/gone.pdf"})
+    said = str(refused.value)
+
+    assert "Download the document again." in said
+    assert "keeps the newest" not in said
+    await provider.aclose()

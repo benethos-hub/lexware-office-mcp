@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
+from pathlib import Path
 from typing import Any
 
 from mcp.server.lowlevel.server import NotificationOptions
@@ -29,7 +30,7 @@ from .api.client import ClientProvider
 from .errors import ConfigError
 from .files import resources
 from .policy import ToolPolicy
-from .settings import Settings, load_settings
+from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .settings.locations import download_dir
 from .tools import register_tools
 
@@ -84,9 +85,23 @@ class PolicyServer(MCPServer):
     on every call.
     """
 
-    def __init__(self, *args: Any, policy: ToolPolicy, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        policy: ToolPolicy,
+        downloads: Path | None = None,
+        listed_downloads: int = DEFAULT_KEPT_DOWNLOADS,
+        kept_downloads: int | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._policy = policy
+        # Where the download resources are read from, and how many are listed.
+        # None when no directory resolves, which lists nothing and reads
+        # nothing - a download says what to set when one is asked for.
+        self._downloads = downloads
+        self._listed_downloads = listed_downloads
+        self._kept_downloads = kept_downloads
         self._sessions: set[ServerSession] = set()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
@@ -143,16 +158,27 @@ class PolicyServer(MCPServer):
         return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
 
     async def list_resources(self) -> list[Resource]:
-        # Registered at startup from whatever is on disk, but offered only
+        # Read from the download directory as it is now, but offered only
         # under the same file that decides the tools: with every download
         # tool off, the files they left behind are not a way around that.
         if not self._resources_enabled():
             return []
-        return await super().list_resources()
+        registered = await super().list_resources()
+        return [
+            *registered,
+            *resources.listed(self._downloads, self._listed_downloads),
+        ]
 
     async def read_resource(self, uri: Any, context: Any = None) -> Any:
         if not self._resources_enabled():
             raise ResourceNotFoundError(f"Unknown resource: {uri}")
+        if str(uri).startswith(resources.SCHEME):
+            found = resources.read(self._downloads, str(uri))
+            if found is None:
+                raise ResourceNotFoundError(
+                    f"Unknown resource: {uri}. " + resources.gone(self._kept_downloads)
+                )
+            return found
         return await super().read_resource(uri, context)
 
     async def _handle_list_tools(self, ctx: Any, params: Any) -> Any:
@@ -235,21 +261,23 @@ def build_server(
     first one enforces.
     """
     policy = ToolPolicy(settings.policy_file())
+    try:
+        downloads: Path | None = settings.download_path or download_dir()
+    except ConfigError:
+        # No home and no LXO_MCP_DOWNLOAD_DIR: nothing to offer, and a
+        # download says what to set when one is asked for.
+        downloads = None
     server = PolicyServer(
         name="benethos-lexware-office-mcp",
         title="Unofficial Lexware Office MCP Server",
         version=__version__,
         instructions=_INSTRUCTIONS,
         policy=policy,
+        downloads=downloads,
+        listed_downloads=settings.downloads_listed(),
+        kept_downloads=settings.downloads_kept(),
     )
     register_tools(server, settings, provider or ClientProvider(settings))
-    try:
-        downloads = settings.download_path or download_dir()
-    except ConfigError:
-        # No home and no LXO_MCP_DOWNLOAD_DIR: nothing to publish, and a
-        # download says what to set when one is asked for.
-        return server
-    resources.publish_existing(server, downloads)
     return server
 
 

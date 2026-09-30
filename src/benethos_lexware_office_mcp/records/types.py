@@ -28,6 +28,7 @@ __all__ = [
     "Download",
     "Format",
     "LeadingPrice",
+    "LinkAction",
     "LineItemType",
     "LinkTarget",
     "MasterDataKind",
@@ -258,6 +259,10 @@ class SalesLineItem(BaseModel):
 # the web app has no page for one. Verified 2026-08-21, see SPECS.md
 # section 5.
 LinkTarget = Literal[DocumentType, "contact", "voucher"]
+
+# What a permalink can do with a record, requested against the live app on
+# 2026-08-21. A contact has one page and answers only to `view`.
+LinkAction = Literal["view", "edit"]
 
 
 # -- master data ----------------------------------------------------------

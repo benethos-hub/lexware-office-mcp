@@ -169,11 +169,15 @@ times the file size in context and no model can read a PDF anyway. An
 existing file is never replaced: a second download is saved beside the
 first with a counter in its name.
 
-The resource list is filled from the download directory when the server
-starts, so a URI stays readable after a restart. What the server cannot do is
-announce a *new* download: the MCP SDK gives it no way to send a
-list-changed notification, so a client that lists once at startup will not see
-anything fetched later in the session.
+The download directory is a cache of the last 100 documents. Older downloads
+are deleted when the server starts and after each download, since every
+document is still in Lexware Office and one call away. `LXO_MCP_KEPT_DOWNLOADS`
+changes the number, and `0` keeps everything. A directory you name yourself
+with `LXO_MCP_DOWNLOAD_DIR` is left alone unless you set it there too. The
+resource list is read from the directory each time a client asks, names the
+same newest downloads, and survives a restart. What the server cannot do is announce a *new* download: the MCP SDK gives it no way to
+send a list-changed notification, so a client that lists once at startup will
+not see anything fetched later in the session.
 
 Between that and Claude Desktop not following resource links at all,
 `read_download` is the route that always works. It takes the same URI and puts
@@ -542,6 +546,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
+| `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all | `100` |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |

@@ -14,7 +14,8 @@ from typing import Any
 import pytest
 
 from benethos_lexware_office_mcp.cli import main
-from benethos_lexware_office_mcp.errors import ConfigError
+from benethos_lexware_office_mcp.errors import ConfigError, redact
+from benethos_lexware_office_mcp.logbook.output import PACKAGE
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings, load_settings
 from benethos_lexware_office_mcp.transport import http as transport
@@ -174,6 +175,59 @@ def test_http_without_a_bearer_token_is_refused() -> None:
         transport.http_app(build_server(settings), settings)
 
     assert "LXO_MCP_BEARER_TOKEN" in str(excinfo.value)
+
+
+def test_a_token_asked_for_is_made_and_written_where_the_settings_live(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The container case: nobody to type a secret, so one is made at start."""
+    env = tmp_path / ".env"
+    env.write_text("# kept\nLXO_MCP_API_KEY=k\n", encoding="utf-8")
+    settings = Settings(
+        api_key="k", transport="streamable-http", generate_bearer_token=True
+    )
+
+    with caplog.at_level("WARNING", logger=PACKAGE):
+        ready = transport.bearer_ready(settings, env)
+
+    token = ready.bearer_token
+    assert token is not None and len(token) >= 40
+    written = env.read_text(encoding="utf-8")
+    assert f"LXO_MCP_BEARER_TOKEN={token}" in written
+    assert written.startswith("# kept\nLXO_MCP_API_KEY=k\n")
+    assert load_settings(env_file=env).bearer_token == token
+    # Named in the log by its file, never by its value, and scrubbed from any
+    # error text from now on.
+    assert ".env" in caplog.text
+    assert token not in caplog.text
+    assert redact(f"x {token} x") == "x <redacted> x"
+
+
+def test_a_token_already_set_is_kept_and_nothing_is_written(tmp_path: Path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=k\n", encoding="utf-8")
+    settings = Settings(
+        api_key="k",
+        transport="streamable-http",
+        bearer_token=TOKEN,
+        generate_bearer_token=True,
+    )
+
+    assert transport.bearer_ready(settings, env).bearer_token == TOKEN
+    assert env.read_text(encoding="utf-8") == "LXO_MCP_API_KEY=k\n"
+
+
+def test_no_token_and_none_asked_for_is_a_refusal_that_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=k\n", encoding="utf-8")
+    settings = Settings(api_key="k", transport="streamable-http")
+
+    with pytest.raises(ConfigError, match="LXO_MCP_BEARER_TOKEN"):
+        transport.bearer_ready(settings, env)
+
+    assert env.read_text(encoding="utf-8") == "LXO_MCP_API_KEY=k\n"
 
 
 def test_the_app_is_built_with_the_guard_in_front() -> None:

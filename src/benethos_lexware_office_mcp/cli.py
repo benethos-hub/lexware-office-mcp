@@ -22,6 +22,7 @@ from typing import cast
 
 from . import __version__, configui, logbook
 from .errors import ConfigError
+from .files import storage
 from .policy import Preset, ToolPolicy, known_tools, preset
 from .server import build_server
 from .settings import LOG_LEVELS, LOOPBACK_NAMES, TRANSPORTS, Settings, load_settings
@@ -420,6 +421,9 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
     _report_what_is_enabled(server.policy)
+    # Here and after each download, and nowhere else: `--tools`, `setup` and
+    # anything else that builds a server to look at it deletes nothing.
+    storage.prune_for(settings)
 
     if settings.transport == "stdio":
         run_stdio(server)

@@ -37,6 +37,13 @@ FROM python:3.14-slim AS runtime
 # namespace, and who may reach the port is decided on the host side by the
 # publish: compose maps 127.0.0.1 only.
 #
+# /downloads is named here, and a directory named by LXO_MCP_DOWNLOAD_DIR is
+# cleaned only when LXO_MCP_KEPT_DOWNLOADS says so as well, since outside a
+# container it may be somebody's own folder. This one is the container's, so
+# it keeps the newest 100 downloads like the default cache directory does.
+# Being an image variable, it beats /config/.env: change it in compose.yaml
+# or with `docker run -e`, not in the configuration interface.
+#
 # **The bearer token is not baked in, and must not be.** A secret in an image
 # is shared by everyone who pulls it. The server makes one on first start
 # instead - thirty-two random bytes, written into /config/.env, which is a
@@ -60,6 +67,7 @@ ENV PYTHONUNBUFFERED=1 \
     LXO_MCP_HTTP_PATH=/mcp \
     LXO_MCP_TOOL_POLICY=/config/tools.json \
     LXO_MCP_DOWNLOAD_DIR=/downloads \
+    LXO_MCP_KEPT_DOWNLOADS=100 \
     LXO_MCP_EXIT_ON_CONFIG_CHANGE=1 \
     LXO_MCP_GENERATE_BEARER_TOKEN=1
 
@@ -82,7 +90,7 @@ RUN touch /config/.env
 EXPOSE 8770
 
 # /config holds the .env, the policy file and the saved profiles. /downloads
-# holds documents fetched from the API, which are real business records.
+# holds the newest documents fetched from the API, real business records.
 VOLUME ["/config", "/downloads"]
 
 # Liveness only: the port answers. Not the MCP endpoint, which would need the

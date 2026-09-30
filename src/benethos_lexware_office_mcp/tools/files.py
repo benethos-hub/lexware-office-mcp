@@ -27,8 +27,7 @@ from ..policy import classify
 from ..records import formatting
 from ..records.types import RESOURCES, Delivered, Download, Format
 from ..settings import MAX_PDF_PAGES, Settings
-from ._base import register_tool
-from .sales_documents import DocumentIdField, DocumentTypeField
+from ._base import DocumentIdField, DocumentTypeField, register_tool
 
 __all__ = ["register"]
 
@@ -117,7 +116,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         response = await provider.get().file(file_id, MIME[file_format])
         return await _deliver(
             response,
-            server,
             settings,
             fallback=f"{file_id}.{file_format}",
         )
@@ -143,7 +141,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return await _deliver(
             response,
-            server,
             settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
         )
@@ -295,7 +292,9 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult
             uri[len(resources.SCHEME) :], storage.directory_for(settings)
         )
         if found is None:
-            raise NotFoundError("download", uri)
+            raise NotFoundError(
+                "download", uri, hint=resources.gone(settings.downloads_kept())
+            )
         payload = found.read_bytes()
     mime = storage.content_type_for(found)
     if len(payload) > MAX_INLINE:
@@ -309,7 +308,6 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult
 
 async def _deliver(
     response: httpx.Response,
-    server: MCPServer,
     settings: Settings,
     *,
     fallback: str,
@@ -319,13 +317,19 @@ async def _deliver(
     with _on_disk("save the download"):
         written = await asyncio.to_thread(_save, response.content, name, settings)
         mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
-        link = resources.publish(server, written, mime)
+        link = resources.link(written, mime)
     return delivery.saved(written, link, len(response.content))
 
 
 def _save(content: bytes, name: str, settings: Settings) -> Path:
-    """Write a download to disk. Blocking, run in a thread."""
-    return storage.save(content, name, storage.directory_for(settings))
+    """Write a download to disk, then keep the directory at its bound.
+
+    Blocking, run in a thread. The file just written is the newest, so the
+    clean-up that follows never takes it.
+    """
+    written = storage.save(content, name, storage.directory_for(settings))
+    storage.prune_for(settings)
+    return written
 
 
 @contextlib.contextmanager

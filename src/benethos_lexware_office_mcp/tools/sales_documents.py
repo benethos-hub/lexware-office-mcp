@@ -27,38 +27,20 @@ from ..records.payloads import SHIPPING_REQUIRED, sales_document_body
 from ..records.types import (
     RESOURCES,
     CreatableType,
-    DocumentType,
     RecurringSort,
     SalesLineItem,
     TaxType,
 )
 from ..settings import Settings
-from ._base import PageNumber, PageSize, register_tool
+from ._base import (
+    DocumentIdField,
+    DocumentTypeField,
+    PageNumber,
+    PageSize,
+    register_tool,
+)
 
-__all__ = [
-    "DocumentIdField",
-    "DocumentTypeField",
-    "register",
-]
-
-# Both fields are shared with `download_document` in :mod:`.files`, which
-# addresses the same seven documents. One wording, sent to the model once per
-# tool that uses it, rather than two that can drift apart.
-
-DocumentTypeField = Annotated[
-    DocumentType,
-    Field(
-        description=(
-            "Which kind of document this is. Take it from the `voucherType` "
-            "search_vouchers reported, where a sales invoice is 'invoice'."
-        )
-    ),
-]
-
-DocumentIdField = Annotated[
-    str,
-    Field(description="The document's Lexware id, as returned by search_vouchers."),
-]
+__all__ = ["register"]
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:

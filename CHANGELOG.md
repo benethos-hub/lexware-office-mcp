@@ -15,6 +15,22 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The download directory keeps the last 100 documents.** Older downloads
+  are deleted when the server starts and after each download. Every document
+  is still in Lexware Office, so one that is needed again is downloaded
+  again. Nothing was ever deleted before, so an existing directory is cut
+  down to its newest 100 files on the first start. `LXO_MCP_KEPT_DOWNLOADS`
+  sets the number, and `0` keeps everything. It applies to the default cache
+  directory, and to a directory named by `LXO_MCP_DOWNLOAD_DIR` only when it
+  is set as well. The configuration interface shows and edits it beside the
+  download directory. The container image sets it to 100 for its
+  `/downloads` volume. `read_download` and a resource read for a download
+  that is gone say that it may have been removed and to download it again.
+- **The resource list names the same newest downloads**, newest first, where
+  it named every file in the directory in name order. It is read from the
+  directory at the moment a client asks, so a file that is gone is gone from
+  the list at once, and a server start no longer reads the whole directory.
+  A download that finds its unchanged file already on disk counts as new.
 - **`compose.yaml` caps what Docker keeps of the logs**: five files of 10 MB
   per service, the oldest dropped first. The server wrote a line for every
   HTTP request, refused ones included, and at `DEBUG` still does, see below.

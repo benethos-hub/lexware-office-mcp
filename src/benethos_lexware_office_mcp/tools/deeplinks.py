@@ -7,7 +7,7 @@ wrong about the other, see SPECS.md section 13.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 from urllib.parse import quote
 
 from mcp.server.mcpserver import MCPServer
@@ -15,7 +15,7 @@ from pydantic import Field
 
 from ..api.client import ClientProvider
 from ..policy import classify
-from ..records.types import RESOURCES, LinkTarget
+from ..records.types import RESOURCES, LinkAction, LinkTarget
 from ..settings import Settings
 from ._base import register_tool
 
@@ -48,7 +48,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ],
         action: Annotated[
-            Literal["view", "edit"],
+            LinkAction,
             Field(
                 description=(
                     "Whether to open the record or open it for editing. A "
@@ -72,7 +72,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
 
 def permalink(
-    settings: Settings, target: str, target_id: str, action: str = "view"
+    settings: Settings, target: str, target_id: str, action: LinkAction = "view"
 ) -> str:
     """A link into the web app for one record.
 

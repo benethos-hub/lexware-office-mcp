@@ -175,6 +175,52 @@ def test_starting_says_which_version_over_which_transport(
     assert f"{__version__} started over stdio" in caplog.text
 
 
+def test_starting_the_server_cleans_the_download_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        (downloads / name).write_bytes(b"%PDF")
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.load_settings",
+        lambda **_: Settings(
+            tool_policy_path=tmp_path / "absent.json",
+            download_path=downloads,
+            kept_downloads=1,
+        ),
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer([], settings),
+    )
+
+    main(["--log-level", "ERROR"])
+
+    assert len(list(downloads.iterdir())) == 1
+
+
+def test_writing_the_policy_file_cleans_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        (downloads / name).write_bytes(b"%PDF")
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.load_settings",
+        lambda **_: Settings(
+            tool_policy_path=tmp_path / "tools.json",
+            download_path=downloads,
+            kept_downloads=1,
+        ),
+    )
+
+    main(["--tools", "show", "--log-level", "ERROR"])
+
+    assert len(list(downloads.iterdir())) == 3
+
+
 class _FakeServer:
     """Stands in for MCPServer so the test never opens stdio."""
 
