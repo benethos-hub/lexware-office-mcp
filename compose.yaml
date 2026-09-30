@@ -85,7 +85,8 @@ services:
     volumes:
       # The .env, the policy file and the saved permission profiles.
       - config:/config
-      # Documents fetched from the API. Real business records, so they persist.
+      # Documents fetched from the API, the newest 100 of them: the image sets
+      # LXO_MCP_KEPT_DOWNLOADS. Set it under `environment` to change that.
       - downloads:/downloads
 
   # Started by name, never by a plain `up`:

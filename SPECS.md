@@ -2117,7 +2117,11 @@ every test in this repository. Section 14.3 says how to look.
   - **Where it applies.** In the default cache directory unless
     `LXO_MCP_KEPT_DOWNLOADS` says otherwise. A directory named by
     `LXO_MCP_DOWNLOAD_DIR` may be somebody's own folder, so nothing is deleted
-    there unless the bound is set as well. `0` deletes nothing anywhere.
+    there unless the bound is set as well. `0` deletes nothing anywhere. The
+    image names `/downloads` and sets the bound to 100 beside it, because that
+    directory is the container's own. Being an image variable it beats
+    `/config/.env`, so in a container the number is changed in `compose.yaml`
+    or with `docker run -e`, not in the configuration interface.
   - **What goes.** Plain files only, oldest by modification time first, which
     a reused download renews. A subdirectory or a symbolic link was put there
     by someone else. A file that cannot be deleted - one open in a viewer on
