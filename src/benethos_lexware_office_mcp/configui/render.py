@@ -34,7 +34,7 @@ __all__ = [
 # Where a setting actually comes from. Showing the file alone would be
 # misleading exactly when it matters most: a real environment variable
 # outranks it, and that is how a client starts this server with its own
-# account. See config.py for the full precedence.
+# account. See settings/locations.py for the full precedence.
 ENV_SOURCE = "Umgebung"
 CLI_SOURCE = "Aufruf"
 # Nobody named this file: the search of section 7 found it when the process

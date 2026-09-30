@@ -38,9 +38,9 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from benethos_lexware_office_mcp.api.client import ClientProvider  # noqa: E402
-from benethos_lexware_office_mcp.config import load_settings  # noqa: E402
 from benethos_lexware_office_mcp.policy import ToolPolicy, preset  # noqa: E402
 from benethos_lexware_office_mcp.server import build_server  # noqa: E402
+from benethos_lexware_office_mcp.settings import load_settings  # noqa: E402
 
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _SEEN: dict[str, str] = {}

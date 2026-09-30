@@ -35,9 +35,10 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .. import __version__, logbook
-from ..config import LOOPBACK_NAMES, ConfigError, load_settings
-from ..envfile import update_env_file
+from ..errors import ConfigError
 from ..policy import known_tools
+from ..settings import LOOPBACK_NAMES, load_settings
+from ..settings.envfile import update_env_file
 from . import pages, probe, transfer
 from .profiles import ProfileError
 from .render import esc, note, page
@@ -419,7 +420,7 @@ class Handler(BaseHTTPRequestHandler):
         except ConfigError as exc:
             # The server's own wording, quoted rather than translated. A German
             # paraphrase here would be a second copy of a rule that lives in
-            # config.py, and the two would part company on the first change.
+            # settings/, and the two would part company on the first change.
             self._page_with(
                 pages.credentials,
                 f"Nicht gespeichert, der Server würde das ablehnen: {exc}",

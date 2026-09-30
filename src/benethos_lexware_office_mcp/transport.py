@@ -33,8 +33,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from . import logbook
-from .config import Settings
 from .errors import ConfigError
+from .settings import Settings
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from mcp.server.mcpserver import MCPServer

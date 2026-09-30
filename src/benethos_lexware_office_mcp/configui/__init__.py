@@ -26,7 +26,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..config import Settings, resolve_config_file
+from ..settings import Settings
+from ..settings.locations import resolve_config_file
 from .app import DEFAULT_HOST, DEFAULT_PORT, serve
 from .state import Installation
 

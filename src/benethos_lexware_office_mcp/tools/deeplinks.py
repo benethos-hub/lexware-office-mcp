@@ -14,9 +14,9 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from ..api.client import ClientProvider
-from ..config import Settings
 from ..policy import classify
 from ..records.types import RESOURCES, LinkTarget
+from ..settings import Settings
 from ._base import register_tool
 
 __all__ = ["permalink", "register"]

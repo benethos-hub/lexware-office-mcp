@@ -22,7 +22,6 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from ..api.client import ClientProvider
-from ..config import Settings
 from ..errors import NotFoundError, ValidationError
 from ..policy import classify
 from ..records import formatting
@@ -35,6 +34,7 @@ from ..records.types import (
     VoucherItem,
     VoucherType,
 )
+from ..settings import Settings
 from ._base import PageNumber, PageSize, register_tool, require_version
 
 __all__ = ["register"]

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import envfile
-from benethos_lexware_office_mcp.envfile import read_env_file, update_env_file
+from benethos_lexware_office_mcp.settings import envfile
+from benethos_lexware_office_mcp.settings.envfile import read_env_file, update_env_file
 
 
 def test_reads_the_forms_a_person_writes(tmp_path: Path) -> None:
@@ -192,6 +192,6 @@ def test_a_failed_write_leaves_the_old_file(
 
 def test_the_server_and_the_interface_read_with_the_same_parser() -> None:
     """One parser, so a displayed value cannot differ from a read one."""
-    from benethos_lexware_office_mcp import config
+    from benethos_lexware_office_mcp import settings
 
-    assert config._parse_env_file is read_env_file
+    assert settings.read_env_file is read_env_file

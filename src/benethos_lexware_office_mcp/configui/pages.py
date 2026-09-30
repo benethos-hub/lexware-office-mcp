@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import json
 
-from ..config import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
 from ..policy import ToolMeta, grouped_tools, known_tools, preset
+from ..settings import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
 from .cost import estimate_tokens, tool_costs
 from .probe import Account, last_account
 from .profiles import Profile

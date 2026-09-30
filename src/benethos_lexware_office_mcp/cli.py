@@ -22,20 +22,13 @@ from pathlib import Path
 from typing import cast
 
 from . import __version__, configui, logbook
-from .config import (
-    LOG_LEVELS,
-    LOOPBACK_NAMES,
-    TRANSPORTS,
-    Settings,
-    csv_tuple,
-    load_settings,
-    resolve_config_file,
-    settings_sample,
-)
-from .envfile import update_env_file
 from .errors import ConfigError, register_secret
 from .policy import Preset, ToolPolicy, known_tools, preset
 from .server import build_server
+from .settings import LOG_LEVELS, LOOPBACK_NAMES, TRANSPORTS, Settings, load_settings
+from .settings.envfile import update_env_file
+from .settings.locations import resolve_config_file, settings_sample
+from .settings.parse import csv_tuple
 from .transport import require_bearer, run_http
 
 __all__ = ["main"]
@@ -475,7 +468,7 @@ def _env_in_effect(named: Path | None) -> Path:
     Pinned here for the same reason the policy file is pinned: the identity
     of the file is decided once, and only its contents are read again.
 
-    Not :func:`config.env_file_in_effect`, which answers ``None`` when no file
+    Not ``locations.env_file_in_effect``, which answers ``None`` when no file
     exists. The two callers here need a path either way - one watches for a
     file appearing, the other writes a generated token into the place a file
     belongs - and since one `.env` applies, watching that one is watching all

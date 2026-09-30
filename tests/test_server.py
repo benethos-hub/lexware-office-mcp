@@ -12,9 +12,10 @@ import pytest
 
 from benethos_lexware_office_mcp import __version__
 from benethos_lexware_office_mcp.cli import main
-from benethos_lexware_office_mcp.config import Settings, settings_sample
 from benethos_lexware_office_mcp.policy import ToolPolicy
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings.locations import settings_sample
 
 
 def test_server_identifies_itself() -> None:

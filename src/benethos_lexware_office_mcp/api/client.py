@@ -13,8 +13,8 @@ from urllib.parse import quote
 
 import httpx
 
-from ..config import DEFAULT_PAGE_SIZE, Settings
 from ..errors import UpstreamError, ValidationError
+from ..settings import DEFAULT_PAGE_SIZE, Settings
 from .connection import Connection
 
 __all__ = ["ClientProvider", "LexwareClient"]

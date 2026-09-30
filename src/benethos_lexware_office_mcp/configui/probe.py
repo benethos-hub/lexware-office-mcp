@@ -19,8 +19,8 @@ import threading
 from dataclasses import dataclass
 
 from ..api.client import ClientProvider
-from ..config import Settings
 from ..errors import AuthError, ToolError, redact
+from ..settings import Settings
 
 __all__ = ["Account", "check", "last_account"]
 

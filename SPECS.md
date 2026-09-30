@@ -90,7 +90,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `server.py` | The `PolicyServer`, an `MCPServer` listing only what the policy file allows, and `build_server`, which makes one from the settings and fills the tool registry. | built |
 | `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
-| `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
+| `settings/` | Settings resolution and credential lookup, see section 7 for the precedence. `Settings` and `load_settings` in the package itself, `locations` for the directories, the search and the one file that applies, `parse` for reading one value, `envfile` for the file itself. | built |
 | `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the network. | built |
 | `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
@@ -105,7 +105,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
 | `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
-| `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
+| `settings/envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
@@ -923,7 +923,7 @@ and `load_settings` refuses the same for the server.
 Lexware Office is sold for German companies only — its own help centre rules
 out an Austrian or Swiss company as the account holder, so a language switch
 would be machinery for a case that does not exist. Code, comments and
-docstrings stay English, and so do the messages `config.py` raises: those are
+docstrings stay English, and so do the messages `settings/` raises: those are
 quoted into the page rather than translated, because a German paraphrase
 would be a second copy of a rule that lives in the code.
 

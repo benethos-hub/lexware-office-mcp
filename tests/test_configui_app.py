@@ -22,13 +22,13 @@ from urllib.parse import urlencode
 
 import pytest
 
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import probe, transfer
 from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
-from benethos_lexware_office_mcp.envfile import read_env_file
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
+from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings.envfile import read_env_file
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
 

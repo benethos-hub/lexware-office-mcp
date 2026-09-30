@@ -10,7 +10,6 @@ import pytest
 from benethos_lexware_office_mcp.api.client import LexwareClient
 from benethos_lexware_office_mcp.api.connection import BREAKER_THRESHOLD
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import (
     AuthError,
     ConfigError,
@@ -21,6 +20,7 @@ from benethos_lexware_office_mcp.errors import (
     ValidationError,
     register_secret,
 )
+from benethos_lexware_office_mcp.settings import Settings
 from helpers import API_KEY, Scripted, fast_client, no_sleep
 
 

@@ -35,8 +35,8 @@ from typing import Any, Self
 import httpx
 
 from .. import __version__, logbook
-from ..config import Settings
 from ..errors import RateLimitError, UpstreamError
+from ..settings import Settings
 from .ratelimit import Sleeper, TokenBucket
 from .refusal import from_response
 

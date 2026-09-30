@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from benethos_lexware_office_mcp import cli, configui
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.settings import Settings
 
 
 @pytest.fixture

@@ -15,7 +15,6 @@ import sys
 import pytest
 from mcp.server.mcpserver import MCPServer
 
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.logbook import configure
 from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER, AccessLines
 from benethos_lexware_office_mcp.logbook.output import (
@@ -23,6 +22,7 @@ from benethos_lexware_office_mcp.logbook.output import (
     PACKAGE,
     untouched_root,
 )
+from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.transport import uvicorn_config
 from helpers import always, fast_client
 

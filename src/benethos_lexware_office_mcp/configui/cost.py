@@ -19,7 +19,7 @@ import json
 
 from mcp.server.mcpserver import MCPServer
 
-from ..config import Settings
+from ..settings import Settings
 
 __all__ = ["CHARS_PER_TOKEN", "estimate_tokens", "tool_costs"]
 

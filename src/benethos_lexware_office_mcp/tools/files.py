@@ -21,12 +21,12 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from ..api.client import ClientProvider
-from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..files import delivery, resources, storage
 from ..policy import classify
 from ..records import formatting
 from ..records.types import RESOURCES, Delivered, Download, Format
+from ..settings import MAX_PDF_PAGES, Settings
 from ._base import register_tool
 from .sales_documents import DocumentIdField, DocumentTypeField
 

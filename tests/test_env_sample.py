@@ -10,12 +10,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from benethos_lexware_office_mcp.config import (
-    _env_lookup,
-    _parse_env_file,
-    load_settings,
-    settings_sample,
-)
+from benethos_lexware_office_mcp.settings import _env_lookup, load_settings
+from benethos_lexware_office_mcp.settings.envfile import read_env_file
+from benethos_lexware_office_mcp.settings.locations import settings_sample
 
 SAMPLE = (
     Path(__file__).resolve().parents[1]
@@ -62,7 +59,7 @@ def test_the_sample_says_how_to_get_it_out_of_an_installed_copy() -> None:
 
 
 def test_only_the_api_key_is_active_everything_else_is_commented() -> None:
-    assert _parse_env_file(SAMPLE) == {"LXO_MCP_API_KEY": ""}
+    assert read_env_file(SAMPLE) == {"LXO_MCP_API_KEY": ""}
 
 
 def test_copying_the_sample_enables_nothing_by_itself() -> None:
@@ -71,7 +68,7 @@ def test_copying_the_sample_enables_nothing_by_itself() -> None:
     The sample cannot enable a tool at all any more - that is the policy
     file's business - so what it must not do is name one.
     """
-    settings = load_settings(_parse_env_file(SAMPLE))
+    settings = load_settings(read_env_file(SAMPLE))
     assert settings.api_key is None
     assert settings.tool_policy_path is None
 
@@ -83,7 +80,7 @@ def test_sample_documents_every_setting_the_loader_reads() -> None:
 
 def test_sample_holds_no_key() -> None:
     """It is committed, so an accidental real key here would be published."""
-    assert _parse_env_file(SAMPLE)["LXO_MCP_API_KEY"] == ""
+    assert read_env_file(SAMPLE)["LXO_MCP_API_KEY"] == ""
 
 
 def test_sample_warns_that_the_copy_holds_a_credential() -> None:

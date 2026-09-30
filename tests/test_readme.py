@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 

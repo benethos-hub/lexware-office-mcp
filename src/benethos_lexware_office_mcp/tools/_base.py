@@ -18,9 +18,9 @@ from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
 from .. import logbook
-from ..config import MAX_PAGE_SIZE
 from ..errors import ConflictError, ToolError
 from ..policy import ToolPolicy, guarded, known_tools
+from ..settings import MAX_PAGE_SIZE
 
 __all__ = ["PageNumber", "PageSize", "register_tool", "require_version"]
 

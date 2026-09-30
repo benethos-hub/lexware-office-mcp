@@ -8,11 +8,11 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from ..api.client import ClientProvider
-from ..config import Settings
 from ..policy import classify
 from ..records import formatting
 from ..records.payloads import contact_body
 from ..records.types import Address, ContactKind, Role, RoleFilter
+from ..settings import Settings
 from ._base import PageNumber, PageSize, register_tool, require_version
 
 __all__ = ["register"]

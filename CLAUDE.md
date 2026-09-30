@@ -67,7 +67,11 @@ src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
   cli.py          # the console script: arguments, --tools, setup, starting the server
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
-  config.py       # settings resolution, credential lookup
+  settings/       # settings resolution, credential lookup
+    __init__.py   # Settings, load_settings, the defaults
+    locations.py  # where configuration lives, and which one file applies
+    parse.py      # one setting's raw text -> its value
+    envfile.py    # reading and writing a .env, comments left alone
   api/            # everything that talks to Lexware
     connection.py # ALL HTTP access: auth, retries, error mapping
     client.py     # LexwareClient: one method per endpoint, on a connection
@@ -85,7 +89,6 @@ src/benethos_lexware_office_mcp/
     delivery.py   # a download as an answer: a link, or text, image, pages, blob
   errors.py       # the ToolError hierarchy, and redact
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
-  envfile.py      # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),
                   # the catalogue: lifecycle, policy, api, calls, files,
