@@ -2597,6 +2597,9 @@ order:
    2026-08-23, the container base image - the one that ages silently, because
    an out-of-date base is not a build failure but unpatched system packages
    inside something people pull and run.
+   Since the pins, minor and patch updates come as one pull request per
+   ecosystem and week, and a major one alone. `mcp` always comes alone,
+   since the suite does not see what the SDK changes.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did

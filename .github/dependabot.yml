@@ -1,4 +1,9 @@
 version: 2
+# Minor and patch updates arrive as one pull request per ecosystem and week
+# instead of one each. With every action and image pinned exactly, each
+# patch is a pull request, and a single run of the gates covers them
+# together. A major update still comes on its own, since that is where
+# behaviour changes and it wants its own review.
 updates:
   # `uv`, not `pip`, because uv.lock is what actually pins a version here.
   # The pip ecosystem does not read that file, and every range in
@@ -13,6 +18,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+        # Always alone, whatever the size of the bump: the suite does not see
+        # what the SDK changes, so it needs the stdio comparison of CLAUDE.md.
+        exclude-patterns: ["mcp"]
 
   # The actions the workflows use, each pinned to a commit with its version
   # in a comment beside it. Dependabot reads the comment and raises the
@@ -28,12 +40,22 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
-  # The base image of the Dockerfile. An out-of-date base is not a build
-  # failure and never announces itself: it is unpatched system packages
-  # inside something people pull and run. Nothing else here would notice.
+  # The images of the Dockerfile, python and uv, pinned by digest beside
+  # their tag. An out-of-date base is not a build failure and never
+  # announces itself: it is unpatched system packages inside something
+  # people pull and run. With the digest pinned, this is the only way a
+  # patch to them arrives.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
