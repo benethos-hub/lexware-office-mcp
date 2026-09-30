@@ -104,6 +104,9 @@ def save(content: bytes, name: str, directory: Path) -> Path:
     - A file whose contents are **identical** is reused rather than copied.
       Downloading the same unchanged document four times used to leave four
       copies numbered up to ``-4``, which is not caution, it is litter.
+
+    A reused file has its modification time renewed, because the resource
+    list names the newest downloads and this one was just fetched.
     """
     for candidate in _candidates(name, directory):
         # Created exclusively rather than checked and then written: two
@@ -117,6 +120,7 @@ def save(content: bytes, name: str, directory: Path) -> Path:
             pass
         if candidate.is_file() and candidate.read_bytes() == content:
             logbook.files.reused(len(content))
+            candidate.touch()
             return candidate
     # Without the directory: this message can reach the client, and where
     # downloads land on somebody's disk is not the caller's business. The

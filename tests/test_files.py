@@ -177,6 +177,25 @@ def test_a_reused_download_is_noted_without_its_name(
     assert "Mustermann" not in caplog.text
 
 
+async def test_a_document_fetched_again_rises_to_the_top_of_the_list(
+    tmp_path: Path,
+) -> None:
+    """The list names the newest downloads, and this one was just fetched."""
+    _aged(tmp_path, [f"{FILE_ID}.pdf", "later.pdf"])
+    (tmp_path / f"{FILE_ID}.pdf").write_bytes(PDF)
+    stamp = 1_600_000_000
+    os.utime(tmp_path / f"{FILE_ID}.pdf", (stamp, stamp))
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
+    assert [r.name for r in await server.list_resources()][0] == "later.pdf"
+
+    await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert [r.name for r in await server.list_resources()][0] == f"{FILE_ID}.pdf"
+    assert len(list(tmp_path.iterdir())) == 2, "reused, not copied"
+    await provider.aclose()
+
+
 async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:
     """The other half of the rule: nothing is ever overwritten."""
     directory = tmp_path
@@ -433,7 +452,7 @@ def _aged(directory: Path, names: list[str]) -> None:
     for age, name in enumerate(reversed(names)):
         path = directory / name
         path.write_bytes(PDF)
-        stamp = 1_800_000_000 - age * 60
+        stamp = 1_700_000_000 - age * 60
         os.utime(path, (stamp, stamp))
 
 

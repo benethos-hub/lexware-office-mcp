@@ -70,7 +70,8 @@ def uri_for(name: str) -> str:
 def listed(directory: Path | None, limit: int) -> list[Resource]:
     """The newest ``limit`` downloads in ``directory``, newest first.
 
-    Newest by the file's modification time. Each entry carries its own
+    Newest by the file's modification time, which a reused download renews,
+    so the list is the files fetched most recently. Each entry carries its own
     content type, from the name on disk - a PDF and an
     XRechnung are not the same thing to a client deciding what to do with
     them, which is also why this is a list of files rather than one URI
