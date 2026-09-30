@@ -27,12 +27,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from . import logbook
 from .config import Settings
 from .errors import ConfigError
 
@@ -48,8 +48,6 @@ __all__ = [
     "uvicorn_config",
     "watch_for_change",
 ]
-
-log = logging.getLogger(__name__)
 
 # How often the settings file is looked at. Slow enough to cost nothing, fast
 # enough that a person who just saved the key does not wait for it.
@@ -205,9 +203,7 @@ def watch_for_change(
         if not settled:
             return
         if current != baseline:
-            log.info(
-                "%s changed, ending this process so it is started again", path.name
-            )
+            logbook.lifecycle.settings_changed(path.name)
             on_change()
             return
 

@@ -32,10 +32,21 @@ The modules:
 
 - ``output`` - the one handler on stderr, the levels, the short logger names
 - ``access`` - uvicorn's line per HTTP request, cut down to what is safe
+- ``lifecycle`` - starting, listening, ending
+- ``policy`` - the tool policy file and the tool list
+- ``api`` - the calls the client makes
+- ``configui`` - what the configuration interface changed
+
+**Every line the server writes is a function in one of the last four**, and
+nothing outside this package imports :mod:`logging`. That is what makes the
+rule above something a reader can check in one place: a line is only ever
+given what its parameters admit, and a function's parameters say what that
+is. ``tests/test_logbook_catalog.py`` holds both halves.
 """
 
 from __future__ import annotations
 
+from . import api, configui, lifecycle, policy
 from .output import configure
 
-__all__ = ["configure"]
+__all__ = ["api", "configui", "configure", "lifecycle", "policy"]

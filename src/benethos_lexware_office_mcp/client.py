@@ -25,7 +25,6 @@ will not be performed" — the one failure mode whose outcome is certain.
 from __future__ import annotations
 
 import asyncio
-import logging
 import math
 import random
 from types import TracebackType
@@ -34,12 +33,10 @@ from urllib.parse import quote
 
 import httpx
 
-from . import __version__
+from . import __version__, logbook
 from .config import DEFAULT_PAGE_SIZE, Settings
 from .errors import RateLimitError, UpstreamError, ValidationError, from_response
 from .ratelimit import Sleeper, TokenBucket
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["ClientProvider", "LexwareClient"]
 
@@ -686,7 +683,7 @@ class LexwareClient:
             except ValueError:
                 # A Retry-After can also be an HTTP date. Falling back to the
                 # computed delay is better than failing to back off at all.
-                logger.debug("Unparsable Retry-After: %r", retry_after)
+                logbook.api.retry_after_unreadable()
             else:
                 # Honoured up to the cap and no further. This wait happens
                 # inside a tool call, so `86400` would hold it for a day and

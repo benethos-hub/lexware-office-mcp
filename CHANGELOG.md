@@ -30,6 +30,11 @@ housekeeping are out of scope here — design decisions live in
   lost its query string. At `INFO` it appears only for a refused request,
   one answered with 400 or above, which carries the client address that
   tried. `DEBUG` shows every request.
+- **The first line says which version started over which transport**, and a
+  line at `INFO` says when the tool list changed and how many clients were
+  told. A broken policy or profile file is named with the reason it could
+  not be read - the error's class, and the system's reason or the position
+  in the JSON - rather than with the error's whole text.
 
 ## [0.3.0] - 2026-09-27
 

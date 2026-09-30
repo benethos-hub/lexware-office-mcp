@@ -81,7 +81,8 @@ src/benethos_lexware_office_mcp/
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
-                  # output (the handler, the levels), access (uvicorn)
+                  # output (the handler, the levels), access (uvicorn),
+                  # and the catalogue: lifecycle, policy, api, configui
   configui/       # the local configuration interface, `setup` serves it
                   # render, state, cost, probe, stamp, profiles,
                   # transfer, pages, app - never part of the server process
@@ -323,6 +324,12 @@ fallen behind, so the list is short on purpose. In this order:
 - Surface expected failures as `ToolError` subclasses with concise messages.
   Never leak a raw traceback to the client.
 - Keep responses small. The client's token budget is a real constraint.
+- **Log through `logbook/` and nowhere else.** Every line is a function in
+  one of its catalogue modules, with parameters drawn from the vocabulary in
+  `tests/test_logbook_catalog.py`, and no other module imports `logging`. A
+  line never carries an argument, an answer, a query string or the text of
+  one of this server's own errors. The package docstring says what it may
+  carry.
 - **No semicolons in prose** — README, docstrings, commit messages, docs. Code
   is unaffected.
 - `CHANGELOG.md` gets an entry under `[Unreleased]` in the same commit as the

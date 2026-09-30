@@ -14,7 +14,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
-import logging
 from typing import Any
 
 from mcp.server.lowlevel.server import NotificationOptions
@@ -23,7 +22,7 @@ from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.session import ServerSession
 from mcp.types import Resource, Tool
 
-from . import __version__, resources
+from . import __version__, logbook, resources
 from .client import ClientProvider
 from .config import (
     Settings,
@@ -33,8 +32,6 @@ from .config import (
 from .errors import ConfigError
 from .policy import ToolPolicy
 from .tools import register_tools
-
-logger = logging.getLogger(__name__)
 
 # How often the watcher looks at the policy file. Short enough that a change
 # made in the browser feels immediate, long enough that reading a few hundred
@@ -177,6 +174,7 @@ class PolicyServer(MCPServer):
 
     async def _announce(self) -> None:
         """Tell every live session, and forget the ones that are not."""
+        told = 0
         for session in list(self._sessions):
             try:
                 await session.send_tool_list_changed()
@@ -184,8 +182,11 @@ class PolicyServer(MCPServer):
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
                 # the only trace it would leave.
-                logger.debug("Could not notify a session, dropping it: %s", exc)
+                logbook.policy.session_dropped(exc)
                 self._sessions.discard(session)
+            else:
+                told += 1
+        logbook.policy.list_changed(told)
 
     async def stop_watching(self) -> None:
         """Cancel the watcher. For shutdown, and for tests."""
