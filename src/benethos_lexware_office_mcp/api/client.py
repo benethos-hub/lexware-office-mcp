@@ -199,6 +199,11 @@ class LexwareClient(Connection):
         ``voucherlist``'s own, which finds sales documents as well. It still
         answers, measured 2026-09-27, and ``live/smoke.py`` is what will see
         the day it stops.
+
+        The match is exact. Measured 2026-09-30: the number in another case,
+        with a leading space or cut short finds nothing, and an empty one is
+        refused with 400 ``voucherNumber parameter is required`` rather than
+        answered with some other voucher.
         """
         return _expect_object(
             await self.get_json(
