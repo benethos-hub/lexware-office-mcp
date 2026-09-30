@@ -23,7 +23,8 @@ housekeeping are out of scope here — design decisions live in
   sets the number, and `0` keeps everything. It applies to the default cache
   directory, and to a directory named by `LXO_MCP_DOWNLOAD_DIR` only when it
   is set as well. The configuration interface shows and edits it beside the
-  download directory.
+  download directory. `read_download` and a resource read for a download
+  that is gone say that it may have been removed and to download it again.
 - **The resource list names the same newest downloads**, newest first, where
   it named every file in the directory in name order. It is read from the
   directory at the moment a client asks, so a file that is gone is gone from

@@ -2122,6 +2122,10 @@ every test in this repository. Section 14.3 says how to look.
     a reused download renews. A subdirectory or a symbolic link was put there
     by someone else. A file that cannot be deleted - one open in a viewer on
     Windows - waits for the next time.
+  - **Asking for one that is gone says what to do.** `read_download` and
+    `resources/read` both answer that the server keeps the newest downloads,
+    so it may have been removed, and to download the document again - where
+    only "not found" would leave the model guessing whether it ever existed.
   - **The list names the same newest downloads**, because the SDK answers
     `resources/list` whole and ignores the cursor the protocol has for paging.
     An entry is about 210 bytes, measured, so a thousand downloads made a list

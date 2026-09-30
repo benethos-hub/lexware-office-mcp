@@ -292,7 +292,9 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult
             uri[len(resources.SCHEME) :], storage.directory_for(settings)
         )
         if found is None:
-            raise NotFoundError("download", uri)
+            raise NotFoundError(
+                "download", uri, hint=resources.gone(settings.downloads_kept())
+            )
         payload = found.read_bytes()
     mime = storage.content_type_for(found)
     if len(payload) > MAX_INLINE:

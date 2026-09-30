@@ -111,13 +111,18 @@ class NotFoundError(ToolError):
     "abc")``. A caller that asked for a path gets told the path, which is the
     only thing the client knows — guessing an id out of it produces messages
     like "No resource with ID file" for ``/v1/invoices/{id}/file``.
+
+    ``hint`` says what to do about it, where there is something to do.
     """
 
-    def __init__(self, resource: str, resource_id: str | None = None) -> None:
+    def __init__(
+        self, resource: str, resource_id: str | None = None, *, hint: str = ""
+    ) -> None:
         if resource_id is None:
-            super().__init__(f"The API has nothing at {resource}.")
+            message = f"The API has nothing at {resource}."
         else:
-            super().__init__(f"No {resource} with ID {resource_id}.")
+            message = f"No {resource} with ID {resource_id}."
+        super().__init__(f"{message} {hint}".strip())
 
 
 class ConflictError(ToolError):

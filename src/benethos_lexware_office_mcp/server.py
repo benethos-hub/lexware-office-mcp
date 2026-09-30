@@ -91,6 +91,7 @@ class PolicyServer(MCPServer):
         policy: ToolPolicy,
         downloads: Path | None = None,
         listed_downloads: int = DEFAULT_KEPT_DOWNLOADS,
+        kept_downloads: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -100,6 +101,7 @@ class PolicyServer(MCPServer):
         # nothing - a download says what to set when one is asked for.
         self._downloads = downloads
         self._listed_downloads = listed_downloads
+        self._kept_downloads = kept_downloads
         self._sessions: set[ServerSession] = set()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
@@ -173,7 +175,9 @@ class PolicyServer(MCPServer):
         if str(uri).startswith(resources.SCHEME):
             found = resources.read(self._downloads, str(uri))
             if found is None:
-                raise ResourceNotFoundError(f"Unknown resource: {uri}")
+                raise ResourceNotFoundError(
+                    f"Unknown resource: {uri}. " + resources.gone(self._kept_downloads)
+                )
             return found
         return await super().read_resource(uri, context)
 
@@ -271,6 +275,7 @@ def build_server(
         policy=policy,
         downloads=downloads,
         listed_downloads=settings.downloads_listed(),
+        kept_downloads=settings.downloads_kept(),
     )
     register_tools(server, settings, provider or ClientProvider(settings))
     return server

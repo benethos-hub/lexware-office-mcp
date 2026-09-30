@@ -632,3 +632,42 @@ def test_building_a_server_to_look_at_it_deletes_nothing(tmp_path: Path) -> None
     build_server(Settings(api_key=API_KEY, download_path=tmp_path, kept_downloads=1))
 
     assert len(list(tmp_path.iterdir())) == 3
+
+
+async def test_a_download_that_is_gone_says_to_fetch_it_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The likeliest reason is the bound, and the remedy is one call away."""
+    monkeypatch.setattr(storage, "download_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.server.download_dir", lambda: tmp_path
+    )
+    server, provider = server_with(recorder())
+    uri = "lexware://download/gone.pdf"
+
+    with pytest.raises(ToolError) as refused:
+        await server.call_tool("read_download", {"uri": uri})
+    said = str(refused.value)
+
+    assert "keeps the newest 100 downloads" in said
+    assert "Download the document again." in said
+    assert str(tmp_path) not in said
+
+    with pytest.raises(ResourceNotFoundError) as excinfo:
+        await server.read_resource(uri)
+    assert "keeps the newest 100 downloads" in str(excinfo.value)
+    await provider.aclose()
+
+
+async def test_where_nothing_is_deleted_the_advice_is_only_to_fetch_it(
+    tmp_path: Path,
+) -> None:
+    server, provider = server_with(recorder(), download_path=tmp_path)
+
+    with pytest.raises(ToolError) as refused:
+        await server.call_tool("read_download", {"uri": "lexware://download/gone.pdf"})
+    said = str(refused.value)
+
+    assert "Download the document again." in said
+    assert "keeps the newest" not in said
+    await provider.aclose()

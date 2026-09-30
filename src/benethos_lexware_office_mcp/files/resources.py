@@ -47,7 +47,7 @@ from mcp.types import Resource, ResourceLink
 
 from . import storage
 
-__all__ = ["GATING_TOOLS", "SCHEME", "link", "listed", "read", "uri_for"]
+__all__ = ["GATING_TOOLS", "SCHEME", "gone", "link", "listed", "read", "uri_for"]
 
 SCHEME = "lexware://download/"
 
@@ -129,6 +129,21 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
             content=content, mime_type=_plain(storage.content_type_for(found))
         )
     ]
+
+
+def gone(kept: int | None) -> str:
+    """What to do about a download that is not on disk.
+
+    The likeliest reason is the bound the directory is kept at, and the remedy
+    is the same whatever the reason: the document is still in Lexware Office.
+    No path, as everywhere a caller is told about a local file.
+    """
+    if kept is None:
+        return "Download the document again."
+    return (
+        f"This server keeps the newest {kept} downloads, so it may have been "
+        "removed. Download the document again."
+    )
 
 
 def link(path: Path, mime_type: str) -> ResourceLink:
