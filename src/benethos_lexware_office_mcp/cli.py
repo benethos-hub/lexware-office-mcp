@@ -26,7 +26,11 @@ from .files import storage
 from .policy import Preset, ToolPolicy, known_tools, preset
 from .server import build_server
 from .settings import LOG_LEVELS, LOOPBACK_NAMES, TRANSPORTS, Settings, load_settings
-from .settings.locations import resolve_config_file, settings_sample
+from .settings.locations import (
+    env_file_in_effect,
+    resolve_config_file,
+    settings_sample,
+)
 from .settings.parse import csv_tuple
 from .transport.http import bearer_ready, run_http
 from .transport.stdio import run_stdio
@@ -428,6 +432,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
 
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
+    logbook.lifecycle.settings_from(env_file_in_effect(named=named_env))
     _report_what_is_enabled(server.policy)
     # Here and after each download, and nowhere else: `--tools`, `setup` and
     # anything else that builds a server to look at it deletes nothing.

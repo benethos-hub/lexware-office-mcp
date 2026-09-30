@@ -59,6 +59,10 @@ housekeeping are out of scope here — design decisions live in
   the plain line as before. uvicorn's request line reads `POST /mcp 401
   Unauthorized 10.0.0.7:5555` there, the status in the colour of its class
   and the client dimmed.
+- **The start names the `.env` it read**, `Settings from <path>`, or says
+  that none was found and the settings come from the environment and the
+  defaults. Only the policy file was named before, so which of the
+  searched places had supplied the settings was not to be seen.
 - **The first line says which version started over which transport**, and a
   line at `INFO` says when the tool list changed and how many clients were
   told. A broken policy or profile file is named with the reason it could

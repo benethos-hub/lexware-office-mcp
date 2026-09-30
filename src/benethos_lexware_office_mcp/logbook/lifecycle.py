@@ -19,6 +19,7 @@ __all__ = [
     "no_policy",
     "reachable_from_outside",
     "settings_changed",
+    "settings_from",
     "started",
     "token_generated",
     "tools_enabled",
@@ -29,6 +30,21 @@ _log = logging.getLogger(f"{PACKAGE}.server")
 
 def started(version: str, transport: str) -> None:
     _log.info("%s started over %s", version, transport)
+
+
+def settings_from(path: Path | None) -> None:
+    """The one ``.env`` this process read, or that it read none.
+
+    A real environment variable still wins over what the file says, see
+    ``settings.locations``.
+    """
+    if path is None:
+        _log.info(
+            "No .env file found, so the settings come from the environment "
+            "and the defaults"
+        )
+    else:
+        _log.info("Settings from %s", path)
 
 
 def no_policy(path: Path | None) -> None:
