@@ -116,7 +116,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         response = await provider.get().file(file_id, MIME[file_format])
         return await _deliver(
             response,
-            server,
             settings,
             fallback=f"{file_id}.{file_format}",
         )
@@ -142,7 +141,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         )
         return await _deliver(
             response,
-            server,
             settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
         )
@@ -308,7 +306,6 @@ def _load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult
 
 async def _deliver(
     response: httpx.Response,
-    server: MCPServer,
     settings: Settings,
     *,
     fallback: str,
@@ -318,7 +315,7 @@ async def _deliver(
     with _on_disk("save the download"):
         written = await asyncio.to_thread(_save, response.content, name, settings)
         mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
-        link = resources.publish(server, written, mime)
+        link = resources.link(written, mime)
     return delivery.saved(written, link, len(response.content))
 
 

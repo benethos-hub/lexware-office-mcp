@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -164,20 +165,6 @@ async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
     await provider.aclose()
 
 
-async def test_the_same_document_twice_logs_no_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The SDK warns for every URI registered twice, once per repeat."""
-    handler = recorder(headers={"content-type": "application/pdf"})
-    server, provider = server_with(handler, download_path=tmp_path)
-
-    for _ in range(3):
-        await server.call_tool("download_file", {"file_id": FILE_ID})
-
-    assert "already exists" not in caplog.text
-    await provider.aclose()
-
-
 def test_a_reused_download_is_noted_without_its_name(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -245,7 +232,7 @@ async def test_the_download_tools_declare_what_they_return(tmp_path: Path) -> No
 
 
 async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> None:
-    """The registry lives in a process, the file does not.
+    """A process ends, the file does not.
 
     Measured over stdio on 2026-08-21: a freshly started server answered
     `resources/list` with an empty list and `resources/read` with "Unknown
@@ -334,9 +321,8 @@ def test_a_symbolic_link_in_the_download_directory_is_not_published(
     except OSError:
         pytest.skip("this account may not create symbolic links")
     (tmp_path / "invoice.pdf").write_bytes(PDF)
-    server = build_server(Settings(api_key=API_KEY))
 
-    assert resources.publish_existing(server, tmp_path) == 1
+    assert [r.name for r in resources.listed(tmp_path, 100)] == ["invoice.pdf"]
 
 
 @pytest.mark.parametrize(
@@ -437,3 +423,100 @@ async def test_the_description_sends_the_model_to_the_tool_that_links() -> None:
         assert route in stored, route
     for name in ("download_file", "download_document"):
         assert "get_deeplink" in (tools[name].description or ""), name
+
+
+# -- the list is bounded, the directory is not ------------------------------
+
+
+def _aged(directory: Path, names: list[str]) -> None:
+    """One file per name, each a minute younger than the one before."""
+    for age, name in enumerate(reversed(names)):
+        path = directory / name
+        path.write_bytes(PDF)
+        stamp = 1_800_000_000 - age * 60
+        os.utime(path, (stamp, stamp))
+
+
+async def test_the_list_names_the_newest_downloads_first_and_no_more(
+    tmp_path: Path,
+) -> None:
+    """The directory grows with every document, and the SDK sends it whole."""
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"])
+    server, provider = server_with(
+        recorder(), download_path=tmp_path, listed_downloads=3
+    )
+
+    listed = await server.list_resources()
+
+    assert [r.name for r in listed] == ["e.pdf", "d.pdf", "c.pdf"]
+    await provider.aclose()
+
+
+async def test_a_file_too_old_to_be_listed_is_still_readable(tmp_path: Path) -> None:
+    """Unlisted is not hidden: a link handed out earlier keeps working."""
+    _aged(tmp_path, ["old.pdf", "new.pdf"])
+    server, provider = server_with(
+        recorder(), download_path=tmp_path, listed_downloads=1
+    )
+
+    assert [r.name for r in await server.list_resources()] == ["new.pdf"]
+    contents = list(await server.read_resource("lexware://download/old.pdf"))
+    assert contents[0].content == PDF
+    result = await server.call_tool(
+        "read_download", {"uri": "lexware://download/old.pdf"}
+    )
+    assert (result.structured_content or {})["deliveredAs"] == "pages"
+    await provider.aclose()
+
+
+async def test_a_limit_of_zero_lists_nothing_and_still_reads(tmp_path: Path) -> None:
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server, provider = server_with(
+        recorder(), download_path=tmp_path, listed_downloads=0
+    )
+
+    assert await server.list_resources() == []
+    contents = list(await server.read_resource("lexware://download/invoice.pdf"))
+    assert contents[0].content == PDF
+    await provider.aclose()
+
+
+async def test_a_file_removed_from_disk_is_gone_from_the_list_and_the_link(
+    tmp_path: Path,
+) -> None:
+    """Answered from the disk, so a deleted download leaves no entry behind."""
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+    server, provider = server_with(recorder(), download_path=tmp_path)
+    assert [r.name for r in await server.list_resources()] == ["invoice.pdf"]
+
+    (tmp_path / "invoice.pdf").unlink()
+
+    assert await server.list_resources() == []
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/invoice.pdf")
+    await provider.aclose()
+
+
+async def test_a_name_that_leaves_the_directory_is_not_read(tmp_path: Path) -> None:
+    """The URI arrives from the client, so its name is not trusted."""
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    (tmp_path / "secret.pdf").write_bytes(PDF)
+    server, provider = server_with(recorder(), download_path=downloads)
+
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/../secret.pdf")
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/..%2Fsecret.pdf")
+    await provider.aclose()
+
+
+async def test_a_directory_not_made_yet_lists_nothing_and_reads_nothing(
+    tmp_path: Path,
+) -> None:
+    """A server that has never downloaded anything, and no error for it."""
+    server = build_server(Settings(api_key=API_KEY, download_path=tmp_path / "none"))
+
+    assert await server.list_resources() == []
+    with pytest.raises(ResourceNotFoundError):
+        await server.read_resource("lexware://download/invoice.pdf")

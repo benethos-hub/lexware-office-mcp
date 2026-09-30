@@ -21,6 +21,7 @@ __all__ = [
     "DEFAULT_APP_BASE_URL",
     "DEFAULT_BASE_URL",
     "DEFAULT_PAGE_SIZE",
+    "DEFAULT_LISTED_DOWNLOADS",
     "DEFAULT_PDF_PAGES",
     "LOG_LEVELS",
     "LOOPBACK_NAMES",
@@ -67,6 +68,12 @@ DEFAULT_PDF_PAGES = 10
 # roughly two thousand tokens a page this is already far past any context
 # worth spending, and it bounds the CPU a single call can take.
 MAX_PDF_PAGES = 100
+
+# How many downloads `resources/list` names, newest first. The directory grows
+# with every distinct document and the SDK sends the list whole, so it needs a
+# bound. An older file stays readable under its link, it is only not listed.
+# Zero lists none.
+DEFAULT_LISTED_DOWNLOADS = 100
 
 DEFAULT_LOG_LEVEL = "INFO"
 
@@ -122,6 +129,7 @@ class Settings:
     burst: int = DEFAULT_BURST
     page_size: int = DEFAULT_PAGE_SIZE
     pdf_pages: int = DEFAULT_PDF_PAGES
+    listed_downloads: int = DEFAULT_LISTED_DOWNLOADS
     log_level: str = DEFAULT_LOG_LEVEL
     tool_policy_path: Path | None = None
     transport: str = DEFAULT_TRANSPORT
@@ -222,6 +230,12 @@ def load_settings(
             DEFAULT_PDF_PAGES,
             name="LXO_MCP_PDF_PAGES",
             maximum=MAX_PDF_PAGES,
+        ),
+        listed_downloads=as_int(
+            get("LISTED_DOWNLOADS"),
+            DEFAULT_LISTED_DOWNLOADS,
+            name="LXO_MCP_LISTED_DOWNLOADS",
+            minimum=0,
         ),
         tool_policy_path=(
             Path(policy_raw).expanduser()

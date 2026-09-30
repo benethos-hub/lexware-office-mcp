@@ -169,11 +169,14 @@ times the file size in context and no model can read a PDF anyway. An
 existing file is never replaced: a second download is saved beside the
 first with a counter in its name.
 
-The resource list is filled from the download directory when the server
-starts, so a URI stays readable after a restart. What the server cannot do is
-announce a *new* download: the MCP SDK gives it no way to send a
-list-changed notification, so a client that lists once at startup will not see
-anything fetched later in the session.
+The resource list is read from the download directory each time a client
+asks, so a URI stays readable after a restart. It names the newest 100
+downloads, `LXO_MCP_LISTED_DOWNLOADS` changes that. An older file is still
+readable by its link, it is only no longer listed. Nothing deletes a
+download, so the directory itself keeps growing until you clear it. What the
+server cannot do is announce a *new* download: the MCP SDK gives it no way to
+send a list-changed notification, so a client that lists once at startup will
+not see anything fetched later in the session.
 
 Between that and Claude Desktop not following resource links at all,
 `read_download` is the route that always works. It takes the same URI and puts
@@ -542,6 +545,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
+| `LXO_MCP_LISTED_DOWNLOADS` | How many downloads the resource list names, newest first. Older ones stay readable by their link | `100` |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |

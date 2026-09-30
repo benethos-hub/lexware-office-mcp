@@ -15,6 +15,13 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The resource list names the newest 100 downloads**, newest first, where
+  it named every file in the download directory in name order.
+  `LXO_MCP_LISTED_DOWNLOADS` sets the number, and `0` lists none. An older
+  file is still readable by its link and through `read_download`, it is only
+  no longer listed. The list and the reads now come from the directory at the
+  moment a client asks, so a file removed from it is gone from both at once,
+  and a server start no longer reads the whole directory.
 - **`compose.yaml` caps what Docker keeps of the logs**: five files of 10 MB
   per service, the oldest dropped first. The server wrote a line for every
   HTTP request, refused ones included, and at `DEBUG` still does, see below.

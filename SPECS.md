@@ -102,7 +102,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
 | `files/storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
-| `files/resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
+| `files/resources.py` | Downloaded files as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. Both the list, bounded to the newest downloads, and the reads are answered from the download directory, not from a registry. See section 13. | built |
 | `files/rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `files/delivery.py` | A download as an answer: a file saved to disk as a line and a resource link, or a file put into the conversation as text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
 | `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
@@ -871,6 +871,7 @@ arriving.
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
+| `LXO_MCP_LISTED_DOWNLOADS` | How many downloads `resources/list` names, newest by modification time. The directory grows with every distinct document and the SDK sends the list whole, without paging, so the list needs a bound. An older file is only unlisted: its link and `read_download` still read it. `0` lists none. | `100` |
 | `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. | unset, anywhere |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
@@ -2071,29 +2072,39 @@ every test in this repository. Section 14.3 says how to look.
   handed back instead of duplicated: four downloads of one unchanged invoice
   used to leave four copies numbered up to `-4`, which is not caution but
   litter.
-- **A link keeps working after a restart.** `read_download` resolves the file
-  from the download directory rather than from the resource registry, which
-  only knows what the current process fetched. The file outlives the process,
-  and only the registration was ever tied to one. The name is sanitized and
+- **A link keeps working after a restart.** `read_download` and
+  `resources/read` both resolve the file from the download directory. The
+  file outlives the process, and nothing about a link is tied to one. The name is sanitized and
   the result checked to be inside the directory, since it arrives from the
   caller. Its content type comes from the extension, which is the name the API
   itself chose in its `Content-Disposition`.
-- **The URI is an MCP resource, registered per file.** A path only means
+- **The URI is an MCP resource, listed per file.** A path only means
   something while client and server share a filesystem, which the stdio
   transport happens to give and the HTTP transport of section 6 will not. What
   holds either way is that the file is on the *server's* disk and the server is
-  the one reading it, which is the shape MCP resources already have. Registered
+  the one reading it, which is the shape MCP resources already have. Listed
   per file rather than behind one URI template, so each carries its own content
   type — a PDF and an XRechnung are not the same thing to a client deciding
   what to do with them.
-- **The registry is filled from the download directory as the server starts**,
-  not only by what the running process fetched. Measured over stdio on
-  2026-08-21, the narrower version was a defect: a fresh process answered
+- **The list and the reads are answered from the download directory**, at the
+  moment they are asked, since 2026-09-30. Before that, resources were
+  registered with the SDK. Registering only what the running process fetched
+  was a defect, measured over stdio on 2026-08-21: a fresh process answered
   `resources/list` with an empty list and `resources/read` with "Unknown
   resource" for a file in its own download directory, which `read_download`
-  read from disk in the same breath. The same files were reachable either way,
-  so restricting the registration protected nothing and cost every URI its
-  life at restart.
+  read from disk in the same breath. Registering the whole directory at
+  startup fixed that, at the price of a start that read every file and a
+  registry that only grew. Answering from the disk keeps what the fix was for,
+  drops a file removed from the directory at once, and reads nothing at start.
+- **The list names the newest downloads only**, `LXO_MCP_LISTED_DOWNLOADS`
+  of them, 100 unless set. Nothing deletes a download, so the directory grows
+  with every distinct document, and the SDK answers `resources/list` whole: it
+  ignores the cursor the protocol has for paging. An entry is about 210 bytes,
+  measured, so a thousand downloads made a list of about 210 KB. An older file
+  is unlisted, not hidden: its link and `read_download` still read it, which
+  is why the bound can be small. Whether the directory itself needs a limit is
+  a separate question and is not answered here - clearing it deletes business
+  records, which is not something to do unasked.
 - **A client is told when the tool list changes, since 2026-08-22.** For
   resources it still is not, and the measurement below explains why the
   default is what it is. Measured against mcp 2.0.0 on 2026-08-21:
@@ -2499,16 +2510,13 @@ and `download_file` already do through `file_format`. The first of them
 arrived with 0.3.0 after all, for an unchecked voucher.
 
 **Next, noted 2026-09-29.** Each is its own work stream, scoped before it is
-built. The logging concept and the refactoring are done, the resource list
-is not started.
+built. All three are done.
 
-- **The resource list grows with the download directory.** Every file there
-  is published as an MCP resource and returned by `resources/list`, and
-  nothing ever removes a download. A document that has not changed reuses
-  its file, so the directory grows only with distinct documents, but it
-  grows without a bound, and so does the list a client receives. To decide:
-  whether the list needs a limit, paging or an age, or whether the directory
-  itself does.
+- **The resource list grows with the download directory.** Built
+  2026-09-30: the list names the newest downloads, 100 unless
+  `LXO_MCP_LISTED_DOWNLOADS` says otherwise, and is read from the directory
+  when it is asked for, see section 13. The directory itself still grows, and
+  no limit for it was decided.
 - **A logging concept.** Built 2026-09-30, see section 11.2.
 - **Refactoring at file level and at code level.** Built 2026-09-30: the
   package is layered into subpackages, see the table and the import rule

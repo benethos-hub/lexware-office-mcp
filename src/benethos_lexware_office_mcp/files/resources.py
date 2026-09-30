@@ -1,4 +1,4 @@
-"""Downloaded files, published so the client can fetch them.
+"""Downloaded files, offered as MCP resources so the client can fetch them.
 
 A path is only useful to a client that shares a filesystem with the server.
 Claude Desktop launches the server as a child process and does share one, but
@@ -8,18 +8,26 @@ the path stops meaning anything.
 
 What holds in both cases is that the file is on the **server's** disk and the
 server is the one reading it. MCP has exactly that shape — a resource the
-client asks for by URI — so every download is registered as one and the tool
+client asks for by URI — so every download is offered as one and the tool
 result carries a link to it. Nothing is transferred until the client asks,
 which is why this is not simply base64 in the tool result: a 2 MiB PDF encodes
 to roughly 2.7 MiB of context, spent whether or not anyone wanted the bytes.
 
-**The registry follows the disk, not the process.** Registering only what a
-process downloaded looked like caution and was a defect: measured over stdio
-on 2026-08-21, a freshly started server answered ``resources/list`` with an
-empty list and ``resources/read`` with "Unknown resource" for a file sitting
-in its own download directory, which ``read_download`` then read without
-trouble. A client is offered the same files either way, so the narrower
-registration bought nothing and cost every URI its life at restart.
+**Answered from the disk, at the moment it is asked.** ``resources/list``
+and ``resources/read`` both look at the download directory rather than at a
+registry. A file that is there is readable under its link whatever process
+wrote it, one that is gone is gone from the list at once, and a server start
+reads nothing. Registering only what a process downloaded was a defect once
+already: measured over stdio on 2026-08-21, a fresh server answered "Unknown
+resource" for a file in its own directory that ``read_download`` read in the
+same breath. Registering everything at startup fixed that, and cost a start
+that read the whole directory and a registry that only grew.
+
+**The list names the newest downloads only**, ``LXO_MCP_LISTED_DOWNLOADS`` of
+them. Nothing deletes a download, so the directory grows with every distinct
+document, and the SDK sends the list whole: it does not page. An older file
+is not hidden, only unlisted - its link still reads, and so does
+``read_download``.
 
 **What this still cannot do** is tell a client that the list has changed.
 The SDK derives ``resources.listChanged`` from notification options that
@@ -31,17 +39,15 @@ started and nothing downloaded since. That is what ``read_download`` is for.
 
 from __future__ import annotations
 
-import weakref
 from pathlib import Path
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.mcpserver.exceptions import ResourceError
-from mcp.server.mcpserver.resources import FunctionResource
-from mcp.types import ResourceLink
+from mcp.types import Resource, ResourceLink
 
 from . import storage
 
-__all__ = ["GATING_TOOLS", "SCHEME", "publish", "publish_existing", "uri_for"]
+__all__ = ["GATING_TOOLS", "SCHEME", "link", "listed", "read", "uri_for"]
 
 SCHEME = "lexware://download/"
 
@@ -53,81 +59,88 @@ GATING_TOOLS = ("download_file", "download_document", "read_download")
 
 DEFAULT_TYPE = "application/octet-stream"
 
-# Which URIs each server already carries. Weak, so a server built and dropped
-# - the suite builds hundreds - takes its entry with it.
-_published: weakref.WeakKeyDictionary[MCPServer, set[str]] = weakref.WeakKeyDictionary()
+_DESCRIPTION = "Downloaded from Lexware Office by this server."
 
 
 def uri_for(name: str) -> str:
-    """The URI a downloaded file is published under."""
+    """The URI a downloaded file is offered under."""
     return f"{SCHEME}{name}"
 
 
-def publish_existing(server: MCPServer, directory: Path) -> int:
-    """Register everything already in ``directory``, and say how many.
+def listed(directory: Path | None, limit: int) -> list[Resource]:
+    """The newest ``limit`` downloads in ``directory``, newest first.
 
-    Called once as the server is built, so a URI handed out by an earlier run
-    still resolves. The directory is not created here: a server that has never
-    downloaded anything has nothing to publish, and building one to list its
-    tools should not leave a directory behind.
+    Newest by the file's modification time. Each entry carries its own
+    content type, from the name on disk - a PDF and an
+    XRechnung are not the same thing to a client deciding what to do with
+    them, which is also why this is a list of files rather than one URI
+    template, which can declare only one type.
 
     A symbolic link is skipped. Nothing this server writes is one, so a link
     in the directory was put there by someone else and could point anywhere.
+    The directory is not created: a server that has never downloaded anything
+    lists nothing.
     """
-    if not directory.is_dir():
-        return 0
-    count = 0
-    for path in sorted(directory.iterdir()):
-        if path.is_file() and not path.is_symlink():
-            publish(server, path, storage.content_type_for(path))
-            count += 1
-    return count
-
-
-def publish(server: MCPServer, path: Path, mime_type: str) -> ResourceLink:
-    """Register a downloaded file as a resource and describe it as a link.
-
-    Registration is per file rather than through one URI template, so that
-    each entry carries its own content type — a template can only declare one,
-    and a PDF and an XRechnung are not the same thing to a client deciding
-    what to do with them.
-    """
-    kind = _plain(mime_type)
-    uri = uri_for(path.name)
-    size = path.stat().st_size
-
-    # A download of an unchanged document lands on the file already there,
-    # and the SDK logs a warning for every URI registered twice. Asking it
-    # first would mean reading its private registry, so this keeps its own.
-    published = _published.setdefault(server, set())
-    if uri not in published:
-        server.add_resource(
-            FunctionResource(
-                uri=uri,
-                name=path.name,
-                title=path.name,
-                description="Downloaded from Lexware Office by this server.",
-                mime_type=kind,
-                fn=lambda: _read(path),
-            )
+    if directory is None or limit <= 0 or not directory.is_dir():
+        return []
+    found: list[tuple[float, str, Path]] = []
+    for path in directory.iterdir():
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            found.append((path.stat().st_mtime, path.name, path))
+        except OSError:
+            continue  # gone between listing the directory and looking at it
+    found.sort(key=lambda entry: (-entry[0], entry[1]))
+    return [
+        Resource(
+            uri=uri_for(path.name),
+            name=path.name,
+            title=path.name,
+            description=_DESCRIPTION,
+            mime_type=_plain(storage.content_type_for(path)),
         )
-        published.add(uri)
+        for _, _, path in found[:limit]
+    ]
+
+
+def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
+    """The bytes behind a download URI, or ``None`` when there is no such file.
+
+    Looked up the way ``read_download`` looks it up, so a link either works in
+    both or in neither: the name is checked to stay inside the directory,
+    since it arrives from the client.
+    """
+    if directory is None or not uri.startswith(SCHEME):
+        return None
+    found = storage.resolve(uri[len(SCHEME) :], directory)
+    if found is None:
+        return None
+    try:
+        content = found.read_bytes()
+    except OSError as exc:
+        # The reason and never the path, as everywhere a local file fails.
+        raise ResourceError(
+            f"{found.name} could not be read: {exc.strerror or 'the system refused'}."
+        ) from None
+    return [
+        ReadResourceContents(
+            content=content, mime_type=_plain(storage.content_type_for(found))
+        )
+    ]
+
+
+def link(path: Path, mime_type: str) -> ResourceLink:
+    """A download as the link a tool result carries."""
     return ResourceLink(
         type="resource_link",
-        uri=uri,
+        uri=uri_for(path.name),
         name=path.name,
         title=path.name,
-        description="Downloaded from Lexware Office by this server.",
-        mime_type=kind,
-        size=size,
+        description=_DESCRIPTION,
+        mime_type=_plain(mime_type),
+        size=path.stat().st_size,
     )
-
-
-def _read(path: Path) -> bytes:
-    """The file's bytes, unless it has been swapped for a link since."""
-    if path.is_symlink():
-        raise ResourceError(f"{path.name} is no longer a downloaded file.")
-    return path.read_bytes()
 
 
 def _plain(mime_type: str) -> str:
