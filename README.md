@@ -709,7 +709,9 @@ decided by the publish, which maps `127.0.0.1` only.
 
 **A setting saved in the browser reaches the running server.** Settings are
 read once at startup, so the container is told to end when its settings file
-changes and Compose starts it again a second later. What Compose pins as real
+changes and Compose starts it again a second later. Over `sse` a client with
+its stream open holds that end back until it disconnects, which
+streamable HTTP, the image's transport, does not. What Compose pins as real
 environment variables — the transport, the bind address, the port, the allowed
 hosts — belongs to the container and cannot be changed from the volume, see
 [Configuration](#configuration).
