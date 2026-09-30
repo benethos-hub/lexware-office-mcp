@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import sys
 from collections.abc import Iterator
 from datetime import datetime
@@ -17,7 +18,16 @@ from typing import TextIO
 
 from .access import ACCESS_LOGGER, AccessLines
 
-__all__ = ["LIBRARIES", "PACKAGE", "configure", "source", "stamp", "untouched_root"]
+__all__ = [
+    "LIBRARIES",
+    "PACKAGE",
+    "configure",
+    "in_colour",
+    "paint",
+    "source",
+    "stamp",
+    "untouched_root",
+]
 
 PACKAGE = __name__.split(".")[0]
 
@@ -112,14 +122,86 @@ def stamp(created: float) -> str:
     return local.isoformat(timespec="milliseconds")
 
 
-class _Line(logging.Formatter):
-    """:data:`FORMAT`, with the time as :func:`stamp` writes it."""
+# ANSI, and only at a terminal. Each coloured part ends in a reset.
+_RESET = "\033[0m"
+_DIM = "\033[2m"
+_CYAN = "\033[36m"
+_LEVELS = {
+    logging.DEBUG: "\033[34m",
+    logging.INFO: "\033[32m",
+    logging.WARNING: "\033[33m",
+    logging.ERROR: "\033[31m",
+    logging.CRITICAL: "\033[1;31m",
+}
 
-    def __init__(self) -> None:
+
+def paint(code: str, text: str) -> str:
+    return f"{code}{text}{_RESET}" if code else text
+
+
+def in_colour(stream: TextIO) -> bool:
+    """Whether lines to ``stream`` are coloured.
+
+    Only for a terminal, and not when ``NO_COLOR`` is set to anything, see
+    https://no-color.org. A pipe - the client's, under stdio - a container
+    log, journald and a file each get the plain line.
+    """
+    if os.environ.get("NO_COLOR"):
+        return False
+    try:
+        if not stream.isatty():
+            return False
+    except (AttributeError, ValueError):
+        return False
+    return _console_takes_colour(stream)
+
+
+def _console_takes_colour(stream: TextIO) -> bool:
+    """A Windows console shows the codes as text until it is asked not to.
+
+    Asking can fail, on an old console or a handle that is not one, and the
+    line then stays plain rather than full of escape codes.
+    """
+    if sys.platform != "win32":
+        return True
+    import ctypes
+    import msvcrt
+
+    try:
+        handle = msvcrt.get_osfhandle(stream.fileno())
+    except (AttributeError, OSError, ValueError):
+        return False
+    kernel32 = ctypes.windll.kernel32
+    mode = ctypes.c_uint32()
+    if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return False
+    virtual_terminal_processing = 0x0004
+    return bool(
+        kernel32.SetConsoleMode(handle, mode.value | virtual_terminal_processing)
+    )
+
+
+class _Line(logging.Formatter):
+    """:data:`FORMAT`, with the time as :func:`stamp` writes it.
+
+    ``colour`` gives the same fields at a terminal: the time dimmed, the
+    level in its colour, the source in cyan. A traceback follows uncoloured,
+    the way the base class appends it.
+    """
+
+    def __init__(self, *, colour: bool = False) -> None:
         super().__init__(FORMAT)
+        self.colour = colour
 
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:  # noqa: N802
         return stamp(record.created)
+
+    def formatMessage(self, record: logging.LogRecord) -> str:  # noqa: N802
+        if not self.colour:
+            return super().formatMessage(record)
+        level = paint(_LEVELS.get(record.levelno, ""), f"{record.levelname:<8}")
+        where = paint(_CYAN, f"{source(record.name):<8}")
+        return f"{paint(_DIM, record.asctime)} {level} {where} {record.message}"
 
 
 def configure(level: str, stream: TextIO | None = None) -> None:
@@ -135,7 +217,7 @@ def configure(level: str, stream: TextIO | None = None) -> None:
     handler = logging.StreamHandler(stream or sys.stderr)
     setattr(handler, _MARK, True)
     handler.addFilter(_Where())
-    handler.setFormatter(_Line())
+    handler.setFormatter(_Line(colour=in_colour(handler.stream)))
     root.addHandler(handler)
     # Anything not named here - a library nobody thought of - is held at
     # WARNING by default rather than let through.

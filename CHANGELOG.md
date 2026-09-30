@@ -53,6 +53,10 @@ housekeeping are out of scope here — design decisions live in
   `2026-09-30T13:58:50.597+02:00` where it was `2026-09-30 13:58:50,597`
   without saying which zone, and the level is padded to eight characters so
   the sources line up.
+- **At a terminal a line is coloured**: the time dimmed, the level in a
+  colour of its own, the source in cyan. Only when stderr is a terminal and
+  `NO_COLOR` is not set, so a client's log, a container log and a file get
+  the plain line as before.
 - **The first line says which version started over which transport**, and a
   line at `INFO` says when the tool list changed and how many clients were
   told. A broken policy or profile file is named with the reason it could

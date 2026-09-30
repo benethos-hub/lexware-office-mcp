@@ -1885,6 +1885,16 @@ comparable with those of the machine next to it. The `T` keeps the stamp one
 field for anything that splits a line on spaces. A traceback follows on the
 lines after the message.
 
+**At a terminal the same fields are coloured**, and nowhere else: when
+stderr is a TTY and `NO_COLOR` is not set to anything, following
+https://no-color.org. The time is dimmed, the level is blue for `DEBUG`,
+green for `INFO`, yellow for `WARNING`, red for `ERROR` and bold red for
+`CRITICAL`, the source is cyan and padded to eight characters, and each
+coloured part ends in a reset. A traceback stays uncoloured. A client's pipe
+under stdio, a container log, journald and a file get the plain line. A
+Windows console shows the codes as text until the process asks it not to, so
+the server asks, and keeps the line plain where the console refuses.
+
 **A line names its source in short.** This server's loggers without the
 package in front, `tools` rather than `benethos_lexware_office_mcp.tools`,
 and the package itself as `server`. uvicorn's request line is `http`, and
