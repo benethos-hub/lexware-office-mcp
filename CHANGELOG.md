@@ -63,8 +63,8 @@ housekeeping are out of scope here — design decisions live in
   the MCP SDK put a handler of its own on the root logger when the server
   module was imported, before the setting was read, so the level stayed at
   the SDK's `INFO` whatever it said, and every line was wrapped to the width
-  of a console. That handler is now replaced by this server's, and each line
-  appears once, on one line.
+  of a console. That handler is no longer left in place, whichever kind the
+  SDK installed, and each line appears once, on one line.
 
 ## [0.3.0] - 2026-09-27
 

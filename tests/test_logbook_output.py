@@ -13,11 +13,16 @@ import subprocess
 import sys
 
 import pytest
+from mcp.server.mcpserver import MCPServer
 
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.logbook import configure
 from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER, AccessLines
-from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
+from benethos_lexware_office_mcp.logbook.output import (
+    LIBRARIES,
+    PACKAGE,
+    untouched_root,
+)
 from benethos_lexware_office_mcp.transport import uvicorn_config
 from helpers import always, fast_client
 
@@ -175,28 +180,28 @@ def test_nothing_reaches_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     assert "to stderr" in captured.err
 
 
-def test_the_sdks_handler_is_replaced_rather_than_joined() -> None:
-    """Every MCPServer the SDK builds puts a RichHandler on the root logger."""
-    rich_logging = pytest.importorskip("rich.logging")
-    logging.getLogger().addHandler(rich_logging.RichHandler())
+def test_a_server_built_before_configuring_leaves_no_handler_behind() -> None:
+    """The SDK's basicConfig, with or without rich, is taken off again."""
+    root = logging.getLogger()
+    root.handlers[:] = []
 
-    _stream("INFO")
+    with untouched_root():
+        MCPServer(name="probe")
 
-    assert not any(
-        type(h).__module__.startswith("rich.") for h in logging.getLogger().handlers
-    )
+    assert root.handlers == []
 
 
 def test_in_a_fresh_process_each_line_appears_once_at_the_level_asked_for() -> None:
     """The order a real start has: the server module imported first.
 
-    Its import builds an MCPServer, which is when the SDK's handler arrives,
-    and only afterwards is the level read from the command line.
+    Importing the server builds an MCPServer, which is when the SDK's
+    handler would arrive, and only afterwards is the level read from the
+    command line. Through `cli`, which is what the console script imports.
     """
     script = "\n".join(
         [
             "import logging",
-            "import benethos_lexware_office_mcp.server",
+            "import benethos_lexware_office_mcp.cli",
             "from benethos_lexware_office_mcp import logbook",
             "logbook.configure('WARNING')",
             "log = logging.getLogger('benethos_lexware_office_mcp.probe')",

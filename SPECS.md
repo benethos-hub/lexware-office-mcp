@@ -1809,12 +1809,15 @@ nothing else.
 account owner sees what the assistant looked at as well as what it changed.
 
 **One handler, and it is this server's.** Every `MCPServer` the SDK builds
-calls `logging.basicConfig` with a `RichHandler`, and the first is built
-when `server.py` is imported, before the command line is read. Until
-2026-09-30 that made this server's own `basicConfig` a no-op, so the level
-setting was ignored and every line was wrapped to a console's width.
-`logbook.configure` removes that handler and installs its own, and a test in
-a fresh process holds the import order a real start has.
+calls `logging.basicConfig`, with a `RichHandler` where `rich` is installed
+and a plain stream handler where it is not, and the first is built when
+`server.py` is imported, before the command line is read. Until 2026-09-30
+that made this server's own `basicConfig` a no-op, so the level setting was
+ignored and every line was wrapped to a console's width. The registry server
+is now built inside `untouched_root()`, which takes off whatever that added,
+whatever its type. A test in a fresh process holds the import order a real
+start has, and the oldest allowed SDK, which has no `rich`, is what showed
+that looking for a `RichHandler` was not enough.
 
 **The libraries stay at `WARNING`, and there is no switch to lower them.**
 httpx and httpcore name every request with its URL, and the SDK writes a

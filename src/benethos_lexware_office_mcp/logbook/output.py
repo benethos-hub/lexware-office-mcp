@@ -8,13 +8,15 @@ server's own lines and of nothing else.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
+from collections.abc import Iterator
 from typing import TextIO
 
 from .access import ACCESS_LOGGER, AccessLines
 
-__all__ = ["LIBRARIES", "PACKAGE", "configure"]
+__all__ = ["LIBRARIES", "PACKAGE", "configure", "untouched_root"]
 
 PACKAGE = __name__.split(".")[0]
 
@@ -38,18 +40,31 @@ FORMAT = "%(asctime)s %(levelname)s %(where)s: %(message)s"
 _MARK = "_lxo_logbook"
 
 
-def _installed_by_the_sdk(handler: logging.Handler) -> bool:
-    """The handler the SDK puts on the root logger, a ``RichHandler``.
+@contextlib.contextmanager
+def untouched_root() -> Iterator[None]:
+    """Undo whatever the block did to the root logger's handlers and level.
 
-    Every ``MCPServer`` it builds calls ``logging.basicConfig`` with one, and
-    the first is built when ``server.py`` is imported - before the command
-    line has been read, let alone this module called. Left in place, every
-    line appeared twice, once wrapped to the width of a console, and a
-    ``basicConfig`` of this server's own came too late to do anything. That
-    is what the level setting had been until 2026-09-30: ignored, with the
+    Every ``MCPServer`` the SDK builds calls ``logging.basicConfig``, with a
+    ``RichHandler`` where ``rich`` is installed and a plain stream handler
+    where it is not. ``server.py`` builds one on import, before the command
+    line has been read, and that handler stayed: every line appeared twice,
+    and this server's own ``basicConfig`` came too late to do anything. That
+    is what the level setting had been until 2026-09-30 - ignored, with the
     SDK's ``INFO`` in its place.
+
+    Taking off what the block added, whatever its type, rather than looking
+    for one class: which handler the SDK picks depends on what else is
+    installed. Once :func:`configure` has run, ``basicConfig`` finds a
+    handler and does nothing, so a server built later needs no such care.
     """
-    return type(handler).__module__.startswith("rich.")
+    root = logging.getLogger()
+    handlers, level = root.handlers[:], root.level
+    try:
+        yield
+    finally:
+        for added in [h for h in root.handlers if h not in handlers]:
+            root.removeHandler(added)
+        root.setLevel(level)
 
 
 class _Where(logging.Filter):
@@ -71,14 +86,12 @@ def configure(level: str, stream: TextIO | None = None) -> None:
     """Send every line to ``stream``, stderr unless given, at these levels.
 
     Safe to call again: the handler it installed the last time is replaced,
-    and so is the filter on uvicorn's request lines. The SDK's handler is
-    removed, see :func:`_installed_by_the_sdk`.
+    and so is the filter on uvicorn's request lines.
     """
     own = logging.getLevelNamesMapping()[level.upper()]
     root = logging.getLogger()
-    for old in root.handlers[:]:
-        if getattr(old, _MARK, False) or _installed_by_the_sdk(old):
-            root.removeHandler(old)
+    for handler in [h for h in root.handlers if getattr(h, _MARK, False)]:
+        root.removeHandler(handler)
     handler = logging.StreamHandler(stream or sys.stderr)
     setattr(handler, _MARK, True)
     handler.addFilter(_Where())

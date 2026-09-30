@@ -262,7 +262,13 @@ def build_server(
 # nothing, with default settings. Default on purpose: this runs on import,
 # before `--version` or `setup` has been parsed, and a bad value in somebody's
 # environment must not stop either of them.
-register_tools(MCPServer(name="registry"), Settings(), ClientProvider(Settings()))
+#
+# The SDK configures logging whenever it builds a server, and this is the one
+# built before the command line is read, so what it put on the root logger is
+# taken off again, see `logbook.output.untouched_root`.
+with logbook.output.untouched_root():
+    _registry = MCPServer(name="registry")
+register_tools(_registry, Settings(), ClientProvider(Settings()))
 
 _inspected: PolicyServer | None = None
 
