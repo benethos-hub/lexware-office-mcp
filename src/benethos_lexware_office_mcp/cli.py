@@ -370,6 +370,14 @@ def main(argv: list[str] | None = None) -> None:
     except ConfigError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from None
+    except KeyboardInterrupt:
+        # uvicorn shuts down cleanly on Ctrl+C and then raises the signal
+        # again, so the process ends as interrupted - which, uncaught, is a
+        # traceback that reads like a crash. stdio ends the same way. SIGTERM
+        # from docker stop or systemd never gets here: Python turns only
+        # SIGINT into an exception.
+        logbook.lifecycle.interrupted()
+        raise SystemExit(130) from None  # 128 + SIGINT
 
 
 def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -> None:

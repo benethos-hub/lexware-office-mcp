@@ -1910,12 +1910,23 @@ its server log after the error log of the classic web servers, into which a
 server writes everything about itself, and spelled out an ordinary start
 reads like a failure. Any other logger keeps its full name.
 
+**Ctrl+C ends in a line and exit code 130, not a traceback.** uvicorn shuts
+down cleanly on SIGINT, as far as `Finished server process`, and then raises
+the signal again on purpose so the process ends as interrupted. Uncaught,
+that is a `KeyboardInterrupt` traceback that reads like a crash, and stdio
+ends the same way. `cli.main` catches it around the whole run, writes
+`Stopped by an interrupt` and exits with 130, which is 128 plus SIGINT, for
+every transport. SIGTERM, which `docker stop` and systemd send, is not
+affected, since Python turns only SIGINT into an exception: the server shuts
+down without the extra line and without a traceback. `setup` has always
+caught Ctrl+C itself and ends with `Beendet.`
+
 **The catalogue**, by module. The logger name a line carries is in brackets
 where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.3.0 started over stdio`, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env` |
+| `lifecycle` (`server`) | `INFO` | `0.3.0 started over stdio`, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `INFO` | `The tool list changed, 2 sessions told` |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |

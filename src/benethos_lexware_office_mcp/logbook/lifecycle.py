@@ -14,6 +14,7 @@ from .output import PACKAGE
 
 __all__ = [
     "ending_on_change",
+    "interrupted",
     "listening",
     "no_policy",
     "reachable_from_outside",
@@ -86,3 +87,8 @@ def ending_on_change(file: str) -> None:
 
 def settings_changed(file: str) -> None:
     _log.info("%s changed, ending this process so it is started again", file)
+
+
+def interrupted() -> None:
+    """Ctrl+C, in place of the traceback it would otherwise end in."""
+    _log.info("Stopped by an interrupt")

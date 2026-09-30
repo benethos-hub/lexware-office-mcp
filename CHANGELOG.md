@@ -88,6 +88,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **Ctrl+C ends in one line and exit code 130, not a traceback.** Over
+  HTTP, uvicorn shut down cleanly and then raised the interrupt again, and
+  stdio ended in it as well, so stopping the server by hand printed a
+  `KeyboardInterrupt` traceback that read like a crash. It now writes
+  `Stopped by an interrupt` and exits with 130. `docker stop` and systemd
+  were never affected.
 - **`LXO_MCP_LOG_LEVEL` and `--log-level` take effect.** They were ignored:
   the MCP SDK put a handler of its own on the root logger when the server
   module was imported, before the setting was read, so the level stayed at
