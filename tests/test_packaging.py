@@ -147,6 +147,16 @@ def test_both_publish_jobs_check_the_tag() -> None:
     assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 2
 
 
+def test_latest_never_follows_a_pre_release() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    latest = [line for line in workflow.splitlines() if "value=latest" in line]
+
+    assert latest
+    assert all("!github.event.release.prerelease" in line for line in latest)
+
+
 def test_compose_caps_the_log_docker_keeps() -> None:
     """Five files of 10 MB, the json-file driver's own rotation.
 

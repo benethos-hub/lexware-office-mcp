@@ -141,10 +141,12 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           flavor: latest=false
+          # `latest` is what a pull without a tag gets, so a pre-release never
+          # becomes it. Its own version tag is still pushed.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
             type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Build and push
