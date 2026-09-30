@@ -2570,12 +2570,20 @@ order:
    it generated its own token and refused a request without it. Contrary to
    the documented behaviour, the package did not need a visibility switch - it
    was public from the first push.
-6. **What the build reaches for stays on a floating tag**, decided
-   2026-08-23. The base image is `python:3.14-slim`, the uv binary comes from
-   `ghcr.io/astral-sh/uv:0.12`, and the workflow actions are pinned by major
-   version - except `astral-sh/setup-uv`, which carries a full version because
-   it stopped publishing floating tags with its v8, so `@v10` resolves to
-   nothing and fails a job before it starts. These follow their line rather
+6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after
+   a review, reversing the major tags of 2026-08-23:
+   `actions/checkout@3d3c42e… # v7.0.1`. A tag is a pointer its publisher
+   can move, and the publish job holds the identity PyPI trusts and the
+   right to push the image, so a moved tag would run somebody else's code
+   with both. The comment is for the reader and for Dependabot, which raises
+   the commit and the comment together. It also retires the special case of
+   `astral-sh/setup-uv`, which stopped publishing major tags with its v8 and
+   so alone named an exact version. `tests/test_packaging.py` refuses a
+   `uses:` without a commit.
+
+   **The images still follow a floating tag**, decided 2026-08-23. The base
+   image is `python:3.14-slim` and the uv binary comes from
+   `ghcr.io/astral-sh/uv:0.12`. These follow their line rather
    than a digest, which means a security fix arrives without anyone acting -
    and that a build from today is not bit-for-bit the build from last week. Pinning digests reverses that
    trade: reproducible, and every patch waits for a pull request. For an image

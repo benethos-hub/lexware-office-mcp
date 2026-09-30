@@ -14,16 +14,15 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  # The actions the workflows use. Most follow their moving major tag, so a
-  # fix arrives without a pull request for every patch.
+  # The actions the workflows use, each pinned to a commit with its version
+  # in a comment beside it. Dependabot reads the comment and raises the
+  # commit and the comment together, so every release, patches included,
+  # arrives as a pull request - which is the price of a pin a publisher
+  # cannot move.
   #
-  # astral-sh/setup-uv is the exception, and not by choice: it stopped
-  # publishing major tags after v7. There is no v8, v9 or v10, only exact
-  # versions, so the workflows have to name one - and an exact pin goes
-  # quietly stale while continuing to work. Checked 2026-09-02: v10.0.1 was
-  # both what is pinned and the newest release. Dependabot is what notices
-  # next time - with a weekly slot per ecosystem, so v10.1.0, released on a
-  # Thursday, was moved by hand the following Monday rather than waited for.
+  # It also retires a special case: astral-sh/setup-uv stopped publishing
+  # major tags after v7, so it alone had to name an exact version. With
+  # every action pinned exactly, all of them are in the same position.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

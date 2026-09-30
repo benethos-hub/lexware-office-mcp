@@ -170,6 +170,22 @@ def test_a_manual_run_pushes_the_image_from_main_only() -> None:
     )
 
 
+def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
+    """A tag is a pointer its publisher can move, a commit is not.
+
+    The version comment is what Dependabot reads to raise the pin.
+    """
+    pinned = re.compile(r"uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
+    loose = [
+        f"{workflow.name}: {line.strip()}"
+        for workflow in (REPO / ".github" / "workflows").glob("*.yml")
+        for line in workflow.read_text(encoding="utf-8").splitlines()
+        if "uses:" in line and not pinned.search(line)
+    ]
+
+    assert loose == []
+
+
 def test_compose_caps_the_log_docker_keeps() -> None:
     """Five files of 10 MB, the json-file driver's own rotation.
 
