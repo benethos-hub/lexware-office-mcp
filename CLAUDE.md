@@ -67,35 +67,35 @@ src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
   cli.py          # the console script: arguments, --tools, setup, what a start reports
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
+  errors.py       # the ToolError hierarchy, and redact
   settings/       # settings resolution, credential lookup
     __init__.py   # Settings, load_settings, the defaults
     locations.py  # where configuration lives, and which one file applies
     parse.py      # one setting's raw text -> its value
     envfile.py    # reading and writing a .env, comments left alone
+  logbook/        # every line on stderr, and what a line may never carry
+                  # output (the handler, the levels), access (uvicorn),
+                  # the catalogue: lifecycle, policy, api, calls, files,
+                  # configui, and tally, which counts a tool call's API calls
+  records/        # the shape of the data between the model and the API
+    payloads.py   # tool arguments -> API request bodies
+    formatting.py # API JSON -> compact tool output
+    types.py      # every Literal and model a tool's schema is built from
   api/            # everything that talks to Lexware
     connection.py # ALL HTTP access: auth, retries, error mapping
     client.py     # LexwareClient: one method per endpoint, on a connection
     ratelimit.py  # the one token bucket, clock injectable for tests
     refusal.py    # a refused answer read into a ToolError
-  policy.py       # the tool policy file, and what a tool declares itself to be
-  records/        # the shape of the data between the model and the API
-    payloads.py   # tool arguments -> API request bodies
-    formatting.py # API JSON -> compact tool output
-    types.py      # every Literal and model a tool's schema is built from
   files/          # what becomes of a file, behind the files tools
     storage.py    # where downloads land, filenames made safe first, uploads read
     resources.py  # downloads published as MCP resources for the client
     rendering.py  # PDF pages -> PNG, the only module touching pypdfium2
     delivery.py   # a download as an answer: a link, or text, image, pages, blob
-  errors.py       # the ToolError hierarchy, and redact
+  policy.py       # the tool policy file, and what a tool declares itself to be
   transport/      # how a client reaches the server
     stdio.py      # the default: the client owns the process
     http.py       # the bearer guard, a generated token, the host allowlist
     watch.py      # ending the process when its settings file changes
-  logbook/        # every line on stderr, and what a line may never carry
-                  # output (the handler, the levels), access (uvicorn),
-                  # the catalogue: lifecycle, policy, api, calls, files,
-                  # configui, and tally, which counts a tool call's API calls
   configui/       # the local configuration interface, `setup` serves it
                   # render, assets, state, cost, probe, stamp, profiles,
                   # transfer, pages, actions, app - never part of the
