@@ -186,6 +186,23 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     assert loose == []
 
 
+def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
+    """By tag for the reader and Dependabot, by digest for the content."""
+    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    pulled = re.findall(r"^(?:FROM|COPY --from=)\s*(\S+)", dockerfile, re.MULTILINE)
+    # A stage of this file is named without a registry or a tag.
+    external = [image for image in pulled if ":" in image or "/" in image]
+
+    assert len(external) == 3
+    assert all(re.search(r":[\w.-]+@sha256:[0-9a-f]{64}$", image) for image in external)
+
+
+def test_no_frontend_is_pulled_by_a_moving_tag() -> None:
+    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+
+    assert not re.search(r"^#\s*syntax=", dockerfile, re.MULTILINE)
+
+
 def test_compose_caps_the_log_docker_keeps() -> None:
     """Five files of 10 MB, the json-file driver's own rotation.
 

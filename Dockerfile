@@ -1,15 +1,21 @@
-# syntax=docker/dockerfile:1
-
 # Two stages. The first installs the locked dependencies and this package into
 # a virtual environment, the second copies that environment into an image that
 # carries no build tools, no lockfile and no sources.
+#
+# Both images it starts from are pinned by digest as well as tag. A tag is a
+# pointer its publisher can move, the digest is the content itself, so a
+# rebuild of the same commit gets the same bytes. The tag stays for the
+# reader and for Dependabot, which raises the digest when the tag moves.
+#
+# There is no `# syntax=` line on purpose. It pulls a frontend image by a
+# moving tag on every build, the one pull the pins would not cover, and
+# nothing here needs more than the frontend built into BuildKit.
 
 # ---- builder ---------------------------------------------------------------
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS builder
 
-# The uv binary from its own image, pinned to a minor line so a rebuild is
-# reproducible enough to be worth repeating.
-COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /usr/local/bin/uv
+# The uv binary from its own image.
+COPY --from=ghcr.io/astral-sh/uv:0.12@sha256:a7aed3216253ee804de3e2d8afa5073baa1a177335345d43845cd4165e43b711 /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -29,7 +35,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
 # ---- runtime ---------------------------------------------------------------
-FROM python:3.14-slim AS runtime
+FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS runtime
 
 # **Why this binds 0.0.0.0.** A process on the container's own loopback cannot
 # be reached through a published port at all - Docker forwards to the

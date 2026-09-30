@@ -2581,17 +2581,18 @@ order:
    so alone named an exact version. `tests/test_packaging.py` refuses a
    `uses:` without a commit.
 
-   **The images still follow a floating tag**, decided 2026-08-23. The base
-   image is `python:3.14-slim` and the uv binary comes from
-   `ghcr.io/astral-sh/uv:0.12`. These follow their line rather
-   than a digest, which means a security fix arrives without anyone acting -
-   and that a build from today is not bit-for-bit the build from last week. Pinning digests reverses that
-   trade: reproducible, and every patch waits for a pull request. For an image
-   that holds an accounting credential, arriving patches are worth more than
-   reproducible bytes, and nothing here needs a byte-identical rebuild to
-   prove anything.
+   **The images are pinned by digest as well as tag**, decided the same day:
+   `python:3.14-slim@sha256:…` in both stages and
+   `ghcr.io/astral-sh/uv:0.12@sha256:…`. Until then they followed their
+   line, decided 2026-08-23 on the argument that a security fix then arrives
+   without anyone acting. The trade is now the other way round: a rebuild
+   of the same commit gets the same bytes, nothing a publisher moves reaches
+   the image unseen, and a patch waits for the weekly pull request and its
+   merge. The `# syntax=` line went with it, because it pulled a frontend
+   image by a moving tag on every build. `tests/test_packaging.py` refuses
+   an image without a digest and the line coming back.
 
-   What makes that safe to say is that all three are watched.
+   What makes that bearable is that all three are watched.
    `.github/dependabot.yml` covers the declared ranges, the actions and, since
    2026-08-23, the container base image - the one that ages silently, because
    an out-of-date base is not a build failure but unpatched system packages
