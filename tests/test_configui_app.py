@@ -935,3 +935,27 @@ def test_a_taken_port_is_one_line_and_no_traceback(
     err = capsys.readouterr().err
     assert "--port" in err
     assert "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    ("path", "form"),
+    [
+        ("/credentials", {"api_key": "a-new-key", "unchecked": "1"}),
+        ("/bearer", {"action": "generate"}),
+    ],
+)
+def test_a_save_beside_a_broken_setting_says_it_was_written(
+    browser: Browser, installation: Installation, path: str, form: dict[str, str]
+) -> None:
+    """The file already held a value the server refuses, which is not this save's.
+
+    The write succeeds, and reading the settings back afterwards fails on the
+    other value. The page says both.
+    """
+    installation.env_path.write_text("LXO_MCP_PAGE_SIZE=many\n", encoding="utf-8")
+
+    status, body, _ = browser.post(path, form)
+
+    assert status == 200
+    assert "LXO_MCP_PAGE_SIZE" in note(body)
+    assert re.search("geschrieben|gespeichert", note(body))

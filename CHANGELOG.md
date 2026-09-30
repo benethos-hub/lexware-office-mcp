@@ -110,6 +110,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **Saving in the configuration interface no longer ends without an
+  answer** when the `.env` already held a value the server refuses. The key
+  or the token was written, reading the settings back failed on the other
+  value, and the browser got a dropped connection. The page now says it was
+  written and quotes why the server would refuse the file.
 - **On Windows, `setup` no longer starts on a port already in use.** It
   bound the port anyway, and the browser kept talking to whatever had it
   first - an interface started earlier, or another program - which then
