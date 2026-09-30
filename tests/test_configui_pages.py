@@ -306,6 +306,13 @@ def test_a_value_from_the_command_line_is_not_called_a_default(
     assert "aus: Aufruf" in text(pages.overview(inst))
 
 
+def test_it_stays_the_command_line_after_a_save(inst: Installation) -> None:
+    """A save reloads the settings, from files and the environment only."""
+    inst.reload()
+
+    assert "aus: Aufruf" in text(pages.overview(inst))
+
+
 def test_an_environment_variable_outranking_a_file_is_marked(
     inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:

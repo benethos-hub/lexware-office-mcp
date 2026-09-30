@@ -110,6 +110,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **A policy file named with `--tools-file` stays marked as named** in the
+  configuration interface after a save. Saving anything read the settings
+  again, and the badge switched to "Suche" although the file had not
+  changed.
 - **JSON nested deeper than Python's stack is an unreadable file**, not a
   crash: an imported policy in the configuration interface, the policy file
   a server reads, which then enables nothing as for any broken file, and

@@ -68,6 +68,9 @@ class Installation:
         # environment and would otherwise lose a path named on the command
         # line.
         self._policy_path = self.settings.policy_file()
+        # Whether something named it, for the same reason: `reload` reads
+        # files and the environment, and a --tools-file is in neither.
+        self._policy_named = self.settings.tool_policy_path is not None
 
     @property
     def policy_path(self) -> Path:
@@ -138,11 +141,7 @@ class Installation:
         if self.source_file(key, env) is not None:
             return FILE_SOURCE
         if key == POLICY_KEY:
-            return (
-                CLI_SOURCE
-                if self.settings.tool_policy_path is not None
-                else SEARCH_SOURCE
-            )
+            return CLI_SOURCE if self._policy_named else SEARCH_SOURCE
         return DEFAULT_SOURCE
 
     def source_file(self, key: str, env: dict[str, str] | None = None) -> Path | None:
@@ -168,7 +167,7 @@ class Installation:
         if supplier is not None:
             return str(supplier)
         if key == POLICY_KEY:
-            if self.settings.tool_policy_path is not None:
+            if self._policy_named:
                 return "Mit --tools-file auf der Kommandozeile benannt."
             return "Beim Start gesucht und seitdem festgehalten."
         return ""
