@@ -20,6 +20,51 @@ housekeeping are out of scope here — design decisions live in
   HTTP request, refused ones included, and Docker kept all of it for as long
   as the container existed, restarts included. The README's `docker run`
   example sets the same cap.
+- **A search term no longer reaches the log.** At `INFO` httpx wrote every
+  API request with its whole URL, so a `search_contacts` left the name or
+  email address it looked for on stderr, and in a container's log for as
+  long as Docker kept it. `LXO_MCP_LOG_LEVEL` now sets the level of this
+  server's own lines only. httpx, httpcore and the MCP SDK stay at
+  `WARNING` whatever it says, and there is no setting to lower them.
+- **Over HTTP, uvicorn's line per request moved from stdout to stderr**, and
+  lost its query string. At `INFO` it appears only for a refused request,
+  one answered with 400 or above, which carries the client address that
+  tried. `DEBUG` shows every request.
+- **The first line says which version started over which transport**, and a
+  line at `INFO` says when the tool list changed and how many clients were
+  told. A broken policy or profile file is named with the reason it could
+  not be read - the error's class, and the system's reason or the position
+  in the JSON - rather than with the error's whole text.
+- **Every API call is a line of this server's own at `DEBUG`**, in place of
+  the one httpx wrote: method, path, status, milliseconds, which attempt,
+  and how long it waited for the rate limiter. The path shows resource names
+  and ids and nothing else. A retry, the circuit breaker holding requests
+  back and a rejected API key are each a `WARNING`.
+- **Every tool call is a line at `INFO`**: what it read or wrote, how many
+  API calls it made and how long it took - `search_contacts read 12 rows in
+  1 API call, 230 ms`, `create_contact wrote <id> (version 0) in 1 API
+  call`, `create_sales_document wrote <id> (version 1, finalized)`. A line
+  names the record by its id, a list by its count of rows and a download by
+  its size, and never carries an argument, an answer or a file name. A call
+  that was refused or failed is a `WARNING` naming the error's class, and
+  for a refusal by the API its status and error codes: `update_voucher
+  refused: ConflictError 406 version: invalid_value`. Arguments that do not
+  match a tool's schema are named by field.
+- **The configuration interface leaves a trace of what it changed.** Saving
+  the API key, the bearer token, a setting, the tool policy or a profile is
+  a line on stderr, and switching on a tool that can write is a `WARNING`
+  that names it. So is a request one of its guards refused, and a file it
+  could not write. The key, the token and a setting's value are never in a
+  line, only which setting changed. The pages keep no request log.
+
+### Fixed
+
+- **`LXO_MCP_LOG_LEVEL` and `--log-level` take effect.** They were ignored:
+  the MCP SDK put a handler of its own on the root logger when the server
+  module was imported, before the setting was read, so the level stayed at
+  the SDK's `INFO` whatever it said, and every line was wrapped to the width
+  of a console. That handler is no longer left in place, whichever kind the
+  SDK installed, and each line appears once, on one line.
 
 ## [0.3.0] - 2026-09-27
 

@@ -22,12 +22,12 @@ profile is loaded.
 from __future__ import annotations
 
 import json
-import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .. import logbook
 from .stamp import now
 
 __all__ = [
@@ -37,8 +37,6 @@ __all__ = [
     "ProfileStore",
     "profile_file",
 ]
-
-logger = logging.getLogger(__name__)
 
 PROFILE_FILE_NAME = "tool_profiles.json"
 
@@ -180,7 +178,7 @@ class ProfileStore:
             # An unreadable profile file must not take the interface down with
             # it: profiles are a convenience, and the permissions themselves
             # live in another file entirely.
-            logger.warning("Unreadable profiles at %s: %s", self._path, exc)
+            logbook.configui.profiles_unreadable(self._path, exc)
             return {}
         return data if isinstance(data, dict) else {}
 

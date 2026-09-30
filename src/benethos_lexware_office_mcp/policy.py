@@ -29,12 +29,12 @@ from __future__ import annotations
 import functools
 import inspect
 import json
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
+from . import logbook
 from .errors import PermissionDeniedError
 
 __all__ = [
@@ -50,8 +50,6 @@ __all__ = [
     "known_tools",
     "preset",
 ]
-
-logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -174,12 +172,7 @@ def flags_from(data: dict[Any, Any], source: str = "tool policy") -> dict[str, b
     flags: dict[str, bool] = {}
     for key, value in data.items():
         if not isinstance(value, bool):
-            logger.warning(
-                "%s: %r is %r, which is not true or false - reading it as false.",
-                source,
-                key,
-                value,
-            )
+            logbook.policy.not_a_flag(source, str(key), value)
         flags[str(key)] = value is True
     return flags
 
@@ -214,10 +207,10 @@ class ToolPolicy:
             # The file is edited by hand and by other programs, so a broken one
             # must not stop the server. It must not grant anything either: an
             # unreadable policy enables nothing, and says so on stderr.
-            logger.warning("Unreadable tool policy %s: %s", self._path, exc)
+            logbook.policy.unreadable(self._path, exc)
             return {}
         if not isinstance(data, dict):
-            logger.warning("Tool policy %s is not an object, ignoring it.", self._path)
+            logbook.policy.not_an_object(self._path)
             return {}
         return flags_from(data, source=str(self._path))
 

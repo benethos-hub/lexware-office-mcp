@@ -14,16 +14,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
-import logging
 from typing import Any
 
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
+from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
 from mcp.server.session import ServerSession
 from mcp.types import Resource, Tool
+from pydantic import ValidationError as ArgumentError
 
-from . import __version__, resources
+from . import __version__, logbook, resources
 from .client import ClientProvider
 from .config import (
     Settings,
@@ -33,8 +34,6 @@ from .config import (
 from .errors import ConfigError
 from .policy import ToolPolicy
 from .tools import register_tools
-
-logger = logging.getLogger(__name__)
 
 # How often the watcher looks at the policy file. Short enough that a change
 # made in the browser feels immediate, long enough that reading a few hundred
@@ -113,6 +112,28 @@ class PolicyServer(MCPServer):
         tools = await super().list_tools()
         return [tool for tool in tools if allowed.get(tool.name, False)]
 
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any], context: Any = None
+    ) -> Any:
+        """Call a tool, and note a call whose arguments never reached it.
+
+        Every other outcome is noted by the wrapper each tool is registered
+        with, see ``tools._base.logged``. Arguments that fail the schema are
+        refused before the tool runs, so that wrapper never hears of them,
+        and the SDK's own line for them is held back with the rest of its
+        INFO. The line names the fields, never what was in them.
+        """
+        try:
+            return await super().call_tool(name, arguments, context)
+        except SDKToolError as exc:
+            cause = exc.__cause__
+            if isinstance(cause, ArgumentError):
+                fields = sorted(
+                    {".".join(str(part) for part in e["loc"]) for e in cause.errors()}
+                )
+                logbook.calls.arguments_refused(name, fields)
+            raise
+
     @property
     def policy(self) -> ToolPolicy:
         """The file this server answers to, for listing and for every call."""
@@ -177,6 +198,7 @@ class PolicyServer(MCPServer):
 
     async def _announce(self) -> None:
         """Tell every live session, and forget the ones that are not."""
+        told = 0
         for session in list(self._sessions):
             try:
                 await session.send_tool_list_changed()
@@ -184,8 +206,11 @@ class PolicyServer(MCPServer):
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
                 # the only trace it would leave.
-                logger.debug("Could not notify a session, dropping it: %s", exc)
+                logbook.policy.session_dropped(exc)
                 self._sessions.discard(session)
+            else:
+                told += 1
+        logbook.policy.list_changed(told)
 
     async def stop_watching(self) -> None:
         """Cancel the watcher. For shutdown, and for tests."""
@@ -237,7 +262,13 @@ def build_server(
 # nothing, with default settings. Default on purpose: this runs on import,
 # before `--version` or `setup` has been parsed, and a bad value in somebody's
 # environment must not stop either of them.
-register_tools(MCPServer(name="registry"), Settings(), ClientProvider(Settings()))
+#
+# The SDK configures logging whenever it builds a server, and this is the one
+# built before the command line is read, so what it put on the root logger is
+# taken off again, see `logbook.output.untouched_root`.
+with logbook.output.untouched_root():
+    _registry = MCPServer(name="registry")
+register_tools(_registry, Settings(), ClientProvider(Settings()))
 
 _inspected: PolicyServer | None = None
 

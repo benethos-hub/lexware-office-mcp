@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.cookiejar
 import json
+import logging
 import re
 import socket
 import threading
@@ -16,6 +17,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 
 import pytest
@@ -800,3 +802,108 @@ def test_an_overwrite_that_cannot_be_written_is_reported(
 
     assert "nicht schreiben: Permission denied" in note(body)
     assert installation.profiles.all()["Nur Lesen"].tools == ("get_profile",)
+
+
+# -- what reaches stderr ----------------------------------------------------
+
+
+@pytest.fixture
+def lines(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
+    caplog.set_level(logging.INFO, logger="benethos_lexware_office_mcp")
+    return caplog
+
+
+def test_a_saved_key_is_a_line_and_the_key_is_not(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    browser.post("/credentials", {"api_key": "a-new-key-0123456789"})
+
+    assert "API key written to .env, checked against the account first" in lines.text
+    assert "a-new-key" not in lines.text
+
+
+def test_a_key_the_account_refused_is_a_warning(
+    browser: Browser, lines: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe, "check", lambda settings: (None, "abgelehnt"))
+
+    browser.post("/credentials", {"api_key": "wrong-key-0123456789"})
+
+    assert "API key not saved: the account refused it" in lines.text
+    assert "wrong-key" not in lines.text
+
+
+def test_a_generated_token_is_a_line_and_the_token_is_not(
+    browser: Browser, installation: Installation, lines: pytest.LogCaptureFixture
+) -> None:
+    browser.post("/bearer", {"action": "generate"})
+
+    token = read_env_file(installation.env_path)["LXO_MCP_BEARER_TOKEN"]
+    assert "Bearer token generated and written to .env" in lines.text
+    assert token not in lines.text
+
+
+def test_a_setting_is_named_and_its_value_is_not(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    browser.post("/settings", {"LXO_MCP_APP_BASE_URL": "https://app.example.test"})
+
+    assert "1 setting written to .env: LXO_MCP_APP_BASE_URL" in lines.text
+    assert "example.test" not in lines.text
+
+
+def test_switching_on_a_writing_tool_is_a_warning_that_names_it(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    browser.post("/permissions", {"action": "save", "tool": ["create_contact"]})
+
+    (record,) = [r for r in lines.records if "Tool policy" in r.getMessage()]
+    assert record.levelno == logging.WARNING
+    assert "1 of them able to change real accounting records: create_contact" in (
+        record.getMessage()
+    )
+
+
+def test_a_profile_created_and_deleted_leaves_two_lines(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    browser.post(
+        "/permissions",
+        {
+            "action": "profile-save",
+            "profile_name": "Nur Lesen",
+            "tool": ["get_profile"],
+        },
+    )
+    browser.post("/permissions", {"action": "profile-delete", "profile": "Nur Lesen"})
+
+    assert "Profile 'Nur Lesen' created with 1 tool" in lines.text
+    assert "Profile 'Nur Lesen' deleted" in lines.text
+
+
+@pytest.mark.parametrize(
+    ("check", "post"),
+    [
+        ("origin", {"origin": False}),
+        ("token", {"csrf": "nope"}),
+    ],
+)
+def test_a_refused_post_says_which_check_refused_it(
+    browser: Browser,
+    lines: pytest.LogCaptureFixture,
+    check: str,
+    post: dict[str, Any],
+) -> None:
+    browser.post("/permissions", {"action": "save"}, **post)
+
+    assert f"Request refused by the {check} check" in lines.text
+
+
+def test_a_write_that_failed_is_a_warning(
+    browser: Browser, installation: Installation, lines: pytest.LogCaptureFixture
+) -> None:
+    installation.policy_path.mkdir()
+
+    browser.post("/permissions", {"action": "save", "tool": ["get_profile"]})
+
+    assert f"Could not write {installation.policy_path}:" in lines.text

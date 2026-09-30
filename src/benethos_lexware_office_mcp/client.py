@@ -25,21 +25,19 @@ will not be performed" — the one failure mode whose outcome is certain.
 from __future__ import annotations
 
 import asyncio
-import logging
 import math
 import random
+import time
 from types import TracebackType
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-from . import __version__
+from . import __version__, logbook
 from .config import DEFAULT_PAGE_SIZE, Settings
 from .errors import RateLimitError, UpstreamError, ValidationError, from_response
 from .ratelimit import Sleeper, TokenBucket
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["ClientProvider", "LexwareClient"]
 
@@ -171,7 +169,12 @@ class LexwareClient:
         maybe_done = False
 
         for attempt in range(MAX_ATTEMPTS):
+            number = attempt + 1
+            queued_at = time.perf_counter()
             await self._bucket.acquire()
+            logbook.tally.api_call()
+            sent_at = time.perf_counter()
+            queued = (sent_at - queued_at) * 1000
             try:
                 response = await self._http.request(
                     method,
@@ -183,21 +186,23 @@ class LexwareClient:
                     headers=headers,
                 )
             except httpx.TimeoutException as exc:
+                logbook.api.unanswered(method, path, exc, _since(sent_at), number)
                 # Not a 429, so the streak the breaker counts is over. Left
                 # standing, two 429s either side of a timeout would trip it.
                 self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
                     maybe_done = True
-                    await self._backoff(attempt)
+                    await self._retry(method, path, attempt, error=exc)
                     continue
                 raise UpstreamError(
                     f"{method} {path} timed out.", outcome_unknown=not retryable
                 ) from exc
             except httpx.TransportError as exc:
+                logbook.api.unanswered(method, path, exc, _since(sent_at), number)
                 self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
                     maybe_done = True
-                    await self._backoff(attempt)
+                    await self._retry(method, path, attempt, error=exc)
                     continue
                 raise UpstreamError(
                     f"{method} {path} could not be completed: {exc}.",
@@ -205,12 +210,14 @@ class LexwareClient:
                 ) from exc
 
             status = response.status_code
+            logbook.api.answered(method, path, status, _since(sent_at), number, queued)
 
             if status == 429:
                 # Safe to repeat for any method: the call was not performed.
                 self._consecutive_429 += 1
                 if self._consecutive_429 >= BREAKER_THRESHOLD:
                     self._bucket.drain(BREAKER_COOLDOWN)
+                    logbook.api.breaker_tripped(self._consecutive_429, BREAKER_COOLDOWN)
                     self._consecutive_429 = 0
                     raise RateLimitError(
                         "Rate limited repeatedly. Pausing for "
@@ -219,23 +226,33 @@ class LexwareClient:
                         "another client may be spending it too."
                     )
                 if attempt < last_attempt:
-                    await self._backoff(attempt, response.headers.get("Retry-After"))
+                    await self._retry(
+                        method,
+                        path,
+                        attempt,
+                        status=status,
+                        retry_after=response.headers.get("Retry-After"),
+                    )
                     continue
-                raise RateLimitError(
+                limited = RateLimitError(
                     "Rate limited. Retrying did not clear it, try again shortly."
                 )
+                limited.status = status
+                raise limited
 
             self._consecutive_429 = 0
 
             if status >= 500:
                 if retryable and attempt < last_attempt:
                     maybe_done = True
-                    await self._backoff(attempt)
+                    await self._retry(method, path, attempt, status=status)
                     continue
-                raise UpstreamError(
+                failed = UpstreamError(
                     f"The API returned {status} for {method} {path}.",
                     outcome_unknown=not retryable,
                 )
+                failed.status = status
+                raise failed
 
             if status == 404 and method == "DELETE" and maybe_done:
                 # The retry of a delete finding nothing is the delete having
@@ -244,6 +261,8 @@ class LexwareClient:
                 # existed, right after this call destroyed it.
                 return response
 
+            if status == 401:
+                logbook.api.key_rejected()
             if status >= 400:
                 raise from_response(response, method, path)
 
@@ -677,28 +696,54 @@ class LexwareClient:
 
     # -- internals --------------------------------------------------------
 
-    async def _backoff(self, attempt: int, retry_after: str | None = None) -> None:
-        """Wait before the next attempt, honouring Retry-After when present."""
-        delay = min(BACKOFF_BASE * (2**attempt), BACKOFF_CAP)
-        if retry_after:
-            try:
-                asked = float(retry_after)
-            except ValueError:
-                # A Retry-After can also be an HTTP date. Falling back to the
-                # computed delay is better than failing to back off at all.
-                logger.debug("Unparsable Retry-After: %r", retry_after)
-            else:
-                # Honoured up to the cap and no further. This wait happens
-                # inside a tool call, so `86400` would hold it for a day and
-                # `inf` for ever - better to say so and let the caller decide.
-                if not math.isfinite(asked) or asked > BACKOFF_CAP:
-                    raise RateLimitError(
-                        f"Rate limited, and the API asked to wait {retry_after} "
-                        "seconds, longer than this call waits. Try again later."
-                    )
-                delay = max(delay, asked)
-        # Jitter, so that several waiters do not resume in lockstep.
-        await self._sleep(delay * (0.5 + random.random() / 2))
+    async def _retry(
+        self,
+        method: str,
+        path: str,
+        attempt: int,
+        *,
+        status: int = 0,
+        error: BaseException | None = None,
+        retry_after: str | None = None,
+    ) -> None:
+        """Say why the next attempt follows, then wait for it."""
+        wait = _backoff(attempt, retry_after)
+        if error is not None:
+            logbook.api.retrying_error(method, path, error, wait, attempt + 2)
+        else:
+            logbook.api.retrying_status(method, path, status, wait, attempt + 2)
+        await self._sleep(wait)
+
+
+def _since(started: float) -> float:
+    """Milliseconds since ``started``, a ``perf_counter`` reading."""
+    return (time.perf_counter() - started) * 1000
+
+
+def _backoff(attempt: int, retry_after: str | None = None) -> float:
+    """How long to wait before the next attempt, Retry-After honoured."""
+    delay = min(BACKOFF_BASE * (2**attempt), BACKOFF_CAP)
+    if retry_after:
+        try:
+            asked = float(retry_after)
+        except ValueError:
+            # A Retry-After can also be an HTTP date. Falling back to the
+            # computed delay is better than failing to back off at all.
+            logbook.api.retry_after_unreadable()
+        else:
+            # Honoured up to the cap and no further. This wait happens
+            # inside a tool call, so `86400` would hold it for a day and
+            # `inf` for ever - better to say so and let the caller decide.
+            if not math.isfinite(asked) or asked > BACKOFF_CAP:
+                logbook.api.retry_after_too_long(asked)
+                raise RateLimitError(
+                    f"Rate limited, and the API asked to wait {retry_after} "
+                    "seconds, longer than this call waits. Try again later."
+                )
+            logbook.api.retry_after_honoured(asked)
+            delay = max(delay, asked)
+    # Jitter, so that several waiters do not resume in lockstep.
+    return delay * (0.5 + random.random() / 2)
 
 
 class ClientProvider:

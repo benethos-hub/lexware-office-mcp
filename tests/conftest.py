@@ -8,13 +8,17 @@ report about one laptop rather than about the code.
 
 from __future__ import annotations
 
+import logging
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp import server as _server  # noqa: F401
+from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER
+from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 
 
@@ -41,6 +45,32 @@ def policy_file_off_this_machine(
     ToolPolicy(target).save(dict.fromkeys(known_tools(), True))
     monkeypatch.setattr(config, "tool_policy_file", lambda: target)
     return target
+
+
+@pytest.fixture(autouse=True)
+def logging_as_it_was() -> Iterator[None]:
+    """Undo whatever a test's call of `logbook.configure` did to logging.
+
+    Levels, handlers and filters live on loggers that belong to the process,
+    not to a test. A test that starts the server at WARNING would otherwise
+    leave this package at WARNING for every test after it, and a line that
+    one of those expects would go missing depending on the order they ran in.
+    """
+    names = ["", PACKAGE, *LIBRARIES, "uvicorn.error", ACCESS_LOGGER]
+    saved = {
+        name: (
+            logging.getLogger(name).level,
+            list(logging.getLogger(name).handlers),
+            list(logging.getLogger(name).filters),
+        )
+        for name in names
+    }
+    yield
+    for name, (level, handlers, filters) in saved.items():
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        logger.handlers[:] = handlers
+        logger.filters[:] = filters
 
 
 @pytest.fixture

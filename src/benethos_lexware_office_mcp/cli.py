@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import logging
 import secrets
 import sys
 from pathlib import Path
 from typing import cast
 
-from . import __version__, configui
+from . import __version__, configui, logbook
 from .config import (
     LOG_LEVELS,
     LOOPBACK_NAMES,
@@ -40,8 +39,6 @@ from .server import build_server
 from .transport import require_bearer, run_http
 
 __all__ = ["main"]
-
-logger = logging.getLogger(__name__)
 
 
 # Written for someone reading it in a terminal for the first time. The
@@ -394,11 +391,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
             raise SystemExit(2)
         settings = dataclasses.replace(settings, tool_policy_path=named)
 
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    logbook.configure(args.log_level)
 
     if args.settings_sample:
         print(settings_sample(), end="")
@@ -434,6 +427,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
         require_bearer(settings)
 
     server = build_server(settings)
+    logbook.lifecycle.started(__version__, settings.transport)
     _report_what_is_enabled(server.policy)
 
     if settings.transport == "stdio":
@@ -448,7 +442,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
     # whole of it.
     watch = _env_in_effect(named_env) if settings.exit_on_config_change else None
     if watch is not None:
-        logging.getLogger(__name__).info("Ending on a change to %s", watch.name)
+        logbook.lifecycle.ending_on_change(watch.name)
     run_http(server, settings, watch=watch)
 
 
@@ -471,11 +465,7 @@ def _bearer_token_in_place(settings: Settings, env_path: Path) -> Settings:
     token = secrets.token_urlsafe(32)
     update_env_file(env_path, {"LXO_MCP_BEARER_TOKEN": token})
     register_secret(token)
-    logging.getLogger(__name__).warning(
-        "No bearer token was set, so one was generated and written to %s. "
-        "The configuration interface shows it - a client needs it to connect.",
-        env_path.name,
-    )
+    logbook.lifecycle.token_generated(env_path.name)
     return dataclasses.replace(settings, bearer_token=token)
 
 
@@ -501,21 +491,11 @@ def _report_where_it_listens(settings: Settings) -> None:
     more than being told what to type: 0.0.0.0 in a container is right, and
     on a laptop it is a mistake nobody meant to make.
     """
-    log = logging.getLogger(__name__)
-    log.info(
-        "%s on http://%s:%s%s, bearer token required",
-        settings.transport,
-        settings.http_host,
-        settings.http_port,
-        settings.http_path,
+    logbook.lifecycle.listening(
+        settings.transport, settings.http_host, settings.http_port, settings.http_path
     )
     if settings.http_host not in LOOPBACK_NAMES:
-        log.warning(
-            "Bound to %s, so this port is reachable from outside this machine. "
-            "In a container that is what the published port is for. Anywhere "
-            "else, the bearer token is the only thing in the way.",
-            settings.http_host,
-        )
+        logbook.lifecycle.reachable_from_outside(settings.http_host)
 
 
 def _report_what_is_enabled(policy: ToolPolicy) -> None:
@@ -525,29 +505,12 @@ def _report_what_is_enabled(policy: ToolPolicy) -> None:
     list is simply empty. Naming the file and the command turns that into
     something a person can act on.
     """
-    enabled = [name for name, on in policy.as_map().items() if on]
     if not policy.exists():
-        logger.warning(
-            "No tool policy at %s, so no tools are offered. Create one with "
-            "--tools read-only, then enable what this account may be used for.",
-            policy.path,
-        )
+        logbook.lifecycle.no_policy(policy.path)
         return
+    assert policy.path is not None
+    enabled = [name for name, on in policy.as_map().items() if on]
     writers = [name for name in enabled if known_tools()[name].access == "write"]
-    if writers:
-        logger.warning(
-            "%d of %d tools enabled, %d of them able to change real accounting "
-            "records: %s. Per %s.",
-            len(enabled),
-            len(known_tools()),
-            len(writers),
-            ", ".join(sorted(writers)),
-            policy.path,
-        )
-    else:
-        logger.info(
-            "%d of %d tools enabled, all read-only. Per %s.",
-            len(enabled),
-            len(known_tools()),
-            policy.path,
-        )
+    logbook.lifecycle.tools_enabled(
+        len(enabled), len(known_tools()), writers, policy.path
+    )

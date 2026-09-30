@@ -19,6 +19,7 @@ from urllib.parse import unquote
 
 import httpx
 
+from . import logbook
 from .config import Settings, download_dir
 from .errors import ValidationError
 
@@ -114,6 +115,7 @@ def save(content: bytes, name: str, directory: Path) -> Path:
         except FileExistsError:
             pass
         if candidate.is_file() and candidate.read_bytes() == content:
+            logbook.files.reused(len(content))
             return candidate
     # Without the directory: this message can reach the client, and where
     # downloads land on somebody's disk is not the caller's business. The

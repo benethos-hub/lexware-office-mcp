@@ -80,6 +80,10 @@ src/benethos_lexware_office_mcp/
   errors.py       # ToolError hierarchy, and an API refusal read into one
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
+  logbook/        # every line on stderr, and what a line may never carry
+                  # output (the handler, the levels), access (uvicorn),
+                  # the catalogue: lifecycle, policy, api, calls, files,
+                  # configui, and tally, which counts a tool call's API calls
   configui/       # the local configuration interface, `setup` serves it
                   # render, state, cost, probe, stamp, profiles,
                   # transfer, pages, app - never part of the server process
@@ -117,7 +121,8 @@ new HTTP call goes in `client.py`, never in a tool function.
    body in `payloads.py`, never inline: an update has to read the record and
    merge, because the API replaces rather than patches.
 3. Expose it in the matching `tools/` module, then write the docstring by the
-   rule below.
+   rule below. It writes no log line of its own: the wrapper
+   `register_tool` puts around every tool writes one per call.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds.
 5. Classify it with `@classify(access, domain)` — `read` or `write`, plus
@@ -321,6 +326,12 @@ fallen behind, so the list is short on purpose. In this order:
 - Surface expected failures as `ToolError` subclasses with concise messages.
   Never leak a raw traceback to the client.
 - Keep responses small. The client's token budget is a real constraint.
+- **Log through `logbook/` and nowhere else.** Every line is a function in
+  one of its catalogue modules, with parameters drawn from the vocabulary in
+  `tests/test_logbook_catalog.py`, and no other module imports `logging`. A
+  line never carries an argument, an answer, a query string or the text of
+  one of this server's own errors. The package docstring says what it may
+  carry.
 - **No semicolons in prose** — README, docstrings, commit messages, docs. Code
   is unaffected.
 - `CHANGELOG.md` gets an entry under `[Unreleased]` in the same commit as the

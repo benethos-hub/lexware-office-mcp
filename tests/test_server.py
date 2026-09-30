@@ -156,6 +156,24 @@ def test_starting_with_write_tools_on_says_which_ones(
     assert "change real accounting records" in caplog.text
 
 
+def test_starting_says_which_version_over_which_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.load_settings",
+        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer([], settings),
+    )
+
+    with caplog.at_level("INFO"):
+        main([])
+
+    assert f"{__version__} started over stdio" in caplog.text
+
+
 class _FakeServer:
     """Stands in for MCPServer so the test never opens stdio."""
 
