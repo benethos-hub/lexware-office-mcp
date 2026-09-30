@@ -27,8 +27,7 @@ from ..policy import classify
 from ..records import formatting
 from ..records.types import RESOURCES, Delivered, Download, Format
 from ..settings import MAX_PDF_PAGES, Settings
-from ._base import register_tool
-from .sales_documents import DocumentIdField, DocumentTypeField
+from ._base import DocumentIdField, DocumentTypeField, register_tool
 
 __all__ = ["register"]
 

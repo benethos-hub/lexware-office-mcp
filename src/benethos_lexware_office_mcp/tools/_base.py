@@ -20,9 +20,17 @@ from pydantic import Field
 from .. import logbook
 from ..errors import ConflictError, ToolError
 from ..policy import ToolPolicy, guarded, known_tools
+from ..records.types import DocumentType
 from ..settings import MAX_PAGE_SIZE
 
-__all__ = ["PageNumber", "PageSize", "register_tool", "require_version"]
+__all__ = [
+    "DocumentIdField",
+    "DocumentTypeField",
+    "PageNumber",
+    "PageSize",
+    "register_tool",
+    "require_version",
+]
 
 # Every list tool takes the same two parameters, and every parameter
 # description is sent to the model on every request. Declaring them once keeps
@@ -49,6 +57,23 @@ PageSize = Annotated[
         ge=1,
         le=MAX_PAGE_SIZE,
     ),
+]
+
+# The sales document tools and `download_document` address the same seven
+# documents, so they share these two as well, for the same reason.
+DocumentTypeField = Annotated[
+    DocumentType,
+    Field(
+        description=(
+            "Which kind of document this is. Take it from the `voucherType` "
+            "search_vouchers reported, where a sales invoice is 'invoice'."
+        )
+    ),
+]
+
+DocumentIdField = Annotated[
+    str,
+    Field(description="The document's Lexware id, as returned by search_vouchers."),
 ]
 
 
