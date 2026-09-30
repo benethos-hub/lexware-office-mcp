@@ -394,6 +394,11 @@ class LexwareClient(Connection):
         file's own, and ``Content-Disposition`` names it ``{id}.{extension}``.
         Asking for ``application/xml`` when the file is a PDF is a 404 rather
         than a 406.
+
+        An image is not refused for its ``Accept``. Measured 2026-09-30 on an
+        uploaded PNG: ``application/pdf``, ``*/*`` and ``image/png`` each
+        answer 200 with the PNG as ``image/png``, so ``download_file`` needs
+        no image format of its own.
         """
         return await self.download(f"/v1/files/{_segment(file_id)}", accept)
 
