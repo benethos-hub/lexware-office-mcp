@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Security
+
+- **A key the configuration interface is checking is never shown back.**
+  A key typed into the form was tried before it was known as a secret, and
+  one with a line break or a NUL in it made the HTTP library refuse the
+  header and quote it, so the page showed `Bearer` and the key. It is
+  registered before it is tried, and a secret is also redacted where a
+  message quotes it escaped, as bytes.
+
 ### Changed
 
 - **The download directory keeps the last 100 documents.** Older downloads

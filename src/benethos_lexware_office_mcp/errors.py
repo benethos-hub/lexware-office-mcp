@@ -44,9 +44,15 @@ def register_secret(value: str | None) -> None:
 
     Short values are ignored: redacting a two-character string would mangle
     unrelated text without protecting anything.
+
+    The value is registered as it would be quoted, too. A library that
+    refuses a header value names it as bytes, ``b'Bearer abc\\x00def'``, and
+    the escaped form is not the string itself.
     """
     if value and len(value) >= 8:
         _SECRETS.add(value)
+        _SECRETS.add(repr(value)[1:-1])
+        _SECRETS.add(repr(value.encode("utf-8", "backslashreplace"))[2:-1])
 
 
 def redact(text: str) -> str:

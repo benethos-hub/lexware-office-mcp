@@ -58,6 +58,17 @@ def test_registered_secret_is_stripped_from_a_message() -> None:
     assert "<redacted>" in error.message
 
 
+def test_a_secret_quoted_as_bytes_is_stripped_too() -> None:
+    """How h11 names a header value it refuses to send."""
+    key = "super-secret\x00api-key\u200b"
+    register_secret(key)
+
+    quoted = f"Illegal header value {key.encode()!r}"
+
+    assert "super-secret" not in redact(quoted)
+    assert "super-secret" not in redact(repr(key))
+
+
 def test_short_values_are_not_registered() -> None:
     """Redacting a two-character string would mangle unrelated text."""
     register_secret("ab")

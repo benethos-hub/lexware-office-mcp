@@ -87,6 +87,26 @@ def test_the_key_is_never_in_the_message() -> None:
     assert "the-secret-key-value" not in message
 
 
+def test_a_key_the_client_refuses_to_send_is_not_quoted_back() -> None:
+    """A new key from the form, never registered before it is tried.
+
+    h11 refuses a header value with a line break or a NUL, and names the
+    whole header in its message, escaped as bytes.
+    """
+    key = "a-key-typed-into-the-form\x00with-a-nul"
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        value = request.headers["Authorization"].encode()
+        raise httpx.LocalProtocolError(f"Illegal header value {value!r}")
+
+    settings = Settings(api_key=key)
+    provider = ClientProvider(settings, transport=httpx.MockTransport(refuse))
+
+    _, message = probe.check(settings, provider)
+
+    assert "a-key-typed-into-the-form" not in message
+
+
 def test_a_machine_with_no_network_is_told_so() -> None:
     def refuse(_request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("nothing listening")

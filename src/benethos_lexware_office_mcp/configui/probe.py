@@ -19,7 +19,7 @@ import threading
 from dataclasses import dataclass
 
 from ..api.client import ClientProvider
-from ..errors import AuthError, ToolError, redact
+from ..errors import AuthError, ToolError, redact, register_secret
 from ..settings import Settings
 
 __all__ = ["Account", "check", "last_account"]
@@ -61,6 +61,10 @@ def check(
     """
     if not settings.api_key:
         return None, "Kein API-Schlüssel hinterlegt. Unter Zugangsdaten eintragen."
+    # A key typed into the form has not been through load_settings, which
+    # is where a key is otherwise registered. An error raised while asking
+    # with it is redacted when it is made, so this has to come first.
+    register_secret(settings.api_key)
     try:
         payload = asyncio.run(_ask(settings, provider))
     except AuthError as exc:
