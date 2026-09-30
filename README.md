@@ -548,7 +548,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default, at most 100 | `10` |
-| `LXO_MCP_LOG_LEVEL` | Log level on stderr | `INFO` |
+| `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. The libraries underneath stay at `WARNING` | `INFO` |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
 | `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport | — |
 | `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport | `127.0.0.1` |
@@ -621,9 +621,9 @@ each of its two services switch it to the published image, and that file is
 then the only thing you need from here.
 
 Docker keeps at most five log files of 10 MB for each service, the oldest
-dropped first. The server writes a line for every request it receives,
-refused ones included, so without a cap a reachable port would grow the log
-for as long as the container exists.
+dropped first. The server writes a line for every request it refuses, and at
+`DEBUG` for every one it receives, so without a cap a reachable port would
+grow the log for as long as the container exists.
 
 ### As single containers
 

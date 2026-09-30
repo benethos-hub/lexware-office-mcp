@@ -768,18 +768,18 @@ arriving.
   CI found it, as a rewrite of identical content ending the process for
   nothing - a race that needs a loaded machine, which a developer's is not.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
-  code never `print()` to stdout, all logging goes to stderr
-  (`logging.basicConfig(stream=sys.stderr)`).
+  code never `print()` to stdout, all logging goes to stderr through the one
+  handler `logbook.configure` installs, uvicorn's included.
 - **What Docker keeps of a container's output is capped**, since 2026-09-29:
   `compose.yaml` gives both services the `json-file` driver with five files
-  of 10 MB. Over HTTP stdout is not a protocol stream, and uvicorn writes one
-  access line to it per request, refused ones included, while this server's
-  own log goes to stderr - measured on the 0.3.0 image at about 60 bytes per
-  line on each. Without a cap Docker keeps all of it for the life of the
-  container, and a restart, whether `unless-stopped` or the watch above, is
-  the same container. The health check connects to the port without a
-  request and adds nothing. A `docker run` sets the same cap with
-  `--log-opt`, which the README shows.
+  of 10 MB. Over HTTP uvicorn writes an access line of about 60 bytes, on
+  stderr beside this server's own lines, for every refused request and at
+  `DEBUG` for every request - measured on the 0.3.0 image, when it still
+  wrote every one of them to stdout. Without a cap Docker keeps all of it
+  for the life of the container, and a restart, whether `unless-stopped` or
+  the watch above, is the same container. The health check connects to the
+  port without a request and adds nothing. A `docker run` sets the same cap
+  with `--log-opt`, which the README shows.
 - **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
   `--env-file` today, plus the transport flags when HTTP arrives. `--mode` and
   `--download-dir` were planned here and never built: the mode is gone with
@@ -846,7 +846,7 @@ arriving.
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. Upstream holds 4, measured. | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
-| `LXO_MCP_LOG_LEVEL` | Log level on stderr. | `INFO` |
+| `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. httpx, httpcore and the SDK stay at `WARNING` whatever it says, because their `INFO` lines carry request URLs and error text. | `INFO` |
 
 Precedence, highest first: a real environment variable, `.env` in the working
 directory, `config/.env` in the working directory, `config/.env` of the source

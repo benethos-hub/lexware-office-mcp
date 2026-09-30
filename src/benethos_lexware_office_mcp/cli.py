@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from . import __version__, configui
+from . import __version__, configui, logbook
 from .config import (
     LOG_LEVELS,
     LOOPBACK_NAMES,
@@ -394,11 +394,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
             raise SystemExit(2)
         settings = dataclasses.replace(settings, tool_policy_path=named)
 
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    logbook.configure(args.log_level)
 
     if args.settings_sample:
         print(settings_sample(), end="")

@@ -45,6 +45,7 @@ __all__ = [
     "require_bearer",
     "run_http",
     "transport_security",
+    "uvicorn_config",
     "watch_for_change",
 ]
 
@@ -238,6 +239,25 @@ def _settled(
     return False, None
 
 
+def uvicorn_config(app: ASGIApp, settings: Settings) -> Any:
+    """How uvicorn serves ``app``, with its logging left to :mod:`.logbook`.
+
+    uvicorn configures logging of its own unless told not to: a handler on
+    stdout for its request lines, and levels that follow whatever it was
+    given. ``log_config=None`` and no ``log_level`` leave both alone, so its
+    lines reach the one handler on stderr, through the filter that takes the
+    query string out and keeps only refused requests below DEBUG.
+    """
+    import uvicorn
+
+    return uvicorn.Config(
+        app,
+        host=settings.http_host,
+        port=settings.http_port,
+        log_config=None,
+    )
+
+
 def run_http(
     server: MCPServer,
     settings: Settings,
@@ -247,14 +267,7 @@ def run_http(
     """Serve over HTTP until interrupted, or until ``watch`` changes."""
     import uvicorn
 
-    running = uvicorn.Server(
-        uvicorn.Config(
-            http_app(server, settings),
-            host=settings.http_host,
-            port=settings.http_port,
-            log_level=settings.log_level.lower(),
-        )
-    )
+    running = uvicorn.Server(uvicorn_config(http_app(server, settings), settings))
 
     stop = threading.Event()
     if watch is not None:

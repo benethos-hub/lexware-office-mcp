@@ -20,6 +20,16 @@ housekeeping are out of scope here — design decisions live in
   HTTP request, refused ones included, and Docker kept all of it for as long
   as the container existed, restarts included. The README's `docker run`
   example sets the same cap.
+- **A search term no longer reaches the log.** At `INFO` httpx wrote every
+  API request with its whole URL, so a `search_contacts` left the name or
+  email address it looked for on stderr, and in a container's log for as
+  long as Docker kept it. `LXO_MCP_LOG_LEVEL` now sets the level of this
+  server's own lines only. httpx, httpcore and the MCP SDK stay at
+  `WARNING` whatever it says, and there is no setting to lower them.
+- **Over HTTP, uvicorn's line per request moved from stdout to stderr**, and
+  lost its query string. At `INFO` it appears only for a refused request,
+  one answered with 400 or above, which carries the client address that
+  tried. `DEBUG` shows every request.
 
 ## [0.3.0] - 2026-09-27
 

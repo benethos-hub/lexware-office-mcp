@@ -80,6 +80,8 @@ src/benethos_lexware_office_mcp/
   errors.py       # ToolError hierarchy, and an API refusal read into one
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
+  logbook/        # every line on stderr, and what a line may never carry
+                  # output (the handler, the levels), access (uvicorn)
   configui/       # the local configuration interface, `setup` serves it
                   # render, state, cost, probe, stamp, profiles,
                   # transfer, pages, app - never part of the server process
