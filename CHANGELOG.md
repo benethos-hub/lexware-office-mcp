@@ -23,7 +23,8 @@ housekeeping are out of scope here — design decisions live in
   moment a client asks, so a file removed from it is gone from both at once,
   and a server start no longer reads the whole directory. A download that
   finds its unchanged file already on disk counts as new and moves to the
-  top.
+  top. The configuration interface shows and edits the number beside the
+  download directory.
 - **`compose.yaml` caps what Docker keeps of the logs**: five files of 10 MB
   per service, the oldest dropped first. The server wrote a line for every
   HTTP request, refused ones included, and at `DEBUG` still does, see below.

@@ -235,6 +235,11 @@ SHOWN: tuple[Shown, ...] = (
     Shown(POLICY_KEY, "Rechtedatei", lambda i: str(i.policy_path)),
     Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda i: downloads_dir(i.settings)),
     Shown(
+        "LXO_MCP_LISTED_DOWNLOADS",
+        "Downloads in der Ressourcenliste",
+        lambda i: str(i.settings.listed_downloads),
+    ),
+    Shown(
         "LXO_MCP_UPLOAD_DIR",
         "Uploads nur aus",
         lambda i: str(i.settings.upload_path) if i.settings.upload_path else "überall",
