@@ -31,6 +31,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The container image is built on current dependencies**: sse-starlette
+  3.5.0, PyJWT 2.15.1 and platformdirs 4.12.2 in the lockfile the image is
+  built from. An installation from the index resolved these already.
 - **The download directory keeps the last 100 documents.** Older downloads
   are deleted when the server starts and after each download. Every document
   is still in Lexware Office, so one that is needed again is downloaded
