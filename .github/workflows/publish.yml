@@ -58,6 +58,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Before anything is built: a tag that is not the version in
+      # pyproject.toml has PyPI refuse the upload, while the image job would
+      # push the tag's version with the old code.
+      - name: The release tag is the package version
+        run: python3 .github/scripts/tag_matches_version.py
+
       # No `enable-cache` on purpose. The action's default disables the cache
       # for a `release` event, which is exactly this job: it holds the OIDC
       # identity that uploads to PyPI, and a restored cache is one more thing
@@ -98,6 +104,12 @@ jobs:
       packages: write # push to ghcr.io as the GITHUB_TOKEN identity
     steps:
       - uses: actions/checkout@v7
+
+      # The same check as the PyPI job. The two jobs are independent, so
+      # each has to refuse on its own. A manual run carries no tag.
+      - name: The release tag is the package version
+        if: github.event_name == 'release'
+        run: python3 .github/scripts/tag_matches_version.py
 
       # arm64 is emulated on an amd64 runner. Nothing in this image is compiled
       # from source - pypdfium2 ships a prebuilt PDFium for aarch64 and the rest

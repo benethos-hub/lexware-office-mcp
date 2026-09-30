@@ -2525,7 +2525,11 @@ order:
    `[Unreleased]` section to a numbered one with its compare links, bumps the
    version pin in the README's client example, and brings the installation
    instructions in line, then a tag and a GitHub release on the merged commit,
-   which is what triggers the upload.
+   which is what triggers the upload. **Both jobs first check that the tag is
+   the version in `pyproject.toml`**, with
+   `.github/scripts/tag_matches_version.py`: a tag ahead of the version has
+   PyPI refuse the upload, and without the check the image job would still
+   push the tag's version, its minor line and `latest` with the old code.
 5. **Publication of the image**, so that running this server in a container
    does not require cloning the repository first. The same workflow gained a
    second job that pushes `ghcr.io/benethos-hub/lexware-office-mcp` for

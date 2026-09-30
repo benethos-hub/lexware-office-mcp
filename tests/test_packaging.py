@@ -7,7 +7,10 @@ move at release time.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -110,6 +113,38 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
 # -- what Docker keeps of the output ----------------------------------------
 
 COMPOSE = REPO / "compose.yaml"
+
+
+def _tag_check(tag: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text('[project]\nversion = "0.3.0"\n', encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(REPO / ".github" / "scripts" / "tag_matches_version.py")],
+        env={**os.environ, "GITHUB_REF_NAME": tag, "PYPROJECT": str(pyproject)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_a_release_tag_that_is_the_version_passes(tmp_path: Path) -> None:
+    assert _tag_check("v0.3.0", tmp_path).returncode == 0
+
+
+def test_a_release_tag_ahead_of_the_version_fails(tmp_path: Path) -> None:
+    """PyPI would refuse it, and the image would go out under it anyway."""
+    done = _tag_check("v0.4.0", tmp_path)
+
+    assert done.returncode == 1
+    assert "::error::" in done.stdout
+
+
+def test_both_publish_jobs_check_the_tag() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 2
 
 
 def test_compose_caps_the_log_docker_keeps() -> None:
