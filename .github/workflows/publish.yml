@@ -7,7 +7,8 @@ name: Publish
 # The two jobs are independent, so a broken image push does not withhold the
 # upload to PyPI and neither waits on the other.
 #
-# `workflow_dispatch` runs the image half alone and tags the result `edge`.
+# `workflow_dispatch` runs the image half alone and tags the result `edge`,
+# from `main` only: `edge` is public, and the form offers every branch.
 # PyPI is skipped there: a version may be uploaded to PyPI exactly once, and a
 # manual run carries no release tag it could legitimately claim a version from.
 #
@@ -98,6 +99,8 @@ jobs:
 
   ghcr-publish:
     name: Build and publish the image
+    # A release, or a manual run on main. See the header.
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read

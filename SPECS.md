@@ -2538,7 +2538,8 @@ order:
    account and a stored secret. The two jobs are independent: a broken image
    does not withhold the upload to PyPI. `workflow_dispatch` runs the image
    half alone and tags it `edge`, since a release is otherwise the only way to
-   exercise a workflow that triggers on one.
+   exercise a workflow that triggers on one. Only from `main`: `edge` is
+   public, and the form that starts a manual run offers every branch.
 
    **The metadata has to sit on the index, not only on the manifests.** A
    multi-architecture image is an index pointing at one manifest per

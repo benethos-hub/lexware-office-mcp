@@ -157,6 +157,19 @@ def test_latest_never_follows_a_pre_release() -> None:
     assert all("!github.event.release.prerelease" in line for line in latest)
 
 
+def test_a_manual_run_pushes_the_image_from_main_only() -> None:
+    """`edge` is public, and a manual run can be started on any branch."""
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    job = workflow.split("  ghcr-publish:", 1)[1]
+
+    assert (
+        "if: github.event_name == 'release' || github.ref == 'refs/heads/main'"
+        in job.split("steps:", 1)[0]
+    )
+
+
 def test_compose_caps_the_log_docker_keeps() -> None:
     """Five files of 10 MB, the json-file driver's own rotation.
 
