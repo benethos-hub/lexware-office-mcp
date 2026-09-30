@@ -13,6 +13,16 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-30
+
+A minor release, because an existing installation can trip over four of
+these: the download directory is cut down to its newest 100 files on the
+first start, an API key or bearer token with a character no HTTP header can
+carry now stops the start, `create_contact` and `update_contact` refuse a
+field the contact's kind has no place for, and every log line has a new
+time format and shorter source names, which anything parsing the log will
+notice. Each of them says what happened, on stderr or in the tool's answer.
+
 ### Security
 
 - **A key the configuration interface is checking is never shown back.**
@@ -31,9 +41,6 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
-- **The container image is built on current dependencies**: sse-starlette
-  3.5.0, PyJWT 2.15.1 and platformdirs 4.12.2 in the lockfile the image is
-  built from. An installation from the index resolved these already.
 - **The download directory keeps the last 100 documents.** Older downloads
   are deleted when the server starts and after each download. Every document
   is still in Lexware Office, so one that is needed again is downloaded
@@ -43,9 +50,9 @@ housekeeping are out of scope here — design decisions live in
   directory, and to a directory named by `LXO_MCP_DOWNLOAD_DIR` only when it
   is set as well. Only a file named the way a download is named is counted
   or deleted, so a space, an umlaut or an extension such as `.docx` keeps a
-  file of your own out of it. The configuration interface shows and edits it beside the
-  download directory. The container image sets it to 100 for its
-  `/downloads` volume. `read_download` and a resource read for a download
+  file of your own out of it. The configuration interface shows and edits
+  it beside the download directory. The container image sets it to 100 for
+  its `/downloads` volume. `read_download` and a resource read for a download
   that is gone say that it may have been removed and to download it again.
 - **The resource list names the same newest downloads**, newest first, where
   it named every file in the directory in name order. It is read from the
@@ -110,6 +117,9 @@ housekeeping are out of scope here — design decisions live in
   that names it. So is a request one of its guards refused, and a file it
   could not write. The key, the token and a setting's value are never in a
   line, only which setting changed. The pages keep no request log.
+- **The container image is built on current dependencies**: sse-starlette
+  3.5.0, PyJWT 2.15.1 and platformdirs 4.12.2 in the lockfile the image is
+  built from. An installation from the index resolved these already.
 
 ### Fixed
 
@@ -974,7 +984,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.2...v0.2.3

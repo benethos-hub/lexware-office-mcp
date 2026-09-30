@@ -34,7 +34,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.3.0.**
+> **Status: 0.4.0.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is connected. Every
@@ -289,7 +289,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.3.0"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.4.0"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -392,11 +392,13 @@ Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
 
-Two things worth knowing. It **binds `127.0.0.1` and nothing else** — the
-pages have no password, which is only defensible while they cannot be reached
-from another machine, so there is no option to change it. And it is a
-**separate command**: the MCP server never serves HTTP, and a client such as
-Claude Desktop starts that one, not this.
+Two things worth knowing. It **binds `127.0.0.1`** — the pages have no
+password, which is only defensible while they cannot be reached from another
+machine. `--host` exists for a container, where the host-side publish keeps
+the port local, see [In a container](#in-a-container). Anywhere else a bind
+beyond loopback leaves the pages open to whoever reaches the port, and the
+start says so. And it is a **separate command**: the MCP server never serves
+HTTP, and a client such as Claude Desktop starts that one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
 and `--tools-file` say which files it edits. Unlike everywhere else those
@@ -607,8 +609,8 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.3.0` for an exact release,
-`:0.3` to follow its patch releases. `:latest` moves with every release, and
+Pin a version for anything you depend on - `:0.4.0` for an exact release,
+`:0.4` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
