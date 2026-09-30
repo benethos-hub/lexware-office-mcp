@@ -703,6 +703,21 @@ environment variables — the transport, the bind address, the port, the allowed
 hosts — belongs to the container and cannot be changed from the volume, see
 [Configuration](#configuration).
 
+## Logs
+
+Everything goes to stderr. At `INFO` that is one line per tool call: what it
+read or wrote, named by its Lexware id, its number of rows or its size, how
+many API calls it made and how long it took. A refused or failed call is a
+`WARNING` naming the error's class, and for a refusal by the API its status
+and error codes. `DEBUG` adds a line per API attempt and one per HTTP
+request. `LXO_MCP_LOG_LEVEL` sets the level.
+
+A line never carries what the assistant sent or what the API answered: no
+search term, name, amount or file name, and no query string. The libraries
+underneath stay at `WARNING` for the same reason, since their `INFO` lines
+carry request URLs and error text. The configuration interface writes a line
+for everything it saves, and never the key, the token or a setting's value.
+
 ## Example prompts
 
 Once the server is connected, prompts like these are the intended use:

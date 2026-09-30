@@ -103,8 +103,9 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `errors.py` | `ToolError` and its subclasses, and `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses. | built |
 | `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
+| `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
-| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. | built |
+| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles, read, written and deleted. | built |
@@ -1750,6 +1751,109 @@ freshly created test account returned its profile, paged the voucher list and
 read master data. This was open question 8, and it was the one everything else
 depended on.
 
+### 11.2 Logging
+
+Built 2026-09-30. Before it, what was logged followed from library defaults
+rather than from a decision: at `INFO` httpx wrote every API request with its
+whole URL, so a `search_contacts` put the name or email it searched for into
+a container log that outlived the call, and uvicorn wrote a line per HTTP
+request to stdout.
+
+**What the log is for.** Three questions for whoever runs the server: is it
+running, and with which permissions? What did the assistant change in the
+books? What was refused or failed, and why? And one for whoever develops it:
+which API calls did a tool make? There is one process and one actor, the
+model behind the client, and no store but stderr, so no user, no session and
+no audit table.
+
+**What never goes into a line.** Stricter than the rule for a tool result,
+because stderr is kept by Docker and shipped to wherever logs are collected:
+
+- the API key and the bearer token
+- a tool's arguments - search terms, names, email addresses, amounts, notes,
+  paths the model named. A line names the tool and the Lexware id of the
+  record, never what went in
+- anything the API answered with - no customer record, no voucher, no amount
+- a URL's query string. A request line carries the path only
+- this server's own error messages, see section 12
+- the name or path of a downloaded file, which is the document's name and
+  often the customer's
+
+What a line may carry: tool names, Lexware ids, HTTP status codes, the API's
+error codes, counts, durations, sizes, version numbers and the paths of the
+configuration files, which the person at the machine needs to act on.
+
+**How that is held.** Every line is a function in one of the catalogue
+modules of `logbook/`, and no other module imports `logging`. A function's
+parameters are drawn from a vocabulary that `tests/test_logbook_catalog.py`
+spells out with what each name may hold, so a new parameter is a decision
+made in that test rather than a `query` that slipped into a signature. An
+exception reaches a line through `describe()`, which reads its class, the
+system's reason for an `OSError`, the position of a JSON error, and a
+`ToolError`'s `status` and `code` - never its text. An id is shown only when
+it is a UUID, and a request path only as lowercase words and UUIDs, because
+an id is the model's argument and a name put where one belongs would
+otherwise be written down. Anything else is shown as `~`.
+
+**Levels.** `LXO_MCP_LOG_LEVEL` sets the level of this server's lines and
+nothing else.
+
+| Level | What | Example |
+|---|---|---|
+| `ERROR` | a crash, with its traceback, written by the SDK | a tool raised something that is not a `ToolError` |
+| `WARNING` | refused or failed, the server carries on | a tool refused by the policy or the API, a retry, the breaker, a rejected key, writing tools switched on |
+| `INFO` | what changed, what was read, the lifecycle | start, every tool call, the tool list changing, a save in the interface |
+| `DEBUG` | the steps, without content | every API attempt with its status and duration, a reused download |
+
+**Reading is `INFO` like writing**, decided 2026-09-30: the log is where the
+account owner sees what the assistant looked at as well as what it changed.
+
+**The libraries stay at `WARNING`, and there is no switch to lower them.**
+httpx and httpcore name every request with its URL, and the SDK writes a
+failed tool's message at `INFO`, which quotes the arguments. The server
+writes its own line for both. uvicorn's lifecycle messages stay at `INFO`.
+
+**uvicorn's request line goes to stderr.** It is started with
+`log_config=None`, so it installs no handler of its own. A filter drops the
+query string and, below `DEBUG`, keeps only a request answered with 400 or
+above: the ones made without the token or under a host name this server does
+not answer to, with the client address that tried. That line is the record
+of a refused bearer token, so the server writes none of its own. The SDK
+writes a refused `Host` header as a warning itself.
+
+**The catalogue**, by module. The logger name a line carries is in brackets
+where it differs.
+
+| Module | Level | Line |
+|---|---|---|
+| `lifecycle` (`server`) | `INFO` | `0.3.0 started over stdio`, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env` |
+| | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
+| `policy` | `INFO` | `The tool list changed, 2 sessions told` |
+| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |
+| `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After |
+| | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
+| `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
+| | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
+| `files` (`storage`) | `DEBUG` | a download that reused an identical file, by size |
+| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted |
+| | `WARNING` | the policy with writing tools on and which, a key the account refused, a request a guard refused, a file that could not be written, unreadable profiles |
+
+**Where a tool's line comes from.** Not from the tools, which stay thin.
+`register_tool` puts `logged()` around every tool, outside the policy guard,
+so a call the policy refuses is a line too and no tool can forget to report
+itself. It times the call and counts the API calls through a context
+variable the client increments per attempt. The variable is per task, so two
+calls at once each count their own. From the result it takes only the id,
+version, rows, size and the voucher an upload created. Arguments that fail
+the schema never reach that wrapper, so `PolicyServer.call_tool` names their
+fields.
+
+**The configuration interface keeps no request log.** It is one person on
+the local machine, and a request log would record them clicking. What it
+writes down is what changed and what it refused, so whoever changed the key
+or switched on a writing tool left a trace. Never a setting's value, only
+its name.
+
 ## 12. Error handling
 
 | Upstream | Error class | Message shape |
@@ -1789,6 +1893,14 @@ status alone.
 
 No raw traceback ever reaches the client. Expected failures are `ToolError`
 subclasses with concise, actionable messages.
+
+**The message is for the model, and the log never prints it.** It quotes
+what the model sent - a path, a number that did not match - and that is
+exactly what section 11.2 keeps out of a line. So a `ToolError` also carries
+`status` and `code`: the HTTP status the API answered with, and the API's
+own codes for what it refused, which `from_response` sets and the client
+sets for a 5xx or a 429. A line names the class and those two, as in
+`update_voucher refused: ConflictError 406 version: invalid_value`.
 
 **What a crash sends depends on the SDK version, and the floor stays at
 2.0.0.** A traceback never travels on either, but on 2.0.0 an unanticipated
@@ -2345,8 +2457,8 @@ operation the API seemed unable to perform and one that `download_document`
 and `download_file` already do through `file_format`. The first of them
 arrived with 0.3.0 after all, for an unchecked voucher.
 
-**Next, noted 2026-09-29 and not started.** Each is its own work stream,
-scoped before it is built.
+**Next, noted 2026-09-29.** Each is its own work stream, scoped before it is
+built. The logging concept is done, the other two are not started.
 
 - **The resource list grows with the download directory.** Every file there
   is published as an MCP resource and returned by `resources/list`, and
@@ -2355,19 +2467,12 @@ scoped before it is built.
   grows without a bound, and so does the list a client receives. To decide:
   whether the list needs a limit, paging or an age, or whether the directory
   itself does.
-- **A logging concept.** What is logged today follows from library defaults
-  rather than from a decision. Over HTTP, uvicorn writes an access line per
-  request to stdout. At `INFO`, httpx writes one line per API call to stderr
-  with the full URL, and a contact search carries a name or an email address
-  in its query, so a customer's details end up in a log that outlives the
-  call. To decide: which logger says what at which level, what a line may
-  contain, and what the container keeps. The size is capped since
-  2026-09-29, the content is not considered yet.
+- **A logging concept.** Built 2026-09-30, see section 11.2.
 - **Refactoring at file level and at code level.** The review's refactoring
   (0.3.0) cut the modules it named. A second pass looks at the files as they
   are now - the largest are `configui/app.py`, `client.py`,
-  `configui/pages.py`, `payloads.py` and `cli.py`, each between 550 and 760
-  lines - and at duplication and complexity inside them. Its scope comes
+  `configui/pages.py`, `payloads.py` and `cli.py`, each between 500 and 780
+  lines on 2026-09-30 - and at duplication and complexity inside them. Its scope comes
   first, as a list, before any file moves.
 
 ### 16.1 Answered: how a user configures the server
