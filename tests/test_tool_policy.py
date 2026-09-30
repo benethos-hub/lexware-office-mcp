@@ -518,3 +518,12 @@ def test_a_write_that_fails_leaves_the_old_file_whole(
 
     assert path.read_text(encoding="utf-8") == '{"get_profile": true}'
     assert [p.name for p in tmp_path.iterdir()] == ["tools.json"]
+
+
+def test_a_policy_nested_deeper_than_the_stack_enables_nothing(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "tools.json"
+    path.write_text("[" * 100_000 + "]" * 100_000, encoding="utf-8")
+
+    assert ToolPolicy(path).as_map() == {name: False for name in known_tools()}

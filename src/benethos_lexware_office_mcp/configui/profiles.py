@@ -175,7 +175,7 @@ class ProfileStore:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, RecursionError) as exc:
             # An unreadable profile file must not take the interface down with
             # it: profiles are a convenience, and the permissions themselves
             # live in another file entirely.

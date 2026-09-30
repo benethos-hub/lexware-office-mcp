@@ -110,6 +110,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **JSON nested deeper than Python's stack is an unreadable file**, not a
+  crash: an imported policy in the configuration interface, the policy file
+  a server reads, which then enables nothing as for any broken file, and
+  the saved profiles.
 - **A security token with a character outside ASCII is refused** by the
   configuration interface like any other wrong token, where it ended the
   request without an answer.

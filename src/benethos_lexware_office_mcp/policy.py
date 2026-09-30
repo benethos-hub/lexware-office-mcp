@@ -204,7 +204,7 @@ class ToolPolicy:
         assert self._path is not None
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, RecursionError) as exc:
             # The file is edited by hand and by other programs, so a broken one
             # must not stop the server. It must not grant anything either: an
             # unreadable policy enables nothing, and says so on stderr.

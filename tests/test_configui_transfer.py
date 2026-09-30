@@ -100,3 +100,9 @@ def test_a_profile_export_is_not_mistaken_for_a_policy_file() -> None:
     flags = transfer.parse(old)
 
     assert not any(name in known_tools() for name in flags)
+
+
+def test_json_nested_deeper_than_the_stack_is_not_a_policy() -> None:
+    """The decoder recurses per level and raised RecursionError past the handler."""
+    with pytest.raises(transfer.TransferError, match="keine gültige JSON"):
+        transfer.parse("[" * 100_000 + "]" * 100_000)
