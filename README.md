@@ -211,8 +211,10 @@ rejected if it is not one.
 
 **The model chooses the path.** Without `LXO_MCP_UPLOAD_DIR`, `upload_file`
 and `attach_file_to_voucher` read any file this process can read that has
-one of those extensions, and send it to Lexware. Set it to one directory -
-an inbox for receipts - and nothing outside it is read, links included.
+one of those extensions, and send it to Lexware. That includes any `.xml`:
+a configuration file or an export is refused as not an XRechnung only after
+it has reached the API. Set it to one directory - an inbox for receipts -
+and nothing outside it is read, links included.
 
 ## Requirements
 
