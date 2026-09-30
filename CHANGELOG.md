@@ -110,6 +110,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **`create_contact` and `update_contact` refuse a field the contact has
+  no place for.** A VAT id or a tax number on a person, or a first name or
+  a salutation on a company, was left out of the request, and the call
+  reported success with nothing of it stored. It is now a validation error
+  naming the field, before any request.
 - **An answer that cannot be decoded is a clean failure.** A response
   announcing a compression its body did not have escaped as a crash, so
   the model was told only which tool failed, and after a write not that its

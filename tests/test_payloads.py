@@ -11,8 +11,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
+from benethos_lexware_office_mcp.errors import ValidationError
 from benethos_lexware_office_mcp.records.payloads import contact_body
-from benethos_lexware_office_mcp.records.types import Address
+from benethos_lexware_office_mcp.records.types import Address, ContactKind
 
 BERLIN = Address(street="Musterweg 1", zip="10115", city="Berlin", country_code="DE")
 
@@ -116,14 +119,29 @@ def test_an_unfilled_address_line_is_left_out_rather_than_sent_as_null() -> None
     assert "supplement" not in body["addresses"]["billing"][0]
 
 
-def test_company_only_fields_are_not_written_onto_a_person() -> None:
-    body = contact_body(
-        kind="person",
-        name="Muster",
-        roles=["customer"],
-        vat_registration_id="DE123456789",
-    )
-    assert "company" not in body
+@pytest.mark.parametrize(
+    ("kind", "misplaced"),
+    [
+        ("person", {"vat_registration_id": "DE123456789"}),
+        ("person", {"tax_number": "12/345/67890"}),
+        ("company", {"first_name": "Erika"}),
+        ("company", {"salutation": "Frau"}),
+    ],
+)
+def test_a_field_the_kind_has_no_place_for_is_refused(
+    kind: ContactKind, misplaced: dict[str, str]
+) -> None:
+    """It used to be left out, and the write reported success."""
+    with pytest.raises(ValidationError) as refused:
+        contact_body(kind=kind, name="Muster", roles=["customer"], **misplaced)
+
+    assert next(iter(misplaced)) in str(refused.value)
+
+
+def test_an_update_refuses_it_by_the_kind_the_record_has() -> None:
+    """The caller does not say the kind on an update, the record does."""
+    with pytest.raises(ValidationError, match="this contact is a company"):
+        contact_body(base=CURRENT, salutation="Frau")
 
 
 # -- updating -------------------------------------------------------------
