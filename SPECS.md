@@ -1871,6 +1871,20 @@ not answer to, with the client address that tried. That line is the record
 of a refused bearer token, so the server writes none of its own. The SDK
 writes a refused `Host` header as a warning itself.
 
+**What a line looks like.** The time, the level padded to eight characters
+so the sources line up, the source and the message:
+
+```
+2026-09-30T13:58:50.597+02:00 INFO     tools: search_contacts read 12 rows in 1 API call, 230 ms
+2026-09-30T13:58:51.020+02:00 WARNING  tools: update_voucher refused: ConflictError 406 version: invalid_value
+```
+
+The time is ISO 8601 in local time, to the millisecond, with its offset. A
+container usually runs in UTC, and the offset is what makes its lines
+comparable with those of the machine next to it. The `T` keeps the stamp one
+field for anything that splits a line on spaces. A traceback follows on the
+lines after the message.
+
 **A line names its source in short.** This server's loggers without the
 package in front, `tools` rather than `benethos_lexware_office_mcp.tools`,
 and the package itself as `server`. uvicorn's request line is `http`, and

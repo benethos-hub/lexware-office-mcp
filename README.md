@@ -717,6 +717,12 @@ many API calls it made and how long it took. A refused or failed call is a
 and error codes. `DEBUG` adds a line per API attempt and one per HTTP
 request. `LXO_MCP_LOG_LEVEL` sets the level.
 
+```
+2026-09-30T13:58:50.597+02:00 INFO     tools: search_contacts read 12 rows in 1 API call, 230 ms
+```
+
+The time is local, to the millisecond, with its offset.
+
 A line never carries what the assistant sent or what the API answered: no
 search term, name, amount or file name, and no query string. The libraries
 underneath stay at `WARNING` for the same reason, since their `INFO` lines

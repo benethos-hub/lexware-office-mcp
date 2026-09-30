@@ -12,11 +12,12 @@ import contextlib
 import logging
 import sys
 from collections.abc import Iterator
+from datetime import datetime
 from typing import TextIO
 
 from .access import ACCESS_LOGGER, AccessLines
 
-__all__ = ["LIBRARIES", "PACKAGE", "configure", "source", "untouched_root"]
+__all__ = ["LIBRARIES", "PACKAGE", "configure", "source", "stamp", "untouched_root"]
 
 PACKAGE = __name__.split(".")[0]
 
@@ -33,7 +34,7 @@ LIBRARIES = ("httpx", "httpcore", "mcp")
 # server's lines are set to DEBUG. Its DEBUG is connection chatter.
 _UVICORN = "uvicorn.error"
 
-FORMAT = "%(asctime)s %(levelname)s %(where)s: %(message)s"
+FORMAT = "%(asctime)s %(levelname)-8s %(where)s: %(message)s"
 
 # Marks the handler this module installed, so configuring twice replaces it
 # rather than printing every line twice.
@@ -100,6 +101,27 @@ class _Where(logging.Filter):
         return True
 
 
+def stamp(created: float) -> str:
+    """ISO 8601 in local time, to the millisecond, with the offset.
+
+    ``2026-09-30T13:58:50.597+02:00``. The offset is what makes a line from
+    a container, which usually runs in UTC, comparable with one from the
+    machine next to it, and the ``T`` keeps the whole stamp one field.
+    """
+    local = datetime.fromtimestamp(created).astimezone()
+    return local.isoformat(timespec="milliseconds")
+
+
+class _Line(logging.Formatter):
+    """:data:`FORMAT`, with the time as :func:`stamp` writes it."""
+
+    def __init__(self) -> None:
+        super().__init__(FORMAT)
+
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:  # noqa: N802
+        return stamp(record.created)
+
+
 def configure(level: str, stream: TextIO | None = None) -> None:
     """Send every line to ``stream``, stderr unless given, at these levels.
 
@@ -113,7 +135,7 @@ def configure(level: str, stream: TextIO | None = None) -> None:
     handler = logging.StreamHandler(stream or sys.stderr)
     setattr(handler, _MARK, True)
     handler.addFilter(_Where())
-    handler.setFormatter(logging.Formatter(FORMAT))
+    handler.setFormatter(_Line())
     root.addHandler(handler)
     # Anything not named here - a library nobody thought of - is held at
     # WARNING by default rather than let through.

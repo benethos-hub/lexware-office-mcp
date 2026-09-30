@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 
 import pytest
 from mcp.server.mcpserver import MCPServer
@@ -21,6 +23,7 @@ from benethos_lexware_office_mcp.logbook.output import (
     LIBRARIES,
     PACKAGE,
     source,
+    stamp,
     untouched_root,
 )
 from benethos_lexware_office_mcp.settings import Settings
@@ -78,8 +81,30 @@ def test_lines_carry_the_logger_name_without_the_package() -> None:
     logging.getLogger("uvicorn.error").info("theirs")
 
     lines = stream.getvalue().splitlines()
-    assert lines[0].endswith("INFO client: a line")
-    assert lines[1].endswith("INFO uvicorn: theirs")
+    assert lines[0].endswith("INFO     client: a line")
+    assert lines[1].endswith("INFO     uvicorn: theirs")
+
+
+def test_a_line_is_stamp_level_source_message() -> None:
+    """The level padded to eight, so the sources line up under each other."""
+    stream = _stream("INFO")
+
+    logging.getLogger(f"{PACKAGE}.tools").warning("refused")
+
+    when, level, rest = stream.getvalue().rstrip("\n").split(" ", 2)
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d", when)
+    assert level == "WARNING"
+    assert rest == " tools: refused"
+
+
+def test_the_stamp_is_local_time_with_its_offset() -> None:
+    created = datetime(2026, 9, 30, 11, 58, 50, 597_000, tzinfo=UTC).timestamp()
+
+    written = datetime.fromisoformat(stamp(created))
+
+    assert written.utcoffset() is not None
+    assert written.timestamp() == created
+    assert ".597" in stamp(created)
 
 
 @pytest.mark.parametrize(

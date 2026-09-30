@@ -49,6 +49,10 @@ housekeeping are out of scope here — design decisions live in
 - **uvicorn's lines are named `uvicorn`, and its request line `http`**,
   where they carried the logger names `uvicorn.error` and `uvicorn.access`.
   The first made an ordinary start read like a failure.
+- **A line's time is ISO 8601 with milliseconds and the offset**,
+  `2026-09-30T13:58:50.597+02:00` where it was `2026-09-30 13:58:50,597`
+  without saying which zone, and the level is padded to eight characters so
+  the sources line up.
 - **The first line says which version started over which transport**, and a
   line at `INFO` says when the tool list changed and how many clients were
   told. A broken policy or profile file is named with the reason it could
