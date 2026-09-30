@@ -7,7 +7,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from .. import formatting
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import Settings
 from ..policy import classify
 from ._base import register_tool

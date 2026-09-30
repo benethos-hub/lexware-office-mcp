@@ -13,7 +13,7 @@ from urllib.parse import quote
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import Settings
 from ..policy import classify
 from ._base import register_tool

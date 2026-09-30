@@ -41,7 +41,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from benethos_lexware_office_mcp.client import LexwareClient  # noqa: E402
+from benethos_lexware_office_mcp.api.client import LexwareClient  # noqa: E402
 from benethos_lexware_office_mcp.config import load_settings  # noqa: E402
 
 HERE = Path(__file__).resolve().parent

@@ -21,7 +21,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from .. import formatting
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ..errors import ValidationError
 from ..payloads import ArticleType, LeadingPrice, article_body

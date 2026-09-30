@@ -12,7 +12,7 @@ from collections.abc import Callable, Sequence
 
 from mcp.server.mcpserver import MCPServer
 
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import Settings
 from . import (
     articles,

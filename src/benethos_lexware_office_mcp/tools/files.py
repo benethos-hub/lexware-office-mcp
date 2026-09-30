@@ -24,7 +24,7 @@ from mcp.types import (
 from pydantic import BaseModel, Field
 
 from .. import delivery, formatting, resources, storage
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..policy import classify

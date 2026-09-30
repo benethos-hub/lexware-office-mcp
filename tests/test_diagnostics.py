@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from benethos_lexware_office_mcp import client as client_module
+from benethos_lexware_office_mcp.api import client as client_module
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.server import build_server
 from helpers import fast_provider

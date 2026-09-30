@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp.client import ClientProvider
+from benethos_lexware_office_mcp.api.client import ClientProvider
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.server import build_server
 from helpers import (

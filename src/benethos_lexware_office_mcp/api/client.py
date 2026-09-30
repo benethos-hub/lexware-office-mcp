@@ -34,9 +34,9 @@ from urllib.parse import quote
 
 import httpx
 
-from . import __version__, logbook
-from .config import DEFAULT_PAGE_SIZE, Settings
-from .errors import RateLimitError, UpstreamError, ValidationError, from_response
+from .. import __version__, logbook
+from ..config import DEFAULT_PAGE_SIZE, Settings
+from ..errors import RateLimitError, UpstreamError, ValidationError, from_response
 from .ratelimit import Sleeper, TokenBucket
 
 __all__ = ["ClientProvider", "LexwareClient"]

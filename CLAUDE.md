@@ -68,8 +68,9 @@ src/benethos_lexware_office_mcp/
   cli.py          # the console script: arguments, --tools, setup, starting the server
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
   config.py       # settings resolution, credential lookup
-  client.py       # ALL HTTP access: auth, retries, error mapping
-  ratelimit.py    # the one token bucket, clock injectable for tests
+  api/            # everything that talks to Lexware
+    client.py     # ALL HTTP access: auth, retries, error mapping
+    ratelimit.py  # the one token bucket, clock injectable for tests
   policy.py       # the tool policy file, and what a tool declares itself to be
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies

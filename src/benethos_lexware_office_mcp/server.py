@@ -25,7 +25,7 @@ from mcp.types import Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook, resources
-from .client import ClientProvider
+from .api.client import ClientProvider
 from .config import (
     Settings,
     download_dir,

@@ -18,7 +18,7 @@ import asyncio
 import threading
 from dataclasses import dataclass
 
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import Settings
 from ..errors import AuthError, ToolError, redact
 

@@ -19,7 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from .. import formatting
-from ..client import ClientProvider
+from ..api.client import ClientProvider
 from ..config import Settings
 from ..errors import ValidationError
 from ..payloads import (

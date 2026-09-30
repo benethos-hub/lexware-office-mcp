@@ -7,7 +7,8 @@ from typing import Any
 import httpx
 import pytest
 
-from benethos_lexware_office_mcp.client import BREAKER_THRESHOLD, LexwareClient
+from benethos_lexware_office_mcp.api.client import BREAKER_THRESHOLD, LexwareClient
+from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import (
     AuthError,
@@ -19,7 +20,6 @@ from benethos_lexware_office_mcp.errors import (
     ValidationError,
     register_secret,
 )
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
 from helpers import API_KEY, Scripted, fast_client, no_sleep
 
 
