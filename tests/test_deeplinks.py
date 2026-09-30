@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 from helpers import (
     API_KEY,
     FILE_ID,

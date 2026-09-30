@@ -16,10 +16,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..config import Settings, download_dir, env_file_in_effect, load_settings
-from ..envfile import read_env_file
 from ..errors import ConfigError
 from ..policy import ToolPolicy
+from ..settings import Settings, load_settings
+from ..settings.envfile import read_env_file
+from ..settings.locations import download_dir, env_file_in_effect
 from .profiles import ProfileStore, profile_file
 from .render import (
     CLI_SOURCE,

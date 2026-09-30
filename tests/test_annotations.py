@@ -16,9 +16,9 @@ from pathlib import Path
 import pytest
 from mcp.types import Tool
 
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.tools._base import _CLOSED_WORLD
 
 

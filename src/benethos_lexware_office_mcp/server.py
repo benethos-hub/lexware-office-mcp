@@ -24,15 +24,13 @@ from mcp.server.session import ServerSession
 from mcp.types import Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
-from . import __version__, logbook, resources
-from .client import ClientProvider
-from .config import (
-    Settings,
-    download_dir,
-    load_settings,
-)
+from . import __version__, logbook
+from .api.client import ClientProvider
 from .errors import ConfigError
+from .files import resources
 from .policy import ToolPolicy
+from .settings import Settings, load_settings
+from .settings.locations import download_dir
 from .tools import register_tools
 
 # How often the watcher looks at the policy file. Short enough that a change

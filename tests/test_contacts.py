@@ -14,14 +14,14 @@ from pathlib import Path
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.errors import (
     ConflictError,
     NotFoundError,
     ValidationError,
 )
+from benethos_lexware_office_mcp.records import formatting
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 from helpers import API_KEY, Scripted, always, fast_client, fast_provider, server_with
 
 COMPANY = {

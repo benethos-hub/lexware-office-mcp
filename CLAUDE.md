@@ -29,7 +29,7 @@ How to work in this repository. Read this before making changes. See
 4. **stdio is sacred.** stdout carries the MCP JSON-RPC stream. Never
    `print()` to stdout from server or library code, log to **stderr** only.
 5. **One rate limiter.** Every outbound request passes the single
-   `ratelimit.TokenBucket` that `client.py` owns — retries and pagination
+   `ratelimit.TokenBucket` that `api/connection.py` owns — retries and pagination
    follow-ups included. The upstream limit is global across all endpoints, so a
    second bucket anywhere is a bug. See SPECS.md section 10.1. **A throwaway
    probe script is not an exception**: build a `LexwareClient` rather than a
@@ -65,28 +65,41 @@ The planned structure, see SPECS.md section 4 for the full table.
 ```
 src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
-  cli.py          # the console script: arguments, --tools, setup, starting the server
+  cli.py          # the console script: arguments, --tools, setup, what a start reports
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
-  config.py       # settings resolution, credential lookup
-  client.py       # ALL HTTP access: auth, retries, error mapping
-  ratelimit.py    # the one token bucket, clock injectable for tests
-  policy.py       # the tool policy file, and what a tool declares itself to be
-  formatting.py   # API JSON -> compact tool output
-  payloads.py     # tool arguments -> API request bodies
-  storage.py      # where downloads land, filenames made safe first, uploads read
-  resources.py    # downloads published as MCP resources for the client
-  rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
-  delivery.py     # a downloaded file as content blocks: text, image, pages, blob
-  errors.py       # ToolError hierarchy, and an API refusal read into one
-  transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
-  envfile.py      # reading and writing a .env, comments left alone
+  errors.py       # the ToolError hierarchy, and redact
+  settings/       # settings resolution, credential lookup
+    __init__.py   # Settings, load_settings, the defaults
+    locations.py  # where configuration lives, and which one file applies
+    parse.py      # one setting's raw text -> its value
+    envfile.py    # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),
                   # the catalogue: lifecycle, policy, api, calls, files,
                   # configui, and tally, which counts a tool call's API calls
+  records/        # the shape of the data between the model and the API
+    payloads.py   # tool arguments -> API request bodies
+    formatting.py # API JSON -> compact tool output
+    types.py      # every Literal and model a tool's schema is built from
+  api/            # everything that talks to Lexware
+    connection.py # ALL HTTP access: auth, retries, error mapping
+    client.py     # LexwareClient: one method per endpoint, on a connection
+    ratelimit.py  # the one token bucket, clock injectable for tests
+    refusal.py    # a refused answer read into a ToolError
+  files/          # what becomes of a file, behind the files tools
+    storage.py    # where downloads land, filenames made safe first, uploads read
+    resources.py  # downloads published as MCP resources for the client
+    rendering.py  # PDF pages -> PNG, the only module touching pypdfium2
+    delivery.py   # a download as an answer: a link, or text, image, pages, blob
+  policy.py       # the tool policy file, and what a tool declares itself to be
+  transport/      # how a client reaches the server
+    stdio.py      # the default: the client owns the process
+    http.py       # the bearer guard, a generated token, the host allowlist
+    watch.py      # ending the process when its settings file changes
   configui/       # the local configuration interface, `setup` serves it
-                  # render, state, cost, probe, stamp, profiles,
-                  # transfer, pages, app - never part of the server process
+                  # render, assets, state, cost, probe, stamp, profiles,
+                  # transfer, pages, actions, app - never part of the
+                  # server process
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
@@ -104,14 +117,18 @@ live/             # talks to a real account, run by hand, outside testpaths
   publish.yml     # a published release -> PyPI and the container image
 ```
 
-Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
-new HTTP call goes in `client.py`, never in a tool function.
+Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
+endpoint is a method on `api/client.py`, the request mechanics stay in
+`api/connection.py`, and neither lives in a tool function. Which layer may
+import which is a table in `tests/test_layers.py`, see SPECS.md section 4: a
+new module or subpackage needs a row there, and an import against the order
+fails the suite.
 
 ## How to add or change a tool
 
-1. Add the request to `client.py`, using `request()` so the shared limiter and
+1. Add the endpoint to `api/client.py`, using `request()` so the shared limiter and
    the retry rules apply automatically. Never retry a POST yourself. A
-   refused answer becomes a `ToolError` in `errors.from_response`, so a new
+   refused answer becomes a `ToolError` in `api/refusal.py`, so a new
    status or a new body shape is taught there, not in the client. Pass the
    page parameters through rather than walking every page.
 2. Normalize the response in `formatting.py`. Drop null and empty fields, keep
@@ -124,7 +141,8 @@ new HTTP call goes in `client.py`, never in a tool function.
    rule below. It writes no log line of its own: the wrapper
    `register_tool` puts around every tool writes one per call.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
-   `Literal` for enums and `ge`/`le` for numeric bounds.
+   `Literal` for enums and `ge`/`le` for numeric bounds. A named `Literal`
+   or an argument model goes in `records/types.py`, not in the tool module.
 5. Classify it with `@classify(access, domain)` — `read` or `write`, plus
    the group it belongs to, `effect` for a write tool, and `permanence` when
    what it writes cannot be removed through the API: `"app"` when only the

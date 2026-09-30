@@ -110,8 +110,9 @@ jobs:
           /tmp/fresh/bin/benethos-lexware-office-mcp --help > /dev/null
           /tmp/fresh/bin/python -c "
           import asyncio
-          from benethos_lexware_office_mcp import config, server
-          settings = config.load_settings()
+          from benethos_lexware_office_mcp import server
+          from benethos_lexware_office_mcp.settings import load_settings
+          settings = load_settings()
           policy = settings.policy_file()
           assert not policy.is_file(), 'a runner should not have a policy file'
           tools = asyncio.run(server.build_server(settings).list_tools())
@@ -125,8 +126,9 @@ jobs:
           /tmp/fresh/bin/benethos-lexware-office-mcp --tools read-only --tools-file ./tools.json
           /tmp/fresh/bin/python -c "
           import asyncio
-          from benethos_lexware_office_mcp import config, server
-          settings = config.load_settings()
+          from benethos_lexware_office_mcp import server
+          from benethos_lexware_office_mcp.settings import load_settings
+          settings = load_settings()
           names = {t.name for t in asyncio.run(server.build_server(settings).list_tools())}
           assert names, 'the read-only preset enabled nothing'
           assert 'get_profile' in names, 'the read-only preset is missing a reading tool'

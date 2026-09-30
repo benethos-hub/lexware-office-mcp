@@ -19,9 +19,10 @@ from urllib.parse import unquote
 
 import httpx
 
-from . import logbook
-from .config import Settings, download_dir
-from .errors import ValidationError
+from .. import logbook
+from ..errors import ValidationError
+from ..settings import Settings
+from ..settings.locations import download_dir
 
 __all__ = [
     "MAX_UPLOAD",

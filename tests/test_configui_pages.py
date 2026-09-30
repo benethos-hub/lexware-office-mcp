@@ -10,11 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import config
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
+from benethos_lexware_office_mcp.settings import Settings, locations
 
 
 @pytest.fixture(autouse=True)
@@ -101,7 +100,7 @@ def test_a_page_renders_without_a_server_having_been_built(tmp_path: Path) -> No
     """
     script = f"""
 from pathlib import Path
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.configui import pages
 from benethos_lexware_office_mcp.configui.state import Installation
 
@@ -157,7 +156,7 @@ def test_the_overview_says_when_a_server_would_read_a_different_env(
     higher = tmp_path / ".env"
     higher.write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
     monkeypatch.setattr(
-        config, "config_candidates", lambda name, cwd=None: [tmp_path / name]
+        locations, "config_candidates", lambda name, cwd=None: [tmp_path / name]
     )
     inst = Installation(
         settings=Settings(tool_policy_path=tmp_path / "tools.json"),
@@ -176,7 +175,7 @@ def test_the_overview_stays_quiet_when_it_edits_the_file_that_applies(
 ) -> None:
     """The ordinary case earns no warning."""
     monkeypatch.setattr(
-        config, "config_candidates", lambda name, cwd=None: [tmp_path / name]
+        locations, "config_candidates", lambda name, cwd=None: [tmp_path / name]
     )
 
     assert inst.outranked_by() is None
@@ -262,7 +261,7 @@ def test_a_searched_policy_file_is_not_called_a_default(
 ) -> None:
     """Nobody named it, but a resolved path is not a built-in default."""
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.config.tool_policy_file",
+        "benethos_lexware_office_mcp.settings.locations.tool_policy_file",
         lambda: inst.policy_path,
     )
     plain = Installation(
@@ -282,7 +281,7 @@ def test_the_policy_file_is_fixed_for_the_life_of_the_process(
     everything rather than promoting the next candidate.
     """
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.config.tool_policy_file",
+        "benethos_lexware_office_mcp.settings.locations.tool_policy_file",
         lambda: tmp_path / "somewhere-else.json",
     )
     plain = Installation(
@@ -291,7 +290,7 @@ def test_the_policy_file_is_fixed_for_the_life_of_the_process(
     pinned = plain.policy_path
 
     monkeypatch.setattr(
-        "benethos_lexware_office_mcp.config.tool_policy_file",
+        "benethos_lexware_office_mcp.settings.locations.tool_policy_file",
         lambda: tmp_path / "higher-precedence.json",
     )
     plain.reload()

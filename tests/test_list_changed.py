@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp import server as server_module
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 
 pytestmark = pytest.mark.anyio
 

@@ -6,10 +6,10 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from .. import formatting
-from ..client import ClientProvider
-from ..config import Settings
+from ..api.client import ClientProvider
 from ..policy import classify
+from ..records import formatting
+from ..settings import Settings
 from ._base import register_tool
 
 __all__ = ["register"]

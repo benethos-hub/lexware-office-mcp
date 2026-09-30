@@ -17,19 +17,13 @@ from __future__ import annotations
 
 import json
 
-from ..config import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
 from ..policy import ToolMeta, grouped_tools, known_tools, preset
+from ..settings import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
+from .assets import FILE_PICKER_SCRIPT, permissions_script
 from .cost import estimate_tokens, tool_costs
 from .probe import Account, last_account
 from .profiles import Profile
-from .render import (
-    FILE_PICKER_SCRIPT,
-    esc,
-    note,
-    page,
-    permissions_script,
-    source_badge,
-)
+from .render import esc, note, page, source_badge
 from .state import (
     API_KEY,
     BEARER_KEY,

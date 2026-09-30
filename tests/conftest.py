@@ -15,11 +15,11 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import config
 from benethos_lexware_office_mcp import server as _server  # noqa: F401
 from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER
 from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
+from benethos_lexware_office_mcp.settings import locations
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +43,7 @@ def policy_file_off_this_machine(
     # directory holding one - would show up as a download.
     target = tmp_path.parent / f"{tmp_path.name}-policy" / "tools.json"
     ToolPolicy(target).save(dict.fromkeys(known_tools(), True))
-    monkeypatch.setattr(config, "tool_policy_file", lambda: target)
+    monkeypatch.setattr(locations, "tool_policy_file", lambda: target)
     return target
 
 
@@ -91,7 +91,7 @@ def no_configuration_from_this_machine(
     """
     nowhere = tmp_path / "no-configuration-here"
     monkeypatch.setattr(
-        config, "config_candidates", lambda name, cwd=None: [nowhere / name]
+        locations, "config_candidates", lambda name, cwd=None: [nowhere / name]
     )
     for key in [name for name in os.environ if name.startswith("LXO_MCP_")]:
         monkeypatch.delenv(key, raising=False)

@@ -12,9 +12,10 @@ import pytest
 
 from benethos_lexware_office_mcp import __version__
 from benethos_lexware_office_mcp.cli import main
-from benethos_lexware_office_mcp.config import Settings, settings_sample
 from benethos_lexware_office_mcp.policy import ToolPolicy
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings.locations import settings_sample
 
 
 def test_server_identifies_itself() -> None:
@@ -182,8 +183,8 @@ class _FakeServer:
         # What the real one reports on at startup.
         self.policy = ToolPolicy(settings.policy_file())
 
-    def run(self) -> None:
-        self._started.append(True)
+    def run(self, transport: str = "stdio") -> None:
+        self._started.append(transport == "stdio")
 
 
 def test_a_named_env_file_that_is_not_there_stops_the_server(

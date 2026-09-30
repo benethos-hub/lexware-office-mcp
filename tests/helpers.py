@@ -19,10 +19,10 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from benethos_lexware_office_mcp.client import ClientProvider, LexwareClient
-from benethos_lexware_office_mcp.config import Settings
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
+from benethos_lexware_office_mcp.api.client import ClientProvider, LexwareClient
+from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.server import PolicyServer, build_server
+from benethos_lexware_office_mcp.settings import Settings
 
 __all__ = [
     "API_KEY",

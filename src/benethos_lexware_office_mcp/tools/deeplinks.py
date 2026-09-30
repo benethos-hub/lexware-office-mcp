@@ -13,18 +13,13 @@ from urllib.parse import quote
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from ..client import ClientProvider
-from ..config import Settings
+from ..api.client import ClientProvider
 from ..policy import classify
+from ..records.types import RESOURCES, LinkTarget
+from ..settings import Settings
 from ._base import register_tool
-from .sales_documents import RESOURCES, DocumentType
 
-__all__ = ["LinkTarget", "permalink", "register"]
-
-# Deeplinks reach further than documents do, but not to a stored file:
-# the web app has no page for one. Verified 2026-08-21, see SPECS.md
-# section 5.
-LinkTarget = Literal[DocumentType, "contact", "voucher"]
+__all__ = ["permalink", "register"]
 
 LINK_RESOURCES: dict[str, str] = {
     **RESOURCES,

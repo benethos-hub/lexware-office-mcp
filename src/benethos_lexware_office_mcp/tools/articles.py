@@ -20,12 +20,12 @@ from typing import Annotated, Any
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from .. import formatting
-from ..client import ClientProvider
-from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
+from ..api.client import ClientProvider
 from ..errors import ValidationError
-from ..payloads import ArticleType, LeadingPrice, article_body
 from ..policy import classify
+from ..records import formatting
+from ..records.payloads import ArticleType, LeadingPrice, article_body
+from ..settings import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ._base import PageNumber, register_tool, require_version
 
 __all__ = ["register"]

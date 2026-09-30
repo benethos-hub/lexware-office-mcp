@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from .. import formatting
-from ..client import ClientProvider
-from ..config import Settings
-from ..payloads import Address, ContactKind, Role, contact_body
+from ..api.client import ClientProvider
 from ..policy import classify
+from ..records import formatting
+from ..records.payloads import contact_body
+from ..records.types import Address, ContactKind, Role, RoleFilter
+from ..settings import Settings
 from ._base import PageNumber, PageSize, register_tool, require_version
 
 __all__ = ["register"]
-
-RoleFilter = Literal["customer", "vendor", "any"]
 
 ContactId = Annotated[
     str,

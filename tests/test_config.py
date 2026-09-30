@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import config as C
-from benethos_lexware_office_mcp.config import (
+from benethos_lexware_office_mcp import settings as C
+from benethos_lexware_office_mcp.errors import ConfigError
+from benethos_lexware_office_mcp.settings import (
     DEFAULT_APP_BASE_URL,
     DEFAULT_BASE_URL,
     DEFAULT_BURST,
@@ -17,7 +18,7 @@ from benethos_lexware_office_mcp.config import (
     Settings,
     load_settings,
 )
-from benethos_lexware_office_mcp.errors import ConfigError
+from benethos_lexware_office_mcp.settings import locations as L
 
 
 def test_defaults_are_safe() -> None:
@@ -122,8 +123,8 @@ def test_env_file_is_read_but_real_environment_wins(
         "# a comment\nLXO_MCP_API_KEY='from-file-123456'\nexport LXO_MCP_MODE=write\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
 
     monkeypatch.setattr(C.os, "environ", {})
     from_file = C._env_lookup(cwd=tmp_path)
@@ -140,15 +141,15 @@ def test_malformed_env_file_lines_are_ignored(tmp_path: Path) -> None:
     (tmp_path / ".env").write_text(
         "this line has no equals sign\nLXO_MCP_PAGE_SIZE=5\n", encoding="utf-8"
     )
-    from benethos_lexware_office_mcp.config import _parse_env_file
+    from benethos_lexware_office_mcp.settings.envfile import read_env_file
 
-    assert _parse_env_file(tmp_path / ".env") == {"LXO_MCP_PAGE_SIZE": "5"}
+    assert read_env_file(tmp_path / ".env") == {"LXO_MCP_PAGE_SIZE": "5"}
 
 
 def test_missing_env_file_is_not_an_error(tmp_path: Path) -> None:
-    from benethos_lexware_office_mcp.config import _parse_env_file
+    from benethos_lexware_office_mcp.settings.envfile import read_env_file
 
-    assert _parse_env_file(tmp_path / "absent.env") == {}
+    assert read_env_file(tmp_path / "absent.env") == {}
 
 
 def test_page_size_may_go_up_to_the_upstream_maximum() -> None:
@@ -199,8 +200,8 @@ def test_a_named_env_file_beats_every_file_that_was_merely_found(
     (found / ".env").write_text("LXO_MCP_PAGE_SIZE=11\n", encoding="utf-8")
     named = tmp_path / "named.env"
     named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C.os, "environ", {})
 
     settings = C.load_settings(cwd=tmp_path, env_file=named)
@@ -218,8 +219,8 @@ def test_a_real_environment_variable_still_wins(
     """
     named = tmp_path / "named.env"
     named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C.os, "environ", {"LXO_MCP_PAGE_SIZE": "33"})
 
     settings = C.load_settings(cwd=tmp_path, env_file=named)
@@ -243,8 +244,8 @@ def test_a_named_env_file_replaces_the_search_rather_than_joining_it(
     )
     named = tmp_path / "named.env"
     named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C.os, "environ", {})
 
     settings = C.load_settings(cwd=tmp_path, env_file=named)
@@ -263,8 +264,8 @@ def test_only_the_highest_found_file_applies(
         "LXO_MCP_PAGE_SIZE=11\nLXO_MCP_TIMEOUT=99\n", encoding="utf-8"
     )
     (tmp_path / ".env").write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C.os, "environ", {})
 
     settings = C.load_settings(cwd=tmp_path)
@@ -284,8 +285,8 @@ def test_the_environment_fills_in_what_the_one_file_does_not_say(
     """
     named = tmp_path / "named.env"
     named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     monkeypatch.setattr(C.os, "environ", {"LXO_MCP_TIMEOUT": "44"})
 
     settings = C.load_settings(cwd=tmp_path, env_file=named)
@@ -298,20 +299,20 @@ def test_which_file_is_in_effect(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The question the settings watch and the interface both ask."""
-    monkeypatch.setattr(C, "config_dir", lambda: tmp_path / "absent")
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     named = tmp_path / "named.env"
 
-    assert C.env_file_in_effect(cwd=tmp_path) is None
-    assert C.env_file_in_effect(cwd=tmp_path, named=named) == named
+    assert L.env_file_in_effect(cwd=tmp_path) is None
+    assert L.env_file_in_effect(cwd=tmp_path, named=named) == named
 
     lower = tmp_path / "config"
     lower.mkdir()
     (lower / ".env").write_text("", encoding="utf-8")
-    assert C.env_file_in_effect(cwd=tmp_path) == lower / ".env"
+    assert L.env_file_in_effect(cwd=tmp_path) == lower / ".env"
 
     (tmp_path / ".env").write_text("", encoding="utf-8")
-    assert C.env_file_in_effect(cwd=tmp_path) == tmp_path / ".env"
+    assert L.env_file_in_effect(cwd=tmp_path) == tmp_path / ".env"
 
 
 def test_the_missing_key_message_names_no_path() -> None:
@@ -321,8 +322,8 @@ def test_the_missing_key_message_names_no_path() -> None:
     and nothing the caller can act on. The command names the file for the
     person at the machine, who can.
     """
-    from benethos_lexware_office_mcp.config import Settings
     from benethos_lexware_office_mcp.errors import ConfigError
+    from benethos_lexware_office_mcp.settings import Settings
 
     with pytest.raises(ConfigError) as excinfo:
         Settings().require_api_key()

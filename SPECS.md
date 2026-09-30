@@ -88,35 +88,65 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | Module | Responsibility | State |
 |--------|----------------|-------|
 | `server.py` | The `PolicyServer`, an `MCPServer` listing only what the policy file allows, and `build_server`, which makes one from the settings and fills the tool registry. | built |
-| `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
+| `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, what a start reports on stderr, and handing the server to the transport the command line asked for. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
-| `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
-| `client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, and a refusal handed to `errors.from_response`. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
-| `ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
-| `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
-| `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
-| `delivery.py` | A downloaded file as content blocks: text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
-| `rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
-| `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
-| `storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
-| `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
-| `errors.py` | `ToolError` and its subclasses, and `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses. | built |
-| `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
-| `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
+| `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
+| `settings/` | Settings resolution and credential lookup, see section 7 for the precedence. `Settings` and `load_settings` in the package itself, `locations` for the directories, the search and the one file that applies, `parse` for reading one value, `envfile` for the file itself. | built |
+| `settings/envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
-| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
+| `records/types.py` | Every enumeration a tool takes and every model its arguments are built from, plus the two models the file tools answer with. The schema a client sees is generated from these, so this is the vocabulary of the whole tool list, in one place. | built |
+| `records/payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
+| `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
+| `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the network. | built |
+| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. | built |
+| `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
+| `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
+| `files/storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
+| `files/resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
+| `files/rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
+| `files/delivery.py` | A download as an answer: a file saved to disk as a line and a resource link, or a file put into the conversation as text, image, rendered pages or a blob, whichever makes the bytes usable to a client. | built |
+| `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
+| `transport/stdio.py` | The default transport: the client starts the process and owns stdin and stdout. See section 6. | built |
+| `transport/http.py` | The HTTP transport: the bearer guard in front of it, a generated token written into the settings file where that was asked for, and the DNS-rebinding allowlist. Nothing here is reached under stdio. See section 6. | built |
+| `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `assets` the stylesheet and the two scripts it carries inline, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its two CSRF guards and the routing. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles, read, written and deleted. | built |
 | `tools/vouchers.py` | Voucher list, bookkeeping vouchers and payment status. | built |
-| `tools/sales_documents.py` | The seven sales document types, the path segment each one lives behind, and the templates that repeat them. | built |
+| `tools/sales_documents.py` | The seven sales document types, and the templates that repeat them. The path segment each type lives behind is `records/types.py`, beside the type. | built |
 | `tools/files.py` | Upload, download, rendered documents. | built |
 | `tools/deeplinks.py` | Links into the web app, built from ids without an API call. Classified under `files`, so the policy file and the interface group it as before. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
 
-**Layer rule:** tool functions stay thin. Every HTTP call lives in
-`client.py`, never in a tool function.
+**Layer rule:** tool functions stay thin. Every endpoint is a method on
+`api/client.py` and every request goes through `api/connection.py`, never
+through a tool function.
+
+**Import rule.** The package is layered, and `tests/test_layers.py` reads
+every import statement to hold it there. A layer imports only what sits
+below it:
+
+| Layer | May import |
+|-------|------------|
+| `errors`, `settings`, `logbook` | each other, nothing else |
+| `records` | `errors` |
+| `api` | the three above, `records` |
+| `files` | the three above |
+| `policy` | `errors`, `logbook` |
+| `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
+| `server` | `tools`, `policy`, `api`, `files` and the three above |
+| `transport` | `server` and the three above |
+| `configui` | everything but `transport` and `cli`, imported by `cli` alone |
+| `cli` | everything, imported by nothing but `python -m` |
+
+Two things the table does not follow from, decided 2026-09-30. `errors` is
+the one module every layer raises from, so `server` and `transport` import it
+like everything else does. And `configui` is not a peer of `cli` but below
+it, since `setup` is a command the console script starts. A new module or
+subpackage fails the test until it has a row, which is the price of the
+table and the reason it keeps.
 
 ## 5. Upstream API
 
@@ -287,7 +317,7 @@ section 2.
   (verified 2026-08-21): `/file` answers **409** with "is in status 'draft'
   and therefore cannot be downloaded", `/document` answers **406** with
   "Requesting PDF document is not possible in state draft". The 409 is not a
-  version conflict, which is what `errors.from_response` has to keep apart —
+  version conflict, which is what `refusal.from_response` has to keep apart —
   a stale version is a 406 naming `version`.
 - **A draft is still indexed.** `/v1/voucherlist` lists it with
   `voucherStatus: draft` and it already carries its document number, so it is
@@ -731,7 +761,7 @@ arriving.
   transport, launched as a subprocess by the client. This is the entire
   transport surface of the first releases, by explicit decision.
 - **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with `--host`,
-  `--port`, `--path` and `--allowed-hosts`, in `transport.py`. **The bearer
+  `--port`, `--path` and `--allowed-hosts`, in `transport/http.py`. **The bearer
   token is required, not offered**: an HTTP transport without
   `LXO_MCP_BEARER_TOKEN` refuses to start, because anyone who can reach the
   port can otherwise spend the account owner's credentials. It is one shared
@@ -920,7 +950,7 @@ and `load_settings` refuses the same for the server.
 Lexware Office is sold for German companies only — its own help centre rules
 out an Austrian or Swiss company as the account holder, so a language switch
 would be machinery for a case that does not exist. Code, comments and
-docstrings stay English, and so do the messages `config.py` raises: those are
+docstrings stay English, and so do the messages `settings/` raises: those are
 quoted into the page rather than translated, because a German paraphrase
 would be a second copy of a rule that lives in the code.
 
@@ -1442,7 +1472,7 @@ what can be counted honestly — a token count would need a tokenizer for a
 model this server does not know it is talking to, so the token figure beside
 them is labelled as an estimate and derived from a fixed ratio.
 
-## 10. Client behaviour (`client.py`)
+## 10. Client behaviour (`api/`)
 
 - One shared `httpx.AsyncClient` with `Authorization: Bearer` set once, a
   connection pool, and `LXO_MCP_TIMEOUT`.
@@ -2469,7 +2499,8 @@ and `download_file` already do through `file_format`. The first of them
 arrived with 0.3.0 after all, for an unchecked voucher.
 
 **Next, noted 2026-09-29.** Each is its own work stream, scoped before it is
-built. The logging concept is done, the other two are not started.
+built. The logging concept and the refactoring are done, the resource list
+is not started.
 
 - **The resource list grows with the download directory.** Every file there
   is published as an MCP resource and returned by `resources/list`, and
@@ -2479,12 +2510,9 @@ built. The logging concept is done, the other two are not started.
   whether the list needs a limit, paging or an age, or whether the directory
   itself does.
 - **A logging concept.** Built 2026-09-30, see section 11.2.
-- **Refactoring at file level and at code level.** The review's refactoring
-  (0.3.0) cut the modules it named. A second pass looks at the files as they
-  are now - the largest are `configui/app.py`, `client.py`,
-  `configui/pages.py`, `payloads.py` and `cli.py`, each between 500 and 780
-  lines on 2026-09-30 - and at duplication and complexity inside them. Its scope comes
-  first, as a list, before any file moves.
+- **Refactoring at file level and at code level.** Built 2026-09-30: the
+  package is layered into subpackages, see the table and the import rule
+  in section 4, and `tests/test_layers.py` holds the order.
 
 ### 16.1 Answered: how a user configures the server
 

@@ -16,27 +16,19 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import secrets
 import sys
 from pathlib import Path
 from typing import cast
 
 from . import __version__, configui, logbook
-from .config import (
-    LOG_LEVELS,
-    LOOPBACK_NAMES,
-    TRANSPORTS,
-    Settings,
-    csv_tuple,
-    load_settings,
-    resolve_config_file,
-    settings_sample,
-)
-from .envfile import update_env_file
-from .errors import ConfigError, register_secret
+from .errors import ConfigError
 from .policy import Preset, ToolPolicy, known_tools, preset
 from .server import build_server
-from .transport import require_bearer, run_http
+from .settings import LOG_LEVELS, LOOPBACK_NAMES, TRANSPORTS, Settings, load_settings
+from .settings.locations import resolve_config_file, settings_sample
+from .settings.parse import csv_tuple
+from .transport.http import bearer_ready, run_http
+from .transport.stdio import run_stdio
 
 __all__ = ["main"]
 
@@ -423,50 +415,19 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
     )
 
     if settings.transport != "stdio":
-        settings = _bearer_token_in_place(settings, _env_in_effect(named_env))
-        require_bearer(settings)
+        settings = bearer_ready(settings, _env_in_effect(named_env))
 
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
     _report_what_is_enabled(server.policy)
 
     if settings.transport == "stdio":
-        server.run()
+        run_stdio(server)
         return
 
     _report_where_it_listens(settings)
-    # The .env is read once, at startup. Where something restarts this
-    # process - a container, a service manager - it can be told to end when
-    # that file changes, so a key saved in the browser takes effect without
-    # anyone opening a terminal. Nowhere else, since ending would be the
-    # whole of it.
     watch = _env_in_effect(named_env) if settings.exit_on_config_change else None
-    if watch is not None:
-        logbook.lifecycle.ending_on_change(watch.name)
     run_http(server, settings, watch=watch)
-
-
-def _bearer_token_in_place(settings: Settings, env_path: Path) -> Settings:
-    """Write a generated token into the settings file, if that was asked for.
-
-    A container has no one to type a secret before it starts, and refusing to
-    run would only invite a memorable one. Thirty-two random bytes beat any
-    of those, so where something is deployed rather than launched by hand the
-    server makes one and keeps it in the file it reads.
-
-    Nowhere else, and never silently: writing into a file a person maintains
-    is not something to do unasked, and the value never reaches the log. The
-    configuration interface shows it, because it has to be copied into a
-    client to be of any use.
-    """
-    if settings.bearer_token or not settings.generate_bearer_token:
-        return settings
-
-    token = secrets.token_urlsafe(32)
-    update_env_file(env_path, {"LXO_MCP_BEARER_TOKEN": token})
-    register_secret(token)
-    logbook.lifecycle.token_generated(env_path.name)
-    return dataclasses.replace(settings, bearer_token=token)
 
 
 def _env_in_effect(named: Path | None) -> Path:
@@ -475,7 +436,7 @@ def _env_in_effect(named: Path | None) -> Path:
     Pinned here for the same reason the policy file is pinned: the identity
     of the file is decided once, and only its contents are read again.
 
-    Not :func:`config.env_file_in_effect`, which answers ``None`` when no file
+    Not ``locations.env_file_in_effect``, which answers ``None`` when no file
     exists. The two callers here need a path either way - one watches for a
     file appearing, the other writes a generated token into the place a file
     belongs - and since one `.env` applies, watching that one is watching all

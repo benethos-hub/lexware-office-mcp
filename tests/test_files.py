@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
 
-from benethos_lexware_office_mcp import resources, storage
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.files import resources, storage
 from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 from helpers import (
     API_KEY,
     FILE_ID,

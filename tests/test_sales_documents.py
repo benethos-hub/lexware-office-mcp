@@ -17,9 +17,9 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting
 from benethos_lexware_office_mcp.errors import NotFoundError
-from benethos_lexware_office_mcp.tools.sales_documents import RESOURCES
+from benethos_lexware_office_mcp.records import formatting
+from benethos_lexware_office_mcp.records.types import RESOURCES
 from helpers import Scripted, fast_client, server_with
 
 INVOICE: dict[str, Any] = {

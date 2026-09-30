@@ -10,7 +10,7 @@ import asyncio
 
 import pytest
 
-from benethos_lexware_office_mcp.ratelimit import TokenBucket
+from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
 
 
 class FakeClock:

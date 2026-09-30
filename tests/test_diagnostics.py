@@ -5,9 +5,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from benethos_lexware_office_mcp import client as client_module
-from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.api import client as client_module
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
 from helpers import fast_provider
 
 # The shape confirmed against a live account on 2026-08-20, with placeholder

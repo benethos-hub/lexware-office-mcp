@@ -18,9 +18,9 @@ import asyncio
 import threading
 from dataclasses import dataclass
 
-from ..client import ClientProvider
-from ..config import Settings
+from ..api.client import ClientProvider
 from ..errors import AuthError, ToolError, redact
+from ..settings import Settings
 
 __all__ = ["Account", "check", "last_account"]
 
@@ -89,7 +89,7 @@ async def _ask(
     """One request through the shared client, which is the only kind there is.
 
     A bare ``httpx`` call here would sit outside the one token bucket that
-    ``client.py`` owns, and the upstream limit is counted per account rather
+    ``api/connection.py`` owns, and the upstream limit is counted per account rather
     than per program. See SPECS.md section 10.1.
     """
     owned = provider is None

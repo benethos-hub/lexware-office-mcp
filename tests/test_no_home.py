@@ -15,14 +15,15 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import config as C
-from benethos_lexware_office_mcp import storage
+from benethos_lexware_office_mcp import settings as C
 from benethos_lexware_office_mcp.cli import main
-from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.errors import ConfigError
+from benethos_lexware_office_mcp.files import storage
 from benethos_lexware_office_mcp.server import build_server
+from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings import locations as L
 
 
 def _no_home(*_args: object, **_kwargs: object) -> str:
@@ -32,9 +33,9 @@ def _no_home(*_args: object, **_kwargs: object) -> str:
 @pytest.fixture
 def homeless(monkeypatch: pytest.MonkeyPatch) -> None:
     """platformdirs as it answers without a home, and no checkout config."""
-    monkeypatch.setattr(C, "user_config_dir", _no_home)
-    monkeypatch.setattr(C, "user_cache_dir", _no_home)
-    monkeypatch.setattr(C, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(L, "user_config_dir", _no_home)
+    monkeypatch.setattr(L, "user_cache_dir", _no_home)
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
     for key in [k for k in os.environ if k.startswith("LXO_MCP_")]:
         monkeypatch.delenv(key, raising=False)
 
@@ -42,7 +43,7 @@ def homeless(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.usefixtures("homeless")
 def test_the_config_directory_says_what_to_set() -> None:
     with pytest.raises(ConfigError) as excinfo:
-        C.config_dir()
+        L.config_dir()
 
     message = str(excinfo.value)
     assert "HOME" in message and "--env-file" in message
@@ -52,7 +53,7 @@ def test_the_config_directory_says_what_to_set() -> None:
 @pytest.mark.usefixtures("homeless")
 def test_the_download_directory_says_what_to_set() -> None:
     with pytest.raises(ConfigError) as excinfo:
-        C.download_dir()
+        L.download_dir()
 
     assert "LXO_MCP_DOWNLOAD_DIR" in str(excinfo.value)
 
@@ -76,18 +77,18 @@ def test_the_other_places_are_still_searched(tmp_path: Path) -> None:
     """A working directory or a checkout needs no home."""
     (tmp_path / ".env").write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
 
-    assert C.config_candidates(".env", cwd=tmp_path) == [
+    assert L.config_candidates(".env", cwd=tmp_path) == [
         tmp_path / "config" / ".env",
         tmp_path / ".env",
     ]
-    assert C.resolve_config_file(".env", cwd=tmp_path) == tmp_path / ".env"
+    assert L.resolve_config_file(".env", cwd=tmp_path) == tmp_path / ".env"
     assert C.load_settings(cwd=tmp_path).page_size == 7
 
 
 @pytest.mark.usefixtures("homeless")
 def test_with_no_file_anywhere_there_is_nowhere_to_create_one(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="HOME"):
-        C.resolve_config_file("tools.json", cwd=tmp_path)
+        L.resolve_config_file("tools.json", cwd=tmp_path)
 
 
 @pytest.mark.usefixtures("homeless")
@@ -97,7 +98,7 @@ def test_settings_can_still_come_from_the_environment(
     """No file is not an error, with or without a home."""
     monkeypatch.setenv("LXO_MCP_API_KEY", "k")
 
-    assert C.env_file_in_effect(cwd=tmp_path) is None
+    assert L.env_file_in_effect(cwd=tmp_path) is None
     assert C.load_settings(cwd=tmp_path).api_key == "k"
 
 
@@ -122,7 +123,7 @@ def test_the_command_line_ends_in_one_line_not_a_traceback(
     # The suite hands every test a policy file of its own. This one needs the
     # search, which is where the missing home is found.
     monkeypatch.setattr(
-        C, "tool_policy_file", lambda: C.resolve_config_file(C.TOOL_POLICY_NAME)
+        L, "tool_policy_file", lambda: L.resolve_config_file(L.TOOL_POLICY_NAME)
     )
 
     with pytest.raises(SystemExit) as excinfo:

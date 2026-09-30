@@ -17,29 +17,26 @@ on the way back in.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, Field
+from .types import (
+    Address,
+    ArticleType,
+    ContactKind,
+    LeadingPrice,
+    Role,
+    SalesLineItem,
+    TaxType,
+    VoucherItem,
+    VoucherType,
+)
 
 __all__ = [
-    "Address",
-    "ArticleType",
-    "ContactKind",
-    "LeadingPrice",
-    "LineItemType",
-    "Role",
-    "SalesLineItem",
-    "TaxType",
-    "VoucherItem",
-    "VoucherType",
     "article_body",
     "contact_body",
     "sales_document_body",
     "voucher_body",
 ]
-
-ContactKind = Literal["company", "person"]
-Role = Literal["customer", "vendor"]
 
 # Which list an address or a number is filed under when the caller does not
 # care. The API keeps one entry per kind, so the choice only decides the label.
@@ -47,32 +44,6 @@ _COMPANY_EMAIL = "business"
 _PERSON_EMAIL = "private"
 _COMPANY_PHONE = "business"
 _PERSON_PHONE = "private"
-
-
-class Address(BaseModel):
-    """One postal address.
-
-    A contact holds at most one billing and one shipping address, which the
-    API enforces: a second entry is refused with
-    ``addresses.billing.size: invalid_value``. Verified 2026-08-20.
-    """
-
-    street: str | None = Field(
-        None, description="Street and house number, for example 'Musterweg 1'."
-    )
-    supplement: str | None = Field(
-        None, description="Address line 2, for example 'Building C'."
-    )
-    zip: str | None = Field(None, description="Postal code.")
-    city: str | None = Field(None, description="City.")
-    country_code: str = Field(
-        description=(
-            "ISO 3166 alpha-2 country code, for example 'DE'. The API "
-            "validates this and refuses anything else."
-        ),
-        min_length=2,
-        max_length=2,
-    )
 
 
 def contact_body(
@@ -219,13 +190,6 @@ def _address_body(address: Address) -> dict[str, Any]:
     return {key: value for key, value in fields.items() if value is not None}
 
 
-VoucherType = Literal[
-    "salesinvoice", "salescreditnote", "purchaseinvoice", "purchasecreditnote"
-]
-# One vocabulary for a voucher and for a sales document: both say whether
-# the line amounts are before or after tax, in the same three words.
-TaxType = Literal["net", "gross", "vatfree"]
-
 # Fields a voucher carries when read but refuses when written back. Contacts
 # accept their read-only fields and ignore them, vouchers do not: a PUT that
 # echoes `voucherStatus` is refused with `voucherStatus: invalid_value` for
@@ -239,36 +203,6 @@ VOUCHER_PUT_DROP = (
     "updatedDate",
     "organizationId",
 )
-
-
-class VoucherItem(BaseModel):
-    """One line of a bookkeeping voucher.
-
-    The API checks these against the voucher's totals and refuses a mismatch
-    with ``totalGrossAmount: invalid_total_amount``. It also checks the tax
-    against the tax type: with ``net`` the amount is net and a gross figure is
-    refused as ``voucherItems[0].taxAmount: invalid_taxamount``. Verified
-    2026-08-20.
-    """
-
-    amount: float = Field(
-        description=(
-            "The line amount. Gross when the voucher's tax_type is 'gross', "
-            "net when it is 'net'."
-        )
-    )
-    tax_amount: float = Field(
-        description="The tax on this line. Zero for a vatfree voucher."
-    )
-    tax_rate_percent: float = Field(
-        description="The tax rate as a percentage, for example 19."
-    )
-    category_id: str = Field(
-        description=(
-            "The posting category this line books to, from get_master_data "
-            "with kind 'posting-categories'. Not a name, the category's id."
-        )
-    )
 
 
 def voucher_body(
@@ -387,9 +321,6 @@ def _gross_total(lines: list[dict[str, Any]], tax_type: Any) -> float:
 
 # -- articles -------------------------------------------------------------
 
-ArticleType = Literal["PRODUCT", "SERVICE"]
-LeadingPrice = Literal["NET", "GROSS"]
-
 # Computed by the API from the other half and the tax rate, and refused on
 # the way back in only if it contradicts them. Sending the read-back value
 # unchanged is what an update does, so it stays.
@@ -458,56 +389,10 @@ def article_body(
 
 # -- sales documents ------------------------------------------------------
 
-LineItemType = Literal["custom", "material", "service", "text"]
-
 # Which extra field each type insists on, measured 2026-08-21 by posting a
 # minimal body to each of them and reading what came back. A credit note
 # wants nothing beyond the common fields.
 SHIPPING_REQUIRED = ("invoice", "order-confirmation", "delivery-note")
-
-
-class SalesLineItem(BaseModel):
-    """One line of a sales document.
-
-    The price is one number, and which side it is comes from the document's
-    tax type rather than from the line: a `net` document carries net line
-    prices throughout. The API adds the totals up itself, so nothing here is
-    summed.
-    """
-
-    name: str = Field(description="What the line is called on the document.")
-    quantity: float = Field(description="How many units.", ge=0)
-    unit_name: str = Field(description="What one unit is, for example 'Stueck'.")
-    unit_price: float = Field(
-        description=(
-            "The price of one unit, before tax on a 'net' document and after "
-            "tax on a 'gross' one."
-        ),
-        ge=0,
-    )
-    tax_rate_percent: float = Field(
-        description="The tax rate for this line, for example 19.", ge=0
-    )
-    description: str | None = Field(
-        None, description="Longer text under the line's name."
-    )
-    discount_percentage: float | None = Field(
-        None, description="Discount on this line, as a percentage.", ge=0, le=100
-    )
-    item_type: LineItemType = Field(
-        "custom",
-        description=(
-            "'custom' is a line typed out here. 'material' or 'service' quote "
-            "an article and need article_id. 'text' is a note with no price."
-        ),
-    )
-    article_id: str | None = Field(
-        None,
-        description=(
-            "The article this line quotes, from search_articles. Only for "
-            "'material' and 'service'."
-        ),
-    )
 
 
 def _line_item_body(
