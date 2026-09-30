@@ -804,6 +804,25 @@ def test_an_overwrite_that_cannot_be_written_is_reported(
     assert installation.profiles.all()["Nur Lesen"].tools == ("get_profile",)
 
 
+def test_a_delete_that_cannot_be_written_is_reported(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It used to escape the handler, and the browser got a dropped connection."""
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    def refused(self: ProfileStore, *args: object) -> None:
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(ProfileStore, "delete", refused)
+
+    status, body, _ = browser.post(
+        "/permissions", {"action": "profile-delete", "profile": "Nur Lesen"}
+    )
+
+    assert status == 200
+    assert "nicht schreiben: Permission denied" in note(body)
+
+
 # -- what reaches stderr ----------------------------------------------------
 
 

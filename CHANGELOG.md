@@ -110,6 +110,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **Deleting a profile the configuration interface cannot write is
+  reported** on the page, as saving and overwriting one already were, where
+  the browser got a dropped connection.
 - **An update retried after a lost answer no longer blames somebody
   else.** When the first attempt went through and only its answer was
   lost, the retry was refused as stale and the model was told the record

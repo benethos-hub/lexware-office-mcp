@@ -393,7 +393,17 @@ def _overwrite_profile(
 
 def _delete_profile(inst: Installation, csrf: str, form: Form) -> Reply:
     name = field(form, "profile")
-    gone = inst.profiles.delete(name)
+    try:
+        gone = inst.profiles.delete(name)
+    except OSError as exc:
+        return _page_with(
+            inst,
+            csrf,
+            pages.permissions,
+            _write_failed(inst.profiles.path, exc),
+            kind="bad",
+            opened="profiles",
+        )
     if gone:
         logbook.configui.profile_deleted(name)
     return _page_with(
