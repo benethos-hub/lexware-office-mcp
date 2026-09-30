@@ -103,6 +103,11 @@ def test_a_profile_export_is_not_mistaken_for_a_policy_file() -> None:
 
 
 def test_json_nested_deeper_than_the_stack_is_not_a_policy() -> None:
-    """The decoder recurses per level and raised RecursionError past the handler."""
-    with pytest.raises(transfer.TransferError, match="keine gültige JSON"):
+    """The decoder recursed per level and raised RecursionError past the handler.
+
+    Where the stack is deep enough - Python 3.14, which measures the real
+    one, on Linux - it is read as the list it is and refused as no object.
+    Either way a refusal, never a crash.
+    """
+    with pytest.raises(transfer.TransferError):
         transfer.parse("[" * 100_000 + "]" * 100_000)
