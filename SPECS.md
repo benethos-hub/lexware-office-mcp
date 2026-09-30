@@ -798,6 +798,14 @@ arriving.
   emptiness as its baseline and end the process over the file coming back.
   CI found it, as a rewrite of identical content ending the process for
   nothing - a race that needs a loaded machine, which a developer's is not.
+
+  **Over SSE, an open stream holds the end back (known, not fixed).** The
+  watch asks uvicorn to shut down, and uvicorn waits for every connection to
+  close. Streamable HTTP, the image's transport, ends within seconds with a
+  session's stream open. An SSE client's stream stays open until the client
+  lets go, so the process keeps running on the old settings until then.
+  Measured 2026-09-30 with sse-starlette 3.4.11 and 3.5.0 alike: still
+  running 75 seconds after the change.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr through the one
   handler `logbook.configure` installs, uvicorn's included.
