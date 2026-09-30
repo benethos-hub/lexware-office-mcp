@@ -21,8 +21,8 @@ from mcp.types import (
     TextContent,
 )
 
+from ..errors import ValidationError
 from . import rendering
-from .errors import ValidationError
 
 __all__ = ["TEXT_TYPES", "inline"]
 

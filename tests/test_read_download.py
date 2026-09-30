@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import rendering
 from benethos_lexware_office_mcp.config import DEFAULT_PDF_PAGES, Settings
+from benethos_lexware_office_mcp.files import rendering
 from benethos_lexware_office_mcp.server import build_server
 from helpers import (
     API_KEY,

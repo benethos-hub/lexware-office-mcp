@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 import pytest
 
-from benethos_lexware_office_mcp import storage
 from benethos_lexware_office_mcp.config import Settings
+from benethos_lexware_office_mcp.files import storage
 from helpers import (
     PDF,
 )

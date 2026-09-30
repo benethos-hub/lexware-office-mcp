@@ -16,12 +16,12 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp import config as C
-from benethos_lexware_office_mcp import storage
 from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.configui import pages, probe
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.errors import ConfigError
+from benethos_lexware_office_mcp.files import storage
 from benethos_lexware_office_mcp.server import build_server
 
 

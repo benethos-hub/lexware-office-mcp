@@ -24,7 +24,7 @@ from mcp.server.session import ServerSession
 from mcp.types import Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
-from . import __version__, logbook, resources
+from . import __version__, logbook
 from .api.client import ClientProvider
 from .config import (
     Settings,
@@ -32,6 +32,7 @@ from .config import (
     load_settings,
 )
 from .errors import ConfigError
+from .files import resources
 from .policy import ToolPolicy
 from .tools import register_tools
 
