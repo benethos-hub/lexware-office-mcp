@@ -82,8 +82,8 @@ src/benethos_lexware_office_mcp/
   envfile.py      # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),
-                  # the catalogue: lifecycle, policy, api, calls, configui,
-                  # and tally, which counts a tool call's API calls
+                  # the catalogue: lifecycle, policy, api, calls, files,
+                  # configui, and tally, which counts a tool call's API calls
   configui/       # the local configuration interface, `setup` serves it
                   # render, state, cost, probe, stamp, profiles,
                   # transfer, pages, app - never part of the server process

@@ -31,6 +31,7 @@ CATALOGUE: list[ModuleType] = [
     logbook.api,
     logbook.calls,
     logbook.configui,
+    logbook.files,
     logbook.lifecycle,
     logbook.policy,
 ]

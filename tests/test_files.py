@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -175,6 +176,18 @@ async def test_the_same_document_twice_logs_no_warning(
 
     assert "already exists" not in caplog.text
     await provider.aclose()
+
+
+def test_a_reused_download_is_noted_without_its_name(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    storage.save(b"january", "Rechnung_Mustermann.pdf", tmp_path)
+
+    with caplog.at_level(logging.DEBUG, logger="benethos_lexware_office_mcp"):
+        storage.save(b"january", "Rechnung_Mustermann.pdf", tmp_path)
+
+    assert "An identical download of 7 bytes was on disk, reused it" in caplog.text
+    assert "Mustermann" not in caplog.text
 
 
 async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:

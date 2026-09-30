@@ -36,10 +36,11 @@ The modules:
 - ``policy`` - the tool policy file and the tool list
 - ``api`` - the calls the client makes
 - ``calls`` - the tool calls, one line each
+- ``files`` - downloads on disk
 - ``configui`` - what the configuration interface changed
 - ``tally`` - the count of API calls a tool call made, which is no line
 
-**Every line the server writes is a function in one of the five catalogue
+**Every line the server writes is a function in one of the six catalogue
 modules** from ``lifecycle`` to ``configui``, and
 nothing outside this package imports :mod:`logging`. That is what makes the
 rule above something a reader can check in one place: a line is only ever
@@ -49,7 +50,16 @@ is. ``tests/test_logbook_catalog.py`` holds both halves.
 
 from __future__ import annotations
 
-from . import api, calls, configui, lifecycle, policy, tally
+from . import api, calls, configui, files, lifecycle, policy, tally
 from .output import configure
 
-__all__ = ["api", "calls", "configui", "configure", "lifecycle", "policy", "tally"]
+__all__ = [
+    "api",
+    "calls",
+    "configui",
+    "configure",
+    "files",
+    "lifecycle",
+    "policy",
+    "tally",
+]
