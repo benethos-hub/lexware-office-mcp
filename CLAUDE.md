@@ -69,7 +69,8 @@ src/benethos_lexware_office_mcp/
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
   config.py       # settings resolution, credential lookup
   api/            # everything that talks to Lexware
-    client.py     # ALL HTTP access: auth, retries, error mapping
+    connection.py # ALL HTTP access: auth, retries, error mapping
+    client.py     # LexwareClient: one method per endpoint, on a connection
     ratelimit.py  # the one token bucket, clock injectable for tests
     refusal.py    # a refused answer read into a ToolError
   policy.py       # the tool policy file, and what a tool declares itself to be

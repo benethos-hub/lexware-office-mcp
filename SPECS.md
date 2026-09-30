@@ -91,7 +91,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
-| `api/client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, and a refusal handed to `refusal.from_response`. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
+| `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the network. | built |
+| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
