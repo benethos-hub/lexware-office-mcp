@@ -56,7 +56,9 @@ housekeeping are out of scope here — design decisions live in
 - **At a terminal a line is coloured**: the time dimmed, the level in a
   colour of its own, the source in cyan. Only when stderr is a terminal and
   `NO_COLOR` is not set, so a client's log, a container log and a file get
-  the plain line as before.
+  the plain line as before. uvicorn's request line reads `POST /mcp 401
+  Unauthorized 10.0.0.7:5555` there, the status in the colour of its class
+  and the client dimmed.
 - **The first line says which version started over which transport**, and a
   line at `INFO` says when the tool list changed and how many clients were
   told. A broken policy or profile file is named with the reason it could

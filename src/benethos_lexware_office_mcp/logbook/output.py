@@ -14,9 +14,10 @@ import os
 import sys
 from collections.abc import Iterator
 from datetime import datetime
+from http import HTTPStatus
 from typing import TextIO
 
-from .access import ACCESS_LOGGER, AccessLines
+from .access import ACCESS_LOGGER, AccessLines, request
 
 __all__ = [
     "LIBRARIES",
@@ -135,8 +136,29 @@ _LEVELS = {
 }
 
 
+# A request's status by its class, the way uvicorn colours its own.
+_STATUSES = {2: "\033[32m", 3: "\033[33m", 4: "\033[31m", 5: "\033[1;31m"}
+
+
 def paint(code: str, text: str) -> str:
     return f"{code}{text}{_RESET}" if code else text
+
+
+def _request_line(record: logging.LogRecord) -> str | None:
+    """uvicorn's request line for a terminal: method, path, status, client.
+
+    ``POST /mcp 401 Unauthorized 10.0.0.7:5555``, the status in the colour
+    of its class and the client dimmed. ``None`` for any other line.
+    """
+    seen = request(record)
+    if seen is None:
+        return None
+    try:
+        status = f"{seen.status} {HTTPStatus(seen.status).phrase}"
+    except ValueError:
+        status = str(seen.status)
+    status = paint(_STATUSES.get(seen.status // 100, ""), status)
+    return f"{seen.method} {seen.path} {status} {paint(_DIM, seen.client)}"
 
 
 def in_colour(stream: TextIO) -> bool:
@@ -201,7 +223,8 @@ class _Line(logging.Formatter):
             return super().formatMessage(record)
         level = paint(_LEVELS.get(record.levelno, ""), f"{record.levelname:<8}")
         where = paint(_CYAN, f"{source(record.name):<8}")
-        return f"{paint(_DIM, record.asctime)} {level} {where} {record.message}"
+        message = _request_line(record) or record.message
+        return f"{paint(_DIM, record.asctime)} {level} {where} {message}"
 
 
 def configure(level: str, stream: TextIO | None = None) -> None:

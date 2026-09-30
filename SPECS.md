@@ -1895,6 +1895,13 @@ under stdio, a container log, journald and a file get the plain line. A
 Windows console shows the codes as text until the process asks it not to, so
 the server asks, and keeps the line plain where the console refuses.
 
+uvicorn's request line is laid out again at a terminal, as method, path,
+status with its phrase, and client: `POST /mcp 401 Unauthorized
+10.0.0.7:5555`. The status has the colour of its class the way uvicorn
+colours its own, green for 2xx, yellow for 3xx, red for 4xx and bold red for
+5xx, and the client is dimmed. Anywhere else it keeps uvicorn's shape,
+`10.0.0.7:5555 - "POST /mcp HTTP/1.1" 401`.
+
 **A line names its source in short.** This server's loggers without the
 package in front, `tools` rather than `benethos_lexware_office_mcp.tools`,
 and the package itself as `server`. uvicorn's request line is `http`, and

@@ -369,3 +369,62 @@ def test_a_console_that_refuses_colour_gets_the_plain_line(
 def test_on_windows_a_stream_that_is_no_console_stays_plain() -> None:
     """Elsewhere a terminal takes colour as it is."""
     assert output._console_takes_colour(io.StringIO()) is (sys.platform != "win32")
+
+
+# -- the request line at a terminal ----------------------------------------
+
+
+def _request_at(stream: io.StringIO, status: int, path: str = "/mcp") -> str:
+    logging.getLogger(ACCESS_LOGGER).handle(_access(status, path))
+    return stream.getvalue().rstrip("\n").split(" ", 1)[1]
+
+
+def test_at_a_terminal_the_request_line_is_method_path_status_client(
+    terminal: _Terminal,
+) -> None:
+    configure("INFO", terminal)
+
+    line = _request_at(terminal, 401, f"/mcp?name={SEARCHED}")
+
+    assert line.endswith(
+        "\033[36mhttp    \033[0m POST /mcp \033[31m401 Unauthorized\033[0m "
+        "\033[2m10.0.0.5:51234\033[0m"
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [(200, "\033[32m"), (307, "\033[33m"), (421, "\033[31m"), (503, "\033[1;31m")],
+)
+def test_the_status_has_the_colour_of_its_class(
+    terminal: _Terminal, status: int, code: str
+) -> None:
+    configure("DEBUG", terminal)
+
+    assert f" {code}{status} " in _request_at(terminal, status)
+
+
+def test_a_status_without_a_phrase_is_shown_as_its_number(
+    terminal: _Terminal,
+) -> None:
+    configure("DEBUG", terminal)
+
+    assert " \033[31m499\033[0m " in _request_at(terminal, 499)
+
+
+def test_off_a_terminal_the_request_line_is_uvicorns() -> None:
+    stream = _stream("INFO")
+
+    line = _request_at(stream, 401)
+
+    assert line.endswith('http: 10.0.0.5:51234 - "POST /mcp HTTP/1.1" 401')
+
+
+def test_a_request_line_of_another_shape_is_left_as_it_came(
+    terminal: _Terminal,
+) -> None:
+    configure("INFO", terminal)
+
+    logging.getLogger(ACCESS_LOGGER).info("something new")
+
+    assert terminal.getvalue().rstrip("\n").endswith(" something new")
