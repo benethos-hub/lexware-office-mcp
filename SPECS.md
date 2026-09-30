@@ -123,6 +123,30 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 **Layer rule:** tool functions stay thin. Every HTTP call lives in
 `client.py`, never in a tool function.
 
+**Import rule.** The package is layered, and `tests/test_layers.py` reads
+every import statement to hold it there. A layer imports only what sits
+below it:
+
+| Layer | May import |
+|-------|------------|
+| `errors`, `settings`, `logbook` | each other, nothing else |
+| `records` | `errors` |
+| `api` | the three above, `records` |
+| `files` | the three above |
+| `policy` | `errors`, `logbook` |
+| `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
+| `server` | `tools`, `policy`, `api`, `files` and the three above |
+| `transport` | `server` and the three above |
+| `configui` | everything but `transport` and `cli`, imported by `cli` alone |
+| `cli` | everything, imported by nothing but `python -m` |
+
+Two things the table does not follow from, decided 2026-09-30. `errors` is
+the one module every layer raises from, so `server` and `transport` import it
+like everything else does. And `configui` is not a peer of `cli` but below
+it, since `setup` is a command the console script starts. A new module or
+subpackage fails the test until it has a row, which is the price of the
+table and the reason it keeps.
+
 ## 5. Upstream API
 
 Facts taken from <https://developers.lexware.io/docs/>.

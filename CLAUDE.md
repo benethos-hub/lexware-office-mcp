@@ -118,7 +118,10 @@ live/             # talks to a real account, run by hand, outside testpaths
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `client.py`. Any
-new HTTP call goes in `client.py`, never in a tool function.
+new HTTP call goes in `client.py`, never in a tool function. Which layer may
+import which is a table in `tests/test_layers.py`, see SPECS.md section 4: a
+new module or subpackage needs a row there, and an import against the order
+fails the suite.
 
 ## How to add or change a tool
 
