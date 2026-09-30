@@ -20,12 +20,12 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
 
-from .. import formatting
 from ..api.client import ClientProvider
 from ..config import MAX_PDF_PAGES, Settings
 from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..files import delivery, resources, storage
 from ..policy import classify
+from ..records import formatting
 from ._base import register_tool
 from .sales_documents import (
     RESOURCES,

@@ -18,17 +18,17 @@ from typing import Annotated, Any, Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from .. import formatting
 from ..api.client import ClientProvider
 from ..config import Settings
 from ..errors import ValidationError
-from ..payloads import (
+from ..policy import classify
+from ..records import formatting
+from ..records.payloads import (
     SHIPPING_REQUIRED,
     SalesLineItem,
     TaxType,
     sales_document_body,
 )
-from ..policy import classify
 from ._base import PageNumber, PageSize, register_tool
 
 __all__ = [

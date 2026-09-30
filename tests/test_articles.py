@@ -18,8 +18,8 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.payloads import article_body
+from benethos_lexware_office_mcp.records import formatting
+from benethos_lexware_office_mcp.records.payloads import article_body
 from helpers import Scripted, fast_client, server_with
 
 ARTICLE: dict[str, Any] = {

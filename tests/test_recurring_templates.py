@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting
+from benethos_lexware_office_mcp.records import formatting
 from helpers import Scripted, fast_client, server_with
 
 # The schedule. `finalize` false is the setting that makes each run leave a

@@ -74,8 +74,9 @@ src/benethos_lexware_office_mcp/
     ratelimit.py  # the one token bucket, clock injectable for tests
     refusal.py    # a refused answer read into a ToolError
   policy.py       # the tool policy file, and what a tool declares itself to be
-  formatting.py   # API JSON -> compact tool output
-  payloads.py     # tool arguments -> API request bodies
+  records/        # the shape of the data between the model and the API
+    payloads.py   # tool arguments -> API request bodies
+    formatting.py # API JSON -> compact tool output
   files/          # what becomes of a file, behind the files tools
     storage.py    # where downloads land, filenames made safe first, uploads read
     resources.py  # downloads published as MCP resources for the client

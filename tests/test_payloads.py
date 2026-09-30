@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from benethos_lexware_office_mcp.payloads import Address, contact_body
+from benethos_lexware_office_mcp.records.payloads import Address, contact_body
 
 BERLIN = Address(street="Musterweg 1", zip="10115", city="Berlin", country_code="DE")
 

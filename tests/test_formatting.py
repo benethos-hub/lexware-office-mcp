@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from benethos_lexware_office_mcp import formatting
-from benethos_lexware_office_mcp.formatting import compact, profile
+from benethos_lexware_office_mcp.records import formatting
+from benethos_lexware_office_mcp.records.formatting import compact, profile
 
 
 def test_nulls_and_empty_containers_are_dropped() -> None:

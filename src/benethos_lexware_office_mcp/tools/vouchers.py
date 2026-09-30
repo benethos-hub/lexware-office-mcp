@@ -21,12 +21,12 @@ from typing import Annotated, Any, Literal
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from .. import formatting
 from ..api.client import ClientProvider
 from ..config import Settings
 from ..errors import NotFoundError, ValidationError
-from ..payloads import TaxType, VoucherItem, VoucherType, voucher_body
 from ..policy import classify
+from ..records import formatting
+from ..records.payloads import TaxType, VoucherItem, VoucherType, voucher_body
 from ._base import PageNumber, PageSize, register_tool, require_version
 
 __all__ = ["register"]

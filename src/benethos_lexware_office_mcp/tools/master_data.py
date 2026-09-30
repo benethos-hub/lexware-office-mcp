@@ -19,10 +19,10 @@ from typing import Annotated, Any, Literal
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-from .. import formatting
 from ..api.client import ClientProvider
 from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ..policy import classify
+from ..records import formatting
 from ._base import register_tool
 
 __all__ = ["MasterDataKind", "register"]

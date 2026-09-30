@@ -15,8 +15,8 @@ from typing import Any, get_args
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp import formatting
 from benethos_lexware_office_mcp.errors import UpstreamError
+from benethos_lexware_office_mcp.records import formatting
 from benethos_lexware_office_mcp.tools.master_data import MasterDataKind
 from helpers import Scripted, fast_client, server_with
 
