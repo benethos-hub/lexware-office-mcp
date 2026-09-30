@@ -18,37 +18,30 @@ and permissions and a page in another tab must not be able to trigger one:
 the ``Origin`` or ``Referer`` has to be this very page, loopback host and port
 both, and a random token from a ``SameSite=Strict`` cookie has to come back in
 the form - a token this process issued, not merely one the cookie carries.
+
+What a request that passes both then does is :mod:`.actions`. This module is
+the HTTP around it: sessions, headers, the guards and the routing.
 """
 
 from __future__ import annotations
 
-import dataclasses
 import secrets
 import sys
 import threading
 import webbrowser
-from collections.abc import Callable
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .. import __version__, logbook
-from ..errors import ConfigError
-from ..policy import known_tools
-from ..settings import LOOPBACK_NAMES, load_settings
-from ..settings.envfile import update_env_file
-from . import pages, probe, transfer
-from .profiles import ProfileError
-from .render import esc, note, page
-from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
+from ..settings import LOOPBACK_NAMES
+from . import actions, pages
+from .actions import Form, Reply, field
+from .render import esc, page
+from .state import Installation
 
 __all__ = ["ConfigServer", "Handler", "serve"]
-
-# A parsed form: every field a list, because `parse_qs` allows repeats and the
-# checkbox per tool relies on that.
-Form = dict[str, list[str]]
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
@@ -58,9 +51,6 @@ _SESSION_COOKIE = "lxo_config"
 # The largest form this interface accepts. An imported policy file is the
 # biggest thing any of them carries, and that is a few kilobytes.
 MAX_BODY = 1024 * 1024
-
-# The name the file has on disk, so a download can simply replace one.
-_EXPORT_NAME = "tools.json"
 
 
 class ConfigServer(ThreadingHTTPServer):
@@ -215,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
     def _csrf_ok(self, form: Form) -> bool:
         if self._fresh_cookie:
             return False  # no session cookie was presented at all
-        sent = _field(form, "_csrf")
+        sent = field(form, "_csrf")
         return bool(sent) and secrets.compare_digest(sent, self._session)
 
     # --- routing -----------------------------------------------------------
@@ -245,7 +235,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/permissions":
             self._send(200, pages.permissions(inst, csrf=self._session))
         elif path == "/export":
-            self._export()
+            self._reply(actions.export(inst))
         else:
             self._not_found()
 
@@ -272,12 +262,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._session = self._session_token()
 
-        routes = {
-            "/check": self._check,
-            "/credentials": self._save_key,
-            "/bearer": self._save_bearer,
-            "/settings": self._save_settings,
-            "/permissions": self._permissions,
+        routes: dict[str, actions.Action] = {
+            "/check": actions.check,
+            "/credentials": actions.save_key,
+            "/bearer": actions.save_bearer,
+            "/settings": actions.save_settings,
+            "/permissions": actions.permissions,
         }
         action = routes.get(path)
         if action is None:
@@ -297,429 +287,16 @@ class Handler(BaseHTTPRequestHandler):
                 "Seite neu laden und noch einmal absenden."
             )
             return
-        action(form)
+        self._reply(action(self.installation, form, self._session))
 
-    # --- actions -----------------------------------------------------------
-
-    def _check(self, form: Form) -> None:
-        account, message = probe.check(self.installation.settings)
-        if account is None:
-            body = pages.raw_message(esc(message), "bad")
-        else:
-            body = pages.raw_message(
-                f"{esc(message)} {pages.account_summary(account)}", "good"
-            )
-        self._send(
-            200, pages.overview(self.installation, csrf=self._session, message=body)
-        )
-
-    def _save_key(self, form: Form) -> None:
-        inst = self.installation
-        key = _field(form, "api_key")
-        skip_check = bool(form.get("unchecked"))
-        if not key:
-            self._page_with(
-                pages.credentials, "Kein Schlüssel eingegeben, nichts geändert."
-            )
-            return
-
-        verified: probe.Account | None = None
-        if not skip_check:
-            probe_settings = dataclasses.replace(inst.settings, api_key=key)
-            verified, message = probe.check(probe_settings)
-            if verified is None:
-                logbook.configui.key_refused()
-                self._page_with(
-                    pages.credentials,
-                    f"Nicht gespeichert. {message}",
-                    kind="bad",
-                )
-                return
-
-        try:
-            update_env_file(inst.env_path, {API_KEY: key})
-        except (OSError, ValueError) as exc:
-            self._page_with(
-                pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
-            )
-            return
-        logbook.configui.key_saved(inst.env_path.name, verified is not None)
-        inst.reload()
-        suffix = (
-            " Ungeprüft übernommen."
-            if verified is None
-            else f" Geprüft, das Konto lautet {verified.label}."
-        )
-        shadow = (
-            " Achtung: eine Umgebungsvariable setzt ihn weiterhin außer Kraft."
-            if inst.shadowed(API_KEY)
-            else ""
-        )
-        self._page_with(
-            pages.credentials,
-            f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}",
-            kind="good",
-        )
-
-    def _save_bearer(self, form: Form) -> None:
-        """Write the HTTP token, or make one. Never write an empty one.
-
-        Empty means "leave alone" for the API key, where the field is blank
-        by design. Here the field shows what is set, so blank can only mean
-        the value was cleared - and a cleared token is a server that stops
-        serving on its next start.
-        """
-        inst = self.installation
-        if _field(form, "action") == "generate":
-            token = secrets.token_urlsafe(32)
-            done = "Neues Token erzeugt und gespeichert."
-        else:
-            token = _field(form, "bearer")
-            if not token:
-                self._page_with(
-                    pages.credentials,
-                    "Nicht gespeichert: ein leeres Token wäre kein Token. "
-                    "Der Server startet den HTTP-Transport dann nicht.",
-                    kind="bad",
-                )
-                return
-            done = "Token gespeichert."
-
-        try:
-            update_env_file(inst.env_path, {BEARER_KEY: token})
-        except (OSError, ValueError) as exc:
-            self._page_with(
-                pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
-            )
-            return
-
-        logbook.configui.token_saved(
-            inst.env_path.name, _field(form, "action") == "generate"
-        )
-        inst.reload()
-        shadow = (
-            " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
-            if inst.shadowed(BEARER_KEY)
-            else ""
-        )
-        self._page_with(
-            pages.credentials,
-            f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
-            f"jeder Client braucht es dann neu.{shadow}",
-            kind="good",
-        )
-
-    def _save_settings(self, form: Form) -> None:
-        inst = self.installation
-        submitted = {key: _field(form, key) for key in EDITABLE_KEYS if key in form}
-        # Validated by the same code the server uses, so a value accepted here
-        # cannot be one that stops the server from starting later.
-        proposed = {**inst.file_env(), **submitted}
-        try:
-            load_settings(env=proposed)
-        except ConfigError as exc:
-            # The server's own wording, quoted rather than translated. A German
-            # paraphrase here would be a second copy of a rule that lives in
-            # settings/, and the two would part company on the first change.
-            self._page_with(
-                pages.credentials,
-                f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
-                kind="bad",
-            )
-            return
-        try:
-            update_env_file(inst.env_path, submitted)
-        except (OSError, ValueError) as exc:
-            self._page_with(
-                pages.credentials, _write_failed(inst.env_path, exc), kind="bad"
-            )
-            return
-        logbook.configui.settings_saved(inst.env_path.name, list(submitted))
-        inst.reload()
-        self._page_with(
-            pages.credentials,
-            f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.",
-            kind="good",
-        )
-
-    def _permissions(self, form: Form) -> None:
-        """One form, seven buttons: the button's value says which."""
-        chosen = [name for name in form.get("tool", []) if name in known_tools()]
-        actions: dict[str, Callable[[], None]] = {
-            "save": lambda: self._save_policy(chosen),
-            "load": lambda: self._load_profile(form),
-            "profile-save": lambda: self._save_profile(form, chosen),
-            "profile-overwrite": lambda: self._overwrite_profile(form, chosen),
-            "profile-delete": lambda: self._delete_profile(form),
-            "policy-export": self._export,
-            "policy-import": lambda: self._import_policy(form, chosen),
-        }
-        action = actions.get(_field(form, "action"))
-        if action is None:
+    def _reply(self, reply: Reply | None) -> None:
+        """Send what an action answered: a page, a download, or nothing there."""
+        if reply is None:
             self._not_found()
-            return
-        action()
-
-    def _save_policy(self, chosen: list[str]) -> None:
-        """Write the file. The one action here that changes what a server does."""
-        inst = self.installation
-        flags = {name: name in chosen for name in known_tools()}
-        try:
-            inst.policy.save(flags)
-        except (OSError, ValueError) as exc:
-            self._page_with(
-                pages.permissions, _write_failed(inst.policy_path, exc), kind="bad"
-            )
-            return
-        writers = sorted(n for n in chosen if known_tools()[n].access == "write")
-        logbook.configui.policy_saved(
-            inst.policy_path, len(chosen), len(flags), writers
-        )
-        text = f"{len(chosen)} von {len(flags)} Tools aktiv."
-        if writers:
-            text += (
-                f" Davon dürfen {len(writers)} echte Buchhaltungsdaten ändern: "
-                + ", ".join(writers)
-                + "."
-            )
-        self._page_with(pages.permissions, text, kind="" if writers else "good")
-
-    def _load_profile(self, form: Form) -> None:
-        inst = self.installation
-        name = _field(form, "profile")
-        profile = inst.profiles.get(name)
-        if profile is None:
-            self._page_with(
-                pages.permissions, f"Kein Profil namens {name}.", kind="bad"
-            )
-            return
-        known = list(known_tools())
-        newer = profile.newer_tools(known)
-        unknown = profile.unknown(known)
-        text = (
-            f"Profil {profile.name} geladen, {len(profile.tools)} Tools. "
-            "Noch nichts geschrieben — dafür unten auf „Rechte speichern“."
-        )
-        if newer:
-            text += (
-                f" {len(newer)} Tools sind neuer als das Profil und bleiben "
-                "deshalb aus: " + ", ".join(newer) + "."
-            )
-        if unknown:
-            text += f" Übergangen, weil es sie nicht mehr gibt: {', '.join(unknown)}."
-        body = pages.permissions(
-            inst,
-            csrf=self._session,
-            message=note(esc(text)),
-            flags=profile.flags(known),
-        )
-        self._send(200, body)
-
-    def _save_profile(self, form: Form, chosen: list[str]) -> None:
-        """Create a profile under a new name, and only under a new one.
-
-        A name that is already taken is refused rather than silently
-        replacing what is there. Case and spacing do not distinguish two
-        profiles: "nur lesend" beside "Nur lesend" is a duplicate a person
-        cannot tell apart in the list, which sorts case-insensitively.
-        Overwriting has a button of its own.
-        """
-        inst = self.installation
-        name = _field(form, "profile_name")
-        clash = inst.profiles.find(name)
-        if clash is not None:
-            self._page_with(
-                pages.permissions,
-                f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
-                "auswählen und überschreiben, oder einen anderen Namen nehmen.",
-                kind="bad",
-                flags=_flags(chosen),
-                opened="profiles",
-            )
-            return
-        try:
-            profile = inst.profiles.save(name, chosen, known_tools())
-        except ProfileError as exc:
-            self._page_with(
-                pages.permissions,
-                str(exc),
-                kind="bad",
-                flags=_flags(chosen),
-                opened="profiles",
-            )
-            return
-        except OSError as exc:
-            self._page_with(
-                pages.permissions,
-                _write_failed(inst.profiles.path, exc),
-                kind="bad",
-                flags=_flags(chosen),
-                opened="profiles",
-            )
-            return
-        logbook.configui.profile_saved(profile.name, len(profile.tools), False)
-        self._page_with(
-            pages.permissions,
-            f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
-            "Die Rechtedatei selbst ist unverändert.",
-            kind="good",
-            flags=_flags(chosen),
-            opened="profiles",
-        )
-
-    def _overwrite_profile(self, form: Form, chosen: list[str]) -> None:
-        """Replace the selected profile with what is ticked right now."""
-        inst = self.installation
-        name = _field(form, "profile")
-        if inst.profiles.get(name) is None:
-            self._page_with(
-                pages.permissions,
-                f"Kein Profil namens {name}.",
-                kind="bad",
-                flags=_flags(chosen),
-                opened="profiles",
-            )
-            return
-        try:
-            profile = inst.profiles.save(name, chosen, known_tools())
-        except OSError as exc:
-            self._page_with(
-                pages.permissions,
-                _write_failed(inst.profiles.path, exc),
-                kind="bad",
-                flags=_flags(chosen),
-                opened="profiles",
-            )
-            return
-        logbook.configui.profile_saved(profile.name, len(profile.tools), True)
-        self._page_with(
-            pages.permissions,
-            f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
-            "Die Rechtedatei selbst ist unverändert.",
-            kind="good",
-            flags=_flags(chosen),
-            opened="profiles",
-        )
-
-    def _delete_profile(self, form: Form) -> None:
-        name = _field(form, "profile")
-        gone = self.installation.profiles.delete(name)
-        if gone:
-            logbook.configui.profile_deleted(name)
-        self._page_with(
-            pages.permissions,
-            f"Profil {name} gelöscht." if gone else f"Kein Profil namens {name}.",
-            kind="good" if gone else "bad",
-            opened="profiles",
-        )
-
-    # --- carrying the policy file ----------------------------------------
-
-    def _export(self) -> None:
-        """The policy file as a download, byte for byte what is on disk."""
-        self._download(
-            transfer.dumps(self.installation.policy.as_map()).encode("utf-8"),
-            _EXPORT_NAME,
-        )
-
-    def _import_policy(self, form: Form, chosen: list[str]) -> None:
-        """Read a policy file into the form. Saving is still a separate act.
-
-        The rule is the one `--tools sync` follows: a tool the file does not
-        name stays **off**, because that is what an unmentioned tool means
-        everywhere else in this project. A file written before a tool existed
-        therefore leaves it switched off rather than guessing, and how many
-        those are is said out loud instead of being left to be noticed.
-        """
-        text = _field(form, "bundle")
-        try:
-            arriving = transfer.parse(text)
-        except transfer.TransferError as exc:
-            self._page_with(
-                pages.permissions,
-                str(exc),
-                kind="bad",
-                flags=_flags(chosen),
-                opened="policy",
-            )
-            return
-
-        known = known_tools()
-        flags = {name: arriving.get(name, False) for name in known}
-        newer = sorted(name for name in known if name not in arriving)
-        unknown = sorted(name for name in arriving if name not in known)
-
-        on = sum(flags.values())
-        text_out = (
-            f"Rechtedatei eingelesen, {on} von {len(known)} Tools angehakt. "
-            "Geschrieben ist noch nichts — dafür unten auf „Rechte speichern“."
-        )
-        if newer:
-            text_out += (
-                f" {len(newer)} Tools nennt die Datei nicht und bleiben "
-                "deshalb aus: " + ", ".join(newer) + "."
-            )
-        if unknown:
-            text_out += (
-                f" Übergangen, weil es sie hier nicht gibt: {', '.join(unknown)}."
-            )
-        self._send(
-            200,
-            pages.permissions(
-                self.installation,
-                csrf=self._session,
-                message=note(esc(text_out)),
-                flags=flags,
-                opened="policy",
-            ),
-        )
-
-    # --- one small convenience ---------------------------------------------
-
-    def _page_with(
-        self,
-        render: Callable[..., bytes],
-        text: str,
-        *,
-        kind: str = "",
-        flags: dict[str, bool] | None = None,
-        opened: str = "",
-    ) -> None:
-        extra: dict[str, Any] = {}
-        if flags is not None:
-            extra["flags"] = flags
-        if opened:
-            extra["opened"] = opened
-        self._send(
-            200,
-            render(
-                self.installation,
-                csrf=self._session,
-                message=pages.message_box(text, kind),
-                **extra,
-            ),
-        )
-
-
-def _field(form: Form, name: str) -> str:
-    """One single-valued field of a form, stripped, empty when absent."""
-    return form.get(name, [""])[0].strip()
-
-
-def _write_failed(path: Path, exc: OSError | ValueError) -> str:
-    """Why a file was not written. A refused value is quoted, not translated.
-
-    One sentence for the three files this interface writes. The path is
-    shown: this page is read by the person sitting at the machine, who is
-    the one who can do something about a directory they do not own.
-
-    Called exactly where a write failed, so it is also where stderr hears
-    of it.
-    """
-    logbook.configui.write_failed(path, exc)
-    if isinstance(exc, ValueError):
-        return f"Nicht gespeichert: {exc}"
-    return f"Konnte {path} nicht schreiben: {exc.strerror or exc}"
+        elif reply.download is not None:
+            self._download(reply.body, reply.download)
+        else:
+            self._send(200, reply.body)
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:
@@ -730,10 +307,6 @@ def _host_and_port(header: str) -> tuple[str, int] | None:
     except ValueError:
         return None
     return (name, port) if name else None
-
-
-def _flags(chosen: list[str]) -> dict[str, bool]:
-    return {name: name in chosen for name in known_tools()}
 
 
 def serve(
