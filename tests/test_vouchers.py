@@ -16,7 +16,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp.config import Settings
 from benethos_lexware_office_mcp.records import formatting
-from benethos_lexware_office_mcp.records.payloads import VoucherItem, voucher_body
+from benethos_lexware_office_mcp.records.payloads import voucher_body
+from benethos_lexware_office_mcp.records.types import VoucherItem
 from benethos_lexware_office_mcp.server import build_server
 from helpers import Scripted, fast_client, server_with
 

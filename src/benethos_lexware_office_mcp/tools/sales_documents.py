@@ -4,8 +4,9 @@ An invoice, a quotation, a credit note, an order confirmation, a delivery
 note, a dunning and a down payment invoice are one shape with different
 fields, and they live behind one path each rather than behind a type filter.
 The type is therefore part of the address, not part of the query, which is
-why every tool in this group takes it as an argument and why the mapping from
-the name a caller uses to the path segment the API wants lives here.
+why every tool in this group takes it as an argument. The mapping from the
+name a caller uses to the path segment the API wants is ``RESOURCES`` in
+``records.types``, beside the type itself.
 
 The bookkeeping voucher these documents are often confused with is
 :mod:`.vouchers`, and the rendered PDF is :mod:`.files`.
@@ -13,7 +14,7 @@ The bookkeeping voucher these documents are often confused with is
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, get_args
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -23,43 +24,22 @@ from ..config import Settings
 from ..errors import ValidationError
 from ..policy import classify
 from ..records import formatting
-from ..records.payloads import (
-    SHIPPING_REQUIRED,
+from ..records.payloads import SHIPPING_REQUIRED, sales_document_body
+from ..records.types import (
+    RESOURCES,
+    CreatableType,
+    DocumentType,
+    RecurringSort,
     SalesLineItem,
     TaxType,
-    sales_document_body,
 )
 from ._base import PageNumber, PageSize, register_tool
 
 __all__ = [
-    "RESOURCES",
     "DocumentIdField",
-    "DocumentType",
     "DocumentTypeField",
     "register",
 ]
-
-# The six types the API creates. A down payment invoice has no POST at all -
-# it is raised by the app when a quotation is part-invoiced. Measured against
-# the documented endpoint list and confirmed by the six that do accept one,
-# 2026-08-21.
-CreatableType = Literal[
-    "invoice",
-    "quotation",
-    "credit-note",
-    "order-confirmation",
-    "delivery-note",
-    "dunning",
-]
-
-# The seven types there are. A nested Literal is flattened, so the schema
-# lists all seven and a new type is added in exactly one place.
-DocumentType = Literal[CreatableType, "down-payment-invoice"]
-
-# The path segment each type lives under: plural and kebab-cased, which is
-# also what the web app's permalinks use. Every one of the seven pluralizes
-# with an `s`, so the table is derived rather than kept by hand.
-RESOURCES: dict[str, str] = {name: f"{name}s" for name in get_args(DocumentType)}
 
 # Both fields are shared with `download_document` in :mod:`.files`, which
 # addresses the same seven documents. One wording, sent to the model once per
@@ -73,18 +53,6 @@ DocumentTypeField = Annotated[
             "search_vouchers reported, where a sales invoice is 'invoice'."
         )
     ),
-]
-
-# Measured 2026-08-21 by sending `title`: the API names the four it takes.
-RecurringSort = Literal[
-    "createdDate,DESC",
-    "createdDate,ASC",
-    "updatedDate,DESC",
-    "updatedDate,ASC",
-    "nextExecutionDate,DESC",
-    "nextExecutionDate,ASC",
-    "lastExecutionDate,DESC",
-    "lastExecutionDate,ASC",
 ]
 
 DocumentIdField = Annotated[

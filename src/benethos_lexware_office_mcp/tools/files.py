@@ -13,12 +13,12 @@ import contextlib
 import inspect
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from ..api.client import ClientProvider
 from ..config import MAX_PDF_PAGES, Settings
@@ -26,75 +26,17 @@ from ..errors import LocalFileError, NotFoundError, ValidationError
 from ..files import delivery, resources, storage
 from ..policy import classify
 from ..records import formatting
+from ..records.types import RESOURCES, Delivered, Download, Format
 from ._base import register_tool
-from .sales_documents import (
-    RESOURCES,
-    DocumentIdField,
-    DocumentTypeField,
-)
+from .sales_documents import DocumentIdField, DocumentTypeField
 
 __all__ = ["register"]
-
-
-# A download answers with content blocks as well as data, so its tools return
-# a `CallToolResult` and name the model its structured half has to match as
-# `Annotated` metadata. The SDK takes the output schema from that model and
-# checks the result's structured content against it, so a client sees the
-# model's schema and the blocks travel as they were built.
-
-
-class Download(BaseModel):
-    """What a download reports back.
-
-    Declared as a model rather than a bare dict so the schema the client sees
-    says what the fields are. `path` and `uri` name the same file: the path is
-    usable when the client shares a machine with the server, the URI when it
-    does not.
-    """
-
-    path: str = Field(description="Where the file was written on the server.")
-    uri: str = Field(
-        description=(
-            "Resource URI for the same file. Read it to get the bytes, "
-            "wherever the server runs."
-        )
-    )
-    mimeType: str = Field(description="The file's content type.")
-    size: int = Field(description="Size in bytes.")
-    # No deeplink. A download reports where the bytes are, and a link into
-    # the web app is `get_deeplink`'s answer to a different question. Keeping
-    # them apart is what stops one from being wrong about the other, see
-    # SPECS.md section 13.
-
-
-class Delivered(BaseModel):
-    """What `read_download` reports alongside the content it delivers."""
-
-    uri: str = Field(description="The download that was read.")
-    mimeType: str = Field(description="The file's content type.")
-    size: int = Field(description="Size in bytes.")
-    deliveredAs: str = Field(
-        description=(
-            "How the content was put into the answer: 'text' for something "
-            "readable such as an XRechnung, 'image' for a picture, 'pages' "
-            "for a PDF rendered to images, or 'binary' for anything the "
-            "client has to handle itself."
-        )
-    )
-    pages: int | None = Field(
-        None, description="How many pages the document has, for a PDF."
-    )
-    pagesShown: int | None = Field(
-        None, description="How many of them were rendered into this answer."
-    )
 
 
 # Base64 costs roughly 1.37 times the file size in the answer, so this is a
 # ceiling on damage rather than a working size. It is the same 5 MiB the API
 # accepts for an upload, so there is one number to remember.
 MAX_INLINE = 5 * 1024 * 1024
-
-Format = Literal["pdf", "xml"]
 
 MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
 
@@ -136,6 +78,11 @@ FormatField = Annotated[
 ]
 
 
+# A download answers with content blocks as well as data, so its tools return
+# a `CallToolResult` and name the model its structured half has to match as
+# `Annotated` metadata. The SDK takes the output schema from that model and
+# checks the result's structured content against it, so a client sees the
+# model's schema and the blocks travel as they were built.
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:
     """Register the file tools. The policy file decides the rest."""
 

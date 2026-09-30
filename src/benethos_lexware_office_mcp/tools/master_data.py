@@ -14,7 +14,7 @@ happens after the call rather than in it. See
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -23,19 +23,10 @@ from ..api.client import ClientProvider
 from ..config import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ..policy import classify
 from ..records import formatting
+from ..records.types import MasterDataKind
 from ._base import register_tool
 
-__all__ = ["MasterDataKind", "register"]
-
-# The path segment is the kind, for all four. The value reaches a URL only
-# after the schema has checked it against this list, so nothing here is
-# assembled from an unchecked string.
-MasterDataKind = Literal[
-    "countries",
-    "payment-conditions",
-    "posting-categories",
-    "print-layouts",
-]
+__all__ = ["register"]
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:

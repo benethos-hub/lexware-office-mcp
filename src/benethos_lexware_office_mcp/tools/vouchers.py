@@ -16,7 +16,7 @@ that split rather than papering over it:
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -26,59 +26,18 @@ from ..config import Settings
 from ..errors import NotFoundError, ValidationError
 from ..policy import classify
 from ..records import formatting
-from ..records.payloads import TaxType, VoucherItem, VoucherType, voucher_body
+from ..records.payloads import voucher_body
+from ..records.types import (
+    SearchStatus,
+    SearchType,
+    SortOrder,
+    TaxType,
+    VoucherItem,
+    VoucherType,
+)
 from ._base import PageNumber, PageSize, register_tool, require_version
 
 __all__ = ["register"]
-
-# Measured against the live API on 2026-08-20 by trying every plausible value:
-# these are exactly the ones it accepts. `dunning` is not among them, so
-# dunnings cannot be found through the voucher list at all.
-SearchType = Literal[
-    "any",
-    "invoice",
-    "salesinvoice",
-    "purchaseinvoice",
-    "creditnote",
-    "salescreditnote",
-    "purchasecreditnote",
-    "orderconfirmation",
-    "quotation",
-    "deliverynote",
-    "downpaymentinvoice",
-]
-
-SearchStatus = Literal[
-    "any",
-    "draft",
-    "open",
-    "paid",
-    "paidoff",
-    "voided",
-    "transferred",
-    "sepadebit",
-    "overdue",
-    "accepted",
-    "rejected",
-    "unchecked",
-]
-
-# `sort` is the one place the API is stricter than it looks: only the voucher
-# date can be sorted on, and anything else is refused as "parameter 'sort' is
-# invalid".
-# The four properties the API sorts the voucher list on, each way round.
-# Measured 2026-09-27: all four are honoured, and anything else is refused
-# with "parameter 'sort' is invalid".
-SortOrder = Literal[
-    "voucherDate,DESC",
-    "voucherDate,ASC",
-    "voucherNumber,DESC",
-    "voucherNumber,ASC",
-    "createdDate,DESC",
-    "createdDate,ASC",
-    "updatedDate,DESC",
-    "updatedDate,ASC",
-]
 
 VoucherId = Annotated[
     str,

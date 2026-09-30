@@ -77,6 +77,7 @@ src/benethos_lexware_office_mcp/
   records/        # the shape of the data between the model and the API
     payloads.py   # tool arguments -> API request bodies
     formatting.py # API JSON -> compact tool output
+    types.py      # every Literal and model a tool's schema is built from
   files/          # what becomes of a file, behind the files tools
     storage.py    # where downloads land, filenames made safe first, uploads read
     resources.py  # downloads published as MCP resources for the client
@@ -129,7 +130,8 @@ new HTTP call goes in `client.py`, never in a tool function.
    rule below. It writes no log line of its own: the wrapper
    `register_tool` puts around every tool writes one per call.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
-   `Literal` for enums and `ge`/`le` for numeric bounds.
+   `Literal` for enums and `ge`/`le` for numeric bounds. A named `Literal`
+   or an argument model goes in `records/types.py`, not in the tool module.
 5. Classify it with `@classify(access, domain)` — `read` or `write`, plus
    the group it belongs to, `effect` for a write tool, and `permanence` when
    what it writes cannot be removed through the API: `"app"` when only the
