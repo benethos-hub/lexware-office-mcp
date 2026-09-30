@@ -211,6 +211,33 @@ async def test_a_stale_version_in_the_details_shape_is_still_a_conflict() -> Non
             await client.request("PUT", "/v1/articles/abc")
 
 
+async def test_a_stale_version_after_a_lost_answer_blames_the_first_attempt() -> None:
+    """The update went through, its answer did not, and the retry is stale.
+
+    Telling the caller somebody changed the record sends it to apply the
+    same change twice.
+    """
+    stale = {"IssueList": [{"source": "version", "i18nKey": "invalid_value"}]}
+    async with make_client(
+        httpx.TimeoutException("too slow"), httpx.Response(406, json=stale)
+    ) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("PUT", "/v1/contacts/abc", json={})
+
+    assert "most likely carried out" in str(excinfo.value)
+    assert "changed since it was read" not in str(excinfo.value)
+    assert excinfo.value.status == 406
+
+
+async def test_a_stale_version_on_the_first_attempt_is_somebody_elses() -> None:
+    stale = {"IssueList": [{"source": "version", "i18nKey": "invalid_value"}]}
+    async with make_client(httpx.Response(406, json=stale)) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("PUT", "/v1/contacts/abc", json={})
+
+    assert "changed since it was read" in str(excinfo.value)
+
+
 async def test_a_version_that_was_never_sent_is_not_a_stale_one() -> None:
     """Measured 2026-08-21 against `PUT /v1/articles/{id}` with a bare body.
 

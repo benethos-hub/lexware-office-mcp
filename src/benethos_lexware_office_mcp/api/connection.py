@@ -35,7 +35,7 @@ from typing import Any, Self
 import httpx
 
 from .. import __version__, logbook
-from ..errors import RateLimitError, UpstreamError
+from ..errors import ConflictError, RateLimitError, UpstreamError
 from ..settings import Settings
 from .ratelimit import Sleeper, TokenBucket
 from .refusal import from_response
@@ -44,7 +44,8 @@ __all__ = ["BREAKER_THRESHOLD", "Connection"]
 
 # PUT and DELETE are idempotent, and an update additionally carries the
 # `version` it read: if the first attempt succeeded the version has moved on
-# and a retry fails with 409 rather than applying the change twice.
+# and a retry is refused as stale - 406 or 409, by resource - rather than
+# applying the change twice. `_own_change` says which attempt moved it.
 RETRYABLE_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
 
 MAX_ATTEMPTS = 3
@@ -229,7 +230,10 @@ class Connection:
             if status == 401:
                 logbook.api.key_rejected()
             if status >= 400:
-                raise from_response(response, method, path)
+                refused = from_response(response, method, path)
+                if maybe_done and isinstance(refused, ConflictError):
+                    raise _own_change(refused, method, path)
+                raise refused
 
             return response
 
@@ -296,6 +300,25 @@ class Connection:
         else:
             logbook.api.retrying_status(method, path, status, wait, attempt + 2)
         await self._sleep(wait)
+
+
+def _own_change(refused: ConflictError, method: str, path: str) -> ConflictError:
+    """A conflict on a retry, which the first attempt most likely caused.
+
+    An update is retried after an attempt that got no answer, carrying the
+    version it was written against. If that attempt was carried out, the
+    record has moved to the next version, and the retry is refused as
+    stale. Saying somebody changed the record would send the caller to
+    apply the same change a second time.
+    """
+    own = ConflictError(
+        f"{method} {path} got no answer and was sent again, and the retry "
+        "was refused because the record has moved on. The first attempt was "
+        "most likely carried out. Read the record again and check whether it "
+        "already carries the change before sending it again."
+    )
+    own.status, own.code = refused.status, refused.code
+    return own
 
 
 def _since(started: float) -> float:

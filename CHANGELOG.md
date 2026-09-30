@@ -110,6 +110,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **An update retried after a lost answer no longer blames somebody
+  else.** When the first attempt went through and only its answer was
+  lost, the retry was refused as stale and the model was told the record
+  had changed since it was read - which invites applying the same change
+  again. It now says the first attempt was most likely carried out, and to
+  check the record before sending the change again.
 - **The tool policy and the saved profiles are written whole or not at
   all**, the way the `.env` already was. They were written in place, and a
   running server that reads the policy the moment it changes could catch it
