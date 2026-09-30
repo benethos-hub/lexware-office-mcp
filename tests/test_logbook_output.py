@@ -9,17 +9,22 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 
 import pytest
 from mcp.server.mcpserver import MCPServer
 
-from benethos_lexware_office_mcp.logbook import configure
+from benethos_lexware_office_mcp.logbook import configure, output
 from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER, AccessLines
 from benethos_lexware_office_mcp.logbook.output import (
     LIBRARIES,
     PACKAGE,
+    in_colour,
+    source,
+    stamp,
     untouched_root,
 )
 from benethos_lexware_office_mcp.settings import Settings
@@ -77,8 +82,48 @@ def test_lines_carry_the_logger_name_without_the_package() -> None:
     logging.getLogger("uvicorn.error").info("theirs")
 
     lines = stream.getvalue().splitlines()
-    assert lines[0].endswith("INFO client: a line")
-    assert lines[1].endswith("INFO uvicorn.error: theirs")
+    assert lines[0].endswith("INFO     client: a line")
+    assert lines[1].endswith("INFO     uvicorn: theirs")
+
+
+def test_a_line_is_stamp_level_source_message() -> None:
+    """The level padded to eight, so the sources line up under each other."""
+    stream = _stream("INFO")
+
+    logging.getLogger(f"{PACKAGE}.tools").warning("refused")
+
+    when, level, rest = stream.getvalue().rstrip("\n").split(" ", 2)
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d", when)
+    assert level == "WARNING"
+    assert rest == " tools: refused"
+
+
+def test_the_stamp_is_local_time_with_its_offset() -> None:
+    created = datetime(2026, 9, 30, 11, 58, 50, 597_000, tzinfo=UTC).timestamp()
+
+    written = datetime.fromisoformat(stamp(created))
+
+    assert written.utcoffset() is not None
+    assert written.timestamp() == created
+    assert ".597" in stamp(created)
+
+
+@pytest.mark.parametrize(
+    ("name", "shown"),
+    [
+        (PACKAGE, "server"),
+        (f"{PACKAGE}.tools", "tools"),
+        ("uvicorn.access", "http"),
+        # Named for the error log of the classic web servers, and carrying
+        # every line about the server itself: a start is not an error.
+        ("uvicorn.error", "uvicorn"),
+        ("uvicorn", "uvicorn"),
+        ("httpx", "httpx"),
+        ("somebody.else", "somebody.else"),
+    ],
+)
+def test_each_logger_is_named_by_its_short_source(name: str, shown: str) -> None:
+    assert source(name) == shown
 
 
 def test_configuring_twice_does_not_print_twice() -> None:
@@ -216,3 +261,170 @@ def test_in_a_fresh_process_each_line_appears_once_at_the_level_asked_for() -> N
     assert done.stdout == ""
     assert done.stderr.count("seen once") == 1
     assert "not seen" not in done.stderr
+
+
+# -- colour at a terminal --------------------------------------------------
+
+
+class _Terminal(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+@pytest.fixture
+def terminal(monkeypatch: pytest.MonkeyPatch) -> _Terminal:
+    """A stream that says it is a terminal, on a console that takes colour."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(output, "_console_takes_colour", lambda stream: True)
+    return _Terminal()
+
+
+def test_at_a_terminal_each_field_has_its_colour(terminal: _Terminal) -> None:
+    configure("INFO", terminal)
+
+    logging.getLogger(f"{PACKAGE}.tools").warning("refused")
+
+    line = terminal.getvalue().rstrip("\n")
+    when = line.split(" ", 1)[0]
+    assert when.startswith("\033[2m") and when.endswith("\033[0m")
+    assert line.endswith(" \033[33mWARNING \033[0m \033[36mtools   \033[0m refused")
+
+
+@pytest.mark.parametrize(
+    ("level", "code"),
+    [
+        (logging.DEBUG, "\033[34m"),
+        (logging.INFO, "\033[32m"),
+        (logging.WARNING, "\033[33m"),
+        (logging.ERROR, "\033[31m"),
+        (logging.CRITICAL, "\033[1;31m"),
+    ],
+)
+def test_each_level_has_its_colour(terminal: _Terminal, level: int, code: str) -> None:
+    configure("DEBUG", terminal)
+
+    logging.getLogger(PACKAGE).log(level, "x")
+
+    assert f"{code}{logging.getLevelName(level):<8}\033[0m" in terminal.getvalue()
+
+
+def test_a_traceback_follows_uncoloured(terminal: _Terminal) -> None:
+    configure("INFO", terminal)
+
+    try:
+        raise RuntimeError("boom")
+    except RuntimeError:
+        logging.getLogger(PACKAGE).exception("crashed")
+
+    first, *rest = terminal.getvalue().splitlines()
+    assert "\033[31m" in first
+    assert rest[-1] == "RuntimeError: boom"
+    assert not any("\033[" in line for line in rest)
+
+
+def test_no_color_set_to_anything_keeps_the_line_plain(
+    terminal: _Terminal, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NO_COLOR", "1")
+    configure("INFO", terminal)
+
+    logging.getLogger(PACKAGE).info("plain")
+
+    assert "\033[" not in terminal.getvalue()
+
+
+def test_an_empty_no_color_does_not_count(
+    terminal: _Terminal, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """https://no-color.org: set and not empty."""
+    monkeypatch.setenv("NO_COLOR", "")
+    configure("INFO", terminal)
+
+    logging.getLogger(PACKAGE).info("coloured")
+
+    assert "\033[32m" in terminal.getvalue()
+
+
+def test_anything_but_a_terminal_gets_the_plain_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A client's pipe under stdio, a container log, a file."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    stream = _stream("INFO")
+
+    logging.getLogger(PACKAGE).info("plain")
+
+    assert "\033[" not in stream.getvalue()
+
+
+def test_a_console_that_refuses_colour_gets_the_plain_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(output, "_console_takes_colour", lambda stream: False)
+
+    assert not in_colour(_Terminal())
+
+
+def test_on_windows_a_stream_that_is_no_console_stays_plain() -> None:
+    """Elsewhere a terminal takes colour as it is."""
+    assert output._console_takes_colour(io.StringIO()) is (sys.platform != "win32")
+
+
+# -- the request line at a terminal ----------------------------------------
+
+
+def _request_at(stream: io.StringIO, status: int, path: str = "/mcp") -> str:
+    logging.getLogger(ACCESS_LOGGER).handle(_access(status, path))
+    return stream.getvalue().rstrip("\n").split(" ", 1)[1]
+
+
+def test_at_a_terminal_the_request_line_is_method_path_status_client(
+    terminal: _Terminal,
+) -> None:
+    configure("INFO", terminal)
+
+    line = _request_at(terminal, 401, f"/mcp?name={SEARCHED}")
+
+    assert line.endswith(
+        "\033[36mhttp    \033[0m POST /mcp \033[31m401 Unauthorized\033[0m "
+        "\033[2m10.0.0.5:51234\033[0m"
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [(200, "\033[32m"), (307, "\033[33m"), (421, "\033[31m"), (503, "\033[1;31m")],
+)
+def test_the_status_has_the_colour_of_its_class(
+    terminal: _Terminal, status: int, code: str
+) -> None:
+    configure("DEBUG", terminal)
+
+    assert f" {code}{status} " in _request_at(terminal, status)
+
+
+def test_a_status_without_a_phrase_is_shown_as_its_number(
+    terminal: _Terminal,
+) -> None:
+    configure("DEBUG", terminal)
+
+    assert " \033[31m499\033[0m " in _request_at(terminal, 499)
+
+
+def test_off_a_terminal_the_request_line_is_uvicorns() -> None:
+    stream = _stream("INFO")
+
+    line = _request_at(stream, 401)
+
+    assert line.endswith('http: 10.0.0.5:51234 - "POST /mcp HTTP/1.1" 401')
+
+
+def test_a_request_line_of_another_shape_is_left_as_it_came(
+    terminal: _Terminal,
+) -> None:
+    configure("INFO", terminal)
+
+    logging.getLogger(ACCESS_LOGGER).info("something new")
+
+    assert terminal.getvalue().rstrip("\n").endswith(" something new")

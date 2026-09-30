@@ -175,6 +175,45 @@ def test_starting_says_which_version_over_which_transport(
     assert f"{__version__} started over stdio" in caplog.text
 
 
+def test_starting_names_the_env_file_it_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_PAGE_SIZE=40\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.load_settings",
+        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer([], settings),
+    )
+
+    with caplog.at_level("INFO"):
+        main(["--env-file", str(env)])
+
+    assert f"Settings from {env}" in caplog.text
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_starting_says_when_no_env_file_was_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.load_settings",
+        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer([], settings),
+    )
+
+    with caplog.at_level("INFO"):
+        main([])
+
+    assert "No .env file found" in caplog.text
+
+
 def test_starting_the_server_cleans_the_download_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

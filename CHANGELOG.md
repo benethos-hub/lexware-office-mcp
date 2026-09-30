@@ -46,6 +46,23 @@ housekeeping are out of scope here — design decisions live in
   lost its query string. At `INFO` it appears only for a refused request,
   one answered with 400 or above, which carries the client address that
   tried. `DEBUG` shows every request.
+- **uvicorn's lines are named `uvicorn`, and its request line `http`**,
+  where they carried the logger names `uvicorn.error` and `uvicorn.access`.
+  The first made an ordinary start read like a failure.
+- **A line's time is ISO 8601 with milliseconds and the offset**,
+  `2026-09-30T13:58:50.597+02:00` where it was `2026-09-30 13:58:50,597`
+  without saying which zone, and the level is padded to eight characters so
+  the sources line up.
+- **At a terminal a line is coloured**: the time dimmed, the level in a
+  colour of its own, the source in cyan. Only when stderr is a terminal and
+  `NO_COLOR` is not set, so a client's log, a container log and a file get
+  the plain line as before. uvicorn's request line reads `POST /mcp 401
+  Unauthorized 10.0.0.7:5555` there, the status in the colour of its class
+  and the client dimmed.
+- **The start names the `.env` it read**, `Settings from <path>`, or says
+  that none was found and the settings come from the environment and the
+  defaults. Only the policy file was named before, so which of the
+  searched places had supplied the settings was not to be seen.
 - **The first line says which version started over which transport**, and a
   line at `INFO` says when the tool list changed and how many clients were
   told. A broken policy or profile file is named with the reason it could
@@ -75,6 +92,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **Ctrl+C ends in one line and exit code 130, not a traceback.** Over
+  HTTP, uvicorn shut down cleanly and then raised the interrupt again, and
+  stdio ended in it as well, so stopping the server by hand printed a
+  `KeyboardInterrupt` traceback that read like a crash. It now writes
+  `Stopped by an interrupt` and exits with 130. `docker stop` and systemd
+  were never affected.
 - **`LXO_MCP_LOG_LEVEL` and `--log-level` take effect.** They were ignored:
   the MCP SDK put a handler of its own on the root logger when the server
   module was imported, before the setting was read, so the level stayed at

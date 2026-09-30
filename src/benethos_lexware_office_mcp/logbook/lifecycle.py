@@ -14,10 +14,12 @@ from .output import PACKAGE
 
 __all__ = [
     "ending_on_change",
+    "interrupted",
     "listening",
     "no_policy",
     "reachable_from_outside",
     "settings_changed",
+    "settings_from",
     "started",
     "token_generated",
     "tools_enabled",
@@ -28,6 +30,21 @@ _log = logging.getLogger(f"{PACKAGE}.server")
 
 def started(version: str, transport: str) -> None:
     _log.info("%s started over %s", version, transport)
+
+
+def settings_from(path: Path | None) -> None:
+    """The one ``.env`` this process read, or that it read none.
+
+    A real environment variable still wins over what the file says, see
+    ``settings.locations``.
+    """
+    if path is None:
+        _log.info(
+            "No .env file found, so the settings come from the environment "
+            "and the defaults"
+        )
+    else:
+        _log.info("Settings from %s", path)
 
 
 def no_policy(path: Path | None) -> None:
@@ -86,3 +103,8 @@ def ending_on_change(file: str) -> None:
 
 def settings_changed(file: str) -> None:
     _log.info("%s changed, ending this process so it is started again", file)
+
+
+def interrupted() -> None:
+    """Ctrl+C, in place of the traceback it would otherwise end in."""
+    _log.info("Stopped by an interrupt")

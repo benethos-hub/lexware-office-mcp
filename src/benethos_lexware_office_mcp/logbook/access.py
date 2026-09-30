@@ -13,20 +13,52 @@ the way to stderr:
   host name this server does not answer to, and the line carries the client
   address that tried. Every other line says that a client did what clients
   do, once per request.
+
+At a terminal the line is laid out again, as ``POST /mcp 401 Unauthorized
+10.0.0.7:5555``: :func:`request` reads it, and ``output`` colours it.
 """
 
 from __future__ import annotations
 
 import logging
+from typing import NamedTuple
 
-__all__ = ["ACCESS_LOGGER", "AccessLines"]
+__all__ = ["ACCESS_LOGGER", "AccessLines", "Request", "request"]
 
 ACCESS_LOGGER = "uvicorn.access"
 
 # The position of each value in uvicorn's arguments.
+_CLIENT = 0
+_METHOD = 1
 _PATH = 2
 _STATUS = 4
 _FIELDS = 5
+
+
+class Request(NamedTuple):
+    """What a request line says, for a terminal to lay out its own way."""
+
+    method: str
+    path: str
+    status: int
+    client: str
+
+
+def request(record: logging.LogRecord) -> Request | None:
+    """The request in uvicorn's line, or ``None`` for a line of another shape.
+
+    Read after :class:`AccessLines` has had its turn, so the path is already
+    without its query string.
+    """
+    args = record.args
+    if record.name != ACCESS_LOGGER or not isinstance(args, tuple):
+        return None
+    if len(args) != _FIELDS:
+        return None
+    status = args[_STATUS]
+    if not isinstance(status, int):
+        return None
+    return Request(str(args[_METHOD]), str(args[_PATH]), status, str(args[_CLIENT]))
 
 
 class AccessLines(logging.Filter):

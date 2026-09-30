@@ -1871,12 +1871,62 @@ not answer to, with the client address that tried. That line is the record
 of a refused bearer token, so the server writes none of its own. The SDK
 writes a refused `Host` header as a warning itself.
 
+**What a line looks like.** The time, the level padded to eight characters
+so the sources line up, the source and the message:
+
+```
+2026-09-30T13:58:50.597+02:00 INFO     tools: search_contacts read 12 rows in 1 API call, 230 ms
+2026-09-30T13:58:51.020+02:00 WARNING  tools: update_voucher refused: ConflictError 406 version: invalid_value
+```
+
+The time is ISO 8601 in local time, to the millisecond, with its offset. A
+container usually runs in UTC, and the offset is what makes its lines
+comparable with those of the machine next to it. The `T` keeps the stamp one
+field for anything that splits a line on spaces. A traceback follows on the
+lines after the message.
+
+**At a terminal the same fields are coloured**, and nowhere else: when
+stderr is a TTY and `NO_COLOR` is not set to anything, following
+https://no-color.org. The time is dimmed, the level is blue for `DEBUG`,
+green for `INFO`, yellow for `WARNING`, red for `ERROR` and bold red for
+`CRITICAL`, the source is cyan and padded to eight characters, and each
+coloured part ends in a reset. A traceback stays uncoloured. A client's pipe
+under stdio, a container log, journald and a file get the plain line. A
+Windows console shows the codes as text until the process asks it not to, so
+the server asks, and keeps the line plain where the console refuses.
+
+uvicorn's request line is laid out again at a terminal, as method, path,
+status with its phrase, and client: `POST /mcp 401 Unauthorized
+10.0.0.7:5555`. The status has the colour of its class the way uvicorn
+colours its own, green for 2xx, yellow for 3xx, red for 4xx and bold red for
+5xx, and the client is dimmed. Anywhere else it keeps uvicorn's shape,
+`10.0.0.7:5555 - "POST /mcp HTTP/1.1" 401`.
+
+**A line names its source in short.** This server's loggers without the
+package in front, `tools` rather than `benethos_lexware_office_mcp.tools`,
+and the package itself as `server`. uvicorn's request line is `http`, and
+its own lines, from `uvicorn.error` and `uvicorn`, are `uvicorn`: it names
+its server log after the error log of the classic web servers, into which a
+server writes everything about itself, and spelled out an ordinary start
+reads like a failure. Any other logger keeps its full name.
+
+**Ctrl+C ends in a line and exit code 130, not a traceback.** uvicorn shuts
+down cleanly on SIGINT, as far as `Finished server process`, and then raises
+the signal again on purpose so the process ends as interrupted. Uncaught,
+that is a `KeyboardInterrupt` traceback that reads like a crash, and stdio
+ends the same way. `cli.main` catches it around the whole run, writes
+`Stopped by an interrupt` and exits with 130, which is 128 plus SIGINT, for
+every transport. SIGTERM, which `docker stop` and systemd send, is not
+affected, since Python turns only SIGINT into an exception: the server shuts
+down without the extra line and without a traceback. `setup` has always
+caught Ctrl+C itself and ends with `Beendet.`
+
 **The catalogue**, by module. The logger name a line carries is in brackets
 where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.3.0 started over stdio`, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env` |
+| `lifecycle` (`server`) | `INFO` | `0.3.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `INFO` | `The tool list changed, 2 sessions told` |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |

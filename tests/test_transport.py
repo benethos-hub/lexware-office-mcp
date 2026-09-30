@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from benethos_lexware_office_mcp import cli
 from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.errors import ConfigError, redact
 from benethos_lexware_office_mcp.logbook.output import PACKAGE
@@ -424,3 +425,52 @@ def test_ending_on_a_change_is_off_unless_asked_for() -> None:
     """Outside a container nothing would start it again, so it must not end."""
     assert load_settings({}).exit_on_config_change is False
     assert load_settings({"LXO_MCP_EXIT_ON_CONFIG_CHANGE": "1"}).exit_on_config_change
+
+
+# -- Ctrl+C -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("transport_name", ["stdio", "streamable-http"])
+def test_an_interrupt_ends_in_a_line_and_130_not_a_traceback(
+    transport_name: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """uvicorn raises SIGINT again once it has shut down, and stdio ends in it.
+
+    Either way the transport's call ends in a KeyboardInterrupt, which is what
+    the fake does here.
+    """
+
+    def interrupted(*args: Any, **kwargs: Any) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "run_stdio", interrupted)
+    monkeypatch.setattr(cli, "run_http", interrupted)
+    env = tmp_path / ".env"
+    env.write_text(
+        f"LXO_MCP_BEARER_TOKEN={TOKEN}\nLXO_MCP_DOWNLOAD_DIR={tmp_path / 'dl'}\n",
+        encoding="utf-8",
+    )
+    policy = tmp_path / "tools.json"
+    policy.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "--transport",
+                transport_name,
+                "--env-file",
+                str(env),
+                "--tools-file",
+                str(policy),
+            ]
+        )
+
+    assert excinfo.value.code == 130
+    assert excinfo.value.__cause__ is None
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines()[-1].endswith("server: Stopped by an interrupt")
+    assert "Traceback" not in captured.err
