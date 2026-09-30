@@ -24,6 +24,7 @@ from ..errors import ConfigError
 from ..policy import known_tools
 from ..settings import load_settings
 from ..settings.envfile import update_env_file
+from ..settings.parse import credential
 from . import pages, probe, transfer
 from .profiles import ProfileError
 from .render import esc, note
@@ -78,6 +79,18 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
     if not key:
         return _page_with(
             inst, csrf, pages.credentials, "Kein Schlüssel eingegeben, nichts geändert."
+        )
+
+    try:
+        credential(key, name=API_KEY)
+    except ConfigError as exc:
+        # The server's own wording, quoted as for any refused setting.
+        return _page_with(
+            inst,
+            csrf,
+            pages.credentials,
+            f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
+            kind="bad",
         )
 
     verified: probe.Account | None = None
@@ -145,6 +158,16 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
                 pages.credentials,
                 "Nicht gespeichert: ein leeres Token wäre kein Token. "
                 "Der Server startet den HTTP-Transport dann nicht.",
+                kind="bad",
+            )
+        try:
+            credential(token, name=BEARER_KEY)
+        except ConfigError as exc:
+            return _page_with(
+                inst,
+                csrf,
+                pages.credentials,
+                f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
                 kind="bad",
             )
         done = "Token gespeichert."

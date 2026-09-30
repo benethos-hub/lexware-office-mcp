@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from ..errors import ConfigError
 
-__all__ = ["as_float", "as_int", "csv_tuple", "flag", "https_url"]
+__all__ = ["as_float", "as_int", "credential", "csv_tuple", "flag", "https_url"]
 
 
 def csv_tuple(raw: str | None) -> tuple[str, ...]:
@@ -45,6 +45,25 @@ def as_float(raw: str | None, fallback: float, *, name: str) -> float:
     if value <= 0:
         raise ConfigError(f"{name} must be greater than zero, got {value}.")
     return value
+
+
+def credential(raw: str | None, *, name: str) -> str | None:
+    """A key or a token, which travels in an HTTP header, or ``None``.
+
+    Visible ASCII only. A header cannot carry anything else: a character
+    outside ASCII - a zero-width space pasted along with the key - made
+    every request fail to encode, and a control character had the HTTP
+    library refuse the header and quote it. Neither is ever part of a key.
+    The message never quotes the value, which is a secret.
+    """
+    if not raw:
+        return None
+    if not all("!" <= char <= "~" for char in raw):
+        raise ConfigError(
+            f"{name} contains a character a key never has, such as a space or "
+            "an invisible one copied along with it. Copy the value again."
+        )
+    return raw
 
 
 def https_url(raw: str | None, fallback: str, *, name: str) -> str:

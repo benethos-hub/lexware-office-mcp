@@ -110,6 +110,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **An API key or a bearer token with a character no header can carry is
+  refused where it is set.** A zero-width space or a space copied along with
+  the key made every request fail to encode, which reached the model as a
+  crash, and the configuration interface's check ended without an answer.
+  The server now refuses such a value at start, naming the setting and never
+  the value, and the interface refuses it before trying or writing it.
 - **A policy file named with `--tools-file` stays marked as named** in the
   configuration interface after a save. Saving anything read the settings
   again, and the badge switched to "Suche" although the file had not

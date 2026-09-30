@@ -990,3 +990,18 @@ def test_a_save_beside_a_broken_setting_says_it_was_written(
     assert status == 200
     assert "LXO_MCP_PAGE_SIZE" in note(body)
     assert re.search("geschrieben|gespeichert", note(body))
+
+
+def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A zero-width space pasted along: encoding it failed inside the check."""
+    monkeypatch.setattr(
+        probe, "check", lambda settings: pytest.fail("must not ask the API")
+    )
+
+    status, body, _ = browser.post("/credentials", {"api_key": "a-new​key"})
+
+    assert status == 200
+    assert "Nicht gespeichert" in note(body)
+    assert "a-new" not in installation.env_path.read_text(encoding="utf-8")
