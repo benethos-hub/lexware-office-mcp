@@ -21,6 +21,13 @@ housekeeping are out of scope here — design decisions live in
   header and quote it, so the page showed `Bearer` and the key. It is
   registered before it is tried, and a secret is also redacted where a
   message quotes it escaped, as bytes.
+- **The configuration interface no longer claims a `0.0.0.0` bind is
+  safe.** The warning at its start said the pages answer only when called
+  as `127.0.0.1` or `localhost`, and the 0.3.0 entry said such a bind does
+  not answer the network. The check reads the `Host` header, which the
+  caller writes, so it stops DNS rebinding in a browser and nothing more.
+  The warning now says that whoever reaches the port can open the pages
+  and change the key, and to use `--host 127.0.0.1` outside a container.
 
 ### Changed
 

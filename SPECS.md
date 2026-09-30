@@ -937,11 +937,14 @@ machine. `--host` can bind another address, because a container has to: a
 process on the container's own loopback cannot be reached through a
 published port, and there the host-side publish on `127.0.0.1` is what keeps
 it local. Whatever is bound, **a request is answered only if its `Host` names
-`127.0.0.1`, `localhost` or `::1`.** That refuses a machine on the network
-reaching a careless `0.0.0.0` bind, and DNS rebinding - a page elsewhere
-pointing a name it owns at this machine and reading the pages, bearer token
-included, as its own origin. Every response carries `Cache-Control:
-no-store` for the same token. Every
+`127.0.0.1`, `localhost` or `::1`.** That stops DNS rebinding - a page
+elsewhere pointing a name it owns at this machine and reading the pages,
+bearer token included, as its own origin - because a browser sends the name
+the page used. **It is not access control.** `Host` is a header the caller
+writes, and anything on the network that reaches a `0.0.0.0` bind can send
+`Host: localhost` and be answered. Outside a container a bind beyond
+loopback exposes pages without a login, and the start says so. Every
+response carries `Cache-Control: no-store` for the same token. Every
 state-changing request is guarded twice, because a page in another tab must
 not be able to rewrite credentials or permissions: the `Origin` or `Referer`
 has to name the loopback host **and port** the request went to, and a random
