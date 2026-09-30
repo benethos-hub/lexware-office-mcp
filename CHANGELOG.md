@@ -13,6 +13,16 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-30
+
+A minor release, because an existing installation can trip over four of
+these: the download directory is cut down to its newest 100 files on the
+first start, an API key or bearer token with a character no HTTP header can
+carry now stops the start, `create_contact` and `update_contact` refuse a
+field the contact's kind has no place for, and every log line has a new
+time format and shorter source names, which anything parsing the log will
+notice. Each of them says what happened, on stderr or in the tool's answer.
+
 ### Security
 
 - **A key the configuration interface is checking is never shown back.**
@@ -974,7 +984,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.2...v0.2.3

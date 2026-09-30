@@ -325,7 +325,7 @@ fallen behind, so the list is short on purpose. In this order:
    `compose.yaml`, the SPECS status line and a roadmap row, and the
    changelog section with its link reference. Then `uv lock`, which carries
    the package's own version. The guards in `tests/test_packaging.py` catch
-   most of a missed one. **The minor line** (`:0.3` in the README and
+   most of a missed one. **The minor line** (`:0.4` in the README and
    `compose.yaml`) changes only with a minor release - the image tag itself
    follows the release tag when the image is built.
 4. **The coverage percentage**, re-read against the static badge.
