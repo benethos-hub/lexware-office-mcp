@@ -2584,11 +2584,11 @@ order:
    **The images are pinned by digest as well as tag**, decided the same day:
    `python:3.14-slim@sha256:…` in both stages and
    `ghcr.io/astral-sh/uv:0.12@sha256:…`. Until then they followed their
-   line, decided 2026-08-23 on the argument that a security fix then arrives
-   without anyone acting. The trade is now the other way round: a rebuild
-   of the same commit gets the same bytes, nothing a publisher moves reaches
-   the image unseen, and a patch waits for the weekly pull request and its
-   merge. The `# syntax=` line went with it, because it pulled a frontend
+   line, so that a security fix would arrive without anyone acting. It never
+   did on its own: the image is published only by a release, so a fix in
+   the base reached users with the next release either way. Now a rebuild
+   gets the same bytes, and Dependabot's pull request says when the base
+   moved, which is the cue for a patch release. The `# syntax=` line went with it, because it pulled a frontend
    image by a moving tag on every build. `tests/test_packaging.py` refuses
    an image without a digest and the line coming back.
 
