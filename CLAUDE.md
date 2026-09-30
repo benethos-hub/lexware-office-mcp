@@ -97,7 +97,7 @@ src/benethos_lexware_office_mcp/
                   # the catalogue: lifecycle, policy, api, calls, files,
                   # configui, and tally, which counts a tool call's API calls
   configui/       # the local configuration interface, `setup` serves it
-                  # render, state, cost, probe, stamp, profiles,
+                  # render, assets, state, cost, probe, stamp, profiles,
                   # transfer, pages, actions, app - never part of the
                   # server process
   tools/
