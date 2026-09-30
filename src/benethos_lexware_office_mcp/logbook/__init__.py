@@ -35,9 +35,12 @@ The modules:
 - ``lifecycle`` - starting, listening, ending
 - ``policy`` - the tool policy file and the tool list
 - ``api`` - the calls the client makes
+- ``calls`` - the tool calls, one line each
 - ``configui`` - what the configuration interface changed
+- ``tally`` - the count of API calls a tool call made, which is no line
 
-**Every line the server writes is a function in one of the last four**, and
+**Every line the server writes is a function in one of the five catalogue
+modules** from ``lifecycle`` to ``configui``, and
 nothing outside this package imports :mod:`logging`. That is what makes the
 rule above something a reader can check in one place: a line is only ever
 given what its parameters admit, and a function's parameters say what that
@@ -46,7 +49,7 @@ is. ``tests/test_logbook_catalog.py`` holds both halves.
 
 from __future__ import annotations
 
-from . import api, configui, lifecycle, policy
+from . import api, calls, configui, lifecycle, policy, tally
 from .output import configure
 
-__all__ = ["api", "configui", "configure", "lifecycle", "policy"]
+__all__ = ["api", "calls", "configui", "configure", "lifecycle", "policy", "tally"]

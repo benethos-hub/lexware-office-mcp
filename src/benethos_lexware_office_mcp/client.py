@@ -172,6 +172,7 @@ class LexwareClient:
             number = attempt + 1
             queued_at = time.perf_counter()
             await self._bucket.acquire()
+            logbook.tally.api_call()
             sent_at = time.perf_counter()
             queued = (sent_at - queued_at) * 1000
             try:
@@ -233,9 +234,11 @@ class LexwareClient:
                         retry_after=response.headers.get("Retry-After"),
                     )
                     continue
-                raise RateLimitError(
+                limited = RateLimitError(
                     "Rate limited. Retrying did not clear it, try again shortly."
                 )
+                limited.status = status
+                raise limited
 
             self._consecutive_429 = 0
 
@@ -244,10 +247,12 @@ class LexwareClient:
                     maybe_done = True
                     await self._retry(method, path, attempt, status=status)
                     continue
-                raise UpstreamError(
+                failed = UpstreamError(
                     f"The API returned {status} for {method} {path}.",
                     outcome_unknown=not retryable,
                 )
+                failed.status = status
+                raise failed
 
             if status == 404 and method == "DELETE" and maybe_done:
                 # The retry of a delete finding nothing is the delete having

@@ -40,6 +40,16 @@ housekeeping are out of scope here — design decisions live in
   and how long it waited for the rate limiter. The path shows resource names
   and ids and nothing else. A retry, the circuit breaker holding requests
   back and a rejected API key are each a `WARNING`.
+- **Every tool call is a line at `INFO`**: what it read or wrote, how many
+  API calls it made and how long it took - `search_contacts read 12 rows in
+  1 API call, 230 ms`, `create_contact wrote <id> (version 0) in 1 API
+  call`, `create_sales_document wrote <id> (version 1, finalized)`. A line
+  names the record by its id, a list by its count of rows and a download by
+  its size, and never carries an argument, an answer or a file name. A call
+  that was refused or failed is a `WARNING` naming the error's class, and
+  for a refusal by the API its status and error codes: `update_voucher
+  refused: ConflictError 406 version: invalid_value`. Arguments that do not
+  match a tool's schema are named by field.
 
 ## [0.3.0] - 2026-09-27
 

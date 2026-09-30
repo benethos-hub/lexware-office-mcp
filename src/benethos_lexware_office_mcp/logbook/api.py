@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import re
 
-from ._describe import describe
+from ._describe import UUID, describe
 from .output import PACKAGE
 
 __all__ = [
@@ -34,13 +34,12 @@ __all__ = [
 _log = logging.getLogger(f"{PACKAGE}.client")
 
 _WORD = re.compile(r"[a-z][a-z0-9-]*")
-_UUID = re.compile(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 
 def _shown(endpoint: str) -> str:
     """The path, with every segment that is neither a word nor a UUID hidden."""
     return "/".join(
-        part if not part or _WORD.fullmatch(part) or _UUID.fullmatch(part) else "~"
+        part if not part or _WORD.fullmatch(part) or UUID.fullmatch(part) else "~"
         for part in endpoint.split("?", 1)[0].split("/")
     )
 

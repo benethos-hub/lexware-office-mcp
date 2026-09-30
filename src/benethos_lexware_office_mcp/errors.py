@@ -76,7 +76,15 @@ class ToolError(AnticipatedFailure):
     :class:`ValueError` raised for a bad preset or a bad rate is on the other
     side of that line on purpose: it is a mistake in the configuration of the
     process, not an answer for the model.
+
+    ``status`` and ``code`` are what a log line may say about the failure
+    besides its class: the HTTP status the API answered with, and the API's
+    own codes for what it refused. The message is written for the model and
+    quotes what it sent, so the log never prints it. See ``logbook``.
     """
+
+    status: int | None = None
+    code: str = ""
 
     def __init__(self, message: str) -> None:
         super().__init__(redact(message))
@@ -276,9 +284,21 @@ def from_response(response: httpx.Response, method: str, path: str) -> ToolError
     missing role, a second billing address and a stale version all with
     406. The body is read for the field it blames and for its wording, and
     the key never appears in either - see :func:`redact`.
+
+    The status and the API's codes are also kept apart from the message, for
+    a log line that may carry those and not the rest.
     """
     status = response.status_code
     body = _json_object(response)
+    error = _refusal(status, body, method, path)
+    error.status = status
+    codes = [str(body.get("errorCode") or ""), *_issue_texts(_issues(body))]
+    error.code = " ".join(dict.fromkeys(code for code in codes if code))
+    return error
+
+
+def _refusal(status: int, body: dict[str, Any], method: str, path: str) -> ToolError:
+    """The error class and message for a refused request."""
     detail = _detail_text(body)
     sources = _issue_sources(body)
 

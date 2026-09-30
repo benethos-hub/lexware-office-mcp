@@ -19,8 +19,10 @@ from typing import Any
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
+from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
 from mcp.server.session import ServerSession
 from mcp.types import Resource, Tool
+from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook, resources
 from .client import ClientProvider
@@ -109,6 +111,28 @@ class PolicyServer(MCPServer):
         allowed = self._policy.as_map()
         tools = await super().list_tools()
         return [tool for tool in tools if allowed.get(tool.name, False)]
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any], context: Any = None
+    ) -> Any:
+        """Call a tool, and note a call whose arguments never reached it.
+
+        Every other outcome is noted by the wrapper each tool is registered
+        with, see ``tools._base.logged``. Arguments that fail the schema are
+        refused before the tool runs, so that wrapper never hears of them,
+        and the SDK's own line for them is held back with the rest of its
+        INFO. The line names the fields, never what was in them.
+        """
+        try:
+            return await super().call_tool(name, arguments, context)
+        except SDKToolError as exc:
+            cause = exc.__cause__
+            if isinstance(cause, ArgumentError):
+                fields = sorted(
+                    {".".join(str(part) for part in e["loc"]) for e in cause.errors()}
+                )
+                logbook.calls.arguments_refused(name, fields)
+            raise
 
     @property
     def policy(self) -> ToolPolicy:

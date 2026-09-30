@@ -82,7 +82,8 @@ src/benethos_lexware_office_mcp/
   envfile.py      # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),
-                  # and the catalogue: lifecycle, policy, api, configui
+                  # the catalogue: lifecycle, policy, api, calls, configui,
+                  # and tally, which counts a tool call's API calls
   configui/       # the local configuration interface, `setup` serves it
                   # render, state, cost, probe, stamp, profiles,
                   # transfer, pages, app - never part of the server process
@@ -120,7 +121,8 @@ new HTTP call goes in `client.py`, never in a tool function.
    body in `payloads.py`, never inline: an update has to read the record and
    merge, because the API replaces rather than patches.
 3. Expose it in the matching `tools/` module, then write the docstring by the
-   rule below.
+   rule below. It writes no log line of its own: the wrapper
+   `register_tool` puts around every tool writes one per call.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds.
 5. Classify it with `@classify(access, domain)` — `read` or `write`, plus

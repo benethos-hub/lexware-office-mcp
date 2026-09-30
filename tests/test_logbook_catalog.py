@@ -25,8 +25,11 @@ from benethos_lexware_office_mcp.errors import ValidationError
 from benethos_lexware_office_mcp.logbook._describe import describe
 from benethos_lexware_office_mcp.logbook.output import PACKAGE
 
+RECORD = "0b7a5c9e-3f2d-4e1a-9c8b-7d6e5f4a3b2c"
+
 CATALOGUE: list[ModuleType] = [
     logbook.api,
+    logbook.calls,
     logbook.configui,
     logbook.lifecycle,
     logbook.policy,
@@ -36,12 +39,15 @@ CATALOGUE: list[ModuleType] = [
 # with. Nothing here is a value the model chose or the API answered with.
 VOCABULARY: dict[str, tuple[str, Any]] = {
     "attempt": ("which attempt at a request", 2),
+    "calls": ("how many API calls a tool call made", 2),
     "count": ("how often something happened", 3),
     "delay": ("seconds waited, or to be waited", 1.5),
     "enabled": ("a count of tools", 3),
     "endpoint": ("a request's path, words and UUIDs only", "/v1/contacts"),
     "error": ("an exception, read through describe() only", OSError(2, "gone")),
+    "fields": ("the names of arguments the schema refused", ("items.0.unit",)),
     "file": ("the name of a settings file", ".env"),
+    "finalized": ("whether a write finalized its record", True),
     "found": ("a policy value, named by its JSON type only", "false"),
     "host": ("the address this server binds", "127.0.0.1"),
     "method": ("an HTTP method", "GET"),
@@ -49,14 +55,18 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "path": ("a configuration file's path", Path("tools.json")),
     "port": ("the port this server binds", 8770),
     "queued": ("milliseconds spent waiting for the rate limiter", 400.0),
+    "record_id": ("a Lexware id, shown only as a UUID", RECORD),
     "route": ("the URL path this server serves", "/mcp"),
+    "rows": ("how many rows a list answered with", 12),
     "sessions": ("a count of client sessions", 2),
+    "size": ("a download's size in bytes", 151_552),
     "source": ("where a policy was read from", "tools.json"),
     "status": ("an HTTP status", 503),
     "tool": ("a tool's name", "create_voucher"),
     "total": ("a count of tools", 25),
     "transport": ("stdio, streamable-http or sse", "stdio"),
-    "version": ("this server's version", "0.3.0"),
+    "version": ("this server's version, or a record's", 3),
+    "voucher": ("the id of a voucher an upload created", ""),
     "writers": ("tool names", ("create_contact",)),
 }
 
@@ -100,7 +110,8 @@ def test_every_module_of_the_catalogue_is_listed() -> None:
     found = {
         path.stem
         for path in (_SOURCE / "logbook").glob("*.py")
-        if not path.stem.startswith("_") and path.stem not in ("output", "access")
+        if not path.stem.startswith("_")
+        and path.stem not in ("output", "access", "tally")
     }
     assert found == {module.__name__.rsplit(".", 1)[1] for module in CATALOGUE}
 
