@@ -568,6 +568,28 @@ def test_the_clean_up_leaves_what_it_did_not_write(tmp_path: Path) -> None:
     assert outside.is_file()
 
 
+def test_the_clean_up_leaves_a_name_no_download_could_have(tmp_path: Path) -> None:
+    """A folder of somebody's own, named as the download directory.
+
+    A space or an umlaut never survives the sanitizing a download's name goes
+    through, and a word processor's file is no document the API hands out.
+    Neither is counted against the bound either.
+    """
+    _aged(
+        tmp_path,
+        ["Urlaub 2025.jpg", "Übersicht.pdf", "notes.docx", "old.pdf", "new.pdf"],
+    )
+
+    assert storage.prune(tmp_path, 1) == 1
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "Urlaub 2025.jpg",
+        "new.pdf",
+        "notes.docx",
+        "Übersicht.pdf",
+    ]
+
+
 def test_a_file_that_cannot_be_deleted_waits_for_the_next_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

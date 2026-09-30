@@ -7,7 +7,10 @@ move at release time.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -110,6 +113,94 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
 # -- what Docker keeps of the output ----------------------------------------
 
 COMPOSE = REPO / "compose.yaml"
+
+
+def _tag_check(tag: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text('[project]\nversion = "0.3.0"\n', encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(REPO / ".github" / "scripts" / "tag_matches_version.py")],
+        env={**os.environ, "GITHUB_REF_NAME": tag, "PYPROJECT": str(pyproject)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_a_release_tag_that_is_the_version_passes(tmp_path: Path) -> None:
+    assert _tag_check("v0.3.0", tmp_path).returncode == 0
+
+
+def test_a_release_tag_ahead_of_the_version_fails(tmp_path: Path) -> None:
+    """PyPI would refuse it, and the image would go out under it anyway."""
+    done = _tag_check("v0.4.0", tmp_path)
+
+    assert done.returncode == 1
+    assert "::error::" in done.stdout
+
+
+def test_both_publish_jobs_check_the_tag() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 2
+
+
+def test_latest_never_follows_a_pre_release() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    latest = [line for line in workflow.splitlines() if "value=latest" in line]
+
+    assert latest
+    assert all("!github.event.release.prerelease" in line for line in latest)
+
+
+def test_a_manual_run_pushes_the_image_from_main_only() -> None:
+    """`edge` is public, and a manual run can be started on any branch."""
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    job = workflow.split("  ghcr-publish:", 1)[1]
+
+    assert (
+        "if: github.event_name == 'release' || github.ref == 'refs/heads/main'"
+        in job.split("steps:", 1)[0]
+    )
+
+
+def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
+    """A tag is a pointer its publisher can move, a commit is not.
+
+    The version comment is what Dependabot reads to raise the pin.
+    """
+    pinned = re.compile(r"uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
+    loose = [
+        f"{workflow.name}: {line.strip()}"
+        for workflow in (REPO / ".github" / "workflows").glob("*.yml")
+        for line in workflow.read_text(encoding="utf-8").splitlines()
+        if "uses:" in line and not pinned.search(line)
+    ]
+
+    assert loose == []
+
+
+def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
+    """By tag for the reader and Dependabot, by digest for the content."""
+    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    pulled = re.findall(r"^(?:FROM|COPY --from=)\s*(\S+)", dockerfile, re.MULTILINE)
+    # A stage of this file is named without a registry or a tag.
+    external = [image for image in pulled if ":" in image or "/" in image]
+
+    assert len(external) == 3
+    assert all(re.search(r":[\w.-]+@sha256:[0-9a-f]{64}$", image) for image in external)
+
+
+def test_no_frontend_is_pulled_by_a_moving_tag() -> None:
+    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+
+    assert not re.search(r"^#\s*syntax=", dockerfile, re.MULTILINE)
 
 
 def test_compose_caps_the_log_docker_keeps() -> None:

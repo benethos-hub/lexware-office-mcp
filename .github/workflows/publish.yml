@@ -7,7 +7,8 @@ name: Publish
 # The two jobs are independent, so a broken image push does not withhold the
 # upload to PyPI and neither waits on the other.
 #
-# `workflow_dispatch` runs the image half alone and tags the result `edge`.
+# `workflow_dispatch` runs the image half alone and tags the result `edge`,
+# from `main` only: `edge` is public, and the form offers every branch.
 # PyPI is skipped there: a version may be uploaded to PyPI exactly once, and a
 # manual run carries no release tag it could legitimately claim a version from.
 #
@@ -34,6 +35,11 @@ name: Publish
 # switched. If a pull ever does come back unauthorized, that switch is under
 # Packages -> Package settings -> Change visibility.
 #
+# Every action is pinned to a commit, its version beside it for the reader
+# and for Dependabot, which raises both. This job holds the identity PyPI
+# trusts and the right to push the image, and a tag is a pointer its
+# publisher can move.
+#
 # The release process itself is in SPECS.md section 16.
 
 on:
@@ -56,14 +62,20 @@ jobs:
     permissions:
       id-token: write # Trusted Publishing, in place of a stored token
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Before anything is built: a tag that is not the version in
+      # pyproject.toml has PyPI refuse the upload, while the image job would
+      # push the tag's version with the old code.
+      - name: The release tag is the package version
+        run: python3 .github/scripts/tag_matches_version.py
 
       # No `enable-cache` on purpose. The action's default disables the cache
       # for a `release` event, which is exactly this job: it holds the OIDC
       # identity that uploads to PyPI, and a restored cache is one more thing
       # that would have to be trusted. It installs almost nothing anyway.
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Build sdist and wheel
         run: uv build
@@ -92,24 +104,32 @@ jobs:
 
   ghcr-publish:
     name: Build and publish the image
+    # A release, or a manual run on main. See the header.
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write # push to ghcr.io as the GITHUB_TOKEN identity
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same check as the PyPI job. The two jobs are independent, so
+      # each has to refuse on its own. A manual run carries no tag.
+      - name: The release tag is the package version
+        if: github.event_name == 'release'
+        run: python3 .github/scripts/tag_matches_version.py
 
       # arm64 is emulated on an amd64 runner. Nothing in this image is compiled
       # from source - pypdfium2 ships a prebuilt PDFium for aarch64 and the rest
       # is pure Python - so the emulation only has to run an unpack.
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to ghcr.io
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -117,7 +137,7 @@ jobs:
 
       - name: Derive image tags, labels and annotations
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         env:
           # Annotate the index as well as the individual manifests. The default
           # is manifests only, and for a multi-architecture image the package
@@ -129,14 +149,16 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           flavor: latest=false
+          # `latest` is what a pull without a tag gets, so a pre-release never
+          # becomes it. Its own version tag is still pushed.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
             type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Build and push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64

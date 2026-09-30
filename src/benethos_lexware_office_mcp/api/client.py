@@ -199,6 +199,11 @@ class LexwareClient(Connection):
         ``voucherlist``'s own, which finds sales documents as well. It still
         answers, measured 2026-09-27, and ``live/smoke.py`` is what will see
         the day it stops.
+
+        The match is exact. Measured 2026-09-30: the number in another case,
+        with a leading space or cut short finds nothing, and an empty one is
+        refused with 400 ``voucherNumber parameter is required`` rather than
+        answered with some other voucher.
         """
         return _expect_object(
             await self.get_json(
@@ -394,6 +399,11 @@ class LexwareClient(Connection):
         file's own, and ``Content-Disposition`` names it ``{id}.{extension}``.
         Asking for ``application/xml`` when the file is a PDF is a 404 rather
         than a 406.
+
+        An image is not refused for its ``Accept``. Measured 2026-09-30 on an
+        uploaded PNG: ``application/pdf``, ``*/*`` and ``image/png`` each
+        answer 200 with the PNG as ``image/png``, so ``download_file`` needs
+        no image format of its own.
         """
         return await self.download(f"/v1/files/{_segment(file_id)}", accept)
 

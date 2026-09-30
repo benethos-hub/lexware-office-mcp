@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import logbook
+from ..settings.envfile import write_atomically
 from .stamp import now
 
 __all__ = [
@@ -174,7 +175,7 @@ class ProfileStore:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, RecursionError) as exc:
             # An unreadable profile file must not take the interface down with
             # it: profiles are a convenience, and the permissions themselves
             # live in another file entirely.
@@ -183,10 +184,11 @@ class ProfileStore:
         return data if isinstance(data, dict) else {}
 
     def _write(self, profiles: dict[str, Profile]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(_document(profiles), indent=1, ensure_ascii=False) + "\n",
-            encoding="utf-8",
+        write_atomically(
+            self._path,
+            (
+                json.dumps(_document(profiles), indent=1, ensure_ascii=False) + "\n"
+            ).encode("utf-8"),
         )
 
 

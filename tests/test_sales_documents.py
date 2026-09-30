@@ -373,6 +373,33 @@ async def test_a_line_may_quote_an_article_or_carry_no_price_at_all() -> None:
     await provider.aclose()
 
 
+async def test_a_text_line_needs_nothing_but_its_text() -> None:
+    """No quantity, unit, price or tax rate, which the schema used to demand."""
+    handler = Scripted((201, CREATED))
+    server, provider = server_with(handler)
+
+    await server.call_tool(
+        "create_sales_document",
+        _create_args(items=[LINE, {"name": "A note", "item_type": "text"}]),
+    )
+
+    lines = json.loads(handler.requests[0].content)["lineItems"]
+    assert lines[1] == {"type": "text", "name": "A note"}
+    await provider.aclose()
+
+
+async def test_a_priced_line_without_its_price_never_reaches_the_api() -> None:
+    handler = Scripted((201, CREATED))
+    server, provider = server_with(handler)
+    unpriced = {key: value for key, value in LINE.items() if key != "unit_price"}
+
+    with pytest.raises(ToolError, match="unit_price"):
+        await server.call_tool("create_sales_document", _create_args(items=[unpriced]))
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 @pytest.mark.parametrize(
     ("document_type", "missing"),
     [

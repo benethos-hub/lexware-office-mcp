@@ -36,6 +36,7 @@ from typing import Any, Literal, TypeVar, cast
 
 from . import logbook
 from .errors import PermissionDeniedError
+from .settings.envfile import write_atomically
 
 __all__ = [
     "Access",
@@ -203,7 +204,7 @@ class ToolPolicy:
         assert self._path is not None
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, RecursionError) as exc:
             # The file is edited by hand and by other programs, so a broken one
             # must not stop the server. It must not grant anything either: an
             # unreadable policy enables nothing, and says so on stderr.
@@ -258,9 +259,10 @@ class ToolPolicy:
         if self._path is None:
             raise ValueError("This policy has no file to write to.")
         clean = {name: bool(flags.get(name, False)) for name in sorted(_REGISTRY)}
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(clean, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+        # Atomically: a running server reads this file the moment it changes.
+        write_atomically(
+            self._path,
+            (json.dumps(clean, indent=1, ensure_ascii=False) + "\n").encode("utf-8"),
         )
 
 

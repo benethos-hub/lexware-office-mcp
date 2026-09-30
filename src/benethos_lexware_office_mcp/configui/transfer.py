@@ -50,7 +50,9 @@ def parse(text: str) -> dict[str, bool]:
     """
     try:
         data = json.loads(text)
-    except ValueError:
+    # RecursionError: the decoder recurses per level, and a form field of a
+    # megabyte holds far more nested brackets than the stack does.
+    except (ValueError, RecursionError):
         raise TransferError("Das ist keine gültige JSON-Datei.") from None
     if not isinstance(data, dict):
         raise TransferError(

@@ -24,6 +24,7 @@ from ..errors import ConfigError
 from ..policy import known_tools
 from ..settings import load_settings
 from ..settings.envfile import update_env_file
+from ..settings.parse import credential
 from . import pages, probe, transfer
 from .profiles import ProfileError
 from .render import esc, note
@@ -80,6 +81,18 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
             inst, csrf, pages.credentials, "Kein Schlüssel eingegeben, nichts geändert."
         )
 
+    try:
+        credential(key, name=API_KEY)
+    except ConfigError as exc:
+        # The server's own wording, quoted as for any refused setting.
+        return _page_with(
+            inst,
+            csrf,
+            pages.credentials,
+            f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
+            kind="bad",
+        )
+
     verified: probe.Account | None = None
     if not skip_check:
         probe_settings = dataclasses.replace(inst.settings, api_key=key)
@@ -105,7 +118,7 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
             kind="bad",
         )
     logbook.configui.key_saved(inst.env_path.name, verified is not None)
-    inst.reload()
+    refused = _reloaded(inst)
     suffix = (
         " Ungeprüft übernommen."
         if verified is None
@@ -120,8 +133,8 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
         inst,
         csrf,
         pages.credentials,
-        f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}",
-        kind="good",
+        f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}{refused}",
+        kind="bad" if refused else "good",
     )
 
 
@@ -147,6 +160,16 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
                 "Der Server startet den HTTP-Transport dann nicht.",
                 kind="bad",
             )
+        try:
+            credential(token, name=BEARER_KEY)
+        except ConfigError as exc:
+            return _page_with(
+                inst,
+                csrf,
+                pages.credentials,
+                f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
+                kind="bad",
+            )
         done = "Token gespeichert."
 
     try:
@@ -163,7 +186,7 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
     logbook.configui.token_saved(
         inst.env_path.name, field(form, "action") == "generate"
     )
-    inst.reload()
+    refused = _reloaded(inst)
     shadow = (
         " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
         if inst.shadowed(BEARER_KEY)
@@ -174,8 +197,8 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
         csrf,
         pages.credentials,
         f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
-        f"jeder Client braucht es dann neu.{shadow}",
-        kind="good",
+        f"jeder Client braucht es dann neu.{shadow}{refused}",
+        kind="bad" if refused else "good",
     )
 
 
@@ -208,13 +231,13 @@ def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
             kind="bad",
         )
     logbook.configui.settings_saved(inst.env_path.name, list(submitted))
-    inst.reload()
+    refused = _reloaded(inst)
     return _page_with(
         inst,
         csrf,
         pages.credentials,
-        f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.",
-        kind="good",
+        f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.{refused}",
+        kind="bad" if refused else "good",
     )
 
 
@@ -393,7 +416,17 @@ def _overwrite_profile(
 
 def _delete_profile(inst: Installation, csrf: str, form: Form) -> Reply:
     name = field(form, "profile")
-    gone = inst.profiles.delete(name)
+    try:
+        gone = inst.profiles.delete(name)
+    except OSError as exc:
+        return _page_with(
+            inst,
+            csrf,
+            pages.permissions,
+            _write_failed(inst.profiles.path, exc),
+            kind="bad",
+            opened="profiles",
+        )
     if gone:
         logbook.configui.profile_deleted(name)
     return _page_with(
@@ -491,6 +524,22 @@ def _page_with(
     return Reply(
         render(inst, csrf=csrf, message=pages.message_box(text, kind), **extra)
     )
+
+
+def _reloaded(inst: Installation) -> str:
+    """Read the settings back after a write, and say it if they are refused.
+
+    What was just written was checked, or is a key or a token. Another value
+    in the file, or in the environment, can still be one the server refuses,
+    and reading the settings back is where that shows. The write happened,
+    so the page says so and quotes the server's reason, rather than the
+    request ending without an answer.
+    """
+    try:
+        inst.reload()
+    except ConfigError as exc:
+        return f" Der Server würde die Einstellungen trotzdem ablehnen: {exc}"
+    return ""
 
 
 def field(form: Form, name: str) -> str:

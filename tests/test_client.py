@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
+from benethos_lexware_office_mcp.api import connection
 from benethos_lexware_office_mcp.api.client import LexwareClient
 from benethos_lexware_office_mcp.api.connection import BREAKER_THRESHOLD
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
@@ -210,6 +211,33 @@ async def test_a_stale_version_in_the_details_shape_is_still_a_conflict() -> Non
             await client.request("PUT", "/v1/articles/abc")
 
 
+async def test_a_stale_version_after_a_lost_answer_blames_the_first_attempt() -> None:
+    """The update went through, its answer did not, and the retry is stale.
+
+    Telling the caller somebody changed the record sends it to apply the
+    same change twice.
+    """
+    stale = {"IssueList": [{"source": "version", "i18nKey": "invalid_value"}]}
+    async with make_client(
+        httpx.TimeoutException("too slow"), httpx.Response(406, json=stale)
+    ) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("PUT", "/v1/contacts/abc", json={})
+
+    assert "most likely carried out" in str(excinfo.value)
+    assert "changed since it was read" not in str(excinfo.value)
+    assert excinfo.value.status == 406
+
+
+async def test_a_stale_version_on_the_first_attempt_is_somebody_elses() -> None:
+    stale = {"IssueList": [{"source": "version", "i18nKey": "invalid_value"}]}
+    async with make_client(httpx.Response(406, json=stale)) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("PUT", "/v1/contacts/abc", json={})
+
+    assert "changed since it was read" in str(excinfo.value)
+
+
 async def test_a_version_that_was_never_sent_is_not_a_stale_one() -> None:
     """Measured 2026-08-21 against `PUT /v1/articles/{id}` with a bare body.
 
@@ -316,6 +344,31 @@ async def test_a_post_is_never_retried_after_a_timeout() -> None:
     assert excinfo.value.outcome_unknown is True
 
 
+def _undecodable() -> httpx.Response:
+    """Announces gzip, carries none: httpx raises DecodingError reading it."""
+    return httpx.Response(
+        201,
+        headers={"Content-Encoding": "gzip"},
+        stream=httpx.ByteStream(b"not gzip at all"),
+    )
+
+
+async def test_a_post_whose_answer_cannot_be_decoded_has_an_unknown_outcome() -> None:
+    """Not a TransportError, and it used to escape as a crash."""
+    async with make_client(_undecodable(), httpx.Response(200)) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request("POST", "/v1/invoices", json={})
+        assert client.handler.calls == 1  # type: ignore[attr-defined]
+    assert excinfo.value.outcome_unknown is True
+
+
+async def test_a_get_whose_answer_cannot_be_decoded_is_retried() -> None:
+    async with make_client(
+        _undecodable(), httpx.Response(200, json={"ok": True})
+    ) as client:
+        assert await client.get_json("/v1/profile") == {"ok": True}
+
+
 async def test_a_get_is_retried_after_a_timeout() -> None:
     async with make_client(
         httpx.TimeoutException("too slow"), httpx.Response(200, json={"ok": True})
@@ -407,7 +460,9 @@ async def test_a_delete_retried_only_after_429_is_still_a_404() -> None:
             await client.delete_article("PLACEHOLDER-ARTICLE-1")
 
 
-async def test_retry_after_is_honoured() -> None:
+async def test_retry_after_is_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In full: the jitter shortens the computed delay, never the server's."""
+    monkeypatch.setattr(connection.random, "random", lambda: 0.0)
     slept: list[float] = []
 
     async def record(seconds: float) -> None:
@@ -425,7 +480,7 @@ async def test_retry_after_is_honoured() -> None:
     await client.request("GET", "/v1/profile")
     await client.aclose()
 
-    assert max(slept) >= 3.5  # 7 seconds, minus at most half from the jitter
+    assert max(slept) >= 7
 
 
 @pytest.mark.parametrize("seconds", ["86400", "inf", "nan", "9"])

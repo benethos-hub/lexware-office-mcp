@@ -363,3 +363,16 @@ def test_the_missing_key_message_names_no_path() -> None:
     assert "setup" in message
     assert "/" not in message.replace("`", "")
     assert "\\" not in message
+
+
+@pytest.mark.parametrize("name", ["LXO_MCP_API_KEY", "LXO_MCP_BEARER_TOKEN"])
+@pytest.mark.parametrize(
+    "pasted",
+    ["secret-key-with​a-zero-width-space", "secret-key-with a-space", "secret\x00key"],
+)
+def test_a_credential_no_header_can_carry_is_refused(name: str, pasted: str) -> None:
+    """Every request would have failed to encode it. The value is never quoted."""
+    with pytest.raises(ConfigError, match=name) as refused:
+        load_settings(env={name: pasted})
+
+    assert "secret" not in str(refused.value)

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..errors import ValidationError
 from .types import (
     Address,
     ArticleType,
@@ -76,6 +77,13 @@ def contact_body(
     """
     body: dict[str, Any] = dict(base) if base else {"version": 0}
     is_company = _is_company(body, kind)
+    _refuse_misplaced(
+        is_company,
+        first_name=first_name,
+        salutation=salutation,
+        vat_registration_id=vat_registration_id,
+        tax_number=tax_number,
+    )
 
     if roles is not None:
         body["roles"] = _roles_body(body.get("roles"), roles)
@@ -125,6 +133,28 @@ def _kind(current: Any, default: str) -> str:
     """
     used = [key for key, value in (current or {}).items() if value]
     return used[0] if len(used) == 1 else default
+
+
+def _refuse_misplaced(is_company: bool, **given: str | None) -> None:
+    """Refuse a field this kind of contact has no place for.
+
+    A person carries a first name and a salutation, a company a VAT id and
+    a tax number, and neither block takes the other's. Such a field used to
+    be left out of the body, so the write reported success and stored
+    nothing of it.
+    """
+    elsewhere = (
+        ("first_name", "salutation")
+        if is_company
+        else ("vat_registration_id", "tax_number")
+    )
+    misplaced = [name for name in elsewhere if given.get(name) is not None]
+    if misplaced:
+        kind, other = ("company", "person") if is_company else ("person", "company")
+        raise ValidationError(
+            f"{', '.join(misplaced)} belongs to a {other}, and this contact is a "
+            f"{kind}. Leave it out."
+        )
 
 
 def _is_company(body: dict[str, Any], kind: ContactKind | None) -> bool:
@@ -403,6 +433,17 @@ def _line_item_body(
         body: dict[str, Any] = {"type": "text", "name": item.name}
         _set(body, "description", item.description)
         return body
+
+    missing = [
+        name
+        for name in ("quantity", "unit_name", "unit_price", "tax_rate_percent")
+        if getattr(item, name) is None
+    ]
+    if missing:
+        raise ValidationError(
+            f"The line {item.name!r} needs {', '.join(missing)}. Only a 'text' "
+            "line goes without them."
+        )
 
     amount_key = "grossAmount" if tax_type == "gross" else "netAmount"
     body = {

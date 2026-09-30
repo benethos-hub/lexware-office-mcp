@@ -13,6 +13,22 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Security
+
+- **A key the configuration interface is checking is never shown back.**
+  A key typed into the form was tried before it was known as a secret, and
+  one with a line break or a NUL in it made the HTTP library refuse the
+  header and quote it, so the page showed `Bearer` and the key. It is
+  registered before it is tried, and a secret is also redacted where a
+  message quotes it escaped, as bytes.
+- **The configuration interface no longer claims a `0.0.0.0` bind is
+  safe.** The warning at its start said the pages answer only when called
+  as `127.0.0.1` or `localhost`, and the 0.3.0 entry said such a bind does
+  not answer the network. The check reads the `Host` header, which the
+  caller writes, so it stops DNS rebinding in a browser and nothing more.
+  The warning now says that whoever reaches the port can open the pages
+  and change the key, and to use `--host 127.0.0.1` outside a container.
+
 ### Changed
 
 - **The download directory keeps the last 100 documents.** Older downloads
@@ -22,7 +38,9 @@ housekeeping are out of scope here — design decisions live in
   down to its newest 100 files on the first start. `LXO_MCP_KEPT_DOWNLOADS`
   sets the number, and `0` keeps everything. It applies to the default cache
   directory, and to a directory named by `LXO_MCP_DOWNLOAD_DIR` only when it
-  is set as well. The configuration interface shows and edits it beside the
+  is set as well. Only a file named the way a download is named is counted
+  or deleted, so a space, an umlaut or an extension such as `.docx` keeps a
+  file of your own out of it. The configuration interface shows and edits it beside the
   download directory. The container image sets it to 100 for its
   `/downloads` volume. `read_download` and a resource read for a download
   that is gone say that it may have been removed and to download it again.
@@ -92,6 +110,67 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **An API key or a bearer token with a character no header can carry is
+  refused where it is set.** A zero-width space or a space copied along with
+  the key made every request fail to encode, which reached the model as a
+  crash, and the configuration interface's check ended without an answer.
+  The server now refuses such a value at start, naming the setting and never
+  the value, and the interface refuses it before trying or writing it.
+- **A policy file named with `--tools-file` stays marked as named** in the
+  configuration interface after a save. Saving anything read the settings
+  again, and the badge switched to "Suche" although the file had not
+  changed.
+- **JSON nested deeper than Python's stack is an unreadable file**, not a
+  crash: an imported policy in the configuration interface, the policy file
+  a server reads, which then enables nothing as for any broken file, and
+  the saved profiles.
+- **A security token with a character outside ASCII is refused** by the
+  configuration interface like any other wrong token, where it ended the
+  request without an answer.
+- **Deleting a profile the configuration interface cannot write is
+  reported** on the page, as saving and overwriting one already were, where
+  the browser got a dropped connection.
+- **An update retried after a lost answer no longer blames somebody
+  else.** When the first attempt went through and only its answer was
+  lost, the retry was refused as stale and the model was told the record
+  had changed since it was read - which invites applying the same change
+  again. It now says the first attempt was most likely carried out, and to
+  check the record before sending the change again.
+- **The tool policy and the saved profiles are written whole or not at
+  all**, the way the `.env` already was. They were written in place, and a
+  running server that reads the policy the moment it changes could catch it
+  half-written, fall back to nothing enabled and tell its clients twice. A
+  new policy or profiles file is readable by its owner only.
+- **A text line in `create_sales_document` needs only its text.** The
+  schema demanded a quantity, a unit, a price and a tax rate for every
+  line, and a text line then dropped all four, so the model had to invent
+  values that went nowhere. They are optional in the schema now, and a
+  priced line without one of them is refused before any request, naming
+  what is missing.
+- **`create_contact` and `update_contact` refuse a field the contact has
+  no place for.** A VAT id or a tax number on a person, or a first name or
+  a salutation on a company, was left out of the request, and the call
+  reported success with nothing of it stored. It is now a validation error
+  naming the field, before any request.
+- **An answer that cannot be decoded is a clean failure.** A response
+  announcing a compression its body did not have escaped as a crash, so
+  the model was told only which tool failed, and after a write not that its
+  outcome was unknown. It is now handled like a lost connection: a read is
+  retried, and a create says the record may or may not exist.
+- **A `Retry-After` is waited out in full.** The random spread that keeps
+  retries apart was applied after it, so `Retry-After: 7` could be retried
+  after three and a half seconds, early enough to be refused again. The
+  spread now shortens only the server's own backoff.
+- **Saving in the configuration interface no longer ends without an
+  answer** when the `.env` already held a value the server refuses. The key
+  or the token was written, reading the settings back failed on the other
+  value, and the browser got a dropped connection. The page now says it was
+  written and quotes why the server would refuse the file.
+- **On Windows, `setup` no longer starts on a port already in use.** It
+  bound the port anyway, and the browser kept talking to whatever had it
+  first - an interface started earlier, or another program - which then
+  received the key typed in. A taken port now ends `setup` with one line
+  that says so and suggests `--port`.
 - **Ctrl+C ends in one line and exit code 130, not a traceback.** Over
   HTTP, uvicorn shut down cleanly and then raised the interrupt again, and
   stdio ended in it as well, so stopping the server by hand printed a

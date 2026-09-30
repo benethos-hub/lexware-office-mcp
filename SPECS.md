@@ -134,7 +134,7 @@ below it:
 | `records` | `errors` |
 | `api` | the three above, `records` |
 | `files` | the three above |
-| `policy` | `errors`, `logbook` |
+| `policy` | `errors`, `logbook`, `settings` |
 | `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
 | `server` | `tools`, `policy`, `api`, `files` and the three above |
 | `transport` | `server` and the three above |
@@ -872,7 +872,7 @@ arriving.
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
-| `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. | unset, anywhere |
+| `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. An `.xml` counts as a document there: any XML file the process can read is sent, and only the API refuses one that is not an XRechnung. | unset, anywhere |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
@@ -937,11 +937,14 @@ machine. `--host` can bind another address, because a container has to: a
 process on the container's own loopback cannot be reached through a
 published port, and there the host-side publish on `127.0.0.1` is what keeps
 it local. Whatever is bound, **a request is answered only if its `Host` names
-`127.0.0.1`, `localhost` or `::1`.** That refuses a machine on the network
-reaching a careless `0.0.0.0` bind, and DNS rebinding - a page elsewhere
-pointing a name it owns at this machine and reading the pages, bearer token
-included, as its own origin. Every response carries `Cache-Control:
-no-store` for the same token. Every
+`127.0.0.1`, `localhost` or `::1`.** That stops DNS rebinding - a page
+elsewhere pointing a name it owns at this machine and reading the pages,
+bearer token included, as its own origin - because a browser sends the name
+the page used. **It is not access control.** `Host` is a header the caller
+writes, and anything on the network that reaches a `0.0.0.0` bind can send
+`Host: localhost` and be answered. Outside a container a bind beyond
+loopback exposes pages without a login, and the start says so. Every
+response carries `Cache-Control: no-store` for the same token. Every
 state-changing request is guarded twice, because a page in another tab must
 not be able to rewrite credentials or permissions: the `Origin` or `Referer`
 has to name the loopback host **and port** the request went to, and a random
@@ -950,6 +953,14 @@ matters because loopback alone admits any local program's page, and the token
 has to be one this process issued, because cookies are not scoped by port: a
 page on another local port can set the cookie to a value of its choosing and
 put the same value in its form.
+
+**A port in use ends the start.** On Windows `SO_REUSEADDR`, which the
+standard library's HTTP server sets, lets a second process bind a port
+another is listening on, and connections keep going to the first - so a
+second interface came up, and the key typed into the browser reached the
+old one or another program. It is off there, and a taken port ends `setup`
+with one line. Elsewhere the option only allows a restart while old
+connections linger, and stays on.
 
 The API base URLs must be `https://`. The key travels to `LXO_MCP_BASE_URL` on
 every request, so the page cannot be used to point it somewhere in the clear,
@@ -1101,15 +1112,16 @@ exposed one tool per path.
 2026-08-22 with the annotations below, again on 2026-08-23 after
 `create_voucher` lost a parameter that could not work, and twice on
 2026-09-27, the second time after the documentation review added
-`voucher_number`, three sort properties and `finalize`.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **53,198
-characters**, around 2,127 each. Roughly
+`voucher_number`, three sort properties and `finalize`, and on 2026-09-30
+after the four price fields of a sales line became optional for a text
+line.** Serialized as the compact JSON a `tools/list` answer is,
+twenty-five tools come to **53,315 characters**, around 2,133 each. Roughly
 13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
 than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,173 | 64% |
+| Input schemas | 34,290 | 64% |
 | Tool descriptions, the part under a ceiling | 11,169 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
@@ -1636,7 +1648,8 @@ second. 429 handling therefore stays mandatory and is never treated as a bug in
 the limiter.
 
 **Backing off for real.** On 429 the request is retried with exponential
-backoff and jitter, honouring `Retry-After` when it is present. After a small
+backoff and jitter, honouring `Retry-After` when it is present - in full: the
+jitter shortens the computed delay, never the one the server asked for. After a small
 number of consecutive 429s the client stops retrying, drains the bucket for a
 cool-down window, and returns `RateLimitError` to the caller. This is a
 deliberate circuit breaker rather than politeness — the documentation states
@@ -2176,7 +2189,14 @@ every test in this repository. Section 14.3 says how to look.
   - **What goes.** Plain files only, oldest by modification time first, which
     a reused download renews. A subdirectory or a symbolic link was put there
     by someone else. A file that cannot be deleted - one open in a viewer on
-    Windows - waits for the next time.
+    Windows - waits for the next time. **Only a name a download could have**
+    is counted or deleted: one that the sanitizing every saved name goes
+    through leaves unchanged, with an extension a document has. The
+    configuration interface offers the directory and the bound as fields,
+    so a folder of somebody's own can end up named, and `Urlaub 2025.jpg`
+    or `notes.docx` in it are left alone. A name alone cannot tell
+    `report.pdf` from a download, which is why a named directory still
+    needs the bound set as well. Added 2026-09-30 after a review.
   - **Asking for one that is gone says what to do.** `read_download` and
     `resources/read` both answer that the server keeps the newest downloads,
     so it may have been removed, and to download the document again - where
@@ -2515,7 +2535,11 @@ order:
    `[Unreleased]` section to a numbered one with its compare links, bumps the
    version pin in the README's client example, and brings the installation
    instructions in line, then a tag and a GitHub release on the merged commit,
-   which is what triggers the upload.
+   which is what triggers the upload. **Both jobs first check that the tag is
+   the version in `pyproject.toml`**, with
+   `.github/scripts/tag_matches_version.py`: a tag ahead of the version has
+   PyPI refuse the upload, and without the check the image job would still
+   push the tag's version, its minor line and `latest` with the old code.
 5. **Publication of the image**, so that running this server in a container
    does not require cloning the repository first. The same workflow gained a
    second job that pushes `ghcr.io/benethos-hub/lexware-office-mcp` for
@@ -2524,7 +2548,8 @@ order:
    account and a stored secret. The two jobs are independent: a broken image
    does not withhold the upload to PyPI. `workflow_dispatch` runs the image
    half alone and tags it `edge`, since a release is otherwise the only way to
-   exercise a workflow that triggers on one.
+   exercise a workflow that triggers on one. Only from `main`: `edge` is
+   public, and the form that starts a manual run offers every branch.
 
    **The metadata has to sit on the index, not only on the manifests.** A
    multi-architecture image is an index pointing at one manifest per
@@ -2545,24 +2570,36 @@ order:
    it generated its own token and refused a request without it. Contrary to
    the documented behaviour, the package did not need a visibility switch - it
    was public from the first push.
-6. **What the build reaches for stays on a floating tag**, decided
-   2026-08-23. The base image is `python:3.14-slim`, the uv binary comes from
-   `ghcr.io/astral-sh/uv:0.12`, and the workflow actions are pinned by major
-   version - except `astral-sh/setup-uv`, which carries a full version because
-   it stopped publishing floating tags with its v8, so `@v10` resolves to
-   nothing and fails a job before it starts. These follow their line rather
-   than a digest, which means a security fix arrives without anyone acting -
-   and that a build from today is not bit-for-bit the build from last week. Pinning digests reverses that
-   trade: reproducible, and every patch waits for a pull request. For an image
-   that holds an accounting credential, arriving patches are worth more than
-   reproducible bytes, and nothing here needs a byte-identical rebuild to
-   prove anything.
+6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after
+   a review, reversing the major tags of 2026-08-23:
+   `actions/checkout@3d3c42e… # v7.0.1`. A tag is a pointer its publisher
+   can move, and the publish job holds the identity PyPI trusts and the
+   right to push the image, so a moved tag would run somebody else's code
+   with both. The comment is for the reader and for Dependabot, which raises
+   the commit and the comment together. It also retires the special case of
+   `astral-sh/setup-uv`, which stopped publishing major tags with its v8 and
+   so alone named an exact version. `tests/test_packaging.py` refuses a
+   `uses:` without a commit.
 
-   What makes that safe to say is that all three are watched.
+   **The images are pinned by digest as well as tag**, decided the same day:
+   `python:3.14-slim@sha256:…` in both stages and
+   `ghcr.io/astral-sh/uv:0.12@sha256:…`. Until then they followed their
+   line, so that a security fix would arrive without anyone acting. It never
+   did on its own: the image is published only by a release, so a fix in
+   the base reached users with the next release either way. Now a rebuild
+   gets the same bytes, and Dependabot's pull request says when the base
+   moved, which is the cue for a patch release. The `# syntax=` line went with it, because it pulled a frontend
+   image by a moving tag on every build. `tests/test_packaging.py` refuses
+   an image without a digest and the line coming back.
+
+   What makes that bearable is that all three are watched.
    `.github/dependabot.yml` covers the declared ranges, the actions and, since
    2026-08-23, the container base image - the one that ages silently, because
    an out-of-date base is not a build failure but unpatched system packages
    inside something people pull and run.
+   Since the pins, minor and patch updates come as one pull request per
+   ecosystem and week, and a major one alone. `mcp` always comes alone,
+   since the suite does not see what the SDK changes.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did

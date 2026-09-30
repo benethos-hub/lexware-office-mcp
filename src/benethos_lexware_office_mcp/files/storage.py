@@ -65,6 +65,10 @@ def prune(directory: Path, keep: int) -> int:
     files: a subdirectory or a symbolic link was put there by someone else. A
     file that cannot be deleted - on Windows, one open in a viewer - is left
     for the next time rather than failing the call that triggered this.
+
+    **Only what could be a download** is counted or deleted, see
+    :func:`_could_be_a_download`. The directory can be named in the
+    configuration interface, and a folder of somebody's own is not a cache.
     """
     if keep <= 0 or not directory.is_dir():
         return 0
@@ -72,6 +76,8 @@ def prune(directory: Path, keep: int) -> int:
     for path in directory.iterdir():
         try:
             if path.is_symlink() or not path.is_file():
+                continue
+            if not _could_be_a_download(path):
                 continue
             found.append((path.stat().st_mtime, path.name, path))
         except OSError:
@@ -85,6 +91,19 @@ def prune(directory: Path, keep: int) -> int:
             continue
         removed += 1
     return removed
+
+
+def _could_be_a_download(path: Path) -> bool:
+    """Whether this server could have saved a download under this name.
+
+    Every name it writes has been through :func:`_safe_name`, so it comes out
+    unchanged, and a document has one of the extensions in
+    :data:`CONTENT_TYPES`. ``Urlaub 2025.jpg`` and ``notes.docx`` fail one or
+    the other and are left alone. ``report.pdf`` passes: a name alone cannot
+    tell a download from a file of the same shape, which is why a directory
+    named by hand is cleaned only when the bound is set as well.
+    """
+    return _safe_name(path.name) == path.name and path.suffix.lower() in CONTENT_TYPES
 
 
 def prune_for(settings: Settings) -> int:

@@ -15,7 +15,7 @@ from pathlib import Path
 from ..errors import ConfigError, register_secret
 from . import locations
 from .envfile import read_env_file
-from .parse import as_float, as_int, csv_tuple, flag, https_url
+from .parse import as_float, as_int, credential, csv_tuple, flag, https_url
 
 __all__ = [
     "DEFAULT_APP_BASE_URL",
@@ -203,6 +203,7 @@ def load_settings(
 
     api_key = get("API_KEY") or None
     register_secret(api_key)
+    credential(api_key, name="LXO_MCP_API_KEY")
 
     log_level = (get("LOG_LEVEL") or DEFAULT_LOG_LEVEL).upper()
     if log_level not in LOG_LEVELS:
@@ -216,6 +217,7 @@ def load_settings(
 
     bearer_token = get("BEARER_TOKEN") or None
     register_secret(bearer_token)
+    credential(bearer_token, name="LXO_MCP_BEARER_TOKEN")
 
     # Only something that restarts the process may ask for this, so it is
     # off unless said otherwise. The container image says otherwise.

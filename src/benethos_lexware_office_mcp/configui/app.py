@@ -65,6 +65,13 @@ class ConfigServer(ThreadingHTTPServer):
 
     installation: Installation
 
+    # On Windows SO_REUSEADDR lets a second process bind a port another one is
+    # listening on, and connections then go to whichever bound it first - an
+    # older interface, or another program, would get the browser and the key.
+    # Elsewhere it only allows a restart while old connections linger, which
+    # is harmless and worth keeping.
+    allow_reuse_address = sys.platform != "win32"
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.sessions: set[str] = set()
@@ -166,10 +173,12 @@ class Handler(BaseHTTPRequestHandler):
         point a name it controls at 127.0.0.1 - DNS rebinding - and then read
         these pages as its own origin, bearer token and all. Its ``Host`` is
         still its own name, so refusing anything but loopback closes that.
-        It also keeps a ``--host 0.0.0.0`` bind from answering a machine on
-        the network, which would reach it by an address of this one.
-        The port is not compared, so a container published under a different
-        port still works.
+
+        **Not access control.** A browser writes the name it used, but any
+        other client writes whatever it likes, so a machine that reaches a
+        ``--host 0.0.0.0`` bind is answered as soon as it sends
+        ``Host: localhost``. The port is not compared, so a container
+        published under a different port still works.
         """
         target = _host_and_port(self.headers.get("Host", ""))
         return target is not None and target[0] in LOOPBACK_NAMES
@@ -206,7 +215,11 @@ class Handler(BaseHTTPRequestHandler):
         if self._fresh_cookie:
             return False  # no session cookie was presented at all
         sent = field(form, "_csrf")
-        return bool(sent) and secrets.compare_digest(sent, self._session)
+        # As bytes: on two strings compare_digest raises TypeError for a
+        # character outside ASCII, which a form field can carry.
+        return bool(sent) and secrets.compare_digest(
+            sent.encode(), self._session.encode()
+        )
 
     # --- routing -----------------------------------------------------------
 
@@ -322,7 +335,15 @@ def serve(
     command shares an entry point with a server for which stdout is the
     protocol, and one habit is easier to keep than two.
     """
-    server = ConfigServer((host, port), Handler)
+    try:
+        server = ConfigServer((host, port), Handler)
+    except OSError as exc:
+        print(
+            f"Konnte {host}:{port} nicht öffnen: {exc.strerror or exc}. Läuft "
+            "die Oberfläche schon? Sonst mit --port einen anderen Port wählen.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
     server.installation = installation
     # The address a person opens, which is not always the one that was bound:
     # 0.0.0.0 is a bind, not a destination.
@@ -332,8 +353,9 @@ def serve(
     if host not in LOOPBACK_NAMES:
         print(
             f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
-            "aus erreichbar. Die Seiten haben keine Anmeldung und antworten "
-            "nur, wenn sie als 127.0.0.1 oder localhost aufgerufen werden.",
+            "aus erreichbar. Die Seiten haben keine Anmeldung: wer diesen Port "
+            "im Netz erreicht, kann sie aufrufen und den Schlüssel ändern. "
+            "Außerhalb eines Containers nur mit --host 127.0.0.1 starten.",
             file=sys.stderr,
         )
     print(f".env:    {installation.env_path}", file=sys.stderr)

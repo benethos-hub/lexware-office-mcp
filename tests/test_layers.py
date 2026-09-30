@@ -35,7 +35,7 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     "records": frozenset({"errors"}),
     "api": FOUNDATION | {"records"},
     "files": FOUNDATION,
-    "policy": frozenset({"errors", "logbook"}),
+    "policy": frozenset({"errors", "logbook", "settings"}),
     "tools": FOUNDATION | {"records", "api", "files", "policy"},
     "server": FOUNDATION | {"tools", "policy", "api", "files"},
     "transport": FOUNDATION | {"server"},

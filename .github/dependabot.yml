@@ -1,4 +1,9 @@
 version: 2
+# Minor and patch updates arrive as one pull request per ecosystem and week
+# instead of one each. With every action and image pinned exactly, each
+# patch is a pull request, and a single run of the gates covers them
+# together. A major update still comes on its own, since that is where
+# behaviour changes and it wants its own review.
 updates:
   # `uv`, not `pip`, because uv.lock is what actually pins a version here.
   # The pip ecosystem does not read that file, and every range in
@@ -13,28 +18,44 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+        # Always alone, whatever the size of the bump: the suite does not see
+        # what the SDK changes, so it needs the stdio comparison of CLAUDE.md.
+        exclude-patterns: ["mcp"]
 
-  # The actions the workflows use. Most follow their moving major tag, so a
-  # fix arrives without a pull request for every patch.
+  # The actions the workflows use, each pinned to a commit with its version
+  # in a comment beside it. Dependabot reads the comment and raises the
+  # commit and the comment together, so every release, patches included,
+  # arrives as a pull request - which is the price of a pin a publisher
+  # cannot move.
   #
-  # astral-sh/setup-uv is the exception, and not by choice: it stopped
-  # publishing major tags after v7. There is no v8, v9 or v10, only exact
-  # versions, so the workflows have to name one - and an exact pin goes
-  # quietly stale while continuing to work. Checked 2026-09-02: v10.0.1 was
-  # both what is pinned and the newest release. Dependabot is what notices
-  # next time - with a weekly slot per ecosystem, so v10.1.0, released on a
-  # Thursday, was moved by hand the following Monday rather than waited for.
+  # It also retires a special case: astral-sh/setup-uv stopped publishing
+  # major tags after v7, so it alone had to name an exact version. With
+  # every action pinned exactly, all of them are in the same position.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
-  # The base image of the Dockerfile. An out-of-date base is not a build
-  # failure and never announces itself: it is unpatched system packages
-  # inside something people pull and run. Nothing else here would notice.
+  # The images of the Dockerfile, python and uv, pinned by digest beside
+  # their tag. An out-of-date base is not a build failure and never
+  # announces itself: it is unpatched system packages inside something
+  # people pull and run. With the digest pinned, this is the only way a
+  # patch to them arrives.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

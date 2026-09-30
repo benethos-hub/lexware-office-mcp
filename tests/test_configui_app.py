@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 import pytest
 
 from benethos_lexware_office_mcp.configui import probe, transfer
-from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
+from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serve
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
@@ -181,6 +181,18 @@ def test_a_post_from_another_site_is_refused(browser: Browser) -> None:
 
 def test_a_wrong_token_is_refused(browser: Browser) -> None:
     status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nope")
+
+    assert status == 403
+    assert "Sicherheitstoken" in body
+
+
+def test_a_token_with_a_non_ascii_character_is_refused_too(browser: Browser) -> None:
+    """`compare_digest` raises on such a string rather than answering False.
+
+    With a session cookie in place, or the check ends before comparing.
+    """
+    browser.token()
+    status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nöpe")
 
     assert status == 403
     assert "Sicherheitstoken" in body
@@ -804,6 +816,25 @@ def test_an_overwrite_that_cannot_be_written_is_reported(
     assert installation.profiles.all()["Nur Lesen"].tools == ("get_profile",)
 
 
+def test_a_delete_that_cannot_be_written_is_reported(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It used to escape the handler, and the browser got a dropped connection."""
+    installation.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+
+    def refused(self: ProfileStore, *args: object) -> None:
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(ProfileStore, "delete", refused)
+
+    status, body, _ = browser.post(
+        "/permissions", {"action": "profile-delete", "profile": "Nur Lesen"}
+    )
+
+    assert status == 200
+    assert "nicht schreiben: Permission denied" in note(body)
+
+
 # -- what reaches stderr ----------------------------------------------------
 
 
@@ -907,3 +938,70 @@ def test_a_write_that_failed_is_a_warning(
     browser.post("/permissions", {"action": "save", "tool": ["get_profile"]})
 
     assert f"Could not write {installation.policy_path}:" in lines.text
+
+
+def test_a_second_interface_cannot_take_a_port_already_served() -> None:
+    """On Windows SO_REUSEADDR let it, and the first one kept the browser."""
+    first = ConfigServer(("127.0.0.1", 0), Handler)
+    try:
+        with pytest.raises(OSError):
+            ConfigServer(("127.0.0.1", first.server_address[1]), Handler)
+    finally:
+        first.server_close()
+
+
+def test_a_taken_port_is_one_line_and_no_traceback(
+    installation: Installation, capsys: pytest.CaptureFixture[str]
+) -> None:
+    taken = socket.socket()
+    taken.bind(("127.0.0.1", 0))
+    taken.listen()
+    try:
+        with pytest.raises(SystemExit) as ended:
+            serve(installation, port=taken.getsockname()[1], open_browser=False)
+    finally:
+        taken.close()
+
+    assert ended.value.code == 1
+    err = capsys.readouterr().err
+    assert "--port" in err
+    assert "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    ("path", "form"),
+    [
+        ("/credentials", {"api_key": "a-new-key", "unchecked": "1"}),
+        ("/bearer", {"action": "generate"}),
+    ],
+)
+def test_a_save_beside_a_broken_setting_says_it_was_written(
+    browser: Browser, installation: Installation, path: str, form: dict[str, str]
+) -> None:
+    """The file already held a value the server refuses, which is not this save's.
+
+    The write succeeds, and reading the settings back afterwards fails on the
+    other value. The page says both.
+    """
+    installation.env_path.write_text("LXO_MCP_PAGE_SIZE=many\n", encoding="utf-8")
+
+    status, body, _ = browser.post(path, form)
+
+    assert status == 200
+    assert "LXO_MCP_PAGE_SIZE" in note(body)
+    assert re.search("geschrieben|gespeichert", note(body))
+
+
+def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A zero-width space pasted along: encoding it failed inside the check."""
+    monkeypatch.setattr(
+        probe, "check", lambda settings: pytest.fail("must not ask the API")
+    )
+
+    status, body, _ = browser.post("/credentials", {"api_key": "a-new​key"})
+
+    assert status == 200
+    assert "Nicht gespeichert" in note(body)
+    assert "a-new" not in installation.env_path.read_text(encoding="utf-8")

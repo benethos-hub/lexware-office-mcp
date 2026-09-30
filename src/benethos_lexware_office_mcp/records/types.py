@@ -219,17 +219,23 @@ class SalesLineItem(BaseModel):
     """
 
     name: str = Field(description="What the line is called on the document.")
-    quantity: float = Field(description="How many units.", ge=0)
-    unit_name: str = Field(description="What one unit is, for example 'Stueck'.")
-    unit_price: float = Field(
+    # Optional because a 'text' line has none of the four below. Every other
+    # line needs all of them, which `payloads` checks before a request. Said
+    # here rather than in the docstring, which is sent with every tool list.
+    quantity: float | None = Field(None, description="How many units.", ge=0)
+    unit_name: str | None = Field(
+        None, description="What one unit is, for example 'Stueck'."
+    )
+    unit_price: float | None = Field(
+        None,
         description=(
             "The price of one unit, before tax on a 'net' document and after "
             "tax on a 'gross' one."
         ),
         ge=0,
     )
-    tax_rate_percent: float = Field(
-        description="The tax rate for this line, for example 19.", ge=0
+    tax_rate_percent: float | None = Field(
+        None, description="The tax rate for this line, for example 19.", ge=0
     )
     description: str | None = Field(
         None, description="Longer text under the line's name."

@@ -176,3 +176,21 @@ def test_the_stored_file_is_readable_by_a_person(store: ProfileStore) -> None:
     text = store.path.read_text(encoding="utf-8")
     assert "Für Steuerberater" in text  # not escaped into ü
     assert text.endswith("\n")
+
+
+def test_a_write_that_fails_leaves_the_old_profiles_whole(
+    store: ProfileStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store.save("Nur Lesen", ["get_profile"], ["get_profile"])
+    before = (tmp_path / PROFILE_FILE_NAME).read_text(encoding="utf-8")
+
+    def interrupted(src: object, dst: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr("os.replace", interrupted)
+
+    with pytest.raises(OSError):
+        store.save("Alles", ["get_profile"], ["get_profile"])
+
+    assert (tmp_path / PROFILE_FILE_NAME).read_text(encoding="utf-8") == before
+    assert [p.name for p in tmp_path.iterdir()] == [PROFILE_FILE_NAME]

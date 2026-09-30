@@ -35,7 +35,7 @@ from typing import Any, Self
 import httpx
 
 from .. import __version__, logbook
-from ..errors import RateLimitError, UpstreamError
+from ..errors import ConflictError, RateLimitError, UpstreamError
 from ..settings import Settings
 from .ratelimit import Sleeper, TokenBucket
 from .refusal import from_response
@@ -44,7 +44,8 @@ __all__ = ["BREAKER_THRESHOLD", "Connection"]
 
 # PUT and DELETE are idempotent, and an update additionally carries the
 # `version` it read: if the first attempt succeeded the version has moved on
-# and a retry fails with 409 rather than applying the change twice.
+# and a retry is refused as stale - 406 or 409, by resource - rather than
+# applying the change twice. `_own_change` says which attempt moved it.
 RETRYABLE_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
 
 MAX_ATTEMPTS = 3
@@ -158,7 +159,11 @@ class Connection:
                 raise UpstreamError(
                     f"{method} {path} timed out.", outcome_unknown=not retryable
                 ) from exc
-            except httpx.TransportError as exc:
+            # RequestError rather than TransportError: an answer whose body
+            # cannot be decoded, or a redirect loop, is not a transport error
+            # and escaped as a crash - on a POST without saying the outcome
+            # is unknown.
+            except httpx.RequestError as exc:
                 logbook.api.unanswered(method, path, exc, _since(sent_at), number)
                 self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:
@@ -225,7 +230,10 @@ class Connection:
             if status == 401:
                 logbook.api.key_rejected()
             if status >= 400:
-                raise from_response(response, method, path)
+                refused = from_response(response, method, path)
+                if maybe_done and isinstance(refused, ConflictError):
+                    raise _own_change(refused, method, path)
+                raise refused
 
             return response
 
@@ -294,6 +302,25 @@ class Connection:
         await self._sleep(wait)
 
 
+def _own_change(refused: ConflictError, method: str, path: str) -> ConflictError:
+    """A conflict on a retry, which the first attempt most likely caused.
+
+    An update is retried after an attempt that got no answer, carrying the
+    version it was written against. If that attempt was carried out, the
+    record has moved to the next version, and the retry is refused as
+    stale. Saying somebody changed the record would send the caller to
+    apply the same change a second time.
+    """
+    own = ConflictError(
+        f"{method} {path} got no answer and was sent again, and the retry "
+        "was refused because the record has moved on. The first attempt was "
+        "most likely carried out. Read the record again and check whether it "
+        "already carries the change before sending it again."
+    )
+    own.status, own.code = refused.status, refused.code
+    return own
+
+
 def _since(started: float) -> float:
     """Milliseconds since ``started``, a ``perf_counter`` reading."""
     return (time.perf_counter() - started) * 1000
@@ -302,6 +329,10 @@ def _since(started: float) -> float:
 def _backoff(attempt: int, retry_after: str | None = None) -> float:
     """How long to wait before the next attempt, Retry-After honoured."""
     delay = min(BACKOFF_BASE * (2**attempt), BACKOFF_CAP)
+    # Jitter, so that several waiters do not resume in lockstep. On the
+    # computed delay only: a Retry-After is the earliest the server wants to
+    # hear again, and waking before it buys the next 429.
+    delay *= 0.5 + random.random() / 2
     if retry_after:
         try:
             asked = float(retry_after)
@@ -321,5 +352,4 @@ def _backoff(attempt: int, retry_after: str | None = None) -> float:
                 )
             logbook.api.retry_after_honoured(asked)
             delay = max(delay, asked)
-    # Jitter, so that several waiters do not resume in lockstep.
-    return delay * (0.5 + random.random() / 2)
+    return delay
