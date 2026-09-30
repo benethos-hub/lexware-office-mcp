@@ -302,6 +302,10 @@ def _since(started: float) -> float:
 def _backoff(attempt: int, retry_after: str | None = None) -> float:
     """How long to wait before the next attempt, Retry-After honoured."""
     delay = min(BACKOFF_BASE * (2**attempt), BACKOFF_CAP)
+    # Jitter, so that several waiters do not resume in lockstep. On the
+    # computed delay only: a Retry-After is the earliest the server wants to
+    # hear again, and waking before it buys the next 429.
+    delay *= 0.5 + random.random() / 2
     if retry_after:
         try:
             asked = float(retry_after)
@@ -321,5 +325,4 @@ def _backoff(attempt: int, retry_after: str | None = None) -> float:
                 )
             logbook.api.retry_after_honoured(asked)
             delay = max(delay, asked)
-    # Jitter, so that several waiters do not resume in lockstep.
-    return delay * (0.5 + random.random() / 2)
+    return delay

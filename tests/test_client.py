@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
+from benethos_lexware_office_mcp.api import connection
 from benethos_lexware_office_mcp.api.client import LexwareClient
 from benethos_lexware_office_mcp.api.connection import BREAKER_THRESHOLD
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
@@ -407,7 +408,9 @@ async def test_a_delete_retried_only_after_429_is_still_a_404() -> None:
             await client.delete_article("PLACEHOLDER-ARTICLE-1")
 
 
-async def test_retry_after_is_honoured() -> None:
+async def test_retry_after_is_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In full: the jitter shortens the computed delay, never the server's."""
+    monkeypatch.setattr(connection.random, "random", lambda: 0.0)
     slept: list[float] = []
 
     async def record(seconds: float) -> None:
@@ -425,7 +428,7 @@ async def test_retry_after_is_honoured() -> None:
     await client.request("GET", "/v1/profile")
     await client.aclose()
 
-    assert max(slept) >= 3.5  # 7 seconds, minus at most half from the jitter
+    assert max(slept) >= 7
 
 
 @pytest.mark.parametrize("seconds", ["86400", "inf", "nan", "9"])

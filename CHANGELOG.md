@@ -110,6 +110,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **A `Retry-After` is waited out in full.** The random spread that keeps
+  retries apart was applied after it, so `Retry-After: 7` could be retried
+  after three and a half seconds, early enough to be refused again. The
+  spread now shortens only the server's own backoff.
 - **Saving in the configuration interface no longer ends without an
   answer** when the `.env` already held a value the server refuses. The key
   or the token was written, reading the settings back failed on the other

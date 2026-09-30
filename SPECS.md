@@ -1647,7 +1647,8 @@ second. 429 handling therefore stays mandatory and is never treated as a bug in
 the limiter.
 
 **Backing off for real.** On 429 the request is retried with exponential
-backoff and jitter, honouring `Retry-After` when it is present. After a small
+backoff and jitter, honouring `Retry-After` when it is present - in full: the
+jitter shortens the computed delay, never the one the server asked for. After a small
 number of consecutive 429s the client stops retrying, drains the bucket for a
 cool-down window, and returns `RateLimitError` to the caller. This is a
 deliberate circuit breaker rather than politeness — the documentation states
