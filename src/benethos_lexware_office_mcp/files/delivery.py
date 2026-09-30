@@ -5,11 +5,15 @@ can read, an image it can see, a PDF turned into pictures of its pages so
 that it can be seen at all, and a blob only the client can do anything with.
 ``read_download`` decides *whether* a file goes into the answer and how many
 pages of it, this module decides *how* it goes in.
+
+A download that stays on disk is an answer too, built by :func:`saved`: a
+line to read and a link to follow, both naming the same file.
 """
 
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 from typing import Any
 
 from mcp.types import (
@@ -18,17 +22,39 @@ from mcp.types import (
     ContentBlock,
     EmbeddedResource,
     ImageContent,
+    ResourceLink,
     TextContent,
 )
 
 from ..errors import ValidationError
 from . import rendering
 
-__all__ = ["TEXT_TYPES", "inline"]
+__all__ = ["TEXT_TYPES", "inline", "saved"]
 
 # Types a model can actually read. XML is the one that matters: an XRechnung
 # is an invoice in text form.
 TEXT_TYPES = ("application/xml", "text/xml", "application/json")
+
+
+def saved(written: Path, link: ResourceLink, size: int) -> CallToolResult:
+    """The answer to a download: where the file is, and the link to it.
+
+    The structured half is what a model reads, the resource link is what a
+    client acts on. Both name the same file, so neither has to be guessed at
+    from the other.
+    """
+    summary = (
+        f"Saved {written.name} ({size} bytes). Readable as the resource {link.uri}."
+    )
+    return CallToolResult(
+        content=[TextContent(type="text", text=summary), link],
+        structured_content={
+            "path": str(written),
+            "uri": link.uri,
+            "mimeType": link.mime_type,
+            "size": size,
+        },
+    )
 
 
 def inline(

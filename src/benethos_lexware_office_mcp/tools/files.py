@@ -17,10 +17,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 from mcp.server.mcpserver import MCPServer
-from mcp.types import (
-    CallToolResult,
-    TextContent,
-)
+from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
 
 from .. import formatting
@@ -37,6 +34,13 @@ from .sales_documents import (
 )
 
 __all__ = ["register"]
+
+
+# A download answers with content blocks as well as data, so its tools return
+# a `CallToolResult` and name the model its structured half has to match as
+# `Annotated` metadata. The SDK takes the output schema from that model and
+# checks the result's structured content against it, so a client sees the
+# model's schema and the blocks travel as they were built.
 
 
 class Download(BaseModel):
@@ -147,7 +151,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ],
         file_format: FormatField = "pdf",
-    ) -> Download:
+    ) -> Annotated[CallToolResult, Download]:
         """Save a stored file, such as an uploaded receipt. One API call.
 
         The bytes are not in this answer. Two ways to reach them:
@@ -176,7 +180,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         document_type: DocumentTypeField,
         document_id: DocumentIdField,
         file_format: FormatField = "pdf",
-    ) -> Download:
+    ) -> Annotated[CallToolResult, Download]:
         """Save the rendered PDF of an invoice or another sales document.
 
         One API call. Reports `path` and `uri` and keeps the bytes out of the
@@ -210,7 +214,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             ),
         ],
         max_pages: int | None = settings.pdf_pages,
-    ) -> Delivered:
+    ) -> Annotated[CallToolResult, Delivered]:
         """Put the contents of a downloaded file into this conversation.
 
         No API call. Use it when the client cannot open the `path` or follow
@@ -337,12 +341,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     register_tool(server, attach_file_to_voucher)
 
 
-def _load_inline(uri: str, settings: Settings, max_pages: int) -> Any:
-    """Find a download, read it and build the answer. Blocking, run in a thread.
-
-    ``Any`` for the same reason as :func:`_deliver`: the tool declares
-    :class:`Delivered` for its schema and passes the ``CallToolResult`` on.
-    """
+def _load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult:
+    """Find a download, read it and build the answer. Blocking, run in a thread."""
     with _on_disk("read the download"):
         found = storage.resolve(
             uri[len(resources.SCHEME) :], storage.directory_for(settings)
@@ -366,39 +366,14 @@ async def _deliver(
     settings: Settings,
     *,
     fallback: str,
-) -> Any:
-    """Save a download and hand it to the client both ways.
-
-    The structured half is what a model reads, the resource link is what a
-    client acts on. Both name the same file, so neither has to be guessed at
-    from the other.
-
-    Returns a ``CallToolResult`` while the tools that call it declare
-    :class:`Download`. That is deliberate: the SDK derives the output schema
-    from the annotation and passes a ``CallToolResult`` through unchanged once
-    its structured content validates against that schema, so declaring the
-    payload buys a real schema without giving up the content blocks.
-    """
+) -> CallToolResult:
+    """Save a download and hand it to the client both ways."""
     name = storage.suggested_name(response, fallback)
     with _on_disk("save the download"):
         written = await asyncio.to_thread(_save, response.content, name, settings)
         mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
         link = resources.publish(server, written, mime)
-
-    payload = {
-        "path": str(written),
-        "uri": link.uri,
-        "mimeType": link.mime_type,
-        "size": len(response.content),
-    }
-    summary = (
-        f"Saved {written.name} ({len(response.content)} bytes). "
-        f"Readable as the resource {link.uri}."
-    )
-    return CallToolResult(
-        content=[TextContent(type="text", text=summary), link],
-        structured_content=payload,
-    )
+    return delivery.saved(written, link, len(response.content))
 
 
 def _save(content: bytes, name: str, settings: Settings) -> Path:
