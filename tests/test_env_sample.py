@@ -10,6 +10,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
+from benethos_lexware_office_mcp import settings as settings_module
 from benethos_lexware_office_mcp.settings import _env_lookup, load_settings
 from benethos_lexware_office_mcp.settings.envfile import read_env_file
 from benethos_lexware_office_mcp.settings.locations import settings_sample
@@ -21,28 +24,11 @@ SAMPLE = (
     / "env.sample"
 )
 
-# Every variable `load_settings` looks up. Adding one here without adding it to
-# the sample fails the drift test below.
-SETTINGS = {
-    "LXO_MCP_API_KEY",
-    "LXO_MCP_TOOL_POLICY",
-    "LXO_MCP_BASE_URL",
-    "LXO_MCP_APP_BASE_URL",
-    "LXO_MCP_DOWNLOAD_DIR",
-    "LXO_MCP_TIMEOUT",
-    "LXO_MCP_RATE",
-    "LXO_MCP_BURST",
-    "LXO_MCP_PAGE_SIZE",
-    "LXO_MCP_LOG_LEVEL",
-    "LXO_MCP_TRANSPORT",
-    "LXO_MCP_BEARER_TOKEN",
-    "LXO_MCP_HTTP_HOST",
-    "LXO_MCP_HTTP_PORT",
-    "LXO_MCP_HTTP_PATH",
-    "LXO_MCP_ALLOWED_HOSTS",
-    "LXO_MCP_EXIT_ON_CONFIG_CHANGE",
-    "LXO_MCP_GENERATE_BEARER_TOKEN",
-}
+# Every variable `load_settings` looks up, read from its source: each one is a
+# `get("NAME")` there. A list kept by hand beside it had already fallen behind
+# by two, so the sample drifted with the test still green.
+_LOADER = Path(settings_module.__file__).read_text(encoding="utf-8")
+SETTINGS = {f"LXO_MCP_{name}" for name in re.findall(r'\bget\("([A-Z_]+)"\)', _LOADER)}
 
 
 def test_the_sample_is_committed() -> None:
@@ -73,6 +59,12 @@ def test_copying_the_sample_enables_nothing_by_itself() -> None:
     assert settings.tool_policy_path is None
 
 
+def test_the_names_are_read_from_the_loader() -> None:
+    """A pattern that matched nothing would pass the test below vacuously."""
+    assert {"LXO_MCP_API_KEY", "LXO_MCP_LISTED_DOWNLOADS"} <= SETTINGS
+    assert len(SETTINGS) >= 20
+
+
 def test_sample_documents_every_setting_the_loader_reads() -> None:
     mentioned = set(re.findall(r"LXO_MCP_[A-Z_]+", settings_sample()))
     assert SETTINGS <= mentioned, f"missing from the sample: {SETTINGS - mentioned}"
@@ -100,3 +92,16 @@ def test_working_directory_env_beats_the_config_directory(tmp_path: Path) -> Non
     (tmp_path / "config" / ".env").write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
     (tmp_path / ".env").write_text("LXO_MCP_PAGE_SIZE=9\n", encoding="utf-8")
     assert _env_lookup(cwd=tmp_path)["LXO_MCP_PAGE_SIZE"] == "9"
+
+
+@pytest.mark.parametrize("document", ["README.md", "SPECS.md"])
+def test_every_setting_has_a_row_in_the_settings_table(document: str) -> None:
+    """The sample is not the only list: both documents keep a table of them.
+
+    SPECS section 7 went without the eight HTTP settings from 0.2.0 on, and
+    nothing noticed, because nothing compared.
+    """
+    text = (Path(__file__).resolve().parents[1] / document).read_text(encoding="utf-8")
+    rows = set(re.findall(r"^\| `(LXO_MCP_[A-Z_]+)` \|", text, re.MULTILINE))
+    assert SETTINGS - rows == set(), f"no row in {document}"
+    assert rows - SETTINGS == set(), f"a row in {document} for nothing the loader reads"

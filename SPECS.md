@@ -879,6 +879,14 @@ arriving.
 | `LXO_MCP_BURST` | Token bucket capacity. Upstream holds 4, measured. | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
 | `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. httpx, httpcore and the SDK stay at `WARNING` whatever it says, because their `INFO` lines carry request URLs and error text. | `INFO` |
+| `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse`, see section 6. `--transport` wins. | `stdio` |
+| `LXO_MCP_BEARER_TOKEN` | The shared secret every HTTP request must carry. An HTTP transport refuses to start without one, see section 6. Registered as a secret, so it is redacted like the key. | — |
+| `LXO_MCP_GENERATE_BEARER_TOKEN` | Make a token at startup when none is set, and write it into the settings file. For a deployment with nobody to type one - the image sets it. | off |
+| `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport. Anything but loopback is said on stderr. | `127.0.0.1` |
+| `LXO_MCP_HTTP_PORT` | Port to bind. | `8770` |
+| `LXO_MCP_HTTP_PATH` | URL path the HTTP transport serves on. | `/mcp` |
+| `LXO_MCP_ALLOWED_HOSTS` | `Host` values the DNS-rebinding guard accepts besides the loopback names, comma separated. | — |
+| `LXO_MCP_EXIT_ON_CONFIG_CHANGE` | End the process when the settings file changes, for something that restarts it, see section 6. | off |
 
 Precedence, highest first: a real environment variable, `.env` in the working
 directory, `config/.env` in the working directory, `config/.env` of the source
