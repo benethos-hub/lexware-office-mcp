@@ -23,11 +23,11 @@ resource" for a file in its own directory that ``read_download`` read in the
 same breath. Registering everything at startup fixed that, and cost a start
 that read the whole directory and a registry that only grew.
 
-**The list names the newest downloads only**, ``LXO_MCP_LISTED_DOWNLOADS`` of
-them. Nothing deletes a download, so the directory grows with every distinct
-document, and the SDK sends the list whole: it does not page. An older file
-is not hidden, only unlisted - its link still reads, and so does
-``read_download``.
+**The list names the newest downloads only**, ``LXO_MCP_KEPT_DOWNLOADS`` of
+them, because the SDK sends it whole: it does not page. Where the directory
+is cleaned to the same number, which is the cache directory by default, the
+list is the directory. Where it is not, an older file is only unlisted - its
+link still reads, and so does ``read_download``.
 
 **What this still cannot do** is tell a client that the list has changed.
 The SDK derives ``resources.listChanged`` from notification options that

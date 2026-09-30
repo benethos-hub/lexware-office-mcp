@@ -86,8 +86,8 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
         {"LXO_MCP_RATE": "inf"},
         {"LXO_MCP_TIMEOUT": "inf"},
         {"LXO_MCP_PDF_PAGES": "101"},
-        {"LXO_MCP_LISTED_DOWNLOADS": "-1"},
-        {"LXO_MCP_LISTED_DOWNLOADS": "many"},
+        {"LXO_MCP_KEPT_DOWNLOADS": "-1"},
+        {"LXO_MCP_KEPT_DOWNLOADS": "many"},
         # The key travels to this address, so never in the clear.
         {"LXO_MCP_BASE_URL": "http://api.lexware.io"},
         {"LXO_MCP_BASE_URL": "api.lexware.io"},
@@ -175,11 +175,32 @@ def test_the_pdf_page_default_is_not_the_list_page_size() -> None:
     assert settings.pdf_pages == 3
 
 
-def test_the_download_list_is_bounded_and_the_bound_is_a_setting() -> None:
-    assert load_settings({}).listed_downloads == 100
-    assert load_settings({"LXO_MCP_LISTED_DOWNLOADS": "25"}).listed_downloads == 25
-    # Zero is a choice, not a mistake: list nothing, read everything.
-    assert load_settings({"LXO_MCP_LISTED_DOWNLOADS": "0"}).listed_downloads == 0
+def test_the_cache_directory_keeps_a_hundred_downloads_unless_told() -> None:
+    settings = load_settings({})
+    assert settings.kept_downloads is None
+    assert settings.downloads_kept() == 100
+    assert settings.downloads_listed() == 100
+
+
+def test_a_directory_named_by_hand_is_not_cleaned_unless_asked(
+    tmp_path: Path,
+) -> None:
+    """It may be somebody's own folder."""
+    own = load_settings({"LXO_MCP_DOWNLOAD_DIR": str(tmp_path)})
+    assert own.downloads_kept() is None
+    assert own.downloads_listed() == 100
+
+    asked = load_settings(
+        {"LXO_MCP_DOWNLOAD_DIR": str(tmp_path), "LXO_MCP_KEPT_DOWNLOADS": "25"}
+    )
+    assert asked.downloads_kept() == 25
+    assert asked.downloads_listed() == 25
+
+
+def test_zero_keeps_every_download_and_the_list_stays_bounded() -> None:
+    settings = load_settings({"LXO_MCP_KEPT_DOWNLOADS": "0"})
+    assert settings.downloads_kept() is None
+    assert settings.downloads_listed() == 100
 
 
 def test_a_nonsense_pdf_page_count_is_refused_at_startup() -> None:

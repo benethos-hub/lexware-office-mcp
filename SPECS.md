@@ -871,7 +871,7 @@ arriving.
 | `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
-| `LXO_MCP_LISTED_DOWNLOADS` | How many downloads `resources/list` names, newest by modification time. The directory grows with every distinct document and the SDK sends the list whole, without paging, so the list needs a bound. An older file is only unlisted: its link and `read_download` still read it. `0` lists none. | `100` |
+| `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
 | `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. | unset, anywhere |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
@@ -2104,15 +2104,29 @@ every test in this repository. Section 14.3 says how to look.
   startup fixed that, at the price of a start that read every file and a
   registry that only grew. Answering from the disk keeps what the fix was for,
   drops a file removed from the directory at once, and reads nothing at start.
-- **The list names the newest downloads only**, `LXO_MCP_LISTED_DOWNLOADS`
-  of them, 100 unless set. Nothing deletes a download, so the directory grows
-  with every distinct document, and the SDK answers `resources/list` whole: it
-  ignores the cursor the protocol has for paging. An entry is about 210 bytes,
-  measured, so a thousand downloads made a list of about 210 KB. An older file
-  is unlisted, not hidden: its link and `read_download` still read it, which
-  is why the bound can be small. Whether the directory itself needs a limit is
-  a separate question and is not answered here - clearing it deletes business
-  records, which is not something to do unasked.
+- **The download directory is a cache of the newest 100 downloads**, decided
+  2026-09-30. Nothing used to delete a download, so the directory grew with
+  every distinct document and kept business records on disk for as long as
+  nobody cleared it. Every one of them is in Lexware Office and one API call
+  away, so the directory is treated as what it is, a cache: older files are
+  deleted at the real server start and after each download, and never by
+  `--tools`, `setup` or anything else that builds a server only to look at
+  it. A count rather than an age, chosen over a 24-hour limit so one number
+  bounds both the directory and the list. The price is that a rarely used
+  installation keeps its last hundred documents indefinitely.
+  - **Where it applies.** In the default cache directory unless
+    `LXO_MCP_KEPT_DOWNLOADS` says otherwise. A directory named by
+    `LXO_MCP_DOWNLOAD_DIR` may be somebody's own folder, so nothing is deleted
+    there unless the bound is set as well. `0` deletes nothing anywhere.
+  - **What goes.** Plain files only, oldest by modification time first, which
+    a reused download renews. A subdirectory or a symbolic link was put there
+    by someone else. A file that cannot be deleted - one open in a viewer on
+    Windows - waits for the next time.
+  - **The list names the same newest downloads**, because the SDK answers
+    `resources/list` whole and ignores the cursor the protocol has for paging.
+    An entry is about 210 bytes, measured, so a thousand downloads made a list
+    of about 210 KB. Where nothing is deleted, an older file is unlisted but
+    still readable by its link and through `read_download`.
 - **A client is told when the tool list changes, since 2026-08-22.** For
   resources it still is not, and the measurement below explains why the
   default is what it is. Measured against mcp 2.0.0 on 2026-08-21:
@@ -2521,10 +2535,9 @@ arrived with 0.3.0 after all, for an unchecked voucher.
 built. All three are done.
 
 - **The resource list grows with the download directory.** Built
-  2026-09-30: the list names the newest downloads, 100 unless
-  `LXO_MCP_LISTED_DOWNLOADS` says otherwise, and is read from the directory
-  when it is asked for, see section 13. The directory itself still grows, and
-  no limit for it was decided.
+  2026-09-30: the directory is a cache of the newest 100 downloads, the list
+  names the same ones and is read from the directory when it is asked for,
+  see section 13.
 - **A logging concept.** Built 2026-09-30, see section 11.2.
 - **Refactoring at file level and at code level.** Built 2026-09-30: the
   package is layered into subpackages, see the table and the import rule

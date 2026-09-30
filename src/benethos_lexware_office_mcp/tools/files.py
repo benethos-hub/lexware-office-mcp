@@ -320,8 +320,14 @@ async def _deliver(
 
 
 def _save(content: bytes, name: str, settings: Settings) -> Path:
-    """Write a download to disk. Blocking, run in a thread."""
-    return storage.save(content, name, storage.directory_for(settings))
+    """Write a download to disk, then keep the directory at its bound.
+
+    Blocking, run in a thread. The file just written is the newest, so the
+    clean-up that follows never takes it.
+    """
+    written = storage.save(content, name, storage.directory_for(settings))
+    storage.prune_for(settings)
+    return written
 
 
 @contextlib.contextmanager

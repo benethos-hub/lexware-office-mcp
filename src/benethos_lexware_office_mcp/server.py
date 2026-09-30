@@ -30,7 +30,7 @@ from .api.client import ClientProvider
 from .errors import ConfigError
 from .files import resources
 from .policy import ToolPolicy
-from .settings import DEFAULT_LISTED_DOWNLOADS, Settings, load_settings
+from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .settings.locations import download_dir
 from .tools import register_tools
 
@@ -90,7 +90,7 @@ class PolicyServer(MCPServer):
         *args: Any,
         policy: ToolPolicy,
         downloads: Path | None = None,
-        listed_downloads: int = DEFAULT_LISTED_DOWNLOADS,
+        listed_downloads: int = DEFAULT_KEPT_DOWNLOADS,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -270,7 +270,7 @@ def build_server(
         instructions=_INSTRUCTIONS,
         policy=policy,
         downloads=downloads,
-        listed_downloads=settings.listed_downloads,
+        listed_downloads=settings.downloads_listed(),
     )
     register_tools(server, settings, provider or ClientProvider(settings))
     return server

@@ -461,9 +461,7 @@ async def test_the_list_names_the_newest_downloads_first_and_no_more(
 ) -> None:
     """The directory grows with every document, and the SDK sends it whole."""
     _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"])
-    server, provider = server_with(
-        recorder(), download_path=tmp_path, listed_downloads=3
-    )
+    server, provider = server_with(recorder(), download_path=tmp_path, kept_downloads=3)
 
     listed = await server.list_resources()
 
@@ -472,11 +470,9 @@ async def test_the_list_names_the_newest_downloads_first_and_no_more(
 
 
 async def test_a_file_too_old_to_be_listed_is_still_readable(tmp_path: Path) -> None:
-    """Unlisted is not hidden: a link handed out earlier keeps working."""
+    """Unlisted is not deleted: until the directory is cleaned, a link works."""
     _aged(tmp_path, ["old.pdf", "new.pdf"])
-    server, provider = server_with(
-        recorder(), download_path=tmp_path, listed_downloads=1
-    )
+    server, provider = server_with(recorder(), download_path=tmp_path, kept_downloads=1)
 
     assert [r.name for r in await server.list_resources()] == ["new.pdf"]
     contents = list(await server.read_resource("lexware://download/old.pdf"))
@@ -488,15 +484,14 @@ async def test_a_file_too_old_to_be_listed_is_still_readable(tmp_path: Path) -> 
     await provider.aclose()
 
 
-async def test_a_limit_of_zero_lists_nothing_and_still_reads(tmp_path: Path) -> None:
-    (tmp_path / "invoice.pdf").write_bytes(PDF)
-    server, provider = server_with(
-        recorder(), download_path=tmp_path, listed_downloads=0
-    )
+async def test_zero_keeps_every_download_through_a_download(tmp_path: Path) -> None:
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf"])
+    server, provider = server_with(recorder(), download_path=tmp_path, kept_downloads=0)
 
-    assert await server.list_resources() == []
-    contents = list(await server.read_resource("lexware://download/invoice.pdf"))
-    assert contents[0].content == PDF
+    await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert len(list(tmp_path.iterdir())) == 4
+    assert len(await server.list_resources()) == 4
     await provider.aclose()
 
 
@@ -539,3 +534,101 @@ async def test_a_directory_not_made_yet_lists_nothing_and_reads_nothing(
     assert await server.list_resources() == []
     with pytest.raises(ResourceNotFoundError):
         await server.read_resource("lexware://download/invoice.pdf")
+
+
+# -- the directory is a cache of the newest downloads -----------------------
+
+
+def test_the_clean_up_keeps_the_newest_and_deletes_the_rest(tmp_path: Path) -> None:
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf", "d.pdf"])
+
+    assert storage.prune(tmp_path, 2) == 2
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["c.pdf", "d.pdf"]
+
+
+def test_the_clean_up_leaves_what_it_did_not_write(tmp_path: Path) -> None:
+    """A subdirectory was put there by someone else, and so was a link."""
+    _aged(tmp_path, ["old.pdf", "new.pdf"])
+    (tmp_path / "kept-by-hand").mkdir()
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.pdf"
+    outside.write_bytes(PDF)
+    try:
+        (tmp_path / "link.pdf").symlink_to(outside)
+        linked = True
+    except OSError:
+        linked = False  # this account may not create symbolic links
+
+    storage.prune(tmp_path, 1)
+
+    left = {p.name for p in tmp_path.iterdir()}
+    assert left >= {"new.pdf", "kept-by-hand"}
+    assert "old.pdf" not in left
+    assert ("link.pdf" in left) is linked
+    assert outside.is_file()
+
+
+def test_a_file_that_cannot_be_deleted_waits_for_the_next_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On Windows a PDF open in a viewer cannot be deleted. No error for it."""
+    _aged(tmp_path, ["locked.pdf", "old.pdf", "new.pdf"])
+    unlink = Path.unlink
+
+    def refuse(self: Path, missing_ok: bool = False) -> None:
+        if self.name == "locked.pdf":
+            raise PermissionError(13, "The process cannot access the file")
+        unlink(self, missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+
+    assert storage.prune(tmp_path, 1) == 1
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["locked.pdf", "new.pdf"]
+
+
+def test_the_cache_directory_is_cleaned_to_its_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Not named by hand, so the default of a hundred applies."""
+    monkeypatch.setattr(storage, "download_dir", lambda: tmp_path)
+    _aged(tmp_path, [f"{n:03d}.pdf" for n in range(102)])
+
+    with caplog.at_level(logging.INFO, logger="benethos_lexware_office_mcp"):
+        assert storage.prune_for(Settings(api_key=API_KEY)) == 2
+
+    assert len(list(tmp_path.iterdir())) == 100
+    assert not (tmp_path / "000.pdf").exists()
+    assert "Deleted 2 older downloads, the newest 100 are kept" in caplog.text
+    assert "000.pdf" not in caplog.text
+
+
+def test_a_directory_named_by_hand_is_left_alone(tmp_path: Path) -> None:
+    _aged(tmp_path, [f"{n:03d}.pdf" for n in range(102)])
+
+    assert storage.prune_for(Settings(api_key=API_KEY, download_path=tmp_path)) == 0
+
+    assert len(list(tmp_path.iterdir())) == 102
+
+
+async def test_a_download_keeps_the_directory_at_its_bound(tmp_path: Path) -> None:
+    """The file just written is the newest, so the clean-up never takes it."""
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf"])
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path, kept_downloads=2)
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert {p.name for p in tmp_path.iterdir()} == {"c.pdf", f"{FILE_ID}.pdf"}
+    uri = (result.structured_content or {})["uri"]
+    assert list(await server.read_resource(uri))[0].content == PDF
+    await provider.aclose()
+
+
+def test_building_a_server_to_look_at_it_deletes_nothing(tmp_path: Path) -> None:
+    """`--tools`, `setup` and the cost measurement all build one."""
+    _aged(tmp_path, ["a.pdf", "b.pdf", "c.pdf"])
+
+    build_server(Settings(api_key=API_KEY, download_path=tmp_path, kept_downloads=1))
+
+    assert len(list(tmp_path.iterdir())) == 3

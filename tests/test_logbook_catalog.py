@@ -49,6 +49,7 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "endpoint": ("a request's path, words and UUIDs only", "/v1/contacts"),
     "error": ("an exception, read through describe() only", OSError(2, "gone")),
     "generated": ("whether a token was generated rather than typed", True),
+    "kept": ("how many downloads the directory keeps", 100),
     "fields": ("the names of arguments the schema refused", ("items.0.unit",)),
     "file": ("the name of a settings file", ".env"),
     "finalized": ("whether a write finalized its record", True),

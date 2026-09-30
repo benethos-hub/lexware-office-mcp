@@ -61,7 +61,7 @@ def test_copying_the_sample_enables_nothing_by_itself() -> None:
 
 def test_the_names_are_read_from_the_loader() -> None:
     """A pattern that matched nothing would pass the test below vacuously."""
-    assert {"LXO_MCP_API_KEY", "LXO_MCP_LISTED_DOWNLOADS"} <= SETTINGS
+    assert {"LXO_MCP_API_KEY", "LXO_MCP_KEPT_DOWNLOADS"} <= SETTINGS
     assert len(SETTINGS) >= 20
 
 

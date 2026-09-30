@@ -20,7 +20,7 @@ from urllib.parse import unquote
 import httpx
 
 from .. import logbook
-from ..errors import ValidationError
+from ..errors import ConfigError, ValidationError
 from ..settings import Settings
 from ..settings.locations import download_dir
 
@@ -56,6 +56,54 @@ def directory_for(settings: Settings) -> Path:
     target = settings.download_path or download_dir()
     target.mkdir(parents=True, exist_ok=True)
     return target
+
+
+def prune(directory: Path, keep: int) -> int:
+    """Delete all but the newest ``keep`` downloads, and say how many went.
+
+    Newest by modification time, which a reused download renews. Only plain
+    files: a subdirectory or a symbolic link was put there by someone else. A
+    file that cannot be deleted - on Windows, one open in a viewer - is left
+    for the next time rather than failing the call that triggered this.
+    """
+    if keep <= 0 or not directory.is_dir():
+        return 0
+    found: list[tuple[float, str, Path]] = []
+    for path in directory.iterdir():
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            found.append((path.stat().st_mtime, path.name, path))
+        except OSError:
+            continue
+    found.sort(key=lambda entry: (-entry[0], entry[1]))
+    removed = 0
+    for _, _, path in found[keep:]:
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        removed += 1
+    return removed
+
+
+def prune_for(settings: Settings) -> int:
+    """Clean the download directory these settings name, where they allow it.
+
+    The directory is not created here, and no home to find it in is not an
+    error: there is then nothing to clean.
+    """
+    keep = settings.downloads_kept()
+    if keep is None:
+        return 0
+    try:
+        directory = settings.download_path or download_dir()
+    except ConfigError:
+        return 0
+    removed = prune(directory, keep)
+    if removed:
+        logbook.files.pruned(removed, keep)
+    return removed
 
 
 def suggested_name(response: httpx.Response, fallback: str) -> str:

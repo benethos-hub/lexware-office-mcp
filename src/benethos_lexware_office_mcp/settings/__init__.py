@@ -21,7 +21,7 @@ __all__ = [
     "DEFAULT_APP_BASE_URL",
     "DEFAULT_BASE_URL",
     "DEFAULT_PAGE_SIZE",
-    "DEFAULT_LISTED_DOWNLOADS",
+    "DEFAULT_KEPT_DOWNLOADS",
     "DEFAULT_PDF_PAGES",
     "LOG_LEVELS",
     "LOOPBACK_NAMES",
@@ -69,11 +69,11 @@ DEFAULT_PDF_PAGES = 10
 # worth spending, and it bounds the CPU a single call can take.
 MAX_PDF_PAGES = 100
 
-# How many downloads `resources/list` names, newest first. The directory grows
-# with every distinct document and the SDK sends the list whole, so it needs a
-# bound. An older file stays readable under its link, it is only not listed.
-# Zero lists none.
-DEFAULT_LISTED_DOWNLOADS = 100
+# The download directory is a cache of the newest downloads: every document is
+# in Lexware Office and one API call away, so a file past the bound is fetched
+# again rather than kept. The same number bounds `resources/list`, which the
+# SDK sends whole. See `Settings.downloads_kept` for where it applies.
+DEFAULT_KEPT_DOWNLOADS = 100
 
 DEFAULT_LOG_LEVEL = "INFO"
 
@@ -129,7 +129,8 @@ class Settings:
     burst: int = DEFAULT_BURST
     page_size: int = DEFAULT_PAGE_SIZE
     pdf_pages: int = DEFAULT_PDF_PAGES
-    listed_downloads: int = DEFAULT_LISTED_DOWNLOADS
+    # None when not set, which is not the same as any number: see below.
+    kept_downloads: int | None = None
     log_level: str = DEFAULT_LOG_LEVEL
     tool_policy_path: Path | None = None
     transport: str = DEFAULT_TRANSPORT
@@ -140,6 +141,23 @@ class Settings:
     allowed_hosts: tuple[str, ...] = ()
     exit_on_config_change: bool = False
     generate_bearer_token: bool = False
+
+    def downloads_kept(self) -> int | None:
+        """How many downloads the directory keeps, or ``None`` for all of them.
+
+        The cache directory of this user is cleaned by default, since that is
+        what a cache directory is for. A directory named by
+        ``LXO_MCP_DOWNLOAD_DIR`` may be somebody's own folder, so nothing is
+        deleted there unless ``LXO_MCP_KEPT_DOWNLOADS`` says so as well. Zero
+        keeps everything, anywhere.
+        """
+        if self.kept_downloads is not None:
+            return self.kept_downloads or None
+        return DEFAULT_KEPT_DOWNLOADS if self.download_path is None else None
+
+    def downloads_listed(self) -> int:
+        """How many downloads ``resources/list`` names. Always a bound."""
+        return self.kept_downloads or DEFAULT_KEPT_DOWNLOADS
 
     def policy_file(self) -> Path:
         """Where this process reads and writes its per-tool policy."""
@@ -231,11 +249,10 @@ def load_settings(
             name="LXO_MCP_PDF_PAGES",
             maximum=MAX_PDF_PAGES,
         ),
-        listed_downloads=as_int(
-            get("LISTED_DOWNLOADS"),
-            DEFAULT_LISTED_DOWNLOADS,
-            name="LXO_MCP_LISTED_DOWNLOADS",
-            minimum=0,
+        kept_downloads=(
+            as_int(kept_raw, 0, name="LXO_MCP_KEPT_DOWNLOADS", minimum=0)
+            if (kept_raw := get("KEPT_DOWNLOADS"))
+            else None
         ),
         tool_policy_path=(
             Path(policy_raw).expanduser()
