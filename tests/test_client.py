@@ -317,6 +317,31 @@ async def test_a_post_is_never_retried_after_a_timeout() -> None:
     assert excinfo.value.outcome_unknown is True
 
 
+def _undecodable() -> httpx.Response:
+    """Announces gzip, carries none: httpx raises DecodingError reading it."""
+    return httpx.Response(
+        201,
+        headers={"Content-Encoding": "gzip"},
+        stream=httpx.ByteStream(b"not gzip at all"),
+    )
+
+
+async def test_a_post_whose_answer_cannot_be_decoded_has_an_unknown_outcome() -> None:
+    """Not a TransportError, and it used to escape as a crash."""
+    async with make_client(_undecodable(), httpx.Response(200)) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request("POST", "/v1/invoices", json={})
+        assert client.handler.calls == 1  # type: ignore[attr-defined]
+    assert excinfo.value.outcome_unknown is True
+
+
+async def test_a_get_whose_answer_cannot_be_decoded_is_retried() -> None:
+    async with make_client(
+        _undecodable(), httpx.Response(200, json={"ok": True})
+    ) as client:
+        assert await client.get_json("/v1/profile") == {"ok": True}
+
+
 async def test_a_get_is_retried_after_a_timeout() -> None:
     async with make_client(
         httpx.TimeoutException("too slow"), httpx.Response(200, json={"ok": True})

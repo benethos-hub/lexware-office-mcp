@@ -158,7 +158,11 @@ class Connection:
                 raise UpstreamError(
                     f"{method} {path} timed out.", outcome_unknown=not retryable
                 ) from exc
-            except httpx.TransportError as exc:
+            # RequestError rather than TransportError: an answer whose body
+            # cannot be decoded, or a redirect loop, is not a transport error
+            # and escaped as a crash - on a POST without saying the outcome
+            # is unknown.
+            except httpx.RequestError as exc:
                 logbook.api.unanswered(method, path, exc, _since(sent_at), number)
                 self._consecutive_429 = 0
                 if retryable and attempt < last_attempt:

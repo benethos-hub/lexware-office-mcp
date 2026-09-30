@@ -110,6 +110,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **An answer that cannot be decoded is a clean failure.** A response
+  announcing a compression its body did not have escaped as a crash, so
+  the model was told only which tool failed, and after a write not that its
+  outcome was unknown. It is now handled like a lost connection: a read is
+  retried, and a create says the record may or may not exist.
 - **A `Retry-After` is waited out in full.** The random spread that keeps
   retries apart was applied after it, so `Retry-After: 7` could be retried
   after three and a half seconds, early enough to be refused again. The
