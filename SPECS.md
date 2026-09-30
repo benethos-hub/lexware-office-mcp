@@ -2179,7 +2179,14 @@ every test in this repository. Section 14.3 says how to look.
   - **What goes.** Plain files only, oldest by modification time first, which
     a reused download renews. A subdirectory or a symbolic link was put there
     by someone else. A file that cannot be deleted - one open in a viewer on
-    Windows - waits for the next time.
+    Windows - waits for the next time. **Only a name a download could have**
+    is counted or deleted: one that the sanitizing every saved name goes
+    through leaves unchanged, with an extension a document has. The
+    configuration interface offers the directory and the bound as fields,
+    so a folder of somebody's own can end up named, and `Urlaub 2025.jpg`
+    or `notes.docx` in it are left alone. A name alone cannot tell
+    `report.pdf` from a download, which is why a named directory still
+    needs the bound set as well. Added 2026-09-30 after a review.
   - **Asking for one that is gone says what to do.** `read_download` and
     `resources/read` both answer that the server keeps the newest downloads,
     so it may have been removed, and to download the document again - where
