@@ -16,10 +16,10 @@ housekeeping are out of scope here — design decisions live in
 ### Changed
 
 - **`compose.yaml` caps what Docker keeps of the logs**: five files of 10 MB
-  per service, the oldest dropped first. The server writes a line for every
-  HTTP request, refused ones included, and Docker kept all of it for as long
-  as the container existed, restarts included. The README's `docker run`
-  example sets the same cap.
+  per service, the oldest dropped first. The server wrote a line for every
+  HTTP request, refused ones included, and at `DEBUG` still does, see below.
+  Docker kept all of it for as long as the container existed, restarts
+  included. The README's `docker run` example sets the same cap.
 - **A search term no longer reaches the log.** At `INFO` httpx wrote every
   API request with its whole URL, so a `search_contacts` left the name or
   email address it looked for on stderr, and in a container's log for as
