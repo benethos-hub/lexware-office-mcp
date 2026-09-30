@@ -27,7 +27,7 @@ def describe(error: BaseException) -> str:
     """The class of ``error``, and what of it is safe to say.
 
     For one of this server's errors that is the status the API answered with
-    and the API's own codes, set by ``errors.from_response``, and whether a
+    and the API's own codes, set by ``api.refusal.from_response``, and whether a
     write's outcome is unknown.
     """
     name = type(error).__name__

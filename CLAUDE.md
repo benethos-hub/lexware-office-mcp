@@ -71,6 +71,7 @@ src/benethos_lexware_office_mcp/
   api/            # everything that talks to Lexware
     client.py     # ALL HTTP access: auth, retries, error mapping
     ratelimit.py  # the one token bucket, clock injectable for tests
+    refusal.py    # a refused answer read into a ToolError
   policy.py       # the tool policy file, and what a tool declares itself to be
   formatting.py   # API JSON -> compact tool output
   payloads.py     # tool arguments -> API request bodies
@@ -78,7 +79,7 @@ src/benethos_lexware_office_mcp/
   resources.py    # downloads published as MCP resources for the client
   rendering.py    # PDF pages -> PNG, the only module touching pypdfium2
   delivery.py     # a downloaded file as content blocks: text, image, pages, blob
-  errors.py       # ToolError hierarchy, and an API refusal read into one
+  errors.py       # the ToolError hierarchy, and redact
   transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
   envfile.py      # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
@@ -112,7 +113,7 @@ new HTTP call goes in `client.py`, never in a tool function.
 
 1. Add the request to `client.py`, using `request()` so the shared limiter and
    the retry rules apply automatically. Never retry a POST yourself. A
-   refused answer becomes a `ToolError` in `errors.from_response`, so a new
+   refused answer becomes a `ToolError` in `api/refusal.py`, so a new
    status or a new body shape is taught there, not in the client. Pass the
    page parameters through rather than walking every page.
 2. Normalize the response in `formatting.py`. Drop null and empty fields, keep

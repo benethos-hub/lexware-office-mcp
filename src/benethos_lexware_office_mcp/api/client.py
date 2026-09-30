@@ -36,8 +36,9 @@ import httpx
 
 from .. import __version__, logbook
 from ..config import DEFAULT_PAGE_SIZE, Settings
-from ..errors import RateLimitError, UpstreamError, ValidationError, from_response
+from ..errors import RateLimitError, UpstreamError, ValidationError
 from .ratelimit import Sleeper, TokenBucket
+from .refusal import from_response
 
 __all__ = ["ClientProvider", "LexwareClient"]
 

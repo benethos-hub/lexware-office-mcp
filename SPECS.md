@@ -91,7 +91,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `config.py` | Settings resolution and credential lookup, see section 7 for the precedence. | built |
-| `api/client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, and a refusal handed to `errors.from_response`. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
+| `api/client.py` | All HTTP access to the API: auth header, retry/backoff, pagination, and a refusal handed to `refusal.from_response`. Its `ClientProvider` hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. Nothing else talks to the network. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `policy.py` | The policy file, what a tool declares itself to be, and the enforcement of both, see section 9. | built |
 | `formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
@@ -100,7 +100,8 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `resources.py` | Downloaded files published as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. See section 13. | built |
 | `storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, and because one whose contents match is reused rather than copied. | built |
 | `payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
-| `errors.py` | `ToolError` and its subclasses, and `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses. | built |
+| `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
+| `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
 | `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
 | `envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
@@ -287,7 +288,7 @@ section 2.
   (verified 2026-08-21): `/file` answers **409** with "is in status 'draft'
   and therefore cannot be downloaded", `/document` answers **406** with
   "Requesting PDF document is not possible in state draft". The 409 is not a
-  version conflict, which is what `errors.from_response` has to keep apart —
+  version conflict, which is what `refusal.from_response` has to keep apart —
   a stale version is a 406 naming `version`.
 - **A draft is still indexed.** `/v1/voucherlist` lists it with
   `voucherStatus: draft` and it already carries its document number, so it is
