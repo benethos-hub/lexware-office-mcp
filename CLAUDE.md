@@ -65,7 +65,7 @@ The planned structure, see SPECS.md section 4 for the full table.
 ```
 src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
-  cli.py          # the console script: arguments, --tools, setup, starting the server
+  cli.py          # the console script: arguments, --tools, setup, what a start reports
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
   settings/       # settings resolution, credential lookup
     __init__.py   # Settings, load_settings, the defaults
@@ -88,7 +88,10 @@ src/benethos_lexware_office_mcp/
     rendering.py  # PDF pages -> PNG, the only module touching pypdfium2
     delivery.py   # a download as an answer: a link, or text, image, pages, blob
   errors.py       # the ToolError hierarchy, and redact
-  transport.py    # HTTP: the bearer guard, the host allowlist, the settings watch
+  transport/      # how a client reaches the server
+    stdio.py      # the default: the client owns the process
+    http.py       # the bearer guard, a generated token, the host allowlist
+    watch.py      # ending the process when its settings file changes
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),
                   # the catalogue: lifecycle, policy, api, calls, files,

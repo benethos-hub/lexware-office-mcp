@@ -13,11 +13,12 @@ from typing import Any
 
 import pytest
 
-from benethos_lexware_office_mcp import transport
 from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.errors import ConfigError
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings, load_settings
+from benethos_lexware_office_mcp.transport import http as transport
+from benethos_lexware_office_mcp.transport import watch
 
 TOKEN = "a-token-that-is-not-a-real-one"
 
@@ -222,7 +223,7 @@ def test_a_changed_settings_file_ends_the_process(tmp_path: Path) -> None:
     looking = threading.Event()
 
     watcher = threading.Thread(
-        target=transport.watch_for_change,
+        target=watch.watch_for_change,
         args=(env, ended.set),
         kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
@@ -244,7 +245,7 @@ def test_an_untouched_file_ends_nothing(tmp_path: Path) -> None:
     looking = threading.Event()
 
     watcher = threading.Thread(
-        target=transport.watch_for_change,
+        target=watch.watch_for_change,
         args=(env, ended.set),
         kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
@@ -267,7 +268,7 @@ def test_the_same_content_written_again_is_not_a_change(tmp_path: Path) -> None:
     looking = threading.Event()
 
     watcher = threading.Thread(
-        target=transport.watch_for_change,
+        target=watch.watch_for_change,
         args=(env, ended.set),
         kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
@@ -289,7 +290,7 @@ def test_a_file_that_appears_later_counts_as_a_change(tmp_path: Path) -> None:
     looking = threading.Event()
 
     watcher = threading.Thread(
-        target=transport.watch_for_change,
+        target=watch.watch_for_change,
         args=(env, ended.set),
         kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
@@ -319,13 +320,13 @@ def test_a_file_caught_mid_save_is_not_a_change(
     # Two agreeing reads, then the emptiness in the middle of a save, then the
     # same content back. Every read after the list is the settled one.
     reads = iter([settled, settled, "", settled])
-    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads, settled))
+    monkeypatch.setattr(watch, "_fingerprint", lambda _: next(reads, settled))
 
     ended = threading.Event()
     stop = threading.Event()
     looking = threading.Event()
     watcher = threading.Thread(
-        target=transport.watch_for_change,
+        target=watch.watch_for_change,
         args=(env, ended.set),
         kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,
@@ -346,13 +347,13 @@ def test_a_change_that_stays_changed_still_ends_the_process(
     env = tmp_path / ".env"
     env.write_text("LXO_MCP_API_KEY=first\n", encoding="utf-8")
     reads = iter(["before", "before", "after"])
-    monkeypatch.setattr(transport, "_fingerprint", lambda _: next(reads, "after"))
+    monkeypatch.setattr(watch, "_fingerprint", lambda _: next(reads, "after"))
 
     ended = threading.Event()
     stop = threading.Event()
     looking = threading.Event()
     watcher = threading.Thread(
-        target=transport.watch_for_change,
+        target=watch.watch_for_change,
         args=(env, ended.set),
         kwargs={"stop": stop, "poll": 0.01, "ready": looking},
         daemon=True,

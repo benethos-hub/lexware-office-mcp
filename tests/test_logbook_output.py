@@ -23,7 +23,7 @@ from benethos_lexware_office_mcp.logbook.output import (
     untouched_root,
 )
 from benethos_lexware_office_mcp.settings import Settings
-from benethos_lexware_office_mcp.transport import uvicorn_config
+from benethos_lexware_office_mcp.transport.http import uvicorn_config
 from helpers import always, fast_client
 
 SEARCHED = "Mustermann"

@@ -88,7 +88,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | Module | Responsibility | State |
 |--------|----------------|-------|
 | `server.py` | The `PolicyServer`, an `MCPServer` listing only what the policy file allows, and `build_server`, which makes one from the settings and fills the tool registry. | built |
-| `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, and starting the server over stdio or HTTP. | built |
+| `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, what a start reports on stderr, and handing the server to the transport the command line asked for. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
 | `settings/` | Settings resolution and credential lookup, see section 7 for the precedence. `Settings` and `load_settings` in the package itself, `locations` for the directories, the search and the one file that applies, `parse` for reading one value, `envfile` for the file itself. | built |
 | `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the network. | built |
@@ -104,7 +104,9 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `records/types.py` | Every enumeration a tool takes and every model its arguments are built from, plus the two models the file tools answer with. The schema a client sees is generated from these, so this is the vocabulary of the whole tool list, in one place. | built |
 | `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
-| `transport.py` | The HTTP transport: the bearer guard in front of it, the DNS-rebinding allowlist, and the watch that ends the process when its settings file changes. Nothing here is reached under stdio. See section 6. | built |
+| `transport/stdio.py` | The default transport: the client starts the process and owns stdin and stdout. See section 6. | built |
+| `transport/http.py` | The HTTP transport: the bearer guard in front of it, a generated token written into the settings file where that was asked for, and the DNS-rebinding allowlist. Nothing here is reached under stdio. See section 6. | built |
+| `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
 | `settings/envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
 | `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `app` the HTTP server and its two CSRF guards. | built |
@@ -734,7 +736,7 @@ arriving.
   transport, launched as a subprocess by the client. This is the entire
   transport surface of the first releases, by explicit decision.
 - **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with `--host`,
-  `--port`, `--path` and `--allowed-hosts`, in `transport.py`. **The bearer
+  `--port`, `--path` and `--allowed-hosts`, in `transport/http.py`. **The bearer
   token is required, not offered**: an HTTP transport without
   `LXO_MCP_BEARER_TOKEN` refuses to start, because anyone who can reach the
   port can otherwise spend the account owner's credentials. It is one shared

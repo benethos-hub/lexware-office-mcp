@@ -1,9 +1,8 @@
 """The HTTP transport, and the two things standing in front of it.
 
-stdio needs none of this: the client starts the server as its own child
-process, and nothing else can talk to it. A port can be reached by anything
-that can route to it, so the same tools need two guards before they are
-served over HTTP.
+stdio needs none of this, see :mod:`.stdio`. A port can be reached by
+anything that can route to it, so the same tools need two guards before they
+are served over HTTP.
 
 **A bearer token, which is required.** Whoever reaches the endpoint can spend
 the account owner's API key on real accounting records, so the server refuses
@@ -25,16 +24,18 @@ container on a loopback-published port is.
 
 from __future__ import annotations
 
-import hashlib
+import dataclasses
 import hmac
+import secrets
 import threading
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import logbook
-from .errors import ConfigError
-from .settings import Settings
+from .. import logbook
+from ..errors import ConfigError, register_secret
+from ..settings import Settings
+from ..settings.envfile import update_env_file
+from .watch import watch_for_change
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from mcp.server.mcpserver import MCPServer
@@ -42,16 +43,12 @@ if TYPE_CHECKING:  # pragma: no cover - imported for typing only
 
 __all__ = [
     "bearer_middleware",
+    "bearer_ready",
     "require_bearer",
     "run_http",
     "transport_security",
     "uvicorn_config",
-    "watch_for_change",
 ]
-
-# How often the settings file is looked at. Slow enough to cost nothing, fast
-# enough that a person who just saved the key does not wait for it.
-CONFIG_POLL_SECONDS = 2.0
 
 # What the SDK allows by default. Kept and only extended, so naming a
 # container host never removes local access.
@@ -138,6 +135,30 @@ def require_bearer(settings: Settings) -> str:
     return settings.bearer_token
 
 
+def bearer_ready(settings: Settings, env_path: Path) -> Settings:
+    """The settings with a bearer token in them, or a refusal to serve.
+
+    A generated one is written into the settings file first, where that was
+    asked for. A container has no one to type a secret before it starts, and
+    refusing to run would only invite a memorable one. Thirty-two random
+    bytes beat any of those, so where something is deployed rather than
+    launched by hand the server makes one and keeps it in the file it reads.
+
+    Nowhere else, and never silently: writing into a file a person maintains
+    is not something to do unasked, and the value never reaches the log. The
+    configuration interface shows it, because it has to be copied into a
+    client to be of any use.
+    """
+    if not settings.bearer_token and settings.generate_bearer_token:
+        token = secrets.token_urlsafe(32)
+        update_env_file(env_path, {"LXO_MCP_BEARER_TOKEN": token})
+        register_secret(token)
+        logbook.lifecycle.token_generated(env_path.name)
+        settings = dataclasses.replace(settings, bearer_token=token)
+    require_bearer(settings)
+    return settings
+
+
 def http_app(server: MCPServer, settings: Settings) -> ASGIApp:
     """The ASGI app to serve, with the bearer guard already in front."""
     token = require_bearer(settings)
@@ -156,83 +177,6 @@ def http_app(server: MCPServer, settings: Settings) -> ASGIApp:
             host=settings.http_host,
         )
     return bearer_middleware(app, token)
-
-
-def _fingerprint(path: Path) -> str | None:
-    """What the file says right now, or ``None`` while it does not exist.
-
-    The content rather than the timestamp: the configuration interface writes
-    the whole file on every save, and two saves inside one clock tick would
-    look identical by mtime.
-    """
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError:
-        return None
-
-
-def watch_for_change(
-    path: Path,
-    on_change: Callable[[], None],
-    *,
-    stop: threading.Event,
-    poll: float = CONFIG_POLL_SECONDS,
-    ready: threading.Event | None = None,
-) -> None:
-    """Call ``on_change`` once the file differs from what it said at the start.
-
-    Settings are read when the process starts and never again - the API key
-    goes into a long-lived client, and the rate limiter that hangs off it is
-    the one this process is allowed to have. Rebuilding that in place would
-    mean moving state between two clients. Ending the process instead hands
-    the problem to whatever started it, and a fresh one reads everything
-    again. Nothing calls this unless something is there to restart it.
-
-    ``ready`` is set once the file this is measured against has been read.
-    Nothing in the server passes it: it exists so that a test can write to the
-    file knowing the watch is already looking at it, rather than racing the
-    thread it just started and calling whichever won a property of the code.
-    """
-    settled, baseline = _settled(path, stop=stop, poll=poll)
-    if not settled:
-        return
-    if ready is not None:
-        ready.set()
-    while True:
-        settled, current = _settled(path, stop=stop, poll=poll)
-        if not settled:
-            return
-        if current != baseline:
-            logbook.lifecycle.settings_changed(path.name)
-            on_change()
-            return
-
-
-def _settled(
-    path: Path, *, stop: threading.Event, poll: float
-) -> tuple[bool, str | None]:
-    """The file's content once it has stopped moving.
-
-    Saving truncates before it writes, so a single read can catch an empty or
-    half-written file and call it a state. Two reads in a row that agree is a
-    state, a read that disagrees with the one before it is a save in progress.
-
-    Both ends of the comparison need this. The interface rewrites the whole
-    file on every save, changed or not, so the difference the watch looks for
-    is often only the momentary emptiness in the middle of one - and a watch
-    started while a save was in flight would otherwise take that emptiness as
-    the baseline and end the process over the file coming back.
-
-    Returns ``(False, None)`` when asked to stop, which is the only reason it
-    gives up.
-    """
-    seen = _fingerprint(path)
-    while not stop.wait(poll):
-        again = _fingerprint(path)
-        if again == seen:
-            return True, seen
-        seen = again
-    return False, None
 
 
 def uvicorn_config(app: ASGIApp, settings: Settings) -> Any:
@@ -260,13 +204,20 @@ def run_http(
     *,
     watch: Path | None = None,
 ) -> None:  # pragma: no cover - a socket and a signal, driven by hand
-    """Serve over HTTP until interrupted, or until ``watch`` changes."""
+    """Serve over HTTP until interrupted, or until ``watch`` changes.
+
+    The .env is read once, at startup. Where something restarts this process
+    - a container, a service manager - it can be told to end when that file
+    changes, so a key saved in the browser takes effect without anyone
+    opening a terminal. Nowhere else, since ending would be the whole of it.
+    """
     import uvicorn
 
     running = uvicorn.Server(uvicorn_config(http_app(server, settings), settings))
 
     stop = threading.Event()
     if watch is not None:
+        logbook.lifecycle.ending_on_change(watch.name)
         threading.Thread(
             target=watch_for_change,
             args=(watch, lambda: setattr(running, "should_exit", True)),

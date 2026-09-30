@@ -183,8 +183,8 @@ class _FakeServer:
         # What the real one reports on at startup.
         self.policy = ToolPolicy(settings.policy_file())
 
-    def run(self) -> None:
-        self._started.append(True)
+    def run(self, transport: str = "stdio") -> None:
+        self._started.append(transport == "stdio")
 
 
 def test_a_named_env_file_that_is_not_there_stops_the_server(
