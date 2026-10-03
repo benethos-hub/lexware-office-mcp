@@ -21,6 +21,11 @@ housekeeping are out of scope here — design decisions live in
   already. mypy, ruff and python-dotenv moved in the development
   environment only.
 
+- **MCP SDK 2.3.0.** The tool list, a refused call, an argument the
+  schema rejects and an unknown tool reach a client byte for byte as
+  before, over both protocol versions. The answer to `initialize` no
+  longer carries an empty `experimental` capability.
+
 ## [0.4.0] - 2026-09-30
 
 A minor release, because an existing installation can trip over four of
