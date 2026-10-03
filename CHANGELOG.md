@@ -13,6 +13,24 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The container image is built on current dependencies**:
+  cryptography 50.0.2, whose wheels carry OpenSSL 4.0.3, in the lockfile
+  the image is built from. An installation from the index resolved it
+  already. mypy, ruff and python-dotenv moved in the development
+  environment only.
+
+- **MCP SDK 2.3.0.** The tool list, a refused call, an argument the
+  schema rejects and an unknown tool reach a client byte for byte as
+  before, over both protocol versions. The answer to `initialize` no
+  longer carries an empty `experimental` capability.
+
+- **The container image runs Python 3.14.8**, on the current
+  `python:3.14-slim` base with its system packages, and is built with
+  uv 0.12.22. Both are pinned by digest, so the image moves only when
+  that pin does.
+
 ## [0.4.0] - 2026-09-30
 
 A minor release, because an existing installation can trip over four of
