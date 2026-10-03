@@ -26,6 +26,11 @@ housekeeping are out of scope here — design decisions live in
   before, over both protocol versions. The answer to `initialize` no
   longer carries an empty `experimental` capability.
 
+- **The container image runs Python 3.14.8**, on the current
+  `python:3.14-slim` base with its system packages, and is built with
+  uv 0.12.22. Both are pinned by digest, so the image moves only when
+  that pin does.
+
 ## [0.4.0] - 2026-09-30
 
 A minor release, because an existing installation can trip over four of
