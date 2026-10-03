@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The container image is built on current dependencies**:
+  cryptography 50.0.2, whose wheels carry OpenSSL 4.0.3, in the lockfile
+  the image is built from. An installation from the index resolved it
+  already. mypy, ruff and python-dotenv moved in the development
+  environment only.
+
 ## [0.4.0] - 2026-09-30
 
 A minor release, because an existing installation can trip over four of
