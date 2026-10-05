@@ -197,6 +197,15 @@ def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
     assert all(re.search(r":[\w.-]+@sha256:[0-9a-f]{64}$", image) for image in external)
 
 
+def test_every_image_is_pulled_where_dependabot_reads() -> None:
+    """By a FROM line. Dependabot does not see an image in `COPY --from=`."""
+    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    copied = re.findall(r"^COPY --from=(\S+)", dockerfile, re.MULTILINE)
+
+    assert copied
+    assert all(":" not in source and "/" not in source for source in copied)
+
+
 def test_no_frontend_is_pulled_by_a_moving_tag() -> None:
     dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
 

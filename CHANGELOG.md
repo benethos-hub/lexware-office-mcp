@@ -16,10 +16,11 @@ housekeeping are out of scope here — design decisions live in
 ### Changed
 
 - **The container image is built on current dependencies**:
-  cryptography 50.0.2, whose wheels carry OpenSSL 4.0.3, in the lockfile
-  the image is built from. An installation from the index resolved it
-  already. mypy, ruff and python-dotenv moved in the development
-  environment only.
+  cryptography 50.0.2, whose wheels carry OpenSSL 4.0.3, pypdfium2
+  5.14.0 with PDFium 156, platformdirs 4.12.3 and rpds-py 2026.9.1 in
+  the lockfile the image is built from. An installation from the index
+  resolved them already. mypy, ruff and python-dotenv moved in the
+  development environment only.
 
 - **MCP SDK 2.3.0.** The tool list, a refused call, an argument the
   schema rejects and an unknown tool reach a client byte for byte as
@@ -28,7 +29,7 @@ housekeeping are out of scope here — design decisions live in
 
 - **The container image runs Python 3.14.8**, on the current
   `python:3.14-slim` base with its system packages, and is built with
-  uv 0.12.22. Both are pinned by digest, so the image moves only when
+  uv 0.12.23. Both are pinned by digest, so the image moves only when
   that pin does.
 
 ## [0.4.0] - 2026-09-30
