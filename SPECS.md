@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.4.0.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.4.1.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -1947,7 +1947,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.4.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.4.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `INFO` | `The tool list changed, 2 sessions told` |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |
@@ -2634,6 +2634,7 @@ suggested they were.
 | 0.2.4 | The image on MCP SDK 2.2 and a current HTTP stack | **released 2026-09-14** — no change to the package itself. Anyone installing from the index already resolved to SDK 2.2.0, the container did not, because it is built from the lockfile. Over stdio nothing a client sees moved, measured byte for byte. Over HTTP an idle session now expires after thirty minutes, the SDK's new default and kept, see the changelog. The seven transitive packages Dependabot never proposes came along, three of them in the transport |
 | 0.3.0 | A review's hardening, the payload fixes it found, and what the API documentation said all along | **released 2026-09-27** - a minor rather than a patch, because an installation can trip over it: only JSON `true` enables a tool, the base URLs must be `https://`, `LXO_MCP_PDF_PAGES` stops at 100, and the configuration interface answers only to a loopback name and its own port. New: `search_vouchers` by number and on four sort properties, `update_voucher` books an unchecked voucher and moves one back to the collective contact, `LXO_MCP_UPLOAD_DIR`. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture that differs from 0.2.4's only where the account holds different records |
 | 0.4.0 | The download directory as a cache, a logging concept, the package layers, and a review's findings | **released 2026-09-30** - a minor, because an installation can trip over it: the download directory is cut down to its newest 100 files on the first start, a key or bearer token with a character no header can carry stops the start, `create_contact` and `update_contact` refuse a field the contact's kind has no place for, and every log line has a new time format and short sources. Workflow actions pinned to a commit and the images by digest. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture that differs from 0.3.0's only where the account holds different records |
+| 0.4.1 | The image on current dependencies | **released 2026-10-05** - no change to the package itself. Python 3.14.8, cryptography 50.0.2 with OpenSSL 4.0.3, MCP SDK 2.3.0 and pypdfium2 5.14.0 with PDFium 156, built with uv 0.12.23 from a stage of its own, so Dependabot sees it. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.0's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

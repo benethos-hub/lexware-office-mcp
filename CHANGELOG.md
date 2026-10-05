@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-05
+
+A patch release for the container image, which is built from the
+lockfile and had fallen behind it. No change to any tool, parameter or
+answer. An installation from the index resolved most of this already.
+
 ### Changed
 
 - **The container image is built on current dependencies**:
@@ -1003,7 +1009,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.3...v0.2.4
