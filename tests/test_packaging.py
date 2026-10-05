@@ -35,10 +35,11 @@ def test_the_typing_marker_sits_beside_the_code() -> None:
     assert MARKER.read_bytes() == b"", "PEP 561 wants the marker empty"
 
 
-# The documentation quotes the current version in four places, each of them an
-# example somebody is meant to copy. The failure mode is forgetting at release
-# time, not difficulty, so this asserts rather than rewrites: the suite goes
-# red until the examples agree with the package.
+# The documentation quotes the current version in several places, most of them
+# an example somebody is meant to copy. The failure mode is forgetting at
+# release time, not difficulty, so this asserts rather than rewrites: the
+# suite goes red until the examples agree with the package. The lockfile
+# carries the version too, and `uv lock --check` in CI watches that one.
 VERSION_EXAMPLES = (
     # The exact pin the client configuration shows.
     ("README.md", r"benethos-lexware-office-mcp==(\d+\.\d+\.\d+)"),
@@ -49,6 +50,8 @@ VERSION_EXAMPLES = (
     # The status line each document opens with.
     ("README.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
+    # The start line the log catalogue shows as an example.
+    ("SPECS.md", r"`(\d+\.\d+\.\d+) started over stdio`"),
 )
 
 # The minor-line tag, which follows patch releases rather than naming one. It
@@ -59,6 +62,8 @@ VERSION_EXAMPLES = (
 MINOR_LINE_EXAMPLES = (
     ("README.md", r"`:(\d+\.\d+)`"),
     ("compose.yaml", r"`:(\d+\.\d+)`"),
+    # The release list names it as the one to move with a minor release.
+    ("CLAUDE.md", r"`:(\d+\.\d+)`"),
 )
 
 
@@ -97,6 +102,23 @@ def test_the_documented_minor_line_examples_are_current(
         f"the package is on {current}. That tag stops at the previous minor and "
         "never sees this release."
     )
+
+
+def test_the_changelog_has_a_section_for_this_version() -> None:
+    """Its heading, its link, and the unreleased link starting after it."""
+    version = re.escape(benethos_lexware_office_mcp.__version__)
+    text = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+    compare = re.escape("https://github.com/benethos-hub/lexware-office-mcp/compare/")
+
+    assert re.search(rf"^## \[{version}\] - \d{{4}}-\d{{2}}-\d{{2}}$", text, re.M)
+    assert re.search(rf"^\[{version}\]: {compare}v[\d.]+\.\.\.v{version}$", text, re.M)
+    assert re.search(rf"^\[Unreleased\]: {compare}v{version}\.\.\.HEAD$", text, re.M)
+
+
+def test_the_roadmap_has_a_row_for_this_version() -> None:
+    text = (REPO / "SPECS.md").read_text(encoding="utf-8")
+
+    assert f"\n| {benethos_lexware_office_mcp.__version__} | " in text
 
 
 def test_the_version_check_would_notice_a_stale_example() -> None:
