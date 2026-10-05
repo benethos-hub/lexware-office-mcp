@@ -2591,7 +2591,7 @@ order:
 
    **The images are pinned by digest as well as tag**, decided the same day:
    `python:3.14-slim@sha256:…` in both stages and
-   `ghcr.io/astral-sh/uv:0.12.23@sha256:…`. Until then they followed their
+   `ghcr.io/astral-sh/uv:<release>@sha256:…`. Until then they followed their
    line, so that a security fix would arrive without anyone acting. It never
    did on its own: the image is published only by a release, so a fix in
    the base reached users with the next release either way. Now a rebuild
