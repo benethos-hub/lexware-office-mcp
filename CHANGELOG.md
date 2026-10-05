@@ -29,7 +29,7 @@ housekeeping are out of scope here — design decisions live in
 
 - **The container image runs Python 3.14.8**, on the current
   `python:3.14-slim` base with its system packages, and is built with
-  uv 0.12.22. Both are pinned by digest, so the image moves only when
+  uv 0.12.23. Both are pinned by digest, so the image moves only when
   that pin does.
 
 ## [0.4.0] - 2026-09-30

@@ -2591,7 +2591,7 @@ order:
 
    **The images are pinned by digest as well as tag**, decided the same day:
    `python:3.14-slim@sha256:…` in both stages and
-   `ghcr.io/astral-sh/uv:0.12@sha256:…`. Until then they followed their
+   `ghcr.io/astral-sh/uv:0.12.23@sha256:…`. Until then they followed their
    line, so that a security fix would arrive without anyone acting. It never
    did on its own: the image is published only by a release, so a fix in
    the base reached users with the next release either way. Now a rebuild
@@ -2599,6 +2599,12 @@ order:
    moved, which is the cue for a patch release. The `# syntax=` line went with it, because it pulled a frontend
    image by a moving tag on every build. `tests/test_packaging.py` refuses
    an image without a digest and the line coming back.
+
+   **uv has a stage of its own**, since 2026-10-05. Dependabot reads
+   `FROM` lines only, and uv was copied with `COPY --from=` straight from
+   its image, so no pull request ever came for it. Its tag names the exact
+   release, so each one arrives as a new tag. `python:3.14-slim` keeps its
+   line tag, so a rebuild of the base under it moves the digest only.
 
    What makes that bearable is that all three are watched.
    `.github/dependabot.yml` covers the declared ranges, the actions and, since

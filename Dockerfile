@@ -1,21 +1,29 @@
-# Two stages. The first installs the locked dependencies and this package into
-# a virtual environment, the second copies that environment into an image that
-# carries no build tools, no lockfile and no sources.
+# Two stages, after one that only holds the uv binary. The first installs
+# the locked dependencies and this package into a virtual environment, the
+# second copies that environment into an image that carries no build tools,
+# no lockfile and no sources.
 #
 # Both images it starts from are pinned by digest as well as tag. A tag is a
 # pointer its publisher can move, the digest is the content itself, so a
 # rebuild of the same commit gets the same bytes. The tag stays for the
 # reader and for Dependabot, which raises the digest when the tag moves.
 #
+# Dependabot reads FROM lines only. An image named inside `COPY --from=` is
+# invisible to it, which is why uv has a stage of its own: written inline,
+# it never got a pull request. It names the exact release, so each one
+# arrives as a new tag rather than as a digest moving under the same one.
+#
 # There is no `# syntax=` line on purpose. It pulls a frontend image by a
 # moving tag on every build, the one pull the pins would not cover, and
 # nothing here needs more than the frontend built into BuildKit.
 
+# ---- uv: only the source of the binary -------------------------------------
+FROM ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce245946826e608e11c93ad4f5bba55b21 AS uv
+
 # ---- builder ---------------------------------------------------------------
 FROM python:3.14-slim@sha256:0741d101873c12ab927e6f8653feb8862b9bd58771177acb1b885b95141f91b4 AS builder
 
-# The uv binary from its own image.
-COPY --from=ghcr.io/astral-sh/uv:0.12@sha256:f513a91fc62fe7c17567eee97230dd198e43edb8a9fbecca843714a4358fe1bc /uv /usr/local/bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
