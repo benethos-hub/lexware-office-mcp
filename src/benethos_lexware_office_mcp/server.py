@@ -31,7 +31,6 @@ from .errors import ConfigError
 from .files import resources
 from .policy import ToolPolicy
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
-from .settings.locations import download_dir
 from .tools import register_tools
 
 # How often the watcher looks at the policy file. Short enough that a change
@@ -237,7 +236,12 @@ class PolicyServer(MCPServer):
         logbook.policy.list_changed(told)
 
     async def stop_watching(self) -> None:
-        """Cancel the watcher. For shutdown, and for tests."""
+        """Cancel the watcher. For tests, which run many servers in one loop.
+
+        Nothing calls it on shutdown, and nothing has to: the watcher is a
+        task of the event loop, and ``asyncio.run`` cancels every task left
+        when the transport returns.
+        """
         task, self._watcher = self._watcher, None
         if task is None:
             return
@@ -262,7 +266,7 @@ def build_server(
     """
     policy = ToolPolicy(settings.policy_file())
     try:
-        downloads: Path | None = settings.download_path or download_dir()
+        downloads: Path | None = settings.download_directory()
     except ConfigError:
         # No home and no LXO_MCP_DOWNLOAD_DIR: nothing to offer, and a
         # download says what to set when one is asked for.

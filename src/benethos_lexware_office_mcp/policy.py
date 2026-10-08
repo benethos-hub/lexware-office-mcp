@@ -29,7 +29,7 @@ from __future__ import annotations
 import functools
 import inspect
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
@@ -48,8 +48,11 @@ __all__ = [
     "flags_from",
     "grouped_tools",
     "guarded",
+    "json_text",
     "known_tools",
+    "policy_text",
     "preset",
+    "writing",
 ]
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -123,6 +126,20 @@ _REGISTRY: dict[str, ToolMeta] = {}
 def known_tools() -> dict[str, ToolMeta]:
     """Every tool that has been defined, and what it is."""
     return dict(_REGISTRY)
+
+
+def writing(names: Iterable[str]) -> list[str]:
+    """The tools among ``names`` that write, in the order given.
+
+    Asked wherever a set of enabled tools is reported, because the answer
+    that matters to whoever enabled them is which of them can change the
+    books. A name that is no tool is not among them.
+    """
+    return [
+        name
+        for name in names
+        if name in _REGISTRY and _REGISTRY[name].access == "write"
+    ]
 
 
 def grouped_tools() -> dict[str, list[str]]:
@@ -261,12 +278,24 @@ class ToolPolicy:
         """
         if self._path is None:
             raise ValueError("This policy has no file to write to.")
-        clean = {name: bool(flags.get(name, False)) for name in sorted(_REGISTRY)}
+        clean = {name: flags.get(name, False) for name in _REGISTRY}
         # Atomically: a running server reads this file the moment it changes.
-        write_atomically(
-            self._path,
-            (json.dumps(clean, indent=1, ensure_ascii=False) + "\n").encode("utf-8"),
-        )
+        write_atomically(self._path, policy_text(clean).encode("utf-8"))
+
+
+def json_text(document: object) -> str:
+    """A JSON file a person may open: one-space indent, text as it is, a newline.
+
+    The one way this project writes one, for the policy file, a policy
+    downloaded from the interface and the profiles beside it - three writers
+    that each had their own call until 2026-10-08.
+    """
+    return json.dumps(document, indent=1, ensure_ascii=False) + "\n"
+
+
+def policy_text(flags: Mapping[str, bool]) -> str:
+    """A policy file's text: every flag given, sorted by name, as a boolean."""
+    return json_text({name: bool(flags[name]) for name in sorted(flags)})
 
 
 def guarded(func: F, policy: ToolPolicy) -> F:

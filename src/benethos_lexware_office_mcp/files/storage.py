@@ -12,6 +12,7 @@ read under the one rule that bounds it, ``LXO_MCP_UPLOAD_DIR``.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -20,15 +21,15 @@ from urllib.parse import unquote
 import httpx
 
 from .. import logbook
-from ..errors import ConfigError, ValidationError
+from ..errors import ConfigError, LocalFileError, ValidationError
 from ..settings import Settings
-from ..settings.locations import download_dir
 
 __all__ = [
-    "MAX_UPLOAD",
-    "UPLOAD_TYPES",
+    "CONTENT_TYPES",
     "content_type_for",
     "directory_for",
+    "newest",
+    "on_disk",
     "read_upload",
     "resolve",
     "save",
@@ -56,9 +57,23 @@ _DEVICES = frozenset(
 )
 
 
+@contextlib.contextmanager
+def on_disk(action: str) -> Iterator[None]:
+    """Turn a failure of this machine's filesystem into an answer.
+
+    A full disk, a directory somebody else owns, a file locked by another
+    program: none of them is the caller's mistake, and none of them should
+    reach the model as a bare "Error executing tool".
+    """
+    try:
+        yield
+    except OSError as exc:
+        raise LocalFileError(action, exc) from None
+
+
 def directory_for(settings: Settings) -> Path:
     """Where this server writes downloads, created if it is not there yet."""
-    target = settings.download_path or download_dir()
+    target = settings.download_directory()
     target.mkdir(parents=True, exist_ok=True)
     return target
 
@@ -77,25 +92,42 @@ def prune(directory: Path, keep: int) -> int:
     """
     if keep <= 0 or not directory.is_dir():
         return 0
-    found: list[tuple[float, str, Path]] = []
-    for path in directory.iterdir():
-        try:
-            if path.is_symlink() or not path.is_file():
-                continue
-            if not _could_be_a_download(path):
-                continue
-            found.append((path.stat().st_mtime, path.name, path))
-        except OSError:
-            continue
-    found.sort(key=lambda entry: (-entry[0], entry[1]))
     removed = 0
-    for _, _, path in found[keep:]:
+    for path in newest(directory, downloads_only=True)[keep:]:
         try:
             path.unlink()
         except OSError:
             continue
         removed += 1
     return removed
+
+
+def newest(directory: Path, *, downloads_only: bool = False) -> list[Path]:
+    """The plain files in ``directory``, newest first.
+
+    Newest by modification time, which a reused download renews, and by name
+    where two share one, so the order is the same on every call. A symbolic
+    link or a subdirectory was put there by someone else and is skipped, and
+    so is a file that goes between listing the directory and looking at it.
+
+    One scan for the clean-up and the resource list, so the two cannot come
+    to disagree about which files are the newest. They do differ in one
+    thing, deliberately: ``downloads_only`` leaves out a file this server
+    could not have written, which the clean-up must never delete and the
+    list still names.
+    """
+    found: list[tuple[float, str, Path]] = []
+    for path in directory.iterdir():
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            if downloads_only and not _could_be_a_download(path):
+                continue
+            found.append((path.stat().st_mtime, path.name, path))
+        except OSError:
+            continue
+    found.sort(key=lambda entry: (-entry[0], entry[1]))
+    return [path for _, _, path in found]
 
 
 def _could_be_a_download(path: Path) -> bool:
@@ -121,7 +153,7 @@ def prune_for(settings: Settings) -> int:
     if keep is None:
         return 0
     try:
-        directory = settings.download_path or download_dir()
+        directory = settings.download_directory()
     except ConfigError:
         return 0
     removed = prune(directory, keep)
@@ -296,12 +328,12 @@ def content_type_for(path: Path) -> str:
 # The type is guessed from the extension rather than sniffed. The API
 # validates the content anyway and rejects a mislabelled or damaged file, so a
 # second opinion here would only be a second way to be wrong.
+#
+# A subset of CONTENT_TYPES, taken from it rather than spelled again: an
+# extension has one content type here, whether it arrives or leaves.
 UPLOAD_TYPES: dict[str, str] = {
-    ".pdf": "application/pdf",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".xml": "application/xml",
+    extension: CONTENT_TYPES[extension]
+    for extension in (".pdf", ".png", ".jpg", ".jpeg", ".xml")
 }
 
 # Verified 2026-08-20: 5 MiB exactly is still accepted, one byte more is
@@ -311,6 +343,12 @@ MAX_UPLOAD = 5 * 1024 * 1024
 
 
 def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
+    """Read a local file for upload, the file system's refusals turned into answers."""
+    with on_disk("read the file to upload"):
+        return _read_upload(raw_path, allowed)
+
+
+def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     """Read a local file for upload, refusing what the API would refuse.
 
     ``allowed`` is ``LXO_MCP_UPLOAD_DIR``. The path comes from the model, so

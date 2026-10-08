@@ -109,6 +109,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The `version` parameter reads the same in all three update tools.**
+  One said "it has changed", two "the record has changed", and each named
+  its own record. It is declared once now.
 - **`get_sales_document` and `download_document` take a document type as
   `search_vouchers` spells it.** Their description says to copy the
   `voucherType`, which is `creditnote`, `orderconfirmation`,

@@ -44,7 +44,6 @@ if TYPE_CHECKING:  # pragma: no cover - imported for typing only
 __all__ = [
     "bearer_middleware",
     "bearer_ready",
-    "require_bearer",
     "run_http",
     "transport_security",
     "uvicorn_config",

@@ -20,10 +20,9 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from ..api.client import ClientProvider
-from ..errors import ValidationError
 from ..policy import classify
 from ..records import formatting
-from ..records.payloads import SHIPPING_REQUIRED, sales_document_body
+from ..records.payloads import require_type_fields, sales_document_body
 from ..records.types import (
     RESOURCES,
     CreatableType,
@@ -35,9 +34,11 @@ from ..settings import Settings
 from ._base import (
     DocumentIdField,
     DocumentTypeField,
+    FinalizeConfirm,
     PageNumber,
     PageSize,
     register_tool,
+    require_finalize_confirmed,
 )
 
 __all__ = ["register"]
@@ -201,10 +202,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ] = False,
-        confirm: Annotated[
-            bool,
-            Field(description="Required only for finalize. Ignored otherwise."),
-        ] = False,
+        confirm: FinalizeConfirm = False,
     ) -> dict[str, Any]:
         """Create an invoice, quotation, credit note or one of their relatives.
 
@@ -222,28 +220,19 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
         Totals are added up by the API from the lines.
         """
-        if finalize and not confirm:
-            raise ValidationError(
-                "finalize issues the document and the API cannot take it "
-                "back. Use it only when the user asked to issue the document, "
-                "and pass confirm=true as well. Leaving finalize unset creates "
-                "a draft that can still be changed."
-            )
-        if document_type in SHIPPING_REQUIRED and shipping_date is None:
-            raise ValidationError(
-                f"shipping_date is required for a document of type "
-                f"'{document_type}': the day it was delivered or performed. "
-                "The API refuses it otherwise."
-            )
-        if document_type == "quotation" and expiration_date is None:
-            raise ValidationError(
-                "A quotation needs expiration_date, the day it stops standing."
-            )
-        if document_type == "dunning" and preceding_sales_voucher_id is None:
-            raise ValidationError(
-                "A dunning follows an invoice. Pass its id as "
-                "preceding_sales_voucher_id."
-            )
+        require_finalize_confirmed(
+            finalize,
+            confirm,
+            does="issues the document",
+            asked="issue the document",
+            otherwise="creates a draft that can still be changed",
+        )
+        require_type_fields(
+            document_type,
+            shipping_date=shipping_date,
+            expiration_date=expiration_date,
+            preceding_sales_voucher_id=preceding_sales_voucher_id,
+        )
 
         body = sales_document_body(
             contact_id=contact_id,

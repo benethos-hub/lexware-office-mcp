@@ -91,7 +91,8 @@ src/benethos_lexware_office_mcp/
     storage.py    # where downloads land, filenames made safe first, uploads read
     resources.py  # downloads published as MCP resources for the client
     rendering.py  # PDF pages -> PNG, the only module touching pypdfium2
-    delivery.py   # a download as an answer: a link, or text, image, pages, blob
+    delivery.py   # a download saved and answered with a link, or read back
+                  # as text, image, pages or a blob
   policy.py       # the tool policy file, and what a tool declares itself to be
   transport/      # how a client reaches the server
     stdio.py      # the default: the client owns the process

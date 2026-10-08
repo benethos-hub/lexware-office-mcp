@@ -36,7 +36,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .. import __version__, logbook
 from ..errors import ConfigError
-from ..settings import LOOPBACK_NAMES
+from ..settings import DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, LOOPBACK_NAMES
 from . import actions, pages
 from .actions import Form, Reply, field
 from .render import esc, page
@@ -44,10 +44,11 @@ from .state import Installation
 
 __all__ = ["ConfigServer", "Handler", "serve"]
 
-DEFAULT_HOST = "127.0.0.1"
-# One above the HTTP transport's, as the Compose files publish the two, so a
-# server already listening on its port does not end `setup` with "in use".
-DEFAULT_PORT = 8771
+# Loopback, as the transport binds by default. The port is one above the
+# transport's, as the Compose files publish the two, so a server already
+# listening on its port does not end `setup` with "in use".
+DEFAULT_HOST = DEFAULT_HTTP_HOST
+DEFAULT_PORT = DEFAULT_HTTP_PORT + 1
 
 _SESSION_COOKIE = "lxo_config"
 

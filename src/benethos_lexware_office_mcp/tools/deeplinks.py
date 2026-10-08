@@ -15,17 +15,11 @@ from pydantic import Field
 
 from ..api.client import ClientProvider
 from ..policy import classify
-from ..records.types import RESOURCES, LinkAction, LinkTarget
+from ..records.types import LINK_RESOURCES, LinkAction, LinkTarget
 from ..settings import Settings
 from ._base import register_tool
 
 __all__ = ["permalink", "register"]
-
-LINK_RESOURCES: dict[str, str] = {
-    **RESOURCES,
-    "contact": "contacts",
-    "voucher": "vouchers",
-}
 
 
 def register(server: MCPServer, settings: Settings, provider: ClientProvider) -> None:

@@ -35,7 +35,15 @@ from ..records.types import (
     VoucherType,
 )
 from ..settings import Settings
-from ._base import PageNumber, PageSize, register_tool, require_version
+from ._base import (
+    FinalizeConfirm,
+    PageNumber,
+    PageSize,
+    VersionField,
+    register_tool,
+    require_finalize_confirmed,
+    require_version,
+)
 
 __all__ = ["register"]
 
@@ -217,17 +225,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         if voucher_id is not None:
             return formatting.voucher(await client.voucher(voucher_id))
 
-        found = await client.vouchers_by_number(voucher_number or "")
-        matches = found.get("content") or []
-        if not matches:
-            raise NotFoundError("voucher", voucher_number or "", by="the number")
-        if len(matches) > 1:
-            ids = ", ".join(str(match.get("id")) for match in matches)
-            raise ValidationError(
-                f"{len(matches)} vouchers carry the number "
-                f"{voucher_number!r}: {ids}. Read one of them by id."
+        return formatting.voucher(
+            _one_by_number(
+                await client.vouchers_by_number(voucher_number or ""),
+                voucher_number or "",
             )
-        return formatting.voucher(matches[0])
+        )
 
     @classify("read", "vouchers")
     async def get_payments(voucher_id: VoucherId) -> dict[str, Any]:
@@ -347,17 +350,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     @classify("write", "vouchers", "update")
     async def update_voucher(
         voucher_id: VoucherId,
-        version: Annotated[
-            int,
-            Field(
-                description=(
-                    "The `version` from the voucher as you last read it. If "
-                    "it has changed since, the update is refused instead of "
-                    "overwriting that change."
-                ),
-                ge=0,
-            ),
-        ],
+        version: VersionField,
         voucher_date: Annotated[
             str | None, Field(description="New document date, as YYYY-MM-DD.")
         ] = None,
@@ -407,10 +400,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ] = False,
-        confirm: Annotated[
-            bool,
-            Field(description="Required only for finalize. Ignored otherwise."),
-        ] = False,
+        confirm: FinalizeConfirm = False,
     ) -> dict[str, Any]:
         """Change a bookkeeping voucher that is already recorded.
 
@@ -424,27 +414,14 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         If the voucher changed since that read, nothing is written. One that
         is already paid or booked may be refused whatever the version.
         """
-        if finalize and not confirm:
-            raise ValidationError(
-                "finalize books the voucher and the API cannot take it back. "
-                "Use it only when the user asked to book it, and pass "
-                "confirm=true as well. Leaving finalize unset changes the "
-                "voucher and leaves it unchecked."
-            )
-        if contact_id is not None and use_collective_contact:
-            raise ValidationError(
-                "Pass contact_id or use_collective_contact, not both: a voucher "
-                "belongs either to a named contact or to the collective one."
-            )
-        # Measured 2026-10-08: off the collective contact without a named
-        # one is refused with `contactId: Missing_ContactId` - after the read
-        # this call would spend first.
-        if use_collective_contact is False and contact_id is None:
-            raise ValidationError(
-                "use_collective_contact=false on its own names no contact, and "
-                "the API refuses a voucher without one. Pass contact_id to move "
-                "it to a named contact, or leave both out to keep its contact."
-            )
+        require_finalize_confirmed(
+            finalize,
+            confirm,
+            does="books the voucher",
+            asked="book it",
+            otherwise="changes the voucher and leaves it unchecked",
+        )
+        _require_one_contact(contact_id, use_collective_contact)
         client = provider.get()
         current = await client.voucher(voucher_id)
         require_version(current, version, noun="voucher", reader="get_voucher")
@@ -475,3 +452,40 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     register_tool(server, get_payments)
     register_tool(server, create_voucher)
     register_tool(server, update_voucher)
+
+
+def _one_by_number(found: dict[str, Any], voucher_number: str) -> dict[str, Any]:
+    """The one voucher a number lookup found, or why there is not exactly one."""
+    matches = found.get("content") or []
+    if not matches:
+        raise NotFoundError("voucher", voucher_number, by="the number")
+    if len(matches) > 1:
+        ids = ", ".join(str(match.get("id")) for match in matches)
+        raise ValidationError(
+            f"{len(matches)} vouchers carry the number "
+            f"{voucher_number!r}: {ids}. Read one of them by id."
+        )
+    first: dict[str, Any] = matches[0]
+    return first
+
+
+def _require_one_contact(
+    contact_id: str | None, use_collective_contact: bool | None
+) -> None:
+    """Refuse a contact change that names two contacts, or none it can move to.
+
+    Checked before the read an update spends first. Measured 2026-10-08: off
+    the collective contact without a named one is refused with
+    `contactId: Missing_ContactId`.
+    """
+    if contact_id is not None and use_collective_contact:
+        raise ValidationError(
+            "Pass contact_id or use_collective_contact, not both: a voucher "
+            "belongs either to a named contact or to the collective one."
+        )
+    if use_collective_contact is False and contact_id is None:
+        raise ValidationError(
+            "use_collective_contact=false on its own names no contact, and "
+            "the API refuses a voucher without one. Pass contact_id to move "
+            "it to a named contact, or leave both out to keep its contact."
+        )

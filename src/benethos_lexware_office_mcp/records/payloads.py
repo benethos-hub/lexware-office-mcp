@@ -35,6 +35,7 @@ from .types import (
 __all__ = [
     "article_body",
     "contact_body",
+    "require_type_fields",
     "sales_document_body",
     "voucher_body",
 ]
@@ -91,16 +92,32 @@ def contact_body(
         body["roles"] = {"customer": {}}
 
     _apply_identity(body, is_company, name, first_name, salutation)
-
     if is_company:
-        company = dict(body.get("company") or {})
-        if vat_registration_id is not None:
-            company["vatRegistrationId"] = vat_registration_id
-        if tax_number is not None:
-            company["taxNumber"] = tax_number
-        if company:
-            body["company"] = company
+        _apply_tax_ids(body, vat_registration_id, tax_number)
+    _apply_reachability(body, is_company, email, phone)
+    _apply_addresses(body, billing_address, shipping_address)
+    if note is not None:
+        body["note"] = note
+    return body
 
+
+def _apply_tax_ids(
+    body: dict[str, Any], vat_registration_id: str | None, tax_number: str | None
+) -> None:
+    """Set a company's VAT id and tax number, keeping what else it holds."""
+    company = dict(body.get("company") or {})
+    if vat_registration_id is not None:
+        company["vatRegistrationId"] = vat_registration_id
+    if tax_number is not None:
+        company["taxNumber"] = tax_number
+    if company:
+        body["company"] = company
+
+
+def _apply_reachability(
+    body: dict[str, Any], is_company: bool, email: str | None, phone: str | None
+) -> None:
+    """Replace the email address and the phone number, each where it is given."""
     if email is not None:
         default = _COMPANY_EMAIL if is_company else _PERSON_EMAIL
         body["emailAddresses"] = {_kind(body.get("emailAddresses"), default): [email]}
@@ -108,18 +125,18 @@ def contact_body(
         default = _COMPANY_PHONE if is_company else _PERSON_PHONE
         body["phoneNumbers"] = {_kind(body.get("phoneNumbers"), default): [phone]}
 
+
+def _apply_addresses(
+    body: dict[str, Any], billing: Address | None, shipping: Address | None
+) -> None:
+    """Replace the billing and the shipping address, each where it is given."""
     addresses = dict(body.get("addresses") or {})
-    if billing_address is not None:
-        addresses["billing"] = [_address_body(billing_address)]
-    if shipping_address is not None:
-        addresses["shipping"] = [_address_body(shipping_address)]
+    if billing is not None:
+        addresses["billing"] = [_address_body(billing)]
+    if shipping is not None:
+        addresses["shipping"] = [_address_body(shipping)]
     if addresses:
         body["addresses"] = addresses
-
-    if note is not None:
-        body["note"] = note
-
-    return body
 
 
 def _kind(current: Any, default: str) -> str:
@@ -425,6 +442,35 @@ def article_body(
 SHIPPING_REQUIRED = ("invoice", "order-confirmation", "delivery-note")
 
 
+def require_type_fields(
+    document_type: str,
+    *,
+    shipping_date: str | None,
+    expiration_date: str | None,
+    preceding_sales_voucher_id: str | None,
+) -> None:
+    """Refuse a sales document missing the field its type insists on.
+
+    Beside the table it reads, so that what each type needs is said in one
+    place. Checked before the one POST a create gets, which the API would
+    otherwise spend on the refusal.
+    """
+    if document_type in SHIPPING_REQUIRED and shipping_date is None:
+        raise ValidationError(
+            f"shipping_date is required for a document of type "
+            f"'{document_type}': the day it was delivered or performed. "
+            "The API refuses it otherwise."
+        )
+    if document_type == "quotation" and expiration_date is None:
+        raise ValidationError(
+            "A quotation needs expiration_date, the day it stops standing."
+        )
+    if document_type == "dunning" and preceding_sales_voucher_id is None:
+        raise ValidationError(
+            "A dunning follows an invoice. Pass its id as preceding_sales_voucher_id."
+        )
+
+
 def _line_item_body(
     item: SalesLineItem, tax_type: str, currency: str
 ) -> dict[str, Any]:
@@ -500,7 +546,6 @@ def sales_document_body(
     tax_type: TaxType = "net",
     currency: str = "EUR",
     shipping_date: str | None = None,
-    shipping_type: str | None = None,
     expiration_date: str | None = None,
     title: str | None = None,
     introduction: str | None = None,
@@ -525,7 +570,9 @@ def sales_document_body(
     if shipping_date is not None:
         body["shippingConditions"] = {
             "shippingDate": _at_midnight(shipping_date),
-            "shippingType": shipping_type or "delivery",
+            # The one shipping type a document with a shipping date needs,
+            # and the only one the tool offers.
+            "shippingType": "delivery",
         }
     if expiration_date is not None:
         body["expirationDate"] = _at_midnight(expiration_date)

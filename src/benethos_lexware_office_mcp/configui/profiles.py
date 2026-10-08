@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import logbook
+from ..policy import json_text
 from ..settings.envfile import write_atomically
 from .stamp import now
 
@@ -110,7 +111,7 @@ class ProfileStore:
 
     def all(self) -> dict[str, Profile]:
         """Every saved profile, by name, sorted."""
-        document = self._document()
+        document = self._read()
         found: dict[str, Profile] = {}
         raw = document.get("profiles")
         if not isinstance(raw, dict):
@@ -172,7 +173,7 @@ class ProfileStore:
         self._write(profiles)
         return True
 
-    def _document(self) -> dict[str, Any]:
+    def _read(self) -> dict[str, Any]:
         try:
             # utf-8-sig for the byte order mark a Windows editor writes.
             data = json.loads(self._path.read_text(encoding="utf-8-sig"))
@@ -187,15 +188,10 @@ class ProfileStore:
         return data if isinstance(data, dict) else {}
 
     def _write(self, profiles: dict[str, Profile]) -> None:
-        write_atomically(
-            self._path,
-            (
-                json.dumps(_document(profiles), indent=1, ensure_ascii=False) + "\n"
-            ).encode("utf-8"),
-        )
+        write_atomically(self._path, json_text(_as_document(profiles)).encode("utf-8"))
 
 
-def _document(profiles: dict[str, Profile]) -> dict[str, Any]:
+def _as_document(profiles: dict[str, Profile]) -> dict[str, Any]:
     return {
         "version": _DOCUMENT_VERSION,
         "profiles": {

@@ -24,9 +24,10 @@ from ..api.client import ClientProvider
 from ..errors import ValidationError
 from ..policy import classify
 from ..records import formatting
-from ..records.payloads import ArticleType, LeadingPrice, article_body
+from ..records.payloads import article_body
+from ..records.types import ArticleType, LeadingPrice
 from ..settings import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
-from ._base import PageNumber, register_tool, require_version
+from ._base import PageNumber, VersionField, register_tool, require_version
 
 __all__ = ["register"]
 
@@ -198,17 +199,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     @classify("write", "articles", "update")
     async def update_article(
         article_id: ArticleId,
-        version: Annotated[
-            int,
-            Field(
-                description=(
-                    "The `version` from the article as you last read it. If "
-                    "the record has changed since, the update is refused "
-                    "instead of overwriting that change."
-                ),
-                ge=0,
-            ),
-        ],
+        version: VersionField,
         title: Annotated[
             str | None, Field(description="New title.", min_length=1)
         ] = None,

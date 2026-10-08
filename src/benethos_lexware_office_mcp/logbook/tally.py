@@ -11,10 +11,11 @@ counting, and a call counts for nobody.
 from __future__ import annotations
 
 import contextlib
+import time
 from collections.abc import Iterator
 from contextvars import ContextVar
 
-__all__ = ["Tally", "api_call", "counting"]
+__all__ = ["Tally", "api_call", "counting", "ms_since"]
 
 
 class Tally:
@@ -43,3 +44,12 @@ def api_call() -> None:
     tally = _current.get()
     if tally is not None:
         tally.calls += 1
+
+
+def ms_since(started: float) -> float:
+    """Milliseconds since ``started``, a ``perf_counter`` reading.
+
+    How long a request or a tool call took, the figure every timed line
+    reports, measured the same way on both sides.
+    """
+    return (time.perf_counter() - started) * 1000

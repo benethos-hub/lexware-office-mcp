@@ -16,6 +16,7 @@ from benethos_lexware_office_mcp.configui.profiles import (
     ProfileStore,
     profile_file,
 )
+from benethos_lexware_office_mcp.policy import json_text
 
 KNOWN = ("get_profile", "search_vouchers", "create_voucher")
 
@@ -226,3 +227,11 @@ def test_a_write_that_fails_leaves_the_old_profiles_whole(
 
     assert (tmp_path / PROFILE_FILE_NAME).read_text(encoding="utf-8") == before
     assert [p.name for p in tmp_path.iterdir()] == [PROFILE_FILE_NAME]
+
+
+def test_profiles_are_written_the_way_the_policy_file_is(store: ProfileStore) -> None:
+    """One writer for every JSON file a person may open, so they read alike."""
+    store.save("Nur Lesen", ["get_profile"], KNOWN)
+
+    text = store.path.read_text(encoding="utf-8")
+    assert text == json_text(json.loads(text))

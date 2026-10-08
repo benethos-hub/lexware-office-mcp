@@ -24,7 +24,6 @@ __all__ = [
     "PACKAGE",
     "configure",
     "in_colour",
-    "paint",
     "source",
     "stamp",
     "untouched_root",

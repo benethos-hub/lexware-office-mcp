@@ -18,7 +18,7 @@ from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
 from .. import logbook
-from ..errors import ConflictError, ToolError
+from ..errors import ConflictError, ToolError, ValidationError
 from ..policy import ToolPolicy, guarded, known_tools
 from ..records.types import DocumentTypeSpelling
 from ..settings import MAX_PAGE_SIZE
@@ -26,9 +26,13 @@ from ..settings import MAX_PAGE_SIZE
 __all__ = [
     "DocumentIdField",
     "DocumentTypeField",
+    "FinalizeConfirm",
     "PageNumber",
     "PageSize",
+    "UploadPath",
+    "VersionField",
     "register_tool",
+    "require_finalize_confirmed",
     "require_version",
 ]
 
@@ -121,6 +125,54 @@ def _annotations(name: str) -> ToolAnnotations | None:
     )
 
 
+# The parameters several write tools share, declared once so that their
+# wording cannot drift apart - the version field had already said "it" in one
+# tool and "the record" in the other two.
+VersionField = Annotated[
+    int,
+    Field(
+        description=(
+            "The `version` from the record as you last read it. If the record "
+            "has changed since, the update is refused instead of overwriting "
+            "that change."
+        ),
+        ge=0,
+    ),
+]
+
+FinalizeConfirm = Annotated[
+    bool,
+    Field(description="Required only for finalize. Ignored otherwise."),
+]
+
+UploadPath = Annotated[
+    str,
+    Field(
+        description=(
+            "Path to the file on this machine, for example a scanned "
+            "receipt. PDFs and images are accepted, at most 5 MiB."
+        )
+    ),
+]
+
+
+def require_finalize_confirmed(
+    finalize: bool, confirm: bool, *, does: str, asked: str, otherwise: str
+) -> None:
+    """Refuse ``finalize`` without ``confirm``, before anything is read.
+
+    ``does`` says what finalizing does, ``asked`` what the user has to have
+    asked for, and ``otherwise`` what the call does without it - three
+    clauses, because the rule is one and the record it applies to is not.
+    """
+    if finalize and not confirm:
+        raise ValidationError(
+            f"finalize {does} and the API cannot take it back. Use it only "
+            f"when the user asked to {asked}, and pass confirm=true as well. "
+            f"Leaving finalize unset {otherwise}."
+        )
+
+
 def require_version(
     current: dict[str, Any], version: int, *, noun: str, reader: str
 ) -> None:
@@ -189,16 +241,14 @@ def logged(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]
             try:
                 result = await func(*args, **kwargs)
             except ToolError as exc:
-                logbook.calls.ended(name, exc, tally.calls, _ms(started))
+                logbook.calls.ended(
+                    name, exc, tally.calls, logbook.tally.ms_since(started)
+                )
                 raise
-        _report(name, result, kwargs, tally.calls, _ms(started))
+        _report(name, result, kwargs, tally.calls, logbook.tally.ms_since(started))
         return result
 
     return wrapper
-
-
-def _ms(started: float) -> float:
-    return (time.perf_counter() - started) * 1000
 
 
 class _Outcome(NamedTuple):

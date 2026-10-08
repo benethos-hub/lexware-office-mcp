@@ -31,6 +31,7 @@ __all__ = [
     "LeadingPrice",
     "LinkAction",
     "LineItemType",
+    "LINK_RESOURCES",
     "LinkTarget",
     "MasterDataKind",
     "RecurringSort",
@@ -280,6 +281,14 @@ class SalesLineItem(BaseModel):
 # the web app has no page for one. Verified 2026-08-21, see SPECS.md
 # section 5.
 LinkTarget = Literal[DocumentType, "contact", "voucher"]
+
+# The path segment of each target, in the app's permalinks as in the API:
+# the documents' table, and the two records beside them.
+LINK_RESOURCES: dict[str, str] = {
+    **RESOURCES,
+    "contact": "contacts",
+    "voucher": "vouchers",
+}
 
 # What a permalink can do with a record, requested against the live app on
 # 2026-08-21. A contact has one page and answers only to `view`.
