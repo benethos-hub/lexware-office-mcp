@@ -1,0 +1,77 @@
+# For development: the image built from this checkout, beside an
+# installation in operation rather than in its place. A project name, ports
+# and volumes of its own, so trying a change never touches the key, the
+# token or the tools of ../production. Why each setting is what it is:
+# ../production/compose.yaml, which runs the published image instead.
+#
+#   docker compose up -d --build             build and start the server
+#   docker compose --profile setup up -d     add the configuration interface
+#   docker compose rm -f -s setup            take the interface away again
+#   docker compose down -v                   stop, and forget the volumes
+
+name: benethos-lexware-office-mcp-dev
+
+# At most five files of 10 MB of log per container, the oldest dropped first.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  benethos-lexware-office-mcp:
+    build:
+      context: ../..
+      dockerfile: containers/images/lexware-office-mcp/Dockerfile
+    image: benethos-lexware-office-mcp:local
+    container_name: benethos-lexware-office-mcp-dev
+    ports:
+      - "127.0.0.1:${LXO_PORT:-8780}:8770"
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      LXO_MCP_TRANSPORT: streamable-http
+      LXO_MCP_HTTP_HOST: "0.0.0.0"
+      LXO_MCP_HTTP_PORT: "8770"
+      LXO_MCP_ALLOWED_HOSTS: "benethos-lexware-office-mcp:8770"
+      LXO_MCP_EXIT_ON_CONFIG_CHANGE: "1"
+    volumes:
+      - config:/config
+      - downloads:/downloads
+
+  # Started by name, never by a plain `up`, and put away by hand:
+  #   docker compose --profile setup up -d
+  #   docker compose rm -f -s setup
+  setup:
+    profiles: ["setup"]
+    # The same image as the server, so a build names it twice and the second
+    # is all cache.
+    build:
+      context: ../..
+      dockerfile: containers/images/lexware-office-mcp/Dockerfile
+    image: benethos-lexware-office-mcp:local
+    container_name: benethos-lexware-office-mcp-dev-setup
+    command:
+      - setup
+      - --no-browser
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8771"
+      - --env-file
+      - /config/.env
+      - --tools-file
+      - /config/tools.json
+    ports:
+      - "127.0.0.1:${LXO_SETUP_PORT:-8781}:8771"
+    healthcheck:
+      disable: true
+    restart: "no"
+    logging: *logging
+    volumes:
+      - config:/config
+      - downloads:/downloads
+
+volumes:
+  config:
+  downloads:

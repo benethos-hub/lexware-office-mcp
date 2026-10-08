@@ -111,9 +111,11 @@ live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
   shapes/         # one timestamped capture per run
-containers/
+containers/       # README.md says which folder is for what
   images/lexware-office-mcp/
     Dockerfile    # the image, built with the repository root as context
+  production/     # the published image at the version .env names, no clone needed
+  development/    # built from this checkout, a project, ports and volumes of its own
 .github/
   dependabot.yml  # the declared ranges, the pinned actions and the pinned images
   scripts/
@@ -328,15 +330,15 @@ fallen behind, so the list is short on purpose. In this order:
 2. **Live checks while an account exists.** `live/smoke.py` and
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
-   README's status line, pin example and exact image tag, both exact tags in
-   `compose.yaml`, the SPECS status line, a roadmap row and the example
-   start line in section 11.2, and the changelog section with its link
-   reference. Then `uv lock`, which carries
-   the package's own version. The guards in `tests/test_packaging.py` catch
-   a missed one in any of these places, and `uv lock --check` one in the
-   lockfile. **The minor line** (`:0.4` in the README and
-   `compose.yaml`) changes only with a minor release - the image tag itself
-   follows the release tag when the image is built.
+   README's status line, pin example and exact image tag, `LXO_VERSION` in
+   `containers/production/.env.example`, the SPECS status line, a roadmap
+   row and the example start line in section 11.2, and the changelog
+   section with its link reference. Then `uv lock`, which carries the
+   package's own version. The guards in `tests/test_packaging.py` catch a
+   missed one in any of these places, and `uv lock --check` one in the
+   lockfile. **The minor line** (`:0.4` in the README, and in the comment
+   of `.env.example`) changes only with a minor release - the image tag
+   itself follows the release tag when the image is built.
 4. **The coverage percentage**, re-read against the static badge.
 5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
    which fires `publish.yml`. Both of its jobs stop when the tag is not

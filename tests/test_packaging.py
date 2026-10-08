@@ -47,7 +47,8 @@ VERSION_EXAMPLES = (
     # An exact image tag in backticks. The minor line beside it has only two
     # components, so it is not matched here - it is checked below instead.
     ("README.md", r"`:(\d+\.\d+\.\d+)`"),
-    ("compose.yaml", r"`:(\d+\.\d+\.\d+)`"),
+    # The version the production folder runs.
+    ("containers/production/.env.example", r"(?m)^LXO_VERSION=(\d+\.\d+\.\d+)$"),
     # The status line each document opens with.
     ("README.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
@@ -62,7 +63,7 @@ VERSION_EXAMPLES = (
 # resolving, it simply stops at the previous line and never sees this release.
 MINOR_LINE_EXAMPLES = (
     ("README.md", r"`:(\d+\.\d+)`"),
-    ("compose.yaml", r"`:(\d+\.\d+)`"),
+    ("containers/production/.env.example", r"`(\d+\.\d+)`"),
     # The release list names it as the one to move with a minor release.
     ("CLAUDE.md", r"`:(\d+\.\d+)`"),
 )
@@ -135,7 +136,12 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
 
 # -- what Docker keeps of the output ----------------------------------------
 
-COMPOSE = REPO / "compose.yaml"
+CONTAINERS = REPO / "containers"
+# Development first, production second, in every test that tells them apart.
+COMPOSE_FILES = (
+    CONTAINERS / "development" / "compose.yaml",
+    CONTAINERS / "production" / "compose.yaml",
+)
 
 
 def _tag_check(tag: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -254,15 +260,27 @@ def test_every_build_and_dependabot_name_the_dockerfile() -> None:
     assert f'directory: "/{folder}"' in dependabot
 
 
-def test_compose_caps_the_log_docker_keeps() -> None:
+def _services(compose: Path) -> dict[str, str]:
+    """Each service's block of a Compose file, by name, comments dropped.
+
+    Read as text rather than parsed: a YAML parser is not a dependency of this
+    project, and these files are written by hand in one shape.
+    """
+    text = compose.read_text(encoding="utf-8")
+    body = text.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    lines = [line for line in body.splitlines() if not line.strip().startswith("#")]
+    blocks = re.split(r"^  ([a-z][\w-]*):$", "\n".join(lines), flags=re.MULTILINE)
+    return dict(zip(blocks[1::2], blocks[2::2], strict=True))
+
+
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_compose_caps_the_log_docker_keeps(compose: Path) -> None:
     """Five files of 10 MB, the json-file driver's own rotation.
 
     Without it Docker keeps every access line for the life of the container,
-    and a restart is the same container. Read as text rather than parsed:
-    the check is that the block exists with these values, and a YAML parser
-    is not a dependency of this project.
+    and a restart is the same container.
     """
-    text = COMPOSE.read_text(encoding="utf-8")
+    text = compose.read_text(encoding="utf-8")
 
     block = re.search(r"^x-logging: &logging\n((?:  .*\n)+)", text, flags=re.MULTILINE)
     assert block is not None, "the shared logging block is gone"
@@ -271,14 +289,71 @@ def test_compose_caps_the_log_docker_keeps() -> None:
     assert 'max-file: "5"' in block.group(1)
 
 
-def test_every_compose_service_uses_the_log_cap() -> None:
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_every_compose_service_uses_the_log_cap(compose: Path) -> None:
     """A service added later without the reference would log without limit."""
-    text = COMPOSE.read_text(encoding="utf-8")
-    services = text.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
-    names = re.findall(r"^  ([a-z][\w-]*):\n", services, flags=re.MULTILINE)
+    services = _services(compose)
 
-    assert names == ["benethos-lexware-office-mcp", "setup"]
-    assert services.count("    logging: *logging\n") == len(names)
+    assert list(services) == ["benethos-lexware-office-mcp", "setup"]
+    assert all("\n    logging: *logging\n" in block for block in services.values())
+
+
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_every_compose_port_is_published_on_the_loopback(compose: Path) -> None:
+    """A bearer token guards against this machine's processes, not a network."""
+    text = compose.read_text(encoding="utf-8")
+    published = re.findall(r'^\s+- "([^"]*:\d+)"$', text, flags=re.MULTILINE)
+
+    assert len(published) == 2
+    assert all(port.startswith("127.0.0.1:") for port in published)
+
+
+def test_development_and_production_run_the_server_alike() -> None:
+    """The same settings pinned, so trying a change tries what runs.
+
+    The comments explaining them live in the production file only.
+    """
+    development, production = (_services(path) for path in COMPOSE_FILES)
+
+    for name in ("benethos-lexware-office-mcp", "setup"):
+        for section in ("environment", "command", "volumes"):
+            pattern = rf"^    {section}:\n((?:      .*\n)+)"
+            ours = re.search(pattern, development[name] + "\n", flags=re.MULTILINE)
+            theirs = re.search(pattern, production[name] + "\n", flags=re.MULTILINE)
+            assert (ours and ours.group(1)) == (theirs and theirs.group(1)), (
+                f"{name} differs in {section}"
+            )
+
+
+def test_production_runs_the_published_image_at_the_named_version() -> None:
+    services = _services(COMPOSE_FILES[1])
+    image = "image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?"
+
+    assert all(image in block for block in services.values())
+    assert all("build:" not in block for block in services.values())
+
+
+def test_development_builds_the_image_from_this_checkout() -> None:
+    services = _services(COMPOSE_FILES[0])
+    dockerfile = DOCKERFILE.relative_to(REPO).as_posix()
+
+    assert all(f"dockerfile: {dockerfile}\n" in block for block in services.values())
+    assert all("ghcr.io" not in block for block in services.values())
+
+
+def test_development_and_production_keep_apart() -> None:
+    """Two projects, so a trial never reaches the key, token or tools in use."""
+    names = [
+        re.search(r"^name: (\S+)$", path.read_text(encoding="utf-8"), re.MULTILINE)
+        for path in COMPOSE_FILES
+    ]
+
+    assert [match and match.group(1) for match in names] == [
+        "benethos-lexware-office-mcp-dev",
+        # What the Compose file in the repository root was called, so the
+        # volumes it made carry over.
+        "benethos-lexware-office-mcp",
+    ]
 
 
 def test_the_readme_run_example_caps_the_log_as_well() -> None:

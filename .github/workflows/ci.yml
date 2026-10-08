@@ -204,20 +204,37 @@ jobs:
 
       # The configuration interface has no login and takes an API key. It is
       # behind a profile so that a plain `up` leaves it out, and that is a
-      # property worth failing a build over.
-      - name: Compose is valid, and the interface stays behind its profile
+      # property worth failing a build over. Both folders, production with
+      # its .env made from the template, as someone setting it up would.
+      # What Compose itself resolves is what is checked for the loopback, so
+      # a port moved into a variable cannot slip past.
+      - name: Compose is valid, ports stay on the loopback, the interface stays behind its profile
         run: |
-          docker compose config -q
-          plain=$(docker compose config --services)
-          with=$(docker compose --profile setup config --services)
-          # `a && b` as a whole statement is not exempt from errexit, so a
-          # grep that finds nothing would end the step. Ask with `if`.
-          if echo "$plain" | grep -qx setup; then
-            echo "::error::a plain up would start the setup service"
-            exit 1
-          fi
-          echo "$with" | grep -qx setup || { echo "::error::the setup profile starts nothing"; exit 1; }
-          echo "OK: plain up starts $(echo "$plain" | wc -l) service, the setup profile adds one"
+          for dir in containers/development containers/production; do
+            (
+              cd "$dir"
+              if [ -f .env.example ]; then cp .env.example .env; fi
+              docker compose config -q
+              plain=$(docker compose config --services)
+              with=$(docker compose --profile setup config --services)
+              # `a && b` as a whole statement is not exempt from errexit, so a
+              # grep that finds nothing would end the step. Ask with `if`.
+              if echo "$plain" | grep -qx setup; then
+                echo "::error::$dir: a plain up would start the setup service"
+                exit 1
+              fi
+              echo "$with" | grep -qx setup || { echo "::error::$dir: the setup profile starts nothing"; exit 1; }
+              docker compose --profile setup config --format json | python3 -c '
+          import json, sys
+          for name, service in json.load(sys.stdin)["services"].items():
+              for port in service.get("ports", []):
+                  published = port.get("published")
+                  if port.get("host_ip") != "127.0.0.1":
+                      sys.exit(f"::error::{name} publishes {published} beyond the loopback")
+          '
+              echo "OK: $dir - plain up starts $(echo "$plain" | wc -l) service, the setup profile adds one, every port on 127.0.0.1"
+            )
+          done
 
       - name: Start it
         run: |

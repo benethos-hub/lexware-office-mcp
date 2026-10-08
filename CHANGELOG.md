@@ -19,6 +19,16 @@ housekeeping are out of scope here — design decisions live in
   build of your own names it, still from the repository root:
   `docker build -f containers/images/lexware-office-mcp/Dockerfile .`
   The image it builds is the same.
+- **Compose moved into `containers/`, in two folders, and the root
+  `compose.yaml` is gone.** `containers/production/` runs the published
+  image at the version `LXO_VERSION` names in an `.env` beside it, made
+  from `.env.example`, and needs nothing else from the repository. It
+  keeps the project name of the root file, so its volumes carry over with
+  the key, the token and the tools: `docker compose up -d` there replaces
+  the container and keeps them. `containers/development/` builds from the
+  checkout under a project of its own, on `127.0.0.1:8780` and `8781`,
+  with volumes of its own. Switching to the published image by commenting
+  lines is no longer needed.
 
 ## [0.4.1] - 2026-10-05
 
