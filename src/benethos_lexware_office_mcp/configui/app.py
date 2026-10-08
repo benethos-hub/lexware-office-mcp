@@ -29,6 +29,8 @@ import secrets
 import sys
 import threading
 import webbrowser
+from collections.abc import Callable
+from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -58,6 +60,28 @@ CONTENT_SECURITY_POLICY = (
 # biggest thing any of them carries, and that is a few kilobytes.
 MAX_BODY = 1024 * 1024
 
+# The pages a GET can open, by address. What a form left for one of them,
+# the ticks of a loaded profile for instance, is passed as keywords.
+PAGES: dict[str, Callable[..., Page]] = {
+    "/": pages.overview,
+    "/index.html": pages.overview,
+    "/credentials": pages.credentials,
+    "/permissions": pages.permissions,
+}
+
+
+@dataclass(frozen=True)
+class Once:
+    """What a form that went through leaves for the page after the redirect.
+
+    The message is shown on whichever page opens next. ``view`` only on the
+    page at ``address``, the one the form redirected to.
+    """
+
+    address: str
+    message: Message | None
+    view: dict[str, Any]
+
 
 class ConfigServer(ThreadingHTTPServer):
     """A server that knows which installation its handlers are editing.
@@ -82,6 +106,7 @@ class ConfigServer(ThreadingHTTPServer):
         super().__init__(*args, **kwargs)
         self.sessions: set[str] = set()
         self._sessions_lock = threading.Lock()
+        self._once: dict[str, Once] = {}
         # One action at a time. Each reads a file, changes it and writes it
         # back - the .env, the policy, the profiles - and every request has
         # a thread of its own, so two tabs saving at once each wrote what
@@ -97,6 +122,20 @@ class ConfigServer(ThreadingHTTPServer):
     def knows_session(self, token: str) -> bool:
         with self._sessions_lock:
             return token in self.sessions
+
+    def leave(self, session: str, once: Once) -> None:
+        """Keep ``once`` for the next page this session opens.
+
+        Held here beside the session rather than in the URL, so a link
+        cannot put words into the interface.
+        """
+        with self._sessions_lock:
+            self._once[session] = once
+
+    def take(self, session: str) -> Once | None:
+        """What the last form left for this session, once."""
+        with self._sessions_lock:
+            return self._once.pop(session, None)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -167,6 +206,12 @@ class Handler(BaseHTTPRequestHandler):
     def _page(self, status: int, page: Page, message: Message | None = None) -> None:
         """A page in its frame, carrying this session's token."""
         self._send(status, page.html(csrf=self._session, message=message))
+
+    def _redirect(self, address: str) -> None:
+        """See Other: the browser asks for ``address`` with a GET."""
+        self.send_response(303)
+        self.send_header("Location", address)
+        self._common_headers(b"")
 
     def _download(self, body: bytes, filename: str) -> None:
         self.send_response(200)
@@ -254,12 +299,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _route_get(self, path: str) -> None:
         inst = self.installation
-        if path in ("/", "/index.html"):
-            self._page(200, pages.overview(inst))
-        elif path == "/credentials":
-            self._page(200, pages.credentials(inst))
-        elif path == "/permissions":
-            self._page(200, pages.permissions(inst))
+        page = PAGES.get(path)
+        if page is not None:
+            once = (
+                None if self._fresh_cookie else self.config_server.take(self._session)
+            )
+            view = once.view if once is not None and once.address == path else {}
+            self._page(200, page(inst, **view), once.message if once else None)
         elif path == "/export":
             self._reply(actions.export(inst))
         elif path.startswith("/static/"):
@@ -344,13 +390,19 @@ class Handler(BaseHTTPRequestHandler):
         self._page(500, pages.error("Datei nicht lesbar", str(exc)))
 
     def _reply(self, reply: Reply | None) -> None:
-        """Send what an action answered: a page, a download, or nothing there."""
+        """Send what an action answered: on to the next page, a refusal, a
+        download, or nothing there."""
         if reply is None:
             self._not_found()
+        elif reply.redirect is not None:
+            self.config_server.leave(
+                self._session, Once(reply.redirect, reply.message, reply.view)
+            )
+            self._redirect(reply.redirect)
         elif reply.download is not None:
             self._download(reply.body, reply.download)
         elif reply.page is not None:
-            self._page(200, reply.page, reply.message)
+            self._page(reply.status, reply.page, reply.message)
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:

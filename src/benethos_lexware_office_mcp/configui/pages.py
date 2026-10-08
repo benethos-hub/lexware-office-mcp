@@ -284,16 +284,22 @@ def _outranked(inst: Installation) -> str:
 # --- credentials -----------------------------------------------------------
 
 
-def credentials(inst: Installation) -> Page:
-    """Where the key is entered, and the settings that are not secret."""
+def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
+    """Where the key is entered, and the settings that are not secret.
+
+    ``typed`` is what a refused form held, shown again in place of the file's
+    values so nothing has to be typed twice. Never the API key, which no
+    page shows.
+    """
     env = inst.file_env()
+    shown = {**env, **(typed or {})}
     values = resolved(inst)
     fields = [
         {
             "key": key,
             "label": LABELS[key],
             "badge": _badge(inst, key, env),
-            "value": env.get(key, ""),
+            "value": shown.get(key, ""),
             "placeholder": _placeholder(key, values),
         }
         for key in EDITABLE_KEYS
@@ -308,7 +314,7 @@ def credentials(inst: Installation) -> Page:
             "key_shadowed": inst.shadowed(API_KEY),
             "env_path": str(inst.env_path),
             "bearer_key": BEARER_KEY,
-            "bearer": env.get(BEARER_KEY, ""),
+            "bearer": shown.get(BEARER_KEY, ""),
             "bearer_badge": _badge(inst, BEARER_KEY, env),
             "fields": fields,
         },

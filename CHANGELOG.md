@@ -116,6 +116,11 @@ housekeeping are out of scope here — design decisions live in
   so no inline style or script runs on these pages. The texts, the
   addresses and the forms are the same. Installing pulls in Jinja2 for
   them, the server never loads it.
+- **A form on `setup` that went through answers with a redirect**, and the
+  next page shows its message once, so a reload repeats nothing. A refused
+  form comes back at once with what was typed, the key excepted, and the
+  reason at the top, as a 400. Deleting or overwriting a profile and
+  making a new HTTP token ask first.
 
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named

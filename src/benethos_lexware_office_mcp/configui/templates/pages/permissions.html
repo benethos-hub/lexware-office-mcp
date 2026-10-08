@@ -29,8 +29,8 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
       </select>
     </div>
     <button type="submit" name="action" value="load">Laden</button>
-    <button type="submit" name="action" value="profile-overwrite">Mit aktueller Auswahl überschreiben</button>
-    <button type="submit" name="action" value="profile-delete">Löschen</button>
+    <button type="submit" name="action" value="profile-overwrite" data-confirm="Das ausgewählte Profil mit der aktuellen Auswahl überschreiben?">Mit aktueller Auswahl überschreiben</button>
+    <button class="danger" type="submit" name="action" value="profile-delete" data-confirm="Das ausgewählte Profil löschen? Die Rechtedatei bleibt, wie sie ist.">Löschen</button>
   {% else %}
     <p class="hint grow">Noch keine Profile gespeichert. Die Auswahl unten
        benennen und sichern, dann steht sie hier zur Auswahl.</p>

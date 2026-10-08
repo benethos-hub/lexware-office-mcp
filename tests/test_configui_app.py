@@ -45,14 +45,27 @@ def fake_check(settings: Settings, *, keep: bool = True) -> tuple[probe.Account,
     return ACCOUNT, "Verbindung steht."
 
 
+class Stay(urllib.request.HTTPRedirectHandler):
+    """Answers a redirect with the redirect itself, rather than following it."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
 class Browser:
-    """Just enough of one: a cookie jar, forms, and the CSRF token."""
+    """Just enough of one: a cookie jar, forms, and the CSRF token.
+
+    It follows a redirect as a browser does, unless ``follow`` says not to.
+    """
 
     def __init__(self, base: str) -> None:
         self.base = base
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar)
+        )
+        self.staying = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar), Stay()
         )
 
     def get(self, path: str) -> tuple[int, str, dict[str, str]]:
@@ -72,6 +85,7 @@ class Browser:
         *,
         origin: bool = True,
         csrf: str | None = "",
+        follow: bool = True,
     ) -> tuple[int, str, dict[str, str]]:
         pairs: list[tuple[str, str]] = []
         for key, value in fields.items():
@@ -88,11 +102,14 @@ class Browser:
         )
         if origin:
             request.add_header("Origin", self.base)
-        return self._open(request)
+        return self._open(request, follow=follow)
 
-    def _open(self, request: urllib.request.Request) -> tuple[int, str, dict[str, str]]:
+    def _open(
+        self, request: urllib.request.Request, *, follow: bool = True
+    ) -> tuple[int, str, dict[str, str]]:
+        opener = self.opener if follow else self.staying
         try:
-            with self.opener.open(request) as response:
+            with opener.open(request) as response:
                 return (
                     response.status,
                     response.read().decode("utf-8"),
@@ -187,6 +204,72 @@ def test_a_session_cookie_is_issued_once(browser: Browser) -> None:
     assert "HttpOnly" in headers["Set-Cookie"]
 
     assert "Set-Cookie" not in browser.get("/")[2]
+
+
+# -- Post/Redirect/Get ------------------------------------------------------
+
+
+def test_a_form_that_went_through_redirects_and_says_so_once(
+    browser: Browser,
+) -> None:
+    """A reload of the next page repeats nothing, and says nothing twice."""
+    status, body, headers = browser.post(
+        "/permissions", {"action": "save", "tool": ["get_profile"]}, follow=False
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/permissions"
+    assert body == ""
+    assert "1 von 25 Tools aktiv" in note(browser.get("/permissions")[1])
+    assert note(browser.get("/permissions")[1]) == ""
+
+
+def test_the_message_is_for_the_session_that_sent_the_form(
+    browser: Browser,
+) -> None:
+    browser.post("/permissions", {"action": "save", "tool": []}, follow=False)
+    stranger = Browser(browser.base)
+
+    assert note(stranger.get("/permissions")[1]) == ""
+    assert "0 von 25 Tools aktiv" in note(browser.get("/permissions")[1])
+
+
+def test_the_message_waits_for_the_next_page_whichever_it_is(
+    browser: Browser,
+) -> None:
+    """The ticks of a loaded profile belong to its page, the message not."""
+    browser.post("/permissions", {"action": "save", "tool": []}, follow=False)
+
+    assert "0 von 25 Tools aktiv" in note(browser.get("/credentials")[1])
+
+
+def test_a_refused_form_comes_back_at_once_with_what_was_typed(
+    browser: Browser, installation: Installation
+) -> None:
+    status, body, _ = browser.post(
+        "/settings",
+        {"LXO_MCP_PAGE_SIZE": "9999", "LXO_MCP_TIMEOUT": "20"},
+        follow=False,
+    )
+
+    assert status == 400
+    assert "würde das ablehnen" in note(body)
+    assert 'name="LXO_MCP_PAGE_SIZE" type="text" value="9999"' in body
+    assert 'name="LXO_MCP_TIMEOUT" type="text" value="20"' in body
+    assert "9999" not in installation.env_path.read_text(encoding="utf-8")
+
+
+def test_a_refused_key_is_not_shown_again(
+    browser: Browser, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        probe, "check", lambda settings, **_: (None, "Die API hat abgelehnt")
+    )
+
+    status, body, _ = browser.post("/credentials", {"api_key": "typed-but-wrong"})
+
+    assert status == 400
+    assert "typed-but-wrong" not in body
 
 
 # -- the guards -------------------------------------------------------------
@@ -935,7 +1018,7 @@ def test_a_delete_that_cannot_be_written_is_reported(
         "/permissions", {"action": "profile-delete", "profile": "Nur Lesen"}
     )
 
-    assert status == 200
+    assert status == 500
     assert "nicht schreiben: Permission denied" in note(body)
 
 
@@ -1100,6 +1183,6 @@ def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
 
     status, body, _ = browser.post("/credentials", {"api_key": "a-new​key"})
 
-    assert status == 200
+    assert status == 400
     assert "Nicht gespeichert" in note(body)
     assert "a-new" not in installation.env_path.read_text(encoding="utf-8")

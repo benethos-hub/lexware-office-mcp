@@ -626,3 +626,19 @@ def test_each_box_carries_what_the_tally_needs(inst: Installation) -> None:
     assert " data-destructive" not in reading.group(1)
     assert " data-destructive" in removing.group(1)
     assert 'data-per-token="3.5"' in body
+
+
+# -- questions before what cannot be taken back ------------------------------
+
+
+def test_every_destructive_button_asks_first(inst: Installation) -> None:
+    """Deleting or replacing a profile, and a token that locks out clients."""
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+    permissions = text(pages.permissions(inst))
+    credentials = text(pages.credentials(inst))
+
+    for value in ("profile-delete", "profile-overwrite"):
+        button = re.search(rf'<button[^>]*value="{value}"[^>]*>', permissions)
+        assert button and "data-confirm=" in button.group(0), value
+    generate = re.search(r'<button[^>]*value="generate"[^>]*>', credentials)
+    assert generate and "data-confirm=" in generate.group(0)
