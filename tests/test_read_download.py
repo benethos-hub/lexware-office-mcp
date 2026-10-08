@@ -48,7 +48,6 @@ async def test_a_pdf_comes_back_as_pictures_of_its_pages(tmp_path: Path) -> None
     assert len(images) == 1
     assert images[0].mime_type == "image/png"
     assert base64.b64decode(images[0].data).startswith(b"\x89PNG\r\n\x1a\n")
-    await provider.aclose()
 
 
 async def test_a_rendered_page_is_sized_for_a_model_to_read(tmp_path: Path) -> None:
@@ -78,7 +77,6 @@ async def test_a_document_within_the_default_is_rendered_whole(
     assert payload["pagesShown"] == 9
     assert len([b for b in result.content if b.type == "image"]) == 9
     assert "all rendered" in result.content[0].text
-    await provider.aclose()
 
 
 async def test_a_longer_document_stops_at_the_default_and_says_so(
@@ -97,7 +95,6 @@ async def test_a_longer_document_stops_at_the_default_and_says_so(
     assert payload["pages"] == 14
     assert payload["pagesShown"] == DEFAULT_PDF_PAGES
     assert f"first {DEFAULT_PDF_PAGES}" in result.content[0].text
-    await provider.aclose()
 
 
 async def test_null_asks_for_all_of_them(tmp_path: Path) -> None:
@@ -112,7 +109,6 @@ async def test_null_asks_for_all_of_them(tmp_path: Path) -> None:
     payload = result.structured_content or {}
     assert payload["pagesShown"] == 14
     assert len([b for b in result.content if b.type == "image"]) == 14
-    await provider.aclose()
 
 
 async def test_the_default_is_stated_where_the_model_reads_it() -> None:
@@ -143,7 +139,6 @@ async def test_a_caller_who_only_wants_the_front_can_say_so(tmp_path: Path) -> N
     assert payload["pagesShown"] == 2
     assert len([b for b in result.content if b.type == "image"]) == 2
     assert "first 2" in result.content[0].text
-    await provider.aclose()
 
 
 def test_red_is_rendered_red() -> None:
@@ -201,7 +196,6 @@ async def test_rendering_runs_off_the_event_loop(
     await server.call_tool("read_download", {"uri": "lexware://download/invoice.pdf"})
 
     assert seen and seen[0] != threading.get_ident()
-    await provider.aclose()
 
 
 async def test_every_page_means_at_most_the_ceiling(
@@ -220,7 +214,6 @@ async def test_every_page_means_at_most_the_ceiling(
 
     summary = result.structured_content or {}
     assert (summary["pages"], summary["pagesShown"]) == (3, 2)
-    await provider.aclose()
 
 
 async def test_asking_for_more_than_the_ceiling_is_refused(tmp_path: Path) -> None:
@@ -231,7 +224,6 @@ async def test_asking_for_more_than_the_ceiling_is_refused(tmp_path: Path) -> No
             "read_download",
             {"uri": "lexware://download/x.pdf", "max_pages": DEFAULT_PDF_PAGES * 100},
         )
-    await provider.aclose()
 
 
 def test_asking_for_more_pages_than_there_are_is_not_an_error() -> None:
@@ -253,7 +245,6 @@ async def test_a_damaged_pdf_says_what_happened(tmp_path: Path) -> None:
 
     assert "could not be rendered" in str(excinfo.value)
     assert ".." not in str(excinfo.value), "PDFium's message ends in a full stop"
-    await provider.aclose()
 
 
 async def test_something_that_is_not_a_document_still_comes_back_as_a_blob(
@@ -270,7 +261,6 @@ async def test_something_that_is_not_a_document_still_comes_back_as_a_blob(
 
     assert (result.structured_content or {})["deliveredAs"] == "binary"
     assert result.content[0].type == "resource"
-    await provider.aclose()
 
 
 async def test_an_xrechnung_comes_back_as_readable_text(tmp_path: Path) -> None:
@@ -285,7 +275,6 @@ async def test_an_xrechnung_comes_back_as_readable_text(tmp_path: Path) -> None:
     assert (result.structured_content or {})["deliveredAs"] == "text"
     assert result.content[0].type == "text"
     assert "119.00" in result.content[0].text
-    await provider.aclose()
 
 
 async def test_an_image_comes_back_as_an_image(tmp_path: Path) -> None:
@@ -307,7 +296,6 @@ async def test_an_image_comes_back_as_an_image(tmp_path: Path) -> None:
     assert block.type == "image"
     assert block.mime_type == "image/png"
     assert base64.b64decode(block.data) == png
-    await provider.aclose()
 
 
 async def test_reading_costs_no_api_call(tmp_path: Path) -> None:
@@ -320,7 +308,6 @@ async def test_reading_costs_no_api_call(tmp_path: Path) -> None:
     await server.call_tool("read_download", {"uri": uri})
 
     assert len(handler.requests) == before
-    await provider.aclose()
 
 
 async def test_rendering_does_not_touch_the_file_it_read(tmp_path: Path) -> None:
@@ -335,7 +322,6 @@ async def test_rendering_does_not_touch_the_file_it_read(tmp_path: Path) -> None
     )
 
     assert path.read_bytes() == PDF
-    await provider.aclose()
 
 
 async def test_only_this_servers_downloads_can_be_read(tmp_path: Path) -> None:
@@ -351,7 +337,6 @@ async def test_only_this_servers_downloads_can_be_read(tmp_path: Path) -> None:
         with pytest.raises(ToolError) as excinfo:
             await server.call_tool("read_download", {"uri": outside})
         assert "lexware://download/" in str(excinfo.value)
-    await provider.aclose()
 
 
 async def test_a_download_that_was_never_made_is_a_not_found(tmp_path: Path) -> None:
@@ -364,7 +349,6 @@ async def test_a_download_that_was_never_made_is_a_not_found(tmp_path: Path) -> 
         )
 
     assert "never-fetched.pdf" in str(excinfo.value)
-    await provider.aclose()
 
 
 async def test_something_far_too_large_is_refused_rather_than_inlined(
@@ -380,7 +364,6 @@ async def test_something_far_too_large_is_refused_rather_than_inlined(
         await server.call_tool("read_download", {"uri": uri})
 
     assert "MiB" in str(excinfo.value)
-    await provider.aclose()
 
 
 async def test_the_description_says_which_form_to_expect() -> None:
@@ -416,7 +399,6 @@ async def test_a_download_that_cannot_be_read_back_says_why(
         )
 
     assert str(tmp_path) not in str(excinfo.value)
-    await provider.aclose()
 
 
 async def test_a_uri_cannot_climb_out_of_the_download_directory(
@@ -432,7 +414,6 @@ async def test_a_uri_cannot_climb_out_of_the_download_directory(
         await server.call_tool(
             "read_download", {"uri": "lexware://download/../secret.pdf"}
         )
-    await provider.aclose()
 
 
 async def test_the_page_default_follows_the_configuration(tmp_path: Path) -> None:
@@ -446,7 +427,6 @@ async def test_the_page_default_follows_the_configuration(tmp_path: Path) -> Non
     result = await server.call_tool("read_download", {"uri": uri})
 
     assert (result.structured_content or {})["pagesShown"] == 2
-    await provider.aclose()
 
 
 async def test_a_configured_default_is_stated_in_the_schema_too() -> None:
@@ -475,7 +455,6 @@ async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> No
     result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
 
     assert (result.structured_content or {})["pagesShown"] == 8
-    await provider.aclose()
 
 
 async def test_the_description_says_null_stops_at_the_ceiling(tmp_path: Path) -> None:
@@ -487,4 +466,3 @@ async def test_the_description_says_null_stops_at_the_ceiling(tmp_path: Path) ->
 
     assert f"null for up to {MAX_PDF_PAGES}" in description
     assert "{limit}" not in description
-    await provider.aclose()

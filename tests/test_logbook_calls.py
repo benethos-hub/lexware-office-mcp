@@ -40,11 +40,8 @@ def _only(caplog: pytest.LogCaptureFixture) -> str:
 
 
 async def _call(handler: Any, tool: str, arguments: dict[str, Any], **fields: Any):
-    server, provider = server_with(handler, **fields)
-    try:
-        return await server.call_tool(tool, arguments)
-    finally:
-        await provider.aclose()
+    server, _ = server_with(handler, **fields)
+    return await server.call_tool(tool, arguments)
 
 
 # -- reading ---------------------------------------------------------------
@@ -257,7 +254,6 @@ async def test_two_calls_at_once_each_count_their_own(
         server.call_tool("get_contact", {"contact_id": CONTACT}),
         server.call_tool("get_contact", {"contact_id": CONTACT}),
     )
-    await provider.aclose()
 
     messages = [record.getMessage() for record in _tools(lines)]
     assert len(messages) == 2

@@ -59,7 +59,6 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
     assert b"voucher" in sent
     assert result.structured_content is not None
     assert result.structured_content["voucherId"] == "PLACEHOLDER-VOUCHER-9"
-    await provider.aclose()
 
 
 def upload_server(
@@ -88,7 +87,6 @@ async def test_an_upload_outside_the_upload_directory_is_refused(
 
     assert str(inbox) not in str(excinfo.value)
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_outside_the_upload_directory_nothing_is_said_about_existence(
@@ -110,7 +108,6 @@ async def test_outside_the_upload_directory_nothing_is_said_about_existence(
 
     assert answers[0] == answers[1]
     assert "outside" in answers[0]
-    await provider.aclose()
 
 
 async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> None:
@@ -124,7 +121,6 @@ async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> 
     await server.call_tool("upload_file", {"path": str(receipt)})
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_a_path_that_climbs_out_of_the_upload_directory_is_refused(
@@ -142,7 +138,6 @@ async def test_a_path_that_climbs_out_of_the_upload_directory_is_refused(
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_an_attachment_hangs_on_a_voucher_that_already_exists(
@@ -169,7 +164,6 @@ async def test_an_attachment_hangs_on_a_voucher_that_already_exists(
         "the collection endpoint wants it, this one does not"
     )
     assert result.structured_content == {"id": "PLACEHOLDER-FILE-9"}
-    await provider.aclose()
 
 
 async def test_an_attachment_is_never_retried(tmp_path: Path) -> None:
@@ -187,7 +181,6 @@ async def test_an_attachment_is_never_retried(tmp_path: Path) -> None:
         )
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_an_attachment_refuses_the_same_files_an_upload_does(
@@ -207,7 +200,6 @@ async def test_an_attachment_refuses_the_same_files_an_upload_does(
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_the_two_upload_tools_say_which_is_which() -> None:
@@ -235,7 +227,6 @@ async def test_an_upload_is_never_retried(tmp_path: Path) -> None:
         await server.call_tool("upload_file", {"path": str(receipt)})
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_a_file_that_is_too_large_is_refused_before_the_request(
@@ -251,7 +242,6 @@ async def test_a_file_that_is_too_large_is_refused_before_the_request(
 
     assert "5 MiB" in str(excinfo.value)
     assert handler.requests == [], "the oversized file went out anyway"
-    await provider.aclose()
 
 
 async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
@@ -264,7 +254,6 @@ async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
     await server.call_tool("upload_file", {"path": str(edge)})
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
@@ -278,7 +267,6 @@ async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
 
     assert ".pdf" in str(excinfo.value)
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
@@ -289,7 +277,6 @@ async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
         await server.call_tool("upload_file", {"path": str(tmp_path / "nope.pdf")})
 
     assert "No file at" in str(excinfo.value)
-    await provider.aclose()
 
 
 async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
@@ -300,7 +287,6 @@ async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
         await server.call_tool("upload_file", {"path": str(tmp_path)})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_an_xrechnung_may_be_uploaded(tmp_path: Path) -> None:
@@ -314,7 +300,6 @@ async def test_an_xrechnung_may_be_uploaded(tmp_path: Path) -> None:
 
     assert b'name="file"' in handler.last.content
     assert b"application/xml" in handler.last.content
-    await provider.aclose()
 
 
 async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> None:
@@ -328,7 +313,6 @@ async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> No
         await server.call_tool("upload_file", {"path": str(image)})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_a_file_that_cannot_be_read_for_upload_says_why(
@@ -348,4 +332,3 @@ async def test_a_file_that_cannot_be_read_for_upload_says_why(
         await server.call_tool("upload_file", {"path": str(receipt)})
 
     assert handler.requests == []
-    await provider.aclose()

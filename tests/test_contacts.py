@@ -341,7 +341,6 @@ async def test_the_schema_stops_a_two_character_search_before_it_is_sent() -> No
 
     assert "at least 3 characters" in str(excinfo.value)
     assert handler.requests == [], "the call reached the API anyway"
-    await provider.aclose()
 
 
 async def test_search_contacts_returns_rows_and_page_info() -> None:
@@ -359,7 +358,6 @@ async def test_search_contacts_returns_rows_and_page_info() -> None:
         "Chris Beispiel",
     ]
     assert payload["page"]["totalElements"] == 2
-    await provider.aclose()
 
 
 async def test_the_role_filter_becomes_the_flag_the_api_understands() -> None:
@@ -372,7 +370,6 @@ async def test_the_role_filter_becomes_the_flag_the_api_understands() -> None:
     assert handler.query.get("vendor") == ["true"]
     # Only the asked-for role is constrained, the other is left unset.
     assert "customer" not in handler.query
-    await provider.aclose()
 
 
 async def test_role_any_constrains_nothing() -> None:
@@ -384,7 +381,6 @@ async def test_role_any_constrains_nothing() -> None:
 
     assert "customer" not in handler.query
     assert "vendor" not in handler.query
-    await provider.aclose()
 
 
 async def test_the_page_size_default_comes_from_the_settings() -> None:
@@ -395,7 +391,6 @@ async def test_the_page_size_default_comes_from_the_settings() -> None:
     await server.call_tool("search_contacts", {})
 
     assert handler.query["size"] == ["7"]
-    await provider.aclose()
 
 
 async def test_get_contact_returns_the_full_record() -> None:
@@ -411,7 +406,6 @@ async def test_get_contact_returns_the_full_record() -> None:
     assert payload is not None
     assert payload["addresses"]["billing"][0]["zip"] == "10115"
     assert handler.path == "/v1/contacts/PLACEHOLDER-CONTACT-1"
-    await provider.aclose()
 
 
 # -- writing --------------------------------------------------------------
@@ -473,7 +467,6 @@ async def test_create_contact_sends_what_the_api_requires() -> None:
     assert body["addresses"]["billing"][0]["countryCode"] == "DE"
     assert result.structured_content is not None
     assert result.structured_content["id"] == "PLACEHOLDER-CONTACT-3"
-    await provider.aclose()
 
 
 async def test_a_create_is_one_call_and_is_not_retried() -> None:
@@ -488,7 +481,6 @@ async def test_a_create_is_one_call_and_is_not_retried() -> None:
         )
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_update_contact_reads_the_record_before_replacing_it() -> None:
@@ -513,7 +505,6 @@ async def test_update_contact_reads_the_record_before_replacing_it() -> None:
     assert sent["addresses"] == COMPANY["addresses"]
     assert sent["company"]["taxNumber"] == "12345/67890"
     assert sent["version"] == 3
-    await provider.aclose()
 
 
 async def test_a_stale_version_is_refused_before_anything_is_written() -> None:
@@ -529,7 +520,6 @@ async def test_a_stale_version_is_refused_before_anything_is_written() -> None:
 
     assert "version 3" in str(excinfo.value)
     assert handler.methods == ["GET"], "the update was sent anyway"
-    await provider.aclose()
 
 
 async def test_a_stale_version_from_the_api_is_a_conflict() -> None:

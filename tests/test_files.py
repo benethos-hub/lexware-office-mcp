@@ -37,7 +37,6 @@ async def test_download_file_writes_the_bytes_and_reports_the_path(
     assert written.read_bytes() == PDF
     assert payload["mimeType"] == "application/pdf"
     assert payload["size"] == len(PDF)
-    await provider.aclose()
 
 
 async def test_the_bytes_do_not_come_back_in_the_answer(tmp_path: Path) -> None:
@@ -51,7 +50,6 @@ async def test_the_bytes_do_not_come_back_in_the_answer(tmp_path: Path) -> None:
     assert "resource_link" in blocks
     assert not any(getattr(b, "data", None) for b in result.content)
     assert "blob" not in str(result.structured_content)
-    await provider.aclose()
 
 
 async def test_a_download_asks_for_the_format_rather_than_for_json(
@@ -64,7 +62,6 @@ async def test_a_download_asks_for_the_format_rather_than_for_json(
     await server.call_tool("download_file", {"file_id": FILE_ID})
 
     assert handler.last.headers["Accept"] == "application/pdf"
-    await provider.aclose()
 
 
 async def test_xml_is_asked_for_when_it_is_wanted(tmp_path: Path) -> None:
@@ -74,7 +71,6 @@ async def test_xml_is_asked_for_when_it_is_wanted(tmp_path: Path) -> None:
     await server.call_tool("download_file", {"file_id": FILE_ID, "file_format": "xml"})
 
     assert handler.last.headers["Accept"] == "application/xml"
-    await provider.aclose()
 
 
 async def test_a_document_is_fetched_from_its_own_resource_path(
@@ -89,7 +85,6 @@ async def test_a_document_is_fetched_from_its_own_resource_path(
     )
 
     assert handler.last.url.path == "/v1/credit-notes/PLACEHOLDER-DOC-1/file"
-    await provider.aclose()
 
 
 async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
@@ -104,7 +99,6 @@ async def test_the_result_names_the_file_both_ways(tmp_path: Path) -> None:
     assert set(payload) == {"path", "uri", "mimeType", "size"}
     assert Path(payload["path"]).name in payload["uri"]
     assert payload["uri"].startswith("lexware://download/")
-    await provider.aclose()
 
 
 async def test_a_resource_link_comes_back_with_the_result(tmp_path: Path) -> None:
@@ -117,7 +111,6 @@ async def test_a_resource_link_comes_back_with_the_result(tmp_path: Path) -> Non
     assert len(links) == 1
     assert links[0].mime_type == "application/pdf"
     assert links[0].size == len(PDF)
-    await provider.aclose()
 
 
 async def test_the_downloaded_file_can_be_read_back_as_a_resource(
@@ -134,7 +127,6 @@ async def test_the_downloaded_file_can_be_read_back_as_a_resource(
     assert len(contents) == 1
     assert contents[0].content == PDF
     assert contents[0].mime_type == "application/pdf"
-    await provider.aclose()
 
 
 async def test_nothing_is_published_before_a_download(tmp_path: Path) -> None:
@@ -148,7 +140,6 @@ async def test_nothing_is_published_before_a_download(tmp_path: Path) -> None:
 
     listed = await server.list_resources()
     assert [r.name for r in listed] == [f"{FILE_ID}.pdf"]
-    await provider.aclose()
 
 
 async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
@@ -163,7 +154,6 @@ async def test_the_same_document_twice_is_stored_once(tmp_path: Path) -> None:
     uris = {(r.structured_content or {})["uri"] for r in results}
     assert len(uris) == 1
     assert len(list(tmp_path.iterdir())) == 1
-    await provider.aclose()
 
 
 def test_a_reused_download_is_noted_without_its_name(
@@ -194,7 +184,6 @@ async def test_a_document_fetched_again_rises_to_the_top_of_the_list(
 
     assert [r.name for r in await server.list_resources()][0] == f"{FILE_ID}.pdf"
     assert len(list(tmp_path.iterdir())) == 2, "reused, not copied"
-    await provider.aclose()
 
 
 async def test_a_document_that_changed_gets_its_own_file(tmp_path: Path) -> None:
@@ -217,7 +206,6 @@ async def test_a_content_type_with_parameters_is_reduced_to_the_type(
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
     assert (result.structured_content or {})["mimeType"] == "application/pdf"
-    await provider.aclose()
 
 
 async def test_a_downloaded_xml_is_published_as_xml(tmp_path: Path) -> None:
@@ -234,7 +222,6 @@ async def test_a_downloaded_xml_is_published_as_xml(tmp_path: Path) -> None:
     listed = await server.list_resources()
     assert listed[0].mime_type == "application/xml"
     assert (result.structured_content or {})["mimeType"] == "application/xml"
-    await provider.aclose()
 
 
 async def test_the_download_tools_declare_what_they_return(tmp_path: Path) -> None:
@@ -277,7 +264,6 @@ async def test_a_link_still_works_after_the_server_restarted(tmp_path: Path) -> 
 
     assert (result.structured_content or {})["deliveredAs"] == "pages"
     assert any(b.type == "image" for b in result.content)
-    await provider.aclose()
 
 
 @pytest.mark.parametrize(
@@ -298,7 +284,6 @@ async def test_a_file_put_there_by_hand_is_readable_under_the_name_listed(
     result = await server.call_tool("read_download", {"uri": uri})
 
     assert (result.structured_content or {})["deliveredAs"] == "pages"
-    await provider.aclose()
 
 
 async def test_downloads_are_not_resources_while_no_download_tool_is_on(
@@ -372,7 +357,6 @@ async def test_a_download_that_cannot_be_saved_says_why(
     message = str(excinfo.value)
     assert (failure.strerror or str(failure)) in message
     assert "someone" not in message
-    await provider.aclose()
 
 
 async def test_building_a_server_does_not_create_a_download_directory(
@@ -397,7 +381,6 @@ async def test_the_content_type_comes_from_the_name_on_disk(tmp_path: Path) -> N
 
     assert (result.structured_content or {})["mimeType"] == "application/xml"
     assert (result.structured_content or {})["deliveredAs"] == "text"
-    await provider.aclose()
 
 
 @pytest.mark.parametrize(
@@ -425,7 +408,6 @@ async def test_a_download_says_where_the_bytes_are_and_nothing_else(
 
     assert "deeplink" not in (result.structured_content or {})
     assert "permalink" not in result.content[0].text
-    await provider.aclose()
 
 
 async def test_the_description_sends_the_model_to_the_tool_that_links() -> None:
@@ -467,7 +449,6 @@ async def test_the_list_names_the_newest_downloads_first_and_no_more(
     listed = await server.list_resources()
 
     assert [r.name for r in listed] == ["e.pdf", "d.pdf", "c.pdf"]
-    await provider.aclose()
 
 
 async def test_a_file_too_old_to_be_listed_is_still_readable(tmp_path: Path) -> None:
@@ -482,7 +463,6 @@ async def test_a_file_too_old_to_be_listed_is_still_readable(tmp_path: Path) -> 
         "read_download", {"uri": "lexware://download/old.pdf"}
     )
     assert (result.structured_content or {})["deliveredAs"] == "pages"
-    await provider.aclose()
 
 
 async def test_zero_keeps_every_download_through_a_download(tmp_path: Path) -> None:
@@ -493,7 +473,6 @@ async def test_zero_keeps_every_download_through_a_download(tmp_path: Path) -> N
 
     assert len(list(tmp_path.iterdir())) == 4
     assert len(await server.list_resources()) == 4
-    await provider.aclose()
 
 
 async def test_a_file_removed_from_disk_is_gone_from_the_list_and_the_link(
@@ -509,7 +488,6 @@ async def test_a_file_removed_from_disk_is_gone_from_the_list_and_the_link(
     assert await server.list_resources() == []
     with pytest.raises(ResourceNotFoundError):
         await server.read_resource("lexware://download/invoice.pdf")
-    await provider.aclose()
 
 
 async def test_a_name_that_leaves_the_directory_is_not_read(tmp_path: Path) -> None:
@@ -523,7 +501,6 @@ async def test_a_name_that_leaves_the_directory_is_not_read(tmp_path: Path) -> N
         await server.read_resource("lexware://download/../secret.pdf")
     with pytest.raises(ResourceNotFoundError):
         await server.read_resource("lexware://download/..%2Fsecret.pdf")
-    await provider.aclose()
 
 
 async def test_a_directory_not_made_yet_lists_nothing_and_reads_nothing(
@@ -645,7 +622,6 @@ async def test_a_download_keeps_the_directory_at_its_bound(tmp_path: Path) -> No
     assert {p.name for p in tmp_path.iterdir()} == {"c.pdf", f"{FILE_ID}.pdf"}
     uri = (result.structured_content or {})["uri"]
     assert list(await server.read_resource(uri))[0].content == PDF
-    await provider.aclose()
 
 
 def test_building_a_server_to_look_at_it_deletes_nothing(tmp_path: Path) -> None:
@@ -676,7 +652,6 @@ async def test_a_download_that_is_gone_says_to_fetch_it_again(
     with pytest.raises(ResourceNotFoundError) as excinfo:
         await server.read_resource(uri)
     assert "keeps the newest 100 downloads" in str(excinfo.value)
-    await provider.aclose()
 
 
 async def test_where_nothing_is_deleted_the_advice_is_only_to_fetch_it(
@@ -690,4 +665,3 @@ async def test_where_nothing_is_deleted_the_advice_is_only_to_fetch_it(
 
     assert "Download the document again." in said
     assert "keeps the newest" not in said
-    await provider.aclose()

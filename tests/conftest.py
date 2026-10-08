@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
@@ -20,6 +20,7 @@ from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER
 from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import locations
+from helpers import OPEN_PROVIDERS
 
 
 @pytest.fixture(autouse=True)
@@ -45,6 +46,14 @@ def policy_file_off_this_machine(
     ToolPolicy(target).save(dict.fromkeys(known_tools(), True))
     monkeypatch.setattr(locations, "tool_policy_file", lambda: target)
     return target
+
+
+@pytest.fixture(autouse=True)
+async def providers_closed() -> AsyncIterator[None]:
+    """Close every provider the test built, after it, passed or failed."""
+    yield
+    while OPEN_PROVIDERS:
+        await OPEN_PROVIDERS.pop().aclose()
 
 
 @pytest.fixture(autouse=True)

@@ -27,6 +27,7 @@ from benethos_lexware_office_mcp.settings import Settings
 __all__ = [
     "API_KEY",
     "FILE_ID",
+    "OPEN_PROVIDERS",
     "PDF",
     "UPLOADED",
     "downloaded",
@@ -73,6 +74,13 @@ def fast_client(handler: Handler, **settings: Any) -> LexwareClient:
     )
 
 
+# Every provider a test builds, closed by the `providers_closed` fixture in
+# conftest.py once the test is over, whether it passed or not. Closing it as
+# the test's last line was skipped by the first failing assert before it, and
+# left a client open behind every failure.
+OPEN_PROVIDERS: list[ClientProvider] = []
+
+
 def fast_provider(
     handler: Handler,
     *,
@@ -85,19 +93,22 @@ def fast_provider(
     ``fields`` go into the :class:`Settings` beside the key. ``settings``
     replaces that whole object, for a test about the settings themselves.
     """
-    return ClientProvider(
+    provider = ClientProvider(
         settings or Settings(api_key=API_KEY, **fields),
         transport=httpx.MockTransport(handler),
         bucket=bucket or fast_bucket(),
         sleep=no_sleep,
     )
+    OPEN_PROVIDERS.append(provider)
+    return provider
 
 
 def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientProvider]:
     """A server whose every tool answers from ``handler``, and its provider.
 
-    The provider is returned too, so the test can close it. ``fields`` are
-    :class:`Settings` fields, ``page_size`` or ``download_path`` say.
+    The provider is returned too, for a test that looks at it. It is closed
+    after the test either way. ``fields`` are :class:`Settings` fields,
+    ``page_size`` or ``download_path`` say.
     """
     settings = Settings(api_key=API_KEY, **fields)
     provider = fast_provider(handler, settings=settings)

@@ -34,7 +34,6 @@ async def test_a_deeplink_costs_no_api_call(tmp_path: Path) -> None:
     assert result.structured_content["url"].endswith(
         "/permalink/invoices/view/PLACEHOLDER-DOC-1"
     )
-    await provider.aclose()
 
 
 async def test_the_edit_action_and_the_configured_base_are_used(

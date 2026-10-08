@@ -151,7 +151,6 @@ async def test_search_vouchers_finds_a_document_by_its_number() -> None:
 
     assert handler.query["voucherNumber"] == ["AG0001"]
     assert handler.query["voucherType"] == ["any"]
-    await provider.aclose()
 
 
 @pytest.mark.parametrize(
@@ -166,7 +165,6 @@ async def test_every_sort_the_api_honours_is_offered(sort: str) -> None:
     await server.call_tool("search_vouchers", {"sort": sort})
 
     assert handler.query["sort"] == [sort]
-    await provider.aclose()
 
 
 async def test_an_unknown_sort_never_leaves_the_server() -> None:
@@ -177,7 +175,6 @@ async def test_an_unknown_sort_never_leaves_the_server() -> None:
         await server.call_tool("search_vouchers", {"sort": "title,ASC"})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_without_a_number_no_number_filter_is_sent() -> None:
@@ -420,7 +417,6 @@ async def test_the_default_search_asks_for_everything() -> None:
     assert handler.query["voucherType"] == ["any"]
     assert handler.query["voucherStatus"] == ["any"]
     assert handler.query["sort"] == ["voucherDate,DESC"]
-    await provider.aclose()
 
 
 async def test_get_voucher_refuses_both_ways_of_naming_one() -> None:
@@ -434,7 +430,6 @@ async def test_get_voucher_refuses_both_ways_of_naming_one() -> None:
 
     assert "not both" in str(excinfo.value)
     assert handler.requests == [], "a request went out anyway"
-    await provider.aclose()
 
 
 async def test_get_voucher_refuses_neither() -> None:
@@ -445,7 +440,6 @@ async def test_get_voucher_refuses_neither() -> None:
         await server.call_tool("get_voucher", {})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_a_number_that_matches_one_voucher_returns_it() -> None:
@@ -457,7 +451,6 @@ async def test_a_number_that_matches_one_voucher_returns_it() -> None:
     assert handler.query["voucherNumber"] == ["MCP-0001"]
     assert result.structured_content is not None
     assert result.structured_content["id"] == "PLACEHOLDER-VOUCHER-1"
-    await provider.aclose()
 
 
 async def test_get_voucher_by_id_reads_the_record_directly() -> None:
@@ -471,7 +464,6 @@ async def test_get_voucher_by_id_reads_the_record_directly() -> None:
     assert handler.path == "/v1/vouchers/PLACEHOLDER-VOUCHER-1"
     assert result.structured_content is not None
     assert result.structured_content["voucherNumber"] == "MCP-0001"
-    await provider.aclose()
 
 
 async def test_get_payments_reports_what_is_still_outstanding() -> None:
@@ -485,7 +477,6 @@ async def test_get_payments_reports_what_is_still_outstanding() -> None:
     assert result.structured_content is not None
     assert result.structured_content["openAmount"] == 0.0
     assert handler.path == "/v1/payments/PLACEHOLDER-VOUCHER-1"
-    await provider.aclose()
 
 
 async def test_a_number_that_matches_nothing_is_a_not_found() -> None:
@@ -496,7 +487,6 @@ async def test_a_number_that_matches_nothing_is_a_not_found() -> None:
         await server.call_tool("get_voucher", {"voucher_number": "NOPE"})
 
     assert str(excinfo.value).endswith(": No voucher with the number NOPE.")
-    await provider.aclose()
 
 
 async def test_an_ambiguous_number_names_the_candidates() -> None:
@@ -511,7 +501,6 @@ async def test_an_ambiguous_number_names_the_candidates() -> None:
     message = str(excinfo.value)
     assert "PLACEHOLDER-VOUCHER-1" in message
     assert "PLACEHOLDER-VOUCHER-2" in message
-    await provider.aclose()
 
 
 async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
@@ -536,7 +525,6 @@ async def test_create_voucher_sends_the_lines_and_the_computed_totals() -> None:
     assert body["voucherItems"][0]["categoryId"] == CATEGORY
     assert body["useCollectiveContact"] is True
     assert "voucherStatus" not in body
-    await provider.aclose()
 
 
 async def test_a_create_never_offers_to_set_the_status() -> None:
@@ -591,7 +579,6 @@ async def test_a_create_is_never_retried() -> None:
         )
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_update_voucher_reads_before_it_replaces() -> None:
@@ -608,7 +595,6 @@ async def test_update_voucher_reads_before_it_replaces() -> None:
     assert sent["remark"] == "changed"
     assert sent["voucherItems"] == VOUCHER["voucherItems"]
     assert "voucherStatus" not in sent
-    await provider.aclose()
 
 
 async def test_update_voucher_can_move_it_back_to_the_collective_contact() -> None:
@@ -630,7 +616,6 @@ async def test_update_voucher_can_move_it_back_to_the_collective_contact() -> No
     sent = handler.body(1)
     assert sent["useCollectiveContact"] is True
     assert "contactId" not in sent
-    await provider.aclose()
 
 
 UNCHECKED = {**VOUCHER, "voucherStatus": "unchecked"}
@@ -653,7 +638,6 @@ async def test_finalize_books_an_unchecked_voucher() -> None:
     )
 
     assert handler.body(1)["voucherStatus"] == "open"
-    await provider.aclose()
 
 
 async def test_an_update_without_finalize_sends_no_status() -> None:
@@ -667,7 +651,6 @@ async def test_an_update_without_finalize_sends_no_status() -> None:
     )
 
     assert "voucherStatus" not in handler.body(1)
-    await provider.aclose()
 
 
 async def test_finalize_without_confirm_never_reaches_the_api() -> None:
@@ -681,7 +664,6 @@ async def test_finalize_without_confirm_never_reaches_the_api() -> None:
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_finalize_on_a_voucher_that_is_not_unchecked_writes_nothing() -> None:
@@ -700,7 +682,6 @@ async def test_finalize_on_a_voucher_that_is_not_unchecked_writes_nothing() -> N
         )
 
     assert handler.methods == ["GET"]
-    await provider.aclose()
 
 
 async def test_a_named_and_the_collective_contact_at_once_is_refused() -> None:
@@ -719,7 +700,6 @@ async def test_a_named_and_the_collective_contact_at_once_is_refused() -> None:
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_leaving_the_collective_contact_needs_the_contact_it_moves_to() -> None:
@@ -739,7 +719,6 @@ async def test_leaving_the_collective_contact_needs_the_contact_it_moves_to() ->
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_a_stale_version_stops_before_the_write() -> None:
@@ -754,4 +733,3 @@ async def test_a_stale_version_stops_before_the_write() -> None:
 
     assert "version 3" in str(excinfo.value)
     assert handler.methods == ["GET"]
-    await provider.aclose()
