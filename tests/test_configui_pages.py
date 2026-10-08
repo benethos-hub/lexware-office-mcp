@@ -445,6 +445,21 @@ def test_the_placeholder_is_the_default_and_the_value_the_file(
     assert 'name="LXO_MCP_TIMEOUT" type="text" value="" placeholder="30"' in body
 
 
+def test_the_placeholder_says_what_empty_means_beside_the_other_settings(
+    inst: Installation, tmp_path: Path
+) -> None:
+    """A named download directory is cleaned only when the count says so as
+    well, so there an empty count keeps every download, not 100."""
+    kept = 'name="LXO_MCP_KEPT_DOWNLOADS" type="text" value="" placeholder="{}"'
+    assert kept.format("100") in text(pages.settings(inst))
+
+    named = tmp_path / "downloads"
+    inst.env_path.write_text(f"LXO_MCP_DOWNLOAD_DIR={named}\n", encoding="utf-8")
+    inst.reload()
+
+    assert kept.format("alle") in text(pages.settings(inst))
+
+
 def test_a_value_an_environment_variable_holds_is_no_field(
     inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:

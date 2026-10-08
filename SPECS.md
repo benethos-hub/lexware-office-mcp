@@ -1173,11 +1173,14 @@ for, and its primary action at the top right.
 | Overview (`Übersicht`) | A card *Stand* with three rows and their tags: the key stored or missing, the permissions as n of 25 on with what they cost or no file yet, the last connection test with the account or never run. The first red row is the next step and links to the page that does it. A card *Client* with the `"args"` entry to copy, and the warning that a server without `--env-file` reads another file only when that is true. A card *Dateien* with each file's name and state, the full path folded. |
 | Credentials (`Zugangsdaten`) | The key, checked against the API before it is written unless that is declined, and the connection test as a card beside it. The HTTP token as a folded card, open only when the transport is not stdio, *Neu erzeugen* with a question before it. |
 | Permissions (`Rechte`) | The counter and *Rechte speichern* at the top right, the presets as a bar, then one card per domain with its group switches and the tool rows with mark and cost. The legend, the profiles and import and export folded underneath, deleting a profile with a question before it. |
-| Settings (`Einstellungen`) | The eleven settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows the default, empty means the default, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
+| Settings (`Einstellungen`) | The eleven settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows what empty means, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
 
 The settings page reads a value in effect and a default the same way, so
 the placeholder of an empty field is what empty means rather than what
-applies right now, and the log level is a choice of the levels the server
+applies right now. That is the default, unless another setting changes it:
+with a download directory named, an empty cache count keeps every download,
+so each placeholder is read from the file as it is with that one field
+emptied. The log level is a choice of the levels the server
 knows rather than free text. On the overview an untested connection is not
 red: only a button ever tests it, so it is no fault, and the next step is
 the first row that is.

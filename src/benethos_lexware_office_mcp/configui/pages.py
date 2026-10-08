@@ -38,7 +38,7 @@ from .state import (
     LABELS,
     POLICY_KEY,
     Installation,
-    defaults,
+    if_emptied,
     resolved,
 )
 
@@ -496,15 +496,16 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
 def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
     """The settings that are no secret, in three cards.
 
-    The placeholder is the built-in default, read the way the value in effect
-    is read, because empty means exactly that. A value a real environment
+    The placeholder is what an empty field means, read the way the value
+    in effect is read: the built-in default, unless another setting changes
+    it, see :func:`.state.if_emptied`. A value a real environment
     variable holds is shown and offered as no field: typing over it would
     change nothing, since the variable outranks every file.
     """
     env = inst.file_env()
     shown = {**env, **(typed or {})}
     values = resolved(inst)
-    default = defaults()
+    default = if_emptied(inst)
 
     def one(key: str) -> dict[str, Any]:
         value = shown.get(key, "")

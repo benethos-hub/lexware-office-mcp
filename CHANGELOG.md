@@ -154,7 +154,8 @@ housekeeping are out of scope here — design decisions live in
   making a new HTTP token ask first.
 - **The settings of `setup` have a page of their own**, `Einstellungen` at
   `/settings`, in three cards: the connection, the output, the files. The
-  placeholder of an empty field is the built-in default rather than the
+  placeholder of an empty field is what leaving it empty means, the
+  built-in default unless another setting changes it, rather than the
   value in effect, the log level is a choice rather than free text, and a
   setting an environment variable holds is shown as such and offered as no
   field. The credentials page keeps the key and the HTTP token.
