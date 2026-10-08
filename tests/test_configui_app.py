@@ -1197,3 +1197,10 @@ def test_saved_settings_land_back_on_their_page(browser: Browser) -> None:
 
     assert status == 303
     assert headers["Location"] == "/settings"
+
+
+def test_a_connection_test_lands_on_the_credentials_page(browser: Browser) -> None:
+    status, _, headers = browser.post("/check", {}, follow=False)
+
+    assert status == 303
+    assert headers["Location"] == "/credentials"

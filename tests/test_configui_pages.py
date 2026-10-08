@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import subprocess
 import sys
@@ -708,3 +709,55 @@ def test_every_destructive_button_asks_first(inst: Installation) -> None:
         assert button and "data-confirm=" in button.group(0), value
     generate = re.search(r'<button[^>]*value="generate"[^>]*>', credentials)
     assert generate and "data-confirm=" in generate.group(0)
+
+
+# -- credentials ------------------------------------------------------------
+
+
+def test_the_token_is_folded_while_the_server_speaks_stdio(
+    inst: Installation,
+) -> None:
+    """It is for the HTTP transport, and there only."""
+    folded = text(pages.credentials(inst))
+    over_http = dataclasses.replace(inst.settings, transport="streamable-http")
+    inst.settings = over_http
+    unfolded = text(pages.credentials(inst))
+
+    assert "<h2>HTTP-Token</h2>" in folded
+    assert " open>" not in folded
+    assert re.search(
+        r"<details class=\"card\" open>\s*<summary[^>]*><h2>HTTP-Token", unfolded
+    )
+
+
+def test_a_refused_token_unfolds_its_card(inst: Installation) -> None:
+    """Folded, the reason at the top would be about a field nobody sees."""
+    body = text(pages.credentials(inst, typed={"LXO_MCP_BEARER_TOKEN": "x y"}))
+
+    assert re.search(
+        r"<details class=\"card\" open>\s*<summary[^>]*><h2>HTTP-Token", body
+    )
+    assert 'value="x y"' in body
+
+
+def test_the_connection_card_says_what_the_last_test_found(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert "noch nicht getestet" in text(pages.credentials(inst))
+
+    monkeypatch.setattr(
+        probe, "_last", probe.Account(company="Test Inc.", small_business=True)
+    )
+    body = text(pages.credentials(inst))
+
+    assert (
+        "Zuletzt verbunden mit <strong>Test Inc.</strong> · Kleinunternehmer." in body
+    )
+
+
+def test_the_key_is_saved_from_the_top_right(inst: Installation) -> None:
+    body = text(pages.credentials(inst))
+
+    top = body.split('<div class="right">')[1].split("</header>")[0]
+    assert 'form="keyform"' in top and "Schlüssel speichern" in top
+    assert 'id="keyform"' in body

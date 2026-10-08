@@ -62,7 +62,7 @@ LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 _CREDENTIALS = "/credentials"
 _PERMISSIONS = "/permissions"
 _SETTINGS = "/settings"
-_CHECKED = "/"
+_CHECKED = "/credentials"
 
 
 @dataclasses.dataclass(frozen=True)

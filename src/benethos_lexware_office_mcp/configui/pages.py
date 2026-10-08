@@ -318,14 +318,19 @@ def _outranked(inst: Installation) -> str:
 
 
 def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
-    """Where the key is entered, and the HTTP token.
+    """The key, the connection test beside it, and the HTTP token.
 
     ``typed`` is what a refused form held, shown again in place of the file's
     value so nothing has to be typed twice. Never the API key, which no page
     shows.
+
+    The token is folded unless the server is set to an HTTP transport, the
+    one case it is for - or a refused form is about it, which would
+    otherwise hide the field the reason is about.
     """
     env = inst.file_env()
     shown = {**env, **(typed or {})}
+    account = last_account()
     return Page(
         "pages/credentials.html",
         "Zugangsdaten",
@@ -338,7 +343,12 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
             "bearer_key": BEARER_KEY,
             "bearer": shown.get(BEARER_KEY, ""),
             "bearer_badge": _badge(inst, BEARER_KEY, env),
+            "bearer_open": inst.settings.transport != "stdio"
+            or BEARER_KEY in (typed or {}),
+            "facts": account_facts(account) if account else [],
         },
+        "Der API-Schlüssel, die Verbindung zum Konto und das Token für den "
+        "HTTP-Transport.",
     )
 
 

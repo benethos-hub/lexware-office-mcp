@@ -366,9 +366,12 @@ whether each file exists yet, how many tools are on and what they cost. A
 connection test on the button, never on page load.
 
 **Credentials** (`Zugangsdaten`) — the API key, checked against the API before
-it is saved unless you say otherwise. The key is never shown back to you, never
-logged and never exported. If an environment variable is setting it, the page
-says so, because that would override whatever you save.
+it is saved unless you say otherwise, and beside it the connection test: one
+call on the button, never on page load, and the account it found. The key is
+never shown back to you, never logged and never exported. If an environment
+variable is setting it, the page says so, because that would override
+whatever you save. The token of the HTTP transport is folded underneath,
+open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
 as buttons. On a fresh installation with no policy file yet, the reading tools

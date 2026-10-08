@@ -279,6 +279,12 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .field .hint { font-size: 12px; }
 .field .held { padding: 7px 0; overflow-wrap: anywhere; }
 
+/* Two cards side by side, one under the other in a narrow window. */
+.columns {
+  display: grid; gap: var(--gap); align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
 /* A form of several cards, one under the other. */
 form.stack { display: flex; flex-direction: column; gap: var(--gap); }
 .form-grid {

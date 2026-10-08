@@ -127,6 +127,9 @@ housekeeping are out of scope here — design decisions live in
   value in effect, the log level is a choice rather than free text, and a
   setting an environment variable holds is shown as such and offered as no
   field. The credentials page keeps the key and the HTTP token.
+- **The connection test of `setup` sits beside the key** on the credentials
+  page and says which account the last test found. The HTTP token is folded
+  underneath, open when the server is set to an HTTP transport.
 
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named
