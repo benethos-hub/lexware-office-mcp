@@ -616,6 +616,19 @@ def test_an_emptied_setting_falls_back_to_the_default(
     assert installation.settings.page_size == DEFAULT_PAGE_SIZE
 
 
+def test_an_unknown_log_level_is_refused_rather_than_stored(
+    browser: Browser, installation: Installation
+) -> None:
+    """The server falls back to INFO for it, so stored it never took effect."""
+    _, body, _ = browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "verbose"})
+
+    assert "Nicht gespeichert" in note(body)
+    assert "verbose" not in installation.env_path.read_text(encoding="utf-8")
+
+    browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "debug"})
+    assert installation.settings.log_level == "DEBUG"
+
+
 def test_a_blank_field_the_file_does_not_carry_is_not_written(
     browser: Browser, installation: Installation
 ) -> None:

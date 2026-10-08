@@ -22,7 +22,7 @@ from typing import Any
 from .. import logbook
 from ..errors import ConfigError
 from ..policy import known_tools
-from ..settings import load_settings
+from ..settings import LOG_LEVELS, load_settings
 from ..settings.envfile import update_env_file
 from ..settings.parse import credential
 from . import pages, probe, transfer
@@ -49,6 +49,8 @@ Form = dict[str, list[str]]
 
 # The name the file has on disk, so a download can simply replace one.
 _EXPORT_NAME = "tools.json"
+
+LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -214,6 +216,19 @@ def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
         for key in EDITABLE_KEYS
         if key in form and ((value := field(form, key)) or key in current)
     }
+    # The one setting the server does not refuse: an unknown log level
+    # falls back to the default rather than stopping a start. Written from
+    # here it would be stored, shown as that default, and never take effect.
+    level = submitted.get(LOG_LEVEL_KEY, "")
+    if level and level.upper() not in LOG_LEVELS:
+        return _page_with(
+            inst,
+            csrf,
+            pages.credentials,
+            f"Nicht gespeichert: {LOG_LEVEL_KEY} kennt nur "
+            f"{', '.join(LOG_LEVELS)}, nicht {level}.",
+            kind="bad",
+        )
     # Validated by the same code the server uses, so a value accepted here
     # cannot be one that stops the server from starting later.
     proposed = {**current, **submitted}

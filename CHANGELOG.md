@@ -68,6 +68,9 @@ housekeeping are out of scope here — design decisions live in
 - **The permissions page no longer says the reading tools are ticked
   when a loaded profile or an imported file ticked others.** Without a
   policy file, the note about the suggestion stood above every form.
+- **`setup` refuses a log level the server does not know.** `verbose` was
+  saved, shown as `INFO` and never took effect, since the server falls back
+  to the default rather than refusing to start over a log level.
 
 ### Changed
 
