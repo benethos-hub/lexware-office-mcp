@@ -644,9 +644,9 @@ all.
 **The image carries the package's name, every release from 0.2.0 on.**
 It was published as `ghcr.io/benethos-hub/lexware-office-mcp` until 0.4.2,
 and the earlier releases were copied over with the same digest, so a tag
-pulls the same bytes under either name. The old name still gets the 0.4
-patch releases and none from 0.5.0 on. Pulling that name, change it to the
-one above: the volumes stay as they are.
+pulls the same bytes under either name. The old name got the 0.4 patch
+releases and none from 0.5.0 on. Pulling that name, change it to the one
+above: the volumes stay as they are.
 
 ### With Compose
 

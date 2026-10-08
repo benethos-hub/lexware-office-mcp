@@ -251,6 +251,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Removed
 
+- **The image is no longer published as
+  `ghcr.io/benethos-hub/lexware-office-mcp`**, as 0.4.2 announced. Its
+  tags up to 0.4.2 stay, `:0.4` and `:latest` included, and no release
+  after 0.4 reaches them. `ghcr.io/benethos-hub/benethos-lexware-office-mcp`
+  carries every release from 0.2.0 on.
 - **The address `/export` of `setup` is gone.** No page linked it, and
   without a policy file it answered a download with every tool off, which
   reads like a file somebody wrote. *Rechtedatei herunterladen* on the

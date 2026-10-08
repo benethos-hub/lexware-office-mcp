@@ -188,11 +188,8 @@ def test_the_publishing_environment_is_named_for_the_package() -> None:
     assert f"#     Environment:       {environment}\n" in workflow
 
 
-def test_the_image_is_pushed_under_the_package_name_first() -> None:
-    """The readback inspects the first name, so that has to be the new one.
-
-    The repository's name follows for the 0.4 patch releases, until 0.5.0.
-    """
+def test_the_image_is_pushed_under_the_package_name_alone() -> None:
+    """The repository's name got the 0.4 patch releases and none after."""
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"
     )
@@ -203,7 +200,6 @@ def test_the_image_is_pushed_under_the_package_name_first() -> None:
 
     assert images == [
         "ghcr.io/${{ github.repository_owner }}/benethos-lexware-office-mcp",
-        "ghcr.io/${{ github.repository }}",
     ]
 
 
