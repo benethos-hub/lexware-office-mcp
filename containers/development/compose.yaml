@@ -35,6 +35,11 @@ services:
       LXO_MCP_HTTP_PORT: "8770"
       LXO_MCP_ALLOWED_HOSTS: "benethos-lexware-office-mcp:8770"
       LXO_MCP_EXIT_ON_CONFIG_CHANGE: "1"
+      # Caddy's address in the network https of the production folder,
+      # the one sender whose X-Forwarded-For is believed, so the log names
+      # the machine behind a request rather than Caddy. Not a setting of
+      # the server: uvicorn reads it.
+      FORWARDED_ALLOW_IPS: "172.30.82.200"
     volumes:
       - config:/config
       - downloads:/downloads

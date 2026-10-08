@@ -332,19 +332,65 @@ def test_compose_caps_the_log_docker_keeps(compose: Path) -> None:
 def test_every_compose_service_uses_the_log_cap(compose: Path) -> None:
     """A service added later without the reference would log without limit."""
     services = _services(compose)
+    https = ["caddy"] if compose == COMPOSE_FILES[1] else []
 
-    assert list(services) == ["benethos-lexware-office-mcp", "setup"]
+    assert list(services) == ["benethos-lexware-office-mcp", "setup", *https]
     assert all("\n    logging: *logging\n" in block for block in services.values())
 
 
 @pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
 def test_every_compose_port_is_published_on_the_loopback(compose: Path) -> None:
-    """A bearer token guards against this machine's processes, not a network."""
-    text = compose.read_text(encoding="utf-8")
-    published = re.findall(r'^\s+- "([^"]*:\d+)"$', text, flags=re.MULTILINE)
+    """A bearer token guards against this machine's processes, not a network.
+
+    Caddy's port is the one exception, and the one meant for other machines,
+    see the next test.
+    """
+    services = _services(compose)
+    services.pop("caddy", None)
+    published = [
+        port
+        for block in services.values()
+        for port in re.findall(r'^\s+- "([^"]*:\d+)"$', block, flags=re.MULTILINE)
+    ]
 
     assert len(published) == 2
     assert all(port.startswith("127.0.0.1:") for port in published)
+
+
+def test_only_caddy_reaches_the_network_and_only_with_https() -> None:
+    """Behind its own profile, on 443 alone, with one capability added."""
+    caddy = _services(COMPOSE_FILES[1])["caddy"]
+
+    assert '\n    profiles: ["https"]\n' in caddy
+    assert re.findall(r'^\s+- "([^"]*:\d+)"$', caddy, flags=re.MULTILINE) == [
+        "${LXO_HTTPS_PORT:-443}:443"
+    ]
+    assert "\n    cap_add:\n      - NET_BIND_SERVICE\n    security_opt:" in caddy
+
+
+def test_caddy_proxies_the_transport_and_nothing_else() -> None:
+    """Only the MCP path, to the server's own port, never the interface."""
+    caddyfile = (CONTAINERS / "production" / "Caddyfile").read_text(encoding="utf-8")
+
+    assert "@mcp path /mcp /mcp/*" in caddyfile
+    assert re.findall(r"reverse_proxy (\S+)", caddyfile) == [
+        "benethos-lexware-office-mcp:8770"
+    ]
+    assert "8771" not in caddyfile
+    assert "import tls-{$LXO_TLS:internal}" in caddyfile
+
+
+def test_the_server_believes_forwarded_headers_from_caddy_alone() -> None:
+    """The address in FORWARDED_ALLOW_IPS is Caddy's, in the https subnet."""
+    text = COMPOSE_FILES[1].read_text(encoding="utf-8")
+    caddy = _services(COMPOSE_FILES[1])["caddy"]
+    trusted = re.findall(r'FORWARDED_ALLOW_IPS: "([\d.]+)"', text)
+    address = re.search(r"ipv4_address: ([\d.]+)", caddy)
+    subnet = re.search(r"- subnet: ([\d.]+)\.0/24", text)
+
+    assert address and subnet
+    assert trusted == [address.group(1)]
+    assert address.group(1).startswith(subnet.group(1) + ".")
 
 
 @pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
@@ -408,6 +454,7 @@ def test_production_runs_the_published_image_at_the_named_version() -> None:
     services = _services(COMPOSE_FILES[1])
     image = "image: ghcr.io/benethos-hub/benethos-lexware-office-mcp:${LXO_VERSION:?"
 
+    assert "\n    image: caddy:2\n" in services.pop("caddy")
     assert all(image in block for block in services.values())
     assert all("build:" not in block for block in services.values())
 

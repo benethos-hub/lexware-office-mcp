@@ -207,7 +207,9 @@ jobs:
       # property worth failing a build over. Both folders, production with
       # its .env made from the template, as someone setting it up would.
       # What Compose itself resolves is what is checked for the loopback, so
-      # a port moved into a variable cannot slip past.
+      # a port moved into a variable cannot slip past. Caddy, behind the
+      # profile https, is the one service meant for other machines, and
+      # then on 443 alone.
       - name: Compose is valid, ports stay on the loopback, the interface stays behind its profile
         run: |
           for dir in containers/development containers/production; do
@@ -219,20 +221,23 @@ jobs:
               with=$(docker compose --profile setup config --services)
               # `a && b` as a whole statement is not exempt from errexit, so a
               # grep that finds nothing would end the step. Ask with `if`.
-              if echo "$plain" | grep -qx setup; then
-                echo "::error::$dir: a plain up would start the setup service"
+              if echo "$plain" | grep -qxE 'setup|caddy'; then
+                echo "::error::$dir: a plain up would start setup or caddy"
                 exit 1
               fi
               echo "$with" | grep -qx setup || { echo "::error::$dir: the setup profile starts nothing"; exit 1; }
-              docker compose --profile setup config --format json | python3 -c '
+              docker compose --profile setup --profile https config --format json | python3 -c '
           import json, sys
           for name, service in json.load(sys.stdin)["services"].items():
               for port in service.get("ports", []):
                   published = port.get("published")
-                  if port.get("host_ip") != "127.0.0.1":
+                  if name == "caddy":
+                      if str(port.get("target")) != "443":
+                          sys.exit(f"::error::caddy publishes {published} for another port than 443")
+                  elif port.get("host_ip") != "127.0.0.1":
                       sys.exit(f"::error::{name} publishes {published} beyond the loopback")
           '
-              echo "OK: $dir - plain up starts $(echo "$plain" | wc -l) service, the setup profile adds one, every port on 127.0.0.1"
+              echo "OK: $dir - plain up starts $(echo "$plain" | wc -l) service, the setup profile adds one, every port on 127.0.0.1 but caddy's 443"
             )
           done
 

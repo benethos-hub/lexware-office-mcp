@@ -1,9 +1,10 @@
 # In operation: the published image from the GitHub container registry,
 # nothing built. This folder is all it needs - this file and an .env beside
-# it, made from .env.example, which names the version. README.md beside it
-# says how to get the folder and run it.
+# it, made from .env.example, which names the version, and the Caddyfile for
+# HTTPS. README.md beside it says how to get the folder and run it.
 #
 #   docker compose up -d                     start the server
+#   docker compose --profile https up -d     add HTTPS for the local network
 #   docker compose --profile setup up -d     add the configuration interface
 #   docker compose rm -f -s setup            take the interface away again
 #   docker compose logs -f                   follow what it says
@@ -46,8 +47,9 @@ services:
     ports:
       # bind:host:container. Published on the loopback interface of the host,
       # because a bearer token is a guard against other processes on this
-      # machine and not a reason to put an accounting API on a network. Drop
-      # the 127.0.0.1 prefix only behind a proxy that authenticates for you.
+      # machine and not a reason to put an accounting API on a network. For
+      # clients on other machines the profile https puts Caddy in front, see
+      # the service below, and this port stays where it is.
       - "127.0.0.1:${LXO_PORT:-8770}:8770"
     restart: unless-stopped
     logging: *logging
@@ -71,10 +73,18 @@ services:
       # /config/.env changes, and `restart: unless-stopped` brings it back with
       # the new ones - which is what makes configuring in the browser enough.
       LXO_MCP_EXIT_ON_CONFIG_CHANGE: "1"
+      # Caddy's address in the network https of the production folder,
+      # the one sender whose X-Forwarded-For is believed, so the log names
+      # the machine behind a request rather than Caddy. Not a setting of
+      # the server: uvicorn reads it.
+      FORWARDED_ALLOW_IPS: "172.30.82.200"
       # Nothing else belongs here. A variable set in this block is a real
       # environment variable and therefore beats the config volume, so a
       # setting pinned by habit rather than by need is one the configuration
       # interface can no longer change.
+    networks:
+      - default
+      - https
     volumes:
       # The .env, the policy file and the saved permission profiles.
       - config:/config
@@ -143,6 +153,78 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # HTTPS for clients on the local network, started with the profile https:
+  #   docker compose --profile https up -d
+  # or with COMPOSE_PROFILES=https in .env, so a plain `up` includes it.
+  # The Caddyfile beside this file says how, and README.md how a client
+  # learns to trust the certificate.
+  caddy:
+    profiles: ["https"]
+    # The major line, so `docker compose pull` brings Caddy's security fixes
+    # without anyone editing this file. Caddy keeps its configuration
+    # compatible within a major version.
+    image: caddy:2
+    container_name: benethos-lexware-office-mcp-caddy
+    # Compose cannot require the domain for one profile only, `:?` would stop
+    # every start without it. Without a domain Caddy fails on a line further
+    # down with a message that does not name it, so this says it instead.
+    command:
+      - sh
+      - -c
+      - >-
+        test -n "$$LXO_DOMAIN" ||
+        { echo "Set LXO_DOMAIN in .env for the profile https." >&2; exit 1; };
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      # Every address of this host, unlike the two ports above: this is the
+      # one meant for other machines. 443 over TCP alone, since HTTP/3 brings
+      # an MCP client nothing and port 80 would only redirect.
+      - "${LXO_HTTPS_PORT:-443}:443"
+    depends_on:
+      benethos-lexware-office-mcp:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      LXO_DOMAIN: ${LXO_DOMAIN:-}
+      LXO_TLS: ${LXO_TLS:-internal}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # For LXO_TLS=files only. Docker makes the folder if it is missing.
+      - ./secrets/tls:/secrets/tls:ro
+      # The certificates and Caddy's own CA, kept across restarts: a new CA
+      # would mean every client trusting a new root.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      https:
+        # Fixed, so the server can believe X-Forwarded-For from this address
+        # and no other, see FORWARDED_ALLOW_IPS above.
+        ipv4_address: 172.30.82.200
+    # Nothing written but the two volumes and /tmp. Binding 443 is the one
+    # privilege Caddy needs.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   config:
   downloads:
+  caddy-data:
+  caddy-config:
+
+networks:
+  # Caddy and the server, beside the project's default network, which stays
+  # as it was so an installation from before keeps its own. A subnet of its
+  # own for Caddy's fixed address. Should it collide with a network on this
+  # host, change it here and in FORWARDED_ALLOW_IPS together.
+  https:
+    ipam:
+      config:
+        - subnet: 172.30.82.0/24

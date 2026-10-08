@@ -901,12 +901,54 @@ arriving.
   image, the configuration interface served - no traceback, no refused
   write. `tests/test_packaging.py` holds every service of both files to it.
 
-  Two things were left out on purpose. **No TLS proxy**: the server speaks
-  for one account and is published on the loopback, and putting it on a
-  network is a decision for a proxy that authenticates, not for a file
-  shipped here. **No setup script**: the first start needs no key material
-  made outside the container. The server makes its token itself, and the
-  configuration interface behind the `setup` profile takes the key.
+  **No setup script**, left out on purpose: the first start needs no key
+  material made outside the container. The server makes its token itself,
+  and the configuration interface behind the `setup` profile takes the key.
+
+  **HTTPS for the local network, and not for the internet**, decided
+  2026-10-08. Until then no TLS proxy was shipped at all, since putting the
+  server on a network seemed a decision for a proxy that authenticates.
+  `production/` now has Caddy behind the profile `https`, on port 443 of
+  every address, the one service a plain `up` leaves out besides `setup`
+  and the one port beyond the loopback. Its `Caddyfile` passes `/mcp` on
+  and nothing else: the configuration interface never goes through it, any
+  other path is a 404, and a request without an `Authorization` header is
+  answered 401 by Caddy, so a scan of the network never reaches the server,
+  which checks the token itself as before. Caddy rewrites `Host` to the
+  service's own name, which the server allows already, so the domain stays
+  out of `LXO_MCP_ALLOWED_HOSTS` and any port a client uses works: Caddy
+  answers for its domain alone, so the name has been checked by then. The
+  server believes `X-Forwarded-For` from Caddy's fixed address and no
+  other, through uvicorn's `FORWARDED_ALLOW_IPS`, so its log names the
+  machine that asked. Caddy and the server share a network of their own
+  for that address, and the project's default network stays as it was.
+  Measured 2026-10-08 with the folder and the image of 0.4.2: without the
+  root trusted the handshake fails, without a header Caddy answers 401,
+  with a wrong token the server does, with the right one `initialize`
+  answers, `/` and `/settings` are a 404, and the log names the client.
+
+  **The certificate comes from Caddy's own CA by default**, `LXO_TLS` set
+  to `internal`, whose root each client trusts once, and which the volume
+  `caddy-data` keeps so a restart is no new root. `files` takes one of the
+  operator's, `acme` a public CA's. The image is `caddy:2`, the major line
+  unpinned, so a `pull` brings Caddy's security fixes.
+
+  **A public address is not what this is for**, and the README says so.
+  One static bearer token is all the server knows of who is asking, it has
+  no expiry, no rotation but through `setup`, no limit on attempts and no
+  identity per client, and behind it are tools that write to real books.
+  Before the internet, it would need OAuth or at least expiring tokens that
+  can be rotated, limits per address, and one identity per client with an
+  audit of what each did, which is a work stream the size of the HTTP
+  transport rather than a profile.
+
+  **One instance for now, with the way to more left open.** Behind one
+  Caddy several people share one key, one token and one `tools.json`.
+  Different rights per person would be one server each, with its own
+  volumes, token and policy, under `/mcp/<name>` through
+  `LXO_MCP_HTTP_PATH`, and one more `handle` in the Caddyfile per instance.
+  Nothing here stands in that way, and nothing of it is built until it is
+  wanted.
 - **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
   `--env-file` today, plus the transport flags when HTTP arrives. `--mode` and
   `--download-dir` were planned here and never built: the mode is gone with
