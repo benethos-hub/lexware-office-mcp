@@ -822,6 +822,24 @@ def test_a_refused_token_unfolds_its_card(inst: Installation) -> None:
     assert 'value="x y"' in body
 
 
+def test_a_token_the_environment_holds_is_shown_as_held(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The file's token stood in the field under an "aus: Umgebung" badge,
+    the one a client would be refused with."""
+    inst.env_path.write_text("LXO_MCP_BEARER_TOKEN=from-the-file\n", encoding="utf-8")
+    monkeypatch.setenv("LXO_MCP_BEARER_TOKEN", "from-the-environment")
+    inst.settings = dataclasses.replace(
+        inst.settings, bearer_token="from-the-environment"
+    )
+
+    body = text(pages.credentials(inst))
+
+    assert '<span class="held">from-the-environment</span>' in body
+    assert "from-the-file" not in body
+    assert 'name="bearer"' not in body
+
+
 def test_the_connection_card_says_what_the_last_test_found(
     inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:

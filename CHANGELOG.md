@@ -132,6 +132,11 @@ housekeeping are out of scope here — design decisions live in
   itself with its first button on Enter, which on the permissions page is
   "Rechte speichern", so the policy file was written instead and no
   profile made. Without JavaScript it still is.
+- **`setup` shows the HTTP token an environment variable sets.** With
+  `LXO_MCP_BEARER_TOKEN` in the environment, the credentials page showed
+  the token from the `.env` under the badge "aus: Umgebung", the one a
+  client would be refused with. It now shows the token in force and no
+  field, as the settings page does for a value the environment holds.
 
 ### Changed
 

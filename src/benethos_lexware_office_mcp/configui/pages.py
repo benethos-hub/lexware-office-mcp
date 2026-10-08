@@ -457,11 +457,15 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
 
     The token is folded unless the server is set to an HTTP transport, the
     one case it is for - or a refused form is about it, which would
-    otherwise hide the field the reason is about.
+    otherwise hide the field the reason is about. A token a real
+    environment variable holds is shown as that one and offered as no
+    field, as on the settings page: the file's would be the wrong one to
+    copy, and saving it would change nothing.
     """
     env = inst.file_env()
     shown = {**env, **(typed or {})}
     account = last_account()
+    bearer_held = inst.shadowed(BEARER_KEY)
     return Page(
         "pages/credentials.html",
         "Zugangsdaten",
@@ -472,7 +476,10 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
             "key_shadowed": inst.shadowed(API_KEY),
             "env_path": str(inst.env_path),
             "bearer_key": BEARER_KEY,
-            "bearer": shown.get(BEARER_KEY, ""),
+            "bearer": (inst.settings.bearer_token or "")
+            if bearer_held
+            else shown.get(BEARER_KEY, ""),
+            "bearer_held": bearer_held,
             "bearer_badge": _badge(inst, BEARER_KEY, env),
             "bearer_open": inst.settings.transport != "stdio"
             or BEARER_KEY in (typed or {}),
