@@ -554,12 +554,12 @@ search — except under `setup`, which exists partly to create one.
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |
+| `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. Visible ASCII only, so a space or an invisible character copied along with it is refused | — |
 | `LXO_MCP_TOOL_POLICY` | Per-tool on/off file, see below | `tools.json`, searched for the way the `.env` is |
-| `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
-| `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
+| `LXO_MCP_BASE_URL` | API base URL, `https://` only, since the key travels there | `https://api.lexware.io` |
+| `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks, `https://` only | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
-| `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all | unset: `100` in the default directory, all in one you name |
+| `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all, while the resource list still names the newest 100 | unset: `100` in the default directory, all in one you name |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
@@ -568,7 +568,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default, at most 100 | `10` |
 | `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. The libraries underneath stay at `WARNING` | `INFO` |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
-| `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport | — |
+| `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport. Visible ASCII only | — |
 | `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport | `127.0.0.1` |
 | `LXO_MCP_HTTP_PORT` | Port to bind | `8770` |
 | `LXO_MCP_HTTP_PATH` | URL path the transport serves on | `/mcp` |

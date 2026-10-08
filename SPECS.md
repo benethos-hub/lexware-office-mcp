@@ -965,10 +965,10 @@ arriving.
 
 | Env var | Meaning | Default |
 |---|---|---|
-| `LXO_MCP_API_KEY` | Lexware Office API key. Required. | — |
+| `LXO_MCP_API_KEY` | Lexware Office API key. Required. Visible ASCII only, `!` to `~`: a space or an invisible character copied along with it is refused with a `ConfigError`, since it cannot travel in a header. | — |
 | — | `--env-file` names the `.env` rather than searching for one, and nothing else is read: naming a file replaces the search exactly as `--tools-file` does. The real environment still wins over it, the order Docker and uvicorn use, so a client can override one value without editing the file. A path that does not exist ends the process rather than falling back to the search: starting anyway would mean behaving in a way the command line appears to rule out. | search |
-| `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
-| `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
+| `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. `https://` with a host, or the start is refused: the key travels to it. | `https://api.lexware.io` |
+| `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. `https://` with a host, as for the API. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
@@ -980,7 +980,7 @@ arriving.
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
 | `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. httpx, httpcore and the SDK stay at `WARNING` whatever it says, because their `INFO` lines carry request URLs and error text. | `INFO` |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse`, see section 6. `--transport` wins. | `stdio` |
-| `LXO_MCP_BEARER_TOKEN` | The shared secret every HTTP request must carry. An HTTP transport refuses to start without one, see section 6. Registered as a secret, so it is redacted like the key. | — |
+| `LXO_MCP_BEARER_TOKEN` | The shared secret every HTTP request must carry. An HTTP transport refuses to start without one, see section 6. Visible ASCII only, as the key. Registered as a secret, so it is redacted like the key. | — |
 | `LXO_MCP_GENERATE_BEARER_TOKEN` | Make a token at startup when none is set, and write it into the settings file. For a deployment with nobody to type one - the image sets it. | off |
 | `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport. Anything but loopback is said on stderr. | `127.0.0.1` |
 | `LXO_MCP_HTTP_PORT` | Port to bind. | `8770` |
