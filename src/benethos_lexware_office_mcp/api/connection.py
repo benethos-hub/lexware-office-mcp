@@ -237,7 +237,10 @@ class Connection:
                 logbook.api.key_rejected()
             if status >= 400:
                 refused = from_response(response, method, path)
-                if maybe_done and isinstance(refused, ConflictError):
+                # Only a write can have moved the record. A read that is
+                # refused after a lost answer - a draft's file, say - is
+                # refused for its own reasons.
+                if maybe_done and writes and isinstance(refused, ConflictError):
                     raise _own_change(refused, method, path)
                 raise refused
 

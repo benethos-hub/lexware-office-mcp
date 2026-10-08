@@ -229,6 +229,26 @@ async def test_a_stale_version_after_a_lost_answer_blames_the_first_attempt() ->
     assert excinfo.value.status == 406
 
 
+async def test_a_conflict_on_a_retried_read_is_not_blamed_on_the_read() -> None:
+    """A GET changes nothing, so its first attempt cannot have moved anything.
+
+    The file of a draft answers 409 for its own reason, and that reason is
+    what the caller needs.
+    """
+    body = {
+        "status": 409,
+        "message": "Document with status 'draft' does not provide a file.",
+    }
+    async with make_client(
+        httpx.TimeoutException("too slow"), httpx.Response(409, json=body)
+    ) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("GET", "/v1/invoices/abc/file")
+
+    assert "most likely carried out" not in str(excinfo.value)
+    assert "status 'draft'" in str(excinfo.value)
+
+
 async def test_a_stale_version_on_the_first_attempt_is_somebody_elses() -> None:
     stale = {"IssueList": [{"source": "version", "i18nKey": "invalid_value"}]}
     async with make_client(httpx.Response(406, json=stale)) as client:

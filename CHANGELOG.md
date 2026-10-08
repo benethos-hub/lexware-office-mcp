@@ -20,6 +20,10 @@ housekeeping are out of scope here — design decisions live in
   a 5xx, any of them may have been carried out, but the error read like a
   plain failure, and sending the change again ran into a stale version or a
   404. It now says what a failed create says: check the record first.
+- **A download retried into a conflict is no longer blamed on itself.** A
+  read whose first attempt got no answer and whose retry got a 409, such as
+  the file of a draft, was answered with "the first attempt was most likely
+  carried out", which only an update can be. It now says why it was refused.
 
 ### Changed
 
