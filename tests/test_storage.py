@@ -28,6 +28,34 @@ def test_the_servers_filename_is_used_when_it_is_ordinary() -> None:
     assert name == "invoice-2026-014.pdf"
 
 
+def test_the_encoded_filename_is_decoded_before_it_is_made_safe() -> None:
+    """Read as it stood, every percent sign became an underscore."""
+    name = storage.suggested_name(
+        response_with("attachment; filename*=UTF-8''Rechnung%20RE-1%2B2.pdf"),
+        "fallback.pdf",
+    )
+    assert name == "Rechnung_RE-1_2.pdf"
+
+
+def test_the_encoded_filename_wins_over_the_plain_one() -> None:
+    """RFC 6266: the plain one is there for clients that cannot decode."""
+    name = storage.suggested_name(
+        response_with(
+            "attachment; filename=\"plain.pdf\"; filename*=UTF-8''encoded.pdf"
+        ),
+        "fallback.pdf",
+    )
+    assert name == "encoded.pdf"
+
+
+def test_an_encoded_filename_cannot_smuggle_a_path_either() -> None:
+    name = storage.suggested_name(
+        response_with("attachment; filename*=UTF-8''..%2F..%2Fetc%2Fpasswd"),
+        "fallback.pdf",
+    )
+    assert name == "passwd"
+
+
 def test_a_filename_that_is_a_path_is_reduced_to_its_last_part() -> None:
     """Content-Disposition is written by the server, so it is untrusted."""
     name = storage.suggested_name(

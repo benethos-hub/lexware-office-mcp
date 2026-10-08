@@ -39,7 +39,12 @@ __all__ = [
 # reaches the disk should be boring.
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
-_FILENAME = re.compile(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', re.IGNORECASE)
+_FILENAME = re.compile(r'filename\s*=\s*"?([^";]+)"?', re.IGNORECASE)
+# RFC 6266: `filename*=charset'language'percent-encoded`, which wins over a
+# plain `filename` beside it.
+_FILENAME_STAR = re.compile(
+    r"filename\*\s*=\s*([\w!#$&+.^`|~-]+)'[^']*'([^;]+)", re.IGNORECASE
+)
 
 MAX_NAME = 120
 
@@ -134,12 +139,29 @@ def suggested_name(response: httpx.Response, fallback: str) -> str:
     to the caller's own.
     """
     header = response.headers.get("content-disposition", "")
-    match = _FILENAME.search(header)
-    raw = match.group(1) if match else ""
-    cleaned = _safe_name(raw)
+    cleaned = _safe_name(_header_name(header))
     if cleaned:
         return cleaned
     return _safe_name(fallback) or "download"
+
+
+def _header_name(header: str) -> str:
+    """The filename a ``Content-Disposition`` suggests, not yet made safe.
+
+    The encoded form is decoded: read as it stands, `Rechnung%20M%C3%A4rz`
+    reached the disk as `Rechnung_20M_C3_A4rz`. A charset Python does not
+    know is read as UTF-8, and a byte that is no character in it is
+    replaced, which the sanitizing then replaces again.
+    """
+    star = _FILENAME_STAR.search(header)
+    if star:
+        charset, encoded = star.group(1), star.group(2).strip()
+        try:
+            return unquote(encoded, encoding=charset, errors="replace")
+        except LookupError:
+            return unquote(encoded, errors="replace")
+    plain = _FILENAME.search(header)
+    return plain.group(1) if plain else ""
 
 
 def _safe_name(raw: str) -> str:

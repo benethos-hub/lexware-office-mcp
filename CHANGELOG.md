@@ -20,6 +20,10 @@ housekeeping are out of scope here — design decisions live in
   with ID RE-1.".
 - **A PDF that cannot be rendered no longer ends its reason with two full
   stops.** PDFium's message brings one of its own.
+- **A download named in the encoded form of `Content-Disposition` keeps its
+  name.** `filename*=UTF-8''Rechnung%20M%C3%A4rz.pdf` was saved with the
+  percent signs replaced, as `Rechnung_20M_C3_A4rz.pdf`, and a plain
+  `filename` beside it won although the encoded one is meant to.
 - **An upload outside `LXO_MCP_UPLOAD_DIR` is refused the same way
   whether the file exists or not.** The file was looked for first, so the
   answer told the model what is on the disk where it may not upload from.
