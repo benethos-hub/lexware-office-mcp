@@ -385,7 +385,7 @@ def test_every_compose_service_is_hardened(compose: Path) -> None:
 
 def test_production_runs_the_published_image_at_the_named_version() -> None:
     services = _services(COMPOSE_FILES[1])
-    image = "image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?"
+    image = "image: ghcr.io/benethos-hub/benethos-lexware-office-mcp:${LXO_VERSION:?"
 
     assert all(image in block for block in services.values())
     assert all("build:" not in block for block in services.values())

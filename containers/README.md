@@ -44,7 +44,7 @@ image does, and the configuration interface shows it. `LXO_PORT` and
 
 ## The image
 
-`ghcr.io/benethos-hub/lexware-office-mcp`, for `linux/amd64` and
+`ghcr.io/benethos-hub/benethos-lexware-office-mcp`, for `linux/amd64` and
 `linux/arm64`, built by `.github/workflows/publish.yml` with the same
 version as the package on PyPI:
 

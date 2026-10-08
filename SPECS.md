@@ -60,6 +60,8 @@ exception.
 | MCP server `name` | `benethos-lexware-office-mcp` |
 | MCP server `title` | `Unofficial Lexware Office MCP Server` |
 | GitHub repo | `benethos-hub/lexware-office-mcp` (plain, for discoverability) |
+| Container image | `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, every release from 0.2.0 |
+| Publishing environment | `pypi-benethos-lexware-office-mcp` |
 | Env var prefix | `LXO_MCP_` |
 | README H1 | `# Unofficial Lexware Office MCP Server` |
 
@@ -2663,9 +2665,24 @@ order:
    pushes under both names, the package's first, so a pull of `:0.4` or
    `:latest` under the old one keeps getting releases. The old name gets
    the 0.4 patch releases and stops with 0.5.0, which the changelog
-   announces. The documentation and the
-   Compose files move to the new name once a release has created the
-   package, since until then nothing can be pulled under it.
+   announces. The documentation and the Compose files moved to the new
+   name once 0.4.2 had created the package, since until then nothing
+   could be pulled under it.
+
+   **The releases before it were copied over**, the same day, 0.2.0 to
+   0.4.1 with their minor lines, index by index with the same digest, so
+   no tag means different bytes under the two names and nothing was
+   rebuilt. `edge` was not copied, it is no release. Copying left one
+   referrer tag per architecture and release, `sha256-…`, standing in for
+   the attestations, since ghcr has no referrers API: they were deleted,
+   with the check that no release index lists them. 0.4.2 was then deleted
+   under the new name and copied back at once with the same digest, because
+   the package page calls the most recently created version the latest, and
+   that had become 0.4.1. Rebuilding 0.4.2 instead would have changed its
+   digest after the release. Verified anonymously afterwards: thirteen
+   tags, each with the digest the old name has, every child manifest
+   there, nothing else in the package, and 0.2.0 and 0.4.2 pulled and
+   started.
 6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after
    a review, reversing the major tags of 2026-08-23:
    `actions/checkout@3d3c42e… # v7.0.1`. A tag is a pointer its publisher

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![PyPI benethos-lexware-office-mcp](https://img.shields.io/pypi/v/benethos-lexware-office-mcp?label=PyPI%20benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
-[![Container lexware-office-mcp](https://img.shields.io/badge/ghcr.io-lexware--office--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/pkgs/container/lexware-office-mcp)
+[![Container benethos-lexware-office-mcp](https://img.shields.io/badge/ghcr.io-benethos--lexware--office--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/pkgs/container/benethos-lexware-office-mcp)
 [![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
@@ -606,13 +606,20 @@ The image is published for `linux/amd64` and `linux/arm64`, so nothing from
 this repository is needed to run one:
 
 ```bash
-docker pull ghcr.io/benethos-hub/lexware-office-mcp:latest
+docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
 Pin a version for anything you depend on - `:0.4.2` for an exact release,
 `:0.4` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
+
+**The image carries the package's name, every release from 0.2.0 on.**
+It was published as `ghcr.io/benethos-hub/lexware-office-mcp` until 0.4.2,
+and the earlier releases were copied over with the same digest, so a tag
+pulls the same bytes under either name. The old name still gets the 0.4
+patch releases and none from 0.5.0 on. Pulling that name, change it to the
+one above: the volumes stay as they are.
 
 ### With Compose
 
@@ -663,7 +670,7 @@ docker run -d --name lexware-office-mcp \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:8770:8770 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
-  ghcr.io/benethos-hub/lexware-office-mcp:latest
+  ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
 The token it generated for itself is in the config volume, which is where you
@@ -685,7 +692,7 @@ docker run --rm -d --name lexware-office-mcp-setup \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:8771:8771 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
-  ghcr.io/benethos-hub/lexware-office-mcp:latest \
+  ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest \
   setup --no-browser --host 0.0.0.0 --port 8771 \
         --env-file /config/.env --tools-file /config/tools.json
 ```

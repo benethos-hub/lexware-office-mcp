@@ -40,7 +40,7 @@ services:
   benethos-lexware-office-mcp:
     # The version is the one LXO_VERSION in .env names. To update, change it
     # there, then `docker compose pull && docker compose up -d`.
-    image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?set LXO_VERSION in .env, see .env.example}
+    image: ghcr.io/benethos-hub/benethos-lexware-office-mcp:${LXO_VERSION:?set LXO_VERSION in .env, see .env.example}
     container_name: benethos-lexware-office-mcp
     ports:
       # bind:host:container. Published on the loopback interface of the host,
@@ -102,7 +102,7 @@ services:
     profiles: ["setup"]
     # The same image as above, serving its other command. Two versions of one
     # image against one volume is not a state anything here expects.
-    image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?set LXO_VERSION in .env, see .env.example}
+    image: ghcr.io/benethos-hub/benethos-lexware-office-mcp:${LXO_VERSION:?set LXO_VERSION in .env, see .env.example}
     container_name: benethos-lexware-office-mcp-setup
     command:
       - setup
