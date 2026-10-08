@@ -1046,7 +1046,7 @@ stdio and stdout belongs to the protocol. This is a separate command, started
 by a person, that stops when they are done. The two share their configuration
 modules and nothing else.
 
-**Loopback by default, and loopback names only.** The pages have no login,
+**Loopback by default, and loopback names only.** The pages have no password,
 which is defensible exactly as long as they cannot be reached from another
 machine, and the start code below closes them to the rest of the machine as
 well. `--host` can bind another address, because a container has to: a
@@ -1208,7 +1208,14 @@ would keep the person out, and it starts the count over. The
 code is 16 random bytes, so the wait is not what protects it: it keeps a
 stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the
-container's log, where the operator reads anyway. The code closes the pages
+container's log, where the operator reads anyway. **The code passes through
+the command line of the browser** that `setup` opens: the address is handed
+over as an argument, so while that process starts, the code is in its
+arguments, which another user of the same machine may be able to list.
+That is the price of a start that signs its own browser in, and it is
+accepted rather than built around: the code is good for this one process,
+and whoever wants none of it starts with `--no-browser` and types the code
+into the page. The code closes the pages
 to other processes and users of the same machine, which the host and origin
 checks above never did. It does not make a bind beyond loopback safe, since
 it travels in the clear over HTTP, and the warning at the start stays. A
