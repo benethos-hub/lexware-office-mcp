@@ -399,7 +399,9 @@ class Handler(BaseHTTPRequestHandler):
         """
         if self.config_server.try_code(self._session, typed.strip()):
             logbook.configui.signed_in()
-            self._redirect(then)
+            # A page's address and nothing else: a browser reads `/\` as
+            # `//`, the start of another host.
+            self._redirect(then if then in PAGES else "/")
             return
         logbook.configui.request_refused("code")
         self._page(

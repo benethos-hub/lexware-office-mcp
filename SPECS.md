@@ -1184,7 +1184,8 @@ with the code to stderr and opens the browser with it. Without a valid code
 every page shows one field, *Code eingeben*, and the static files are the
 one thing served without it, since that page needs them too. After the
 first valid request the session cookie carries the sign-in, and a redirect
-takes the code out of the URL. A code in an address that a browser says
+takes the code out of the URL, to the page the address named or, for any
+other address, to the overview. A code in an address that a browser says
 another page opened, `Sec-Fetch-Site` `cross-site` or `same-site`, is not
 tried, since a GET never meets the `Origin` check and a page elsewhere could
 send codes in a loop. The field is a form like any other, behind

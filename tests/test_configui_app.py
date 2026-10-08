@@ -249,6 +249,23 @@ def test_the_code_in_the_address_signs_in_and_leaves_the_address(
     assert stranger.get("/permissions")[0] == 200
 
 
+@pytest.mark.parametrize("path", ["/\\evil.example/", "/nope"])
+def test_the_code_in_an_address_leads_only_to_a_page(
+    browser: Browser, path: str
+) -> None:
+    """The redirect named the path as it came, and a browser reads ``/\\``
+    as ``//``, the start of another host."""
+    stranger = Browser(browser.base)
+
+    status, _, headers = stranger._open(
+        urllib.request.Request(f"{browser.base}{path}?code={browser.server.code}"),
+        follow=False,
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/"
+
+
 @pytest.mark.parametrize("site", ["cross-site", "same-site"])
 def test_a_code_in_an_address_another_page_opened_is_not_tried(
     browser: Browser, site: str
