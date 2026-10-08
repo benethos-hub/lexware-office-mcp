@@ -24,21 +24,21 @@ from mcp.client.stdio import stdio_client
 def server_parameters(
     tmp_path: Path, policy: Path | None = None
 ) -> StdioServerParameters:
+    # A working directory of its own is not enough: the search also finds
+    # the checkout's own config/.env, which on a developer machine holds a
+    # real key. A file named on the command line replaces the search, so an
+    # empty one keeps this test away from any credential. Listing tools
+    # needs none.
+    empty = tmp_path / "empty.env"
+    empty.write_text("", encoding="utf-8")
     return StdioServerParameters(
         command=sys.executable,
-        args=["-m", "benethos_lexware_office_mcp"],
-        # A directory of its own, so no `.env` beside the caller is read.
+        args=["-m", "benethos_lexware_office_mcp", "--env-file", str(empty)],
         cwd=str(tmp_path),
         env={
             "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
             "PYTHONIOENCODING": "utf-8",
             "LXO_MCP_LOG_LEVEL": "ERROR",
-            # A working directory of its own is not enough: the server also
-            # reads the checkout's own config/.env, which on a developer
-            # machine holds a real key. A real environment variable outranks
-            # every file, so setting it empty keeps this test away from any
-            # credential. Listing tools needs none.
-            "LXO_MCP_API_KEY": "",
             # Same reasoning for the policy. The checkout has a tools.json of
             # its own, holding whatever the developer enabled, and a
             # subprocess resolves it like any other installation would. Naming

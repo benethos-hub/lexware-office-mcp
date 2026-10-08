@@ -903,7 +903,11 @@ arriving.
 - **One `.env` applies, and the environment beats it.** A setting resolves as
   that one file, then the real environment, which has the last word - the
   order Docker and uvicorn use, and what lets a client override one value
-  without rewriting a file. **The files themselves do not combine**, since
+  without rewriting a file. **An empty variable counts as unset**, since
+  2026-10-08: Compose passes `${FOO}` as an empty string when `FOO` is
+  undefined, and that used to replace the file's value with the default
+  while the configuration interface named the file as the source.
+  **The files themselves do not combine**, since
   2026-08-23: they used to merge key by key, so a value could arrive from a
   file nobody had named and no page could sensibly report where it came from.
 

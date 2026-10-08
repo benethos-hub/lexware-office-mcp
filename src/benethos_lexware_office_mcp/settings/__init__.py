@@ -106,12 +106,18 @@ def _env_lookup(
     The environment is a different layer and does merge over the top. A
     container passes its transport settings that way while the key lives in
     the mounted file, so the two have to be readable together.
+
+    **An empty variable is not set.** Compose writes ``${FOO}`` as an empty
+    string when ``FOO`` is undefined, and an empty value winning over the
+    file would put the default in place of what the file says, while the
+    configuration interface - which asks the same question - names the file
+    as the source.
     """
     merged: dict[str, str] = {}
     applies = locations.env_file_in_effect(cwd, env_file)
     if applies is not None:
         merged.update(read_env_file(applies))
-    merged.update(os.environ)
+    merged.update((key, value) for key, value in os.environ.items() if value.strip())
     return merged
 
 

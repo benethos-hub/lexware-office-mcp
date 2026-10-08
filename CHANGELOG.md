@@ -27,6 +27,11 @@ housekeeping are out of scope here — design decisions live in
 - **The log names the 429 behind every rate limit.** The breaker and a
   `Retry-After` too long to wait raised their error without a status, so
   their log line said less than the one for retries running out.
+- **An empty environment variable no longer outranks the `.env`.** A
+  Compose file passing `${LXO_MCP_PAGE_SIZE}` with nothing defined set it to
+  an empty string, which replaced the file's value with the default while
+  `setup` showed the file as the source. An empty variable now counts as
+  not set.
 
 ### Changed
 
