@@ -354,9 +354,8 @@ uvx benethos-lexware-office-mcp setup
 ```
 
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
-or Ctrl+C - one port above
-the HTTP transport's `8770`, so both can run at once. `--port` picks another.
-They write the same files the
+or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
+run at once, and `--port` picks another. They write the same files the
 command line does, so you can use either or both. The screens are in German,
 because Lexware Office is sold for German companies only, and each is named
 below by what it does with its label in brackets.
@@ -377,8 +376,9 @@ whatever you save. The token of the HTTP transport is folded underneath,
 open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
-as buttons and the save button at the top right beside the count. On a fresh installation with no policy file yet, the reading tools
-come pre-ticked as a starting point — a proposal in a form, not a permission:
+as buttons and the save button at the top right beside the count. On a fresh
+installation with no policy file yet, the reading tools come pre-ticked as a
+starting point — a proposal in a form, not a permission:
 there is still no file and therefore still no tool until you press save, and
 the page says so. Each row carries what that tool costs the assistant in
 context, and the total follows your ticks: every enabled tool is sent to the
@@ -425,10 +425,10 @@ server never serves HTTP, and a client such as Claude Desktop starts that
 one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
-and `--tools-file` say which files it edits. `--public-port N` is for a
-container published under another port than the one it binds: the address
-it prints and opens names that one. Unlike everywhere else those files do
-not have to exist yet.
+and `--tools-file` say which files it edits. Unlike everywhere else those
+files do not have to exist yet. `--public-port N` is for a container
+published under another port than the one it binds: the address it prints
+and opens names that one.
 
 **If your client starts the server with `--tools-file`, give `setup` the same
 argument** — otherwise it edits a different file and reports success. Both

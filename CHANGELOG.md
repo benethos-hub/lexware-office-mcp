@@ -223,7 +223,6 @@ findings are fixed. No tool is added or removed.
   legend, the profiles and the policy file follow folded. Each group
   offers the same four choices for itself, beside its heading, where three
   of them used to sit at the far edge of the card.
-
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named
   its own record. It is declared once now.
@@ -240,9 +239,8 @@ findings are fixed. No tool is added or removed.
   "in use". `--port` still picks another.
 - **The documentation and `containers/production/` name the image
   `ghcr.io/benethos-hub/benethos-lexware-office-mcp`**, which 0.4.2
-  introduced. It is the image `ghcr.io/benethos-hub/lexware-office-mcp`
-  carries as well, until 0.5.0. Downloading the production folder again
-  moves an installation over, and its volumes stay.
+  introduced and which alone carries this release. Downloading the
+  production folder again moves an installation over, and its volumes stay.
 - **Every release from 0.2.0 is under the new image name**: 0.2.0 to
   0.4.1 and their minor lines were copied over with the same digest, so a
   pinned tag can move to the new name without pulling different bytes.
