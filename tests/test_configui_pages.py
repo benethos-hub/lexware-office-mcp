@@ -243,6 +243,8 @@ def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
     body = text(pages.overview(inst))
 
     assert "Zeichen, rund" in body and "Token" in body
+    # What the permissions page says: the list goes with every request.
+    assert "Token je Anfrage" in body
 
 
 def test_the_files_in_use_are_named_with_their_state(inst: Installation) -> None:
