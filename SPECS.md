@@ -2274,7 +2274,11 @@ every test in this repository. Section 14.3 says how to look.
   file outlives the process, and nothing about a link is tied to one. The name is sanitized and
   the result checked to be inside the directory, since it arrives from the
   caller. Its content type comes from the extension, which is the name the API
-  itself chose in its `Content-Disposition`.
+  itself chose in its `Content-Disposition`. **That name always carried an
+  extension**, checked 2026-10-08 over every file and every rendered
+  document in the test account (`{id}.pdf`, `{id}.png`,
+  `Rechnung_RE0001.pdf`), so a name without one, which would be delivered as
+  an opaque blob, is a case the API has not produced. Nothing guards it.
 - **The URI is an MCP resource, listed per file.** A path only means
   something while client and server share a filesystem, which the stdio
   transport happens to give and the HTTP transport of section 6 will not. What
