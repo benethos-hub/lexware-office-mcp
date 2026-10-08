@@ -1,8 +1,12 @@
-"""The three screens, each a function from state to bytes.
+"""The three screens, each a function from state to a template and its context.
 
 Rendering is kept apart from serving on purpose: nothing here reads a request,
 writes a file or reaches the network, so every page can be rendered in a test
 by handing it an installation and reading the HTML back.
+
+A page function computes what its template shows and nothing else. The
+template lays it out and decides nothing a function here could pass, and
+:meth:`Page.html` puts it into the frame every page shares.
 
 The reading order is the order of the navigation, and the three are named
 here as the routes name them, not as the screen labels them: **overview**
@@ -16,18 +20,21 @@ downloaded and read back from there.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
+from typing import Any
 
 from ..policy import ToolMeta, grouped_tools, known_tools, preset, writing
 from ..settings import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
-from .assets import FILE_PICKER_SCRIPT, permissions_script
-from .cost import estimate_tokens, tool_costs
+from . import templates
+from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
 from .probe import Account, last_account
 from .profiles import Profile
-from .render import esc, note, page, source_badge
 from .state import (
     API_KEY,
     BEARER_KEY,
+    CLI_SOURCE,
     EDITABLE_KEYS,
+    ENV_SOURCE,
     LABELS,
     SETTING_KEYS,
     Installation,
@@ -35,7 +42,24 @@ from .state import (
     resolved,
 )
 
-__all__ = ["credentials", "overview", "permissions"]
+__all__ = [
+    "NAVIGATION",
+    "Badge",
+    "Message",
+    "Page",
+    "account_facts",
+    "credentials",
+    "error",
+    "overview",
+    "permissions",
+]
+
+# The sidebar, in reading order: (address, label).
+NAVIGATION: tuple[tuple[str, str], ...] = (
+    ("/", "Übersicht"),
+    ("/credentials", "Zugangsdaten"),
+    ("/permissions", "Rechte"),
+)
 
 # A domain is an identifier in the code and a heading on the screen, and the
 # two want different words. An unmapped domain shows its own name rather than
@@ -55,7 +79,7 @@ GROUP_LABELS: dict[str, str] = {
 # Nothing this API creates is festgeschrieben at the moment it is created: a
 # voucher stays editable, and a sales document is a draft unless the call asks
 # for `finalize`. See SPECS.md section 5.
-_PERMANENCE_LABELS: dict[str, tuple[str, str]] = {
+PERMANENCE_LABELS: dict[str, tuple[str, str]] = {
     "app": (
         "nur App",
         "Die API nimmt das nicht zurück. In Lexware Office selbst lässt sich "
@@ -71,43 +95,102 @@ _PERMANENCE_LABELS: dict[str, tuple[str, str]] = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class Message:
+    """The one line at the top of a page that answers the last action.
+
+    ``kind`` is ``ok``, ``err`` or ``warn``, the three state colours.
+    ``account`` and ``facts`` are what a connection test learned, the name
+    in bold after the text and the rest after it.
+    """
+
+    text: str
+    kind: str = "warn"
+    account: str = ""
+    facts: tuple[str, ...] = ()
+
+    @classmethod
+    def found(cls, text: str, account: Account) -> Message:
+        """A connection test that went through, and whose account it opened."""
+        return cls(text, "ok", account.label, tuple(account_facts(account)))
+
+
+@dataclass(frozen=True, slots=True)
+class Badge:
+    """Where a displayed value came from.
+
+    ``detail`` becomes the tooltip, which is where a full path belongs: it
+    answers "which file?" for the one person who asks, without putting a
+    hundred characters of Windows path into every row.
+    """
+
+    source: str
+    detail: str = ""
+
+    @property
+    def loud(self) -> bool:
+        """Marked when the file lost: something outranks what is typed here."""
+        return self.source in (ENV_SOURCE, CLI_SOURCE)
+
+
+@dataclass(frozen=True)
+class Page:
+    """A template, the heading it shows, and what it needs to fill it."""
+
+    template: str
+    title: str
+    here: str = ""
+    context: dict[str, Any] = field(default_factory=dict)
+
+    def html(self, *, csrf: str = "", message: Message | None = None) -> bytes:
+        """The page in its frame, with the session's token and one message."""
+        return templates.render(
+            self.template,
+            title=self.title,
+            here=self.here,
+            navigation=NAVIGATION,
+            account=last_account(),
+            csrf=csrf,
+            message=message,
+            **self.context,
+        )
+
+
+def error(title: str, text: str) -> Page:
+    """A page that is only a reason: not found, refused, unreadable."""
+    return Page("pages/error.html", title, context={"text": text})
+
+
+def account_facts(account: Account) -> list[str]:
+    """What a successful connection test learned, after the company name."""
+    bits: list[str] = []
+    if account.tax_type:
+        bits.append(f"Steuerart: {account.tax_type}")
+    if account.small_business is not None:
+        bits.append(
+            "Kleinunternehmer" if account.small_business else "kein Kleinunternehmer"
+        )
+    return bits
+
+
 # --- small pieces ----------------------------------------------------------
 
 
-def _csrf(token: str) -> str:
-    return f'<input type="hidden" name="_csrf" value="{esc(token)}">'
-
-
-def _de(number: float) -> str:
-    """A number the way it is read here: 50.630 rather than 50,630."""
-    return f"{number:,.0f}".replace(",", ".")
-
-
-def _chip(account: Account | None) -> str:
-    return f"Konto: {account.label}" if account else ""
-
-
-def _tag(meta: ToolMeta) -> str:
-    if meta.access == "read":
-        return '<span class="tag read">lesend</span>'
-    css = "del" if meta.irreversible else "write"
-    return f'<span class="tag {css}">schreibend · {esc(meta.effect)}</span>'
-
-
-def _permanence(meta: ToolMeta) -> str:
-    if meta.permanence not in _PERMANENCE_LABELS:
-        return ""
-    return _permanence_badge(meta.permanence)
+def _badge(inst: Installation, key: str, env: dict[str, str]) -> Badge:
+    return Badge(inst.source_of(key, env), inst.source_detail(key, env))
 
 
 def _cost_note(characters: int) -> str:
-    return f"{_de(characters)} Zeichen, rund {_de(estimate_tokens(characters))} Token"
+    return (
+        f"{templates.de(characters)} Zeichen, rund "
+        f"{templates.de(estimate_tokens(characters))} Token"
+    )
 
 
 # --- overview --------------------------------------------------------------
 
 
-def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
+def overview(inst: Installation) -> Page:
     """What this installation is, which files it reads, and what it may do."""
     # Measured first, and not only because the figure is wanted below:
     # building a server is what *defines* the tools, since `classify` runs as
@@ -117,74 +200,46 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
     values = resolved(inst)
     # The file once, for the whole table, rather than once per row.
     env = inst.file_env()
-    rows = "".join(
-        f"<tr><td>{esc(LABELS[key])}<br>"
-        f"<code>{esc(key)}</code></td>"
-        f"<td>{esc(values[key])}</td>"
-        f"<td>{source_badge(inst.source_of(key, env), inst.source_detail(key, env))}"
-        "</td></tr>"
+    rows = [
+        {
+            "label": LABELS[key],
+            "key": key,
+            "value": values[key],
+            "badge": _badge(inst, key, env),
+        }
         for key in SETTING_KEYS
-    )
+    ]
 
     policy = inst.policy
     flags = policy.as_map()
     on = [name for name, flag in flags.items() if flag]
-    writers = writing(on)
-    spend = sum(costs.get(name, 0) for name in on)
-
+    writers = sorted(writing(on))
     if not policy.exists():
-        permissions_note = note(
-            "Es gibt noch keine Rechtedatei unter "
-            f"<code>{esc(str(policy.path))}</code>, also bietet der Server "
-            "<strong>kein einziges Tool</strong> an. "
-            "Das ist der richtige Zustand, solange niemand entschieden hat — "
-            '<a href="/permissions">unter Rechte</a> wird die Datei angelegt.'
-        )
+        state = "missing"
     elif not on:
-        permissions_note = note(
-            "Die Rechtedatei ist da, schaltet aber <strong>kein einziges "
-            "Tool</strong> frei. Der Assistent sieht damit nichts von diesem "
-            'Konto — <a href="/permissions">unter Rechte</a> auswählen, was '
-            "er dürfen soll."
-        )
+        state = "none"
     elif writers:
-        permissions_note = note(
-            f"<strong>{len(writers)} der {len(on)} aktiven Tools dürfen echte "
-            "Buchhaltungsdaten verändern:</strong> "
-            + ", ".join(f"<code>{esc(name)}</code>" for name in sorted(writers))
-            + "."
-        )
+        state = "writers"
     else:
-        permissions_note = note(
-            f"{len(on)} von {len(flags)} Tools aktiv, alle nur lesend.", "good"
-        )
+        state = "read"
 
-    account = last_account()
-    body = f"""
-{message}
-<h2>Verbindung</h2>
-<form method="post" action="/check">{_csrf(csrf)}
-  <p><button type="submit">Verbindung testen</button>
-  <span class="hint">Ein Aufruf von <code>GET /v1/profile</code>. Nur auf
-  Knopfdruck — diese Seite spricht von sich aus nie mit der API.</span></p>
-</form>
-
-<h2>Rechte</h2>
-<p>{len(on)} von {len(flags)} Tools aktiv. Sie kosten den Assistenten
-   {_cost_note(spend)} in jedem einzelnen Gespräch.</p>
-{permissions_note}
-
-<h2>Einstellungen</h2>
-<p class="hint">Eine echte Umgebungsvariable schlägt jede Datei. Der Wert in
-   der Spalte ist der, der tatsächlich gilt.</p>
-<table><tr><th>Einstellung</th><th>Wert</th><th>Herkunft</th></tr>
-{rows}</table>
-
-<h2>Dateien</h2>
-{_files_table(inst)}
-{_client_arguments(inst)}
-"""
-    return page("Übersicht", body, here="/", chip=_chip(account))
+    return Page(
+        "pages/overview.html",
+        "Übersicht",
+        "/",
+        {
+            "rows": rows,
+            "on": len(on),
+            "total": len(flags),
+            "spend": _cost_note(sum(costs.get(name, 0) for name in on)),
+            "policy_state": state,
+            "policy_path": str(policy.path),
+            "writers": writers,
+            "files": _files(inst),
+            "outranked": _outranked(inst),
+            "args": _client_arguments(inst),
+        },
+    )
 
 
 def _client_arguments(inst: Installation) -> str:
@@ -196,141 +251,68 @@ def _client_arguments(inst: Installation) -> str:
     Without that, a client started with ``--tools-file`` leaves this page
     editing a different file and reporting success.
     """
-    args = json.dumps(
+    return json.dumps(
         ["--env-file", str(inst.env_path), "--tools-file", str(inst.policy_path)],
         ensure_ascii=False,
     )
-    return f"""
-<p class="hint">Diese Oberfläche läuft in einem eigenen Prozess und sieht
-   nicht, mit welchen Argumenten dein Client den MCP-Server startet. Damit er
-   dieselben Dateien benutzt, gehört das in seine Konfiguration:</p>
-<p><code>"args": {esc(args)}</code></p>
-<p class="hint">Oder umgekehrt: <code>setup</code> mit denselben
-   <code>--env-file</code> und <code>--tools-file</code> starten. Beide
-   Prozesse legen ihre Dateien beim Start fest und wechseln sie nicht mehr.</p>
-"""
 
 
-def _files_table(inst: Installation) -> str:
-    policy_path = inst.policy_path
-    rows = [
-        ("Einstellungen (<code>.env</code>)", inst.env_path),
-        ("Rechte", policy_path),
-        ("Profile", inst.profiles.path),
+def _files(inst: Installation) -> list[dict[str, Any]]:
+    """The three files, each with its label, its path and whether it exists."""
+    return [
+        {"label": label, "code": code, "path": str(path), "exists": path.is_file()}
+        for label, code, path in (
+            ("Einstellungen", ".env", inst.env_path),
+            ("Rechte", "", inst.policy_path),
+            ("Profile", "", inst.profiles.path),
+        )
     ]
-    cells = "".join(
-        f"<tr><td>{label}</td><td><code>{esc(str(path))}</code></td>"
-        f"<td>{'vorhanden' if path.is_file() else 'noch nicht angelegt'}</td></tr>"
-        for label, path in rows
-    )
-    table = (
-        f"<table><tr><th>Datei</th><th>Pfad</th><th>Zustand</th></tr>{cells}</table>"
-    )
-    # A `.env` does not combine with the ones below it, so a higher one does
-    # not shade a value here - it replaces the file entirely. Saying so beside
-    # the paths, because saving would otherwise report success and change
-    # nothing about the server.
+
+
+def _outranked(inst: Installation) -> str:
+    """The ``.env`` a server would read instead, or nothing.
+
+    A `.env` does not combine with the ones below it, so a higher one does
+    not shade a value here - it replaces the file entirely. Said beside the
+    paths, because saving would otherwise report success and change nothing
+    about the server.
+    """
     outranked = inst.outranked_by()
-    if outranked is None:
-        return table
-    return (
-        table
-        + f"""
-<p class="hint"><strong>Ein Server ohne <code>--env-file</code> liest eine
-   andere Datei:</strong> <code>{esc(str(outranked))}</code>. Es gilt immer
-   genau eine, die Werte der übrigen kommen nicht dazu. Was hier gespeichert
-   wird, erreicht diesen Server also nur, wenn er mit den Argumenten unten
-   gestartet wird.</p>"""
-    )
+    return "" if outranked is None else str(outranked)
 
 
 # --- credentials -----------------------------------------------------------
 
 
-def credentials(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
+def credentials(inst: Installation) -> Page:
     """Where the key is entered, and the settings that are not secret."""
-    has_key = inst.has_api_key()
     env = inst.file_env()
     values = resolved(inst)
-    source = inst.source_of(API_KEY, env)
-    shadowed = inst.shadowed(API_KEY)
-    bearer_badge = source_badge(
-        inst.source_of(BEARER_KEY, env), inst.source_detail(BEARER_KEY, env)
-    )
-
-    warning = ""
-    if shadowed:
-        warning = note(
-            "Der Schlüssel steht in einer echten Umgebungsvariablen. Die "
-            "schlägt jede Datei, ein hier gespeicherter Wert bliebe also ohne "
-            "Wirkung, solange sie gesetzt ist."
-        )
-
-    fields = "".join(
-        f'<label class="fld">{esc(LABELS[key])} '
-        f"<code>{esc(key)}</code> "
-        f"{source_badge(inst.source_of(key, env), inst.source_detail(key, env))}"
-        "</label>"
-        f'<input type="text" name="{esc(key)}" '
-        f'value="{esc(env.get(key, ""))}" '
-        f'placeholder="{esc(_placeholder(key, values))}">'
+    fields = [
+        {
+            "key": key,
+            "label": LABELS[key],
+            "badge": _badge(inst, key, env),
+            "value": env.get(key, ""),
+            "placeholder": _placeholder(key, values),
+        }
         for key in EDITABLE_KEYS
+    ]
+    return Page(
+        "pages/credentials.html",
+        "Zugangsdaten",
+        "/credentials",
+        {
+            "has_key": inst.has_api_key(),
+            "key_badge": _badge(inst, API_KEY, env),
+            "key_shadowed": inst.shadowed(API_KEY),
+            "env_path": str(inst.env_path),
+            "bearer_key": BEARER_KEY,
+            "bearer": env.get(BEARER_KEY, ""),
+            "bearer_badge": _badge(inst, BEARER_KEY, env),
+            "fields": fields,
+        },
     )
-
-    body = f"""
-{message}
-{warning}
-<p>Der Schlüssel wird nach <code>{esc(str(inst.env_path))}</code> geschrieben.
-   Er wird nie angezeigt, nie protokolliert und geht in keinen Export mit.</p>
-<p>Zustand: <strong>{"hinterlegt" if has_key else "nicht hinterlegt"}</strong>
-   {source_badge(source, inst.source_detail(API_KEY, env)) if has_key else ""}</p>
-
-<form method="post" action="/credentials">{_csrf(csrf)}
-  <label class="fld" for="api_key">API-Schlüssel</label>
-  <input type="password" id="api_key" name="api_key" autocomplete="off"
-         placeholder="{"unverändert lassen" if has_key else "hier einfügen"}">
-  <p class="hint">In Lexware Office unter Erweiterungen, Public API zu
-     erzeugen. Leer lassen ändert nichts.</p>
-  <p><label><input type="checkbox" name="unchecked" value="1">
-     Ohne Prüfung speichern</label>
-     <span class="hint">Sonst wird der Schlüssel erst gegen die API geprüft
-     und nur bei Erfolg geschrieben.</span></p>
-  <p><button type="submit">Schlüssel speichern</button></p>
-</form>
-
-<h2>HTTP-Token</h2>
-<p class="hint">Nur für den HTTP-Transport. Über stdio startet der Client den
-   Server selbst, da kann niemand sonst mit ihm sprechen — über einen Port
-   schon, und dahinter liegt der Zugang zu echten Buchhaltungsdaten. Ohne
-   Token startet der Server den HTTP-Transport nicht.</p>
-<p class="hint">Dieses Token steht im Klartext, anders als der API-Schlüssel:
-   es muss in die Konfiguration des Clients kopiert werden, sonst nützt es
-   niemandem.</p>
-<form method="post" action="/bearer">{_csrf(csrf)}
-  <label class="fld" for="bearer">Token <code>{esc(BEARER_KEY)}</code>
-    {bearer_badge}</label>
-  <input type="text" id="bearer" name="bearer" autocomplete="off"
-         value="{esc(env.get(BEARER_KEY, ""))}"
-         placeholder="noch keins">
-  <p><button type="submit" name="action" value="save">Token speichern</button>
-     <button type="submit" name="action" value="generate">Neu erzeugen</button></p>
-  <p class="hint">Leer wird nicht angenommen. Neu erzeugen schreibt 32
-     zufällige Bytes — ein Client mit dem alten Token kommt danach nicht mehr
-     durch.</p>
-</form>
-
-<h2>Einstellungen</h2>
-<p class="hint">Leer bedeutet: der eingebaute Standard gilt. Der Platzhalter
-   zeigt ihn. <code>LXO_MCP_TOOL_POLICY</code> steht nicht hier — welche
-   Rechtedatei diese Oberfläche bearbeitet, steht beim Start fest und ist auf
-   der Übersicht zu sehen. Ein Wert, den man hier ändern kann, ohne dass sich
-   auf dieser Seite etwas ändert, wäre eine Falle.</p>
-<form method="post" action="/settings">{_csrf(csrf)}
-  {fields}
-  <p><button type="submit">Einstellungen speichern</button></p>
-</form>
-"""
-    return page("Zugangsdaten", body, here="/credentials", chip=_chip(last_account()))
 
 
 def _placeholder(key: str, values: dict[str, str]) -> str:
@@ -351,17 +333,16 @@ def _placeholder(key: str, values: dict[str, str]) -> str:
 def permissions(
     inst: Installation,
     *,
-    csrf: str = "",
-    message: str = "",
     flags: dict[str, bool] | None = None,
     opened: str = "",
-) -> bytes:
+) -> Page:
     """One checkbox per tool, what it costs, and the saved profiles.
 
     ``flags`` overrides what the file says, which is how a loaded profile
     fills the form without anything being written yet. ``opened`` names the
     folded block to show unfolded, so an action's answer arrives beside the
-    controls it is about.
+    controls it is about: a refusal that hid the field it is about would be
+    the worst of both.
 
     With no policy file at all the boxes open on **read-only** rather than on
     nothing. A blank form is a poor starting point for a decision, and this
@@ -380,238 +361,71 @@ def permissions(
     else:
         state = inst.policy.as_map()
 
-    if fresh:
-        # The suggestion is named only where it is what the boxes show. A
-        # loaded profile or an imported file ticks its own tools.
-        suggested = (
-            " Vorgeschlagen und angehakt sind die lesenden Tools."
-            if flags is None
-            else ""
-        )
-        message += note(
-            "Es gibt noch keine Rechtedatei, <strong>aktiv ist also "
-            f"nichts</strong>.{suggested} Erst „Rechte speichern“ legt die "
-            "Datei an."
-        )
-
-    blocks = []
-    for domain, names in grouped_tools().items():
-        rows = []
-        for name in names:
-            info = meta[name]
-            checked = " checked" if state.get(name) else ""
-            rows.append(
-                f'<div class="tool">'
-                f'<input type="checkbox" name="tool" value="{esc(name)}" '
-                f'id="{esc(name)}"{checked}>'
-                f'<label for="{esc(name)}"><code>{esc(name)}</code></label>'
-                f"{_tag(info)}{_permanence(info)}"
-                f'<span class="cost">{_de(costs.get(name, 0))} Z.</span>'
-                f"</div>"
-            )
-        label = GROUP_LABELS.get(domain, domain)
-        blocks.append(
-            f'<div class="grp" data-group="{esc(domain)}">'
-            f"<h3>{esc(label)}"
-            f'<span class="acts">'
-            f'<button type="button" data-act="grp-on">alle an</button> '
-            f'<button type="button" data-act="grp-off">alle aus</button> '
-            f'<button type="button" data-act="grp-read">nur lesend</button>'
-            f"</span></h3>{''.join(rows)}</div>"
-        )
-
-    total = len(meta)
-    read_names = sorted(n for n, m in meta.items() if m.access == "read")
-    keep_names = sorted(n for n, m in meta.items() if m.irreversible)
-    body = f"""
-{message}
-<p>Nur aktivierte Tools sieht der Assistent überhaupt, und nur sie kann er
-   aufrufen. Ein Tool, das die Datei nicht nennt, ist aus. Änderungen wirken
-   sofort, der Client muss die Liste allerdings neu abfragen — Claude Desktop
-   dafür über das Taskleistensymbol beenden und neu starten.</p>
-<p class="hint">Geschrieben wird nach
-   <code>{esc(str(inst.policy_path))}</code>.</p>
-
-<form method="post" action="/permissions" id="permform">{_csrf(csrf)}
-  {_profile_bar(inst, opened == "profiles")}
-  {_policy_transfer(inst, opened == "policy")}
-  {_legend()}
-  <p>
-    <button type="button" data-act="all-on">alles an</button>
-    <button type="button" data-act="all-off">alles aus</button>
-    <button type="button" data-act="all-read">nur lesend</button>
-    <button type="button" data-act="all-reversible">schreibend ohne löschen</button>
-  </p>
-  {"".join(blocks)}
-  <div class="bar">
-    <button type="submit" name="action" value="save">Rechte speichern</button>
-    <span><strong><span id="count">–</span> von {total}</strong> aktiv</span>
-    <span class="hint"><span id="cost">–</span> Zeichen Kontext,
-      rund <span id="tokens">–</span> Token je Anfrage</span>
-  </div>
-</form>
-{permissions_script(costs, read_names, keep_names)}
-"""
-    return page("Rechte", body, here="/permissions", chip=_chip(last_account()))
+    groups = [
+        {
+            "domain": domain,
+            "label": GROUP_LABELS.get(domain, domain),
+            "tools": [_row(name, meta[name], state, costs) for name in names],
+        }
+        for domain, names in grouped_tools().items()
+    ]
+    saved = inst.profiles.all()
+    return Page(
+        "pages/permissions.html",
+        "Rechte",
+        "/permissions",
+        {
+            # The suggestion is named only where it is what the boxes show.
+            # A loaded profile or an imported file ticks its own tools.
+            "fresh": fresh,
+            "suggested": fresh and flags is None,
+            "policy_path": str(inst.policy_path),
+            "policy_exists": not fresh,
+            "groups": groups,
+            "total": len(meta),
+            "per_token": CHARS_PER_TOKEN,
+            "profiles": [
+                {
+                    "name": name,
+                    "count": len(profile.tools),
+                    "saved": _saved_at(profile),
+                }
+                for name, profile in saved.items()
+            ],
+            # What the folded summary still has to say.
+            "profiles_meta": f"— {len(saved)} gespeichert" if saved else "— noch keine",
+            "open_profiles": opened == "profiles",
+            "open_policy": opened == "policy",
+            "permanence": {
+                kind: {"text": text, "title": title}
+                for kind, (text, title) in PERMANENCE_LABELS.items()
+            },
+        },
+    )
 
 
-def _legend() -> str:
-    """What the marks on each row mean, on the page rather than in a tooltip.
-
-    A tooltip is a poor place for the one distinction this page exists to
-    make. The badges are rendered here with the same markup they carry in the
-    list, so the legend cannot drift into describing a different colour.
-    """
-    return f"""
-<div class="grp">
-  <h3>Was die Marken bedeuten</h3>
-  <p class="hint">
-    <span class="tag read">lesend</span> fragt nur ab.
-    <span class="tag write">schreibend · create</span> legt an oder ändert.
-    <span class="tag del">schreibend · delete</span> entfernt einen Datensatz —
-    das kann genau ein Tool, <code>delete_article</code>, und ein Artikel
-    lässt sich danach neu anlegen.
-  </p>
-  <p class="hint">
-    {_permanence_badge("app")} die API nimmt das nicht zurück, Lexware Office
-    selbst löscht es ohne Weiteres. Betrifft nur Kontakte.
-  </p>
-  <p class="hint">
-    {_permanence_badge("books")} geht in die Buchhaltung. <strong>Beim
-    Anlegen ist nichts festgeschrieben</strong> — ein Beleg bleibt änderbar,
-    ein Verkaufsbeleg entsteht als Entwurf, solange die Anfrage nicht
-    <code>finalize</code> setzt. Gelöscht wird in der Web-App, solange nichts
-    ihn bindet: nicht festgeschrieben, keine Zahlung zugeordnet, keine
-    Folgedokumente, nicht exportiert. Erst ab dem Festschreiben bleibt er
-    stehen, § 146 AO, und korrigiert wird mit einer Storno-Buchung.
-  </p>
-</div>
-"""
-
-
-def _permanence_badge(kind: str) -> str:
-    text, title = _PERMANENCE_LABELS[kind]
-    return f'<span class="tag keep" title="{esc(title)}">{esc(text)}</span>'
-
-
-def _open(opened: bool) -> str:
-    """A block starts open when the last action was about it.
-
-    A refusal that hides the control it is about would be the worst of both:
-    the message says the name is taken, and the field to change it is folded
-    away.
-    """
-    return " open" if opened else ""
+def _row(
+    name: str, info: ToolMeta, state: dict[str, bool], costs: dict[str, int]
+) -> dict[str, Any]:
+    """One tool as its row shows it: the box, the marks and the cost."""
+    if info.access == "read":
+        tag = {"text": "lesend", "kind": "accent"}
+    else:
+        tag = {
+            "text": f"schreibend · {info.effect}",
+            "kind": "err" if info.irreversible else "warn",
+        }
+    return {
+        "name": name,
+        "checked": bool(state.get(name)),
+        "read": info.access == "read",
+        "destructive": info.irreversible,
+        "tag": tag,
+        "permanence": info.permanence if info.permanence in PERMANENCE_LABELS else "",
+        "cost": costs.get(name, 0),
+    }
 
 
 def _saved_at(profile: Profile) -> str:
     """The tooltip on a profile: when it was written, if it says."""
     return f"gespeichert: {profile.saved}" if profile.saved else "ohne Zeitstempel"
-
-
-def _profile_bar(inst: Installation, opened: bool = False) -> str:
-    saved = inst.profiles.all()
-    if saved:
-        options = "".join(
-            f'<option value="{esc(name)}" title="{esc(_saved_at(profile))}">'
-            f"{esc(name)} ({len(profile.tools)} Tools)</option>"
-            for name, profile in saved.items()
-        )
-        chooser = (
-            f'<div class="grow"><label class="fld">Gespeichertes Profil</label>'
-            f'<select name="profile">{options}</select></div>'
-            '<button type="submit" name="action" value="load">Laden</button>'
-            '<button type="submit" name="action" value="profile-overwrite">'
-            "Mit aktueller Auswahl überschreiben</button>"
-            '<button type="submit" name="action" value="profile-delete">'
-            "Löschen</button>"
-        )
-    else:
-        chooser = (
-            '<div class="grow"><p class="hint">Noch keine Profile gespeichert. '
-            "Die Auswahl unten benennen und sichern, dann steht sie hier zur "
-            "Auswahl.</p></div>"
-        )
-    return f"""
-<details class="grp"{_open(opened)}>
-  <summary>Profile <span class="count">{_profile_count(saved)}</span></summary>
-  <p class="hint">Ein Profil ist eine benannte Auswahl, keine zweite
-     Rechtedatei. Laden füllt nur die Haken — geschrieben wird erst mit
-     „Rechte speichern". Ein vorhandenes Profil wird oben überschrieben,
-     nicht durch einen zweiten Eintrag mit demselben Namen.</p>
-  <div class="row">
-    {chooser}
-  </div>
-  <div class="row" style="margin-top:.6rem">
-    <div class="grow"><label class="fld">Aktuelle Auswahl als neues Profil</label>
-      <input type="text" name="profile_name" maxlength="60"
-             placeholder="z. B. Steuerberater, nur lesend"></div>
-    <button type="submit" name="action" value="profile-save">Neu anlegen</button>
-  </div>
-</details>
-"""
-
-
-def _profile_count(saved: dict[str, Profile]) -> str:
-    """What the collapsed summary still has to say."""
-    return f"— {len(saved)} gespeichert" if saved else "— noch keine"
-
-
-def _policy_transfer(inst: Installation, opened: bool = False) -> str:
-    """The policy file itself, out and in.
-
-    Folded away behind a summary: it is the rarest thing on this page, and a
-    textarea sitting open would push the tool list off the screen.
-
-    Reading one only fills the boxes. Writing still happens on save, as it
-    does for a loaded profile, which is what keeps one rule for how
-    `tools.json` gets written.
-    """
-    export = (
-        '<p><button type="submit" name="action" value="policy-export">'
-        "Rechtedatei herunterladen</button> "
-        '<span class="hint">Die Rechte, nach denen dieser Server sich '
-        "richtet, als vollständige Datei: jedes Tool mit true oder false, "
-        "was er nicht kennt, weggelassen. Auf einer anderen Installation "
-        "nutzbar, mit oder ohne diese Oberfläche.</span></p>"
-        if inst.policy.exists()
-        else '<p class="hint">Es gibt noch keine Rechtedatei zum Herunterladen. '
-        "Einmal speichern legt sie an.</p>"
-    )
-    return f"""
-<details class="grp"{_open(opened)}>
-  <summary>Rechtedatei: Import und Export</summary>
-  {export}
-  <p><input type="file" id="policyfile" accept="application/json,.json"></p>
-  <textarea name="bundle" rows="5"
-            placeholder="Inhalt einer tools.json"></textarea>
-  <p><button type="submit" name="action" value="policy-import">Rechtedatei
-     einlesen</button>
-  <span class="hint">Setzt nur die Haken. Tools, die die Datei nicht nennt,
-     bleiben aus — wie <code>--tools sync</code> auf der Kommandozeile.
-     Geschrieben wird erst mit „Rechte speichern".</span></p>
-</details>
-{FILE_PICKER_SCRIPT}
-"""
-
-
-def message_box(text: str, kind: str = "") -> str:
-    """A one-line result of the last action, shown at the top of a page."""
-    return note(esc(text), kind)
-
-
-def raw_message(html_text: str, kind: str = "") -> str:
-    """A result that carries its own markup, already escaped by the caller."""
-    return note(html_text, kind)
-
-
-def account_summary(account: Account) -> str:
-    """What a successful connection test learned, as a block of markup."""
-    bits: list[str] = [f"<strong>{esc(account.label)}</strong>"]
-    if account.tax_type:
-        bits.append(f"Steuerart: {esc(account.tax_type)}")
-    if account.small_business is not None:
-        bits.append(
-            "Kleinunternehmer" if account.small_business else "kein Kleinunternehmer"
-        )
-    return " · ".join(bits)

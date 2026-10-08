@@ -1,0 +1,26 @@
+{# One domain of the permissions page: its switches, then a row per tool
+   with its box, its marks and what it costs. Each box carries what the
+   script needs to count and to tick by group: the cost, whether the tool
+   only reads, and whether it removes a record. #}
+{% import "components/ui.html" as ui with context %}
+<section class="card" data-group="{{ group.domain }}">
+  <header>
+    <h2>{{ group.label }}</h2>
+    <span class="right">
+      <button type="button" class="small" data-act="grp-on">alle an</button>
+      <button type="button" class="small" data-act="grp-off">alle aus</button>
+      <button type="button" class="small" data-act="grp-read">nur lesend</button>
+    </span>
+  </header>
+  <div class="body">
+  {% for tool in group.tools %}
+    <div class="tool">
+      <input type="checkbox" name="tool" data-cost="{{ tool.cost }}"{% if tool.read %} data-read{% endif %}{% if tool.destructive %} data-destructive{% endif %} value="{{ tool.name }}" id="{{ tool.name }}"{% if tool.checked %} checked{% endif %}>
+      <label for="{{ tool.name }}"><code>{{ tool.name }}</code></label>
+      {{ ui.tag(tool.tag.text, tool.tag.kind) }}
+      {% if tool.permanence %}{{ ui.tag(permanence[tool.permanence].text, "", permanence[tool.permanence].title) }}{% endif %}
+      <span class="cost">{{ tool.cost | de }} Z.</span>
+    </div>
+  {% endfor %}
+  </div>
+</section>

@@ -36,21 +36,23 @@ from urllib.parse import parse_qs, urlparse
 
 from .. import __version__, logbook
 from ..errors import ConfigError
-from ..settings import DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, LOOPBACK_NAMES
-from . import actions, pages
+from ..settings import LOOPBACK_NAMES
+from . import DEFAULT_HOST, DEFAULT_PORT, actions, pages, templates
 from .actions import Form, Reply, field
-from .render import esc, page
+from .pages import Message, Page
 from .state import Installation
 
 __all__ = ["ConfigServer", "Handler", "serve"]
 
-# Loopback, as the transport binds by default. The port is one above the
-# transport's, as the Compose files publish the two, so a server already
-# listening on its port does not end `setup` with "in use".
-DEFAULT_HOST = DEFAULT_HTTP_HOST
-DEFAULT_PORT = DEFAULT_HTTP_PORT + 1
-
 _SESSION_COOKIE = "lxo_config"
+
+# Files from this origin only: no inline style, no inline script, no inline
+# handler, nothing from elsewhere. The three directives `default-src` does
+# not cover are named, so no other page can frame these, and a form can
+# post nowhere but here.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+)
 
 # The largest form this interface accepts. An imported policy file is the
 # biggest thing any of them carries, and that is a few kilobytes.
@@ -150,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
         # No other page may frame these and trick a click out of someone, no
         # content type is guessed, and no address leaves in a Referer.
         self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
         self._cookie_header()
@@ -162,6 +164,10 @@ class Handler(BaseHTTPRequestHandler):
         self._common_headers(body)
         self.wfile.write(body)
 
+    def _page(self, status: int, page: Page, message: Message | None = None) -> None:
+        """A page in its frame, carrying this session's token."""
+        self._send(status, page.html(csrf=self._session, message=message))
+
     def _download(self, body: bytes, filename: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -170,10 +176,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _not_found(self) -> None:
-        self._send(404, page("Nicht gefunden", "<p>Diese Adresse gibt es nicht.</p>"))
+        self._page(404, pages.error("Nicht gefunden", "Diese Adresse gibt es nicht."))
 
     def _deny(self, reason: str) -> None:
-        self._send(403, page("Abgelehnt", f'<p class="err">{esc(reason)}</p>'))
+        self._page(403, pages.error("Abgelehnt", reason))
 
     def _host_ok(self) -> bool:
         """Whether the browser addressed this page by a loopback name.
@@ -234,14 +240,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _wrong_host(self) -> None:
         logbook.configui.request_refused("host")
-        self._send(
-            403,
-            page(
-                "Abgelehnt",
-                '<p class="err">Diese Seite ist nur als 127.0.0.1 oder '
-                "localhost erreichbar.</p>",
-            ),
-        )
+        self._deny("Diese Seite ist nur als 127.0.0.1 oder localhost erreichbar.")
 
     def do_GET(self) -> None:  # noqa: N802 - the stdlib names it
         if not self._host_ok():
@@ -256,15 +255,26 @@ class Handler(BaseHTTPRequestHandler):
     def _route_get(self, path: str) -> None:
         inst = self.installation
         if path in ("/", "/index.html"):
-            self._send(200, pages.overview(inst, csrf=self._session))
+            self._page(200, pages.overview(inst))
         elif path == "/credentials":
-            self._send(200, pages.credentials(inst, csrf=self._session))
+            self._page(200, pages.credentials(inst))
         elif path == "/permissions":
-            self._send(200, pages.permissions(inst, csrf=self._session))
+            self._page(200, pages.permissions(inst))
         elif path == "/export":
             self._reply(actions.export(inst))
+        elif path.startswith("/static/"):
+            self._static(path.removeprefix("/static/"))
         else:
             self._not_found()
+
+    def _static(self, name: str) -> None:
+        """The stylesheet or the script, and nothing else under that path."""
+        found = templates.static(name)
+        if found is None:
+            self._not_found()
+            return
+        body, content_type = found
+        self._send(200, body, content_type)
 
     def do_POST(self) -> None:  # noqa: N802 - the stdlib names it
         self._session = ""
@@ -280,7 +290,7 @@ class Handler(BaseHTTPRequestHandler):
         if not 0 <= length <= MAX_BODY:
             logbook.configui.request_refused("size")
             self.close_connection = True
-            self._send(413, page("Zu groß", "<p>Diese Anfrage ist zu groß.</p>"))
+            self._page(413, pages.error("Zu groß", "Diese Anfrage ist zu groß."))
             return
         raw = self.rfile.read(length).decode("utf-8", errors="replace")
         # Blank fields kept: an emptied setting is how a person asks for the
@@ -319,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             with self.config_server.acting:
-                reply = action(self.installation, form, self._session)
+                reply = action(self.installation, form)
             self._reply(reply)
         except ConfigError as exc:
             self._unreadable(exc)
@@ -331,13 +341,7 @@ class Handler(BaseHTTPRequestHandler):
         in the wrong encoding ended it with a traceback and the browser got
         an empty answer - on the very interface meant to repair the file.
         """
-        self._send(
-            500,
-            page(
-                "Datei nicht lesbar",
-                f'<p class="err">{esc(str(exc))}</p>',
-            ),
-        )
+        self._page(500, pages.error("Datei nicht lesbar", str(exc)))
 
     def _reply(self, reply: Reply | None) -> None:
         """Send what an action answered: a page, a download, or nothing there."""
@@ -345,8 +349,8 @@ class Handler(BaseHTTPRequestHandler):
             self._not_found()
         elif reply.download is not None:
             self._download(reply.body, reply.download)
-        else:
-            self._send(200, reply.body)
+        elif reply.page is not None:
+            self._page(200, reply.page, reply.message)
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:

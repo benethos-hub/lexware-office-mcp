@@ -22,17 +22,15 @@ from ..settings import Settings, load_settings
 from ..settings.envfile import read_env_file
 from ..settings.locations import env_file_in_effect
 from .profiles import ProfileStore, profile_file
-from .render import (
-    CLI_SOURCE,
-    DEFAULT_SOURCE,
-    ENV_SOURCE,
-    FILE_SOURCE,
-    SEARCH_SOURCE,
-)
 
 __all__ = [
+    "CLI_SOURCE",
+    "DEFAULT_SOURCE",
     "EDITABLE_KEYS",
+    "ENV_SOURCE",
+    "FILE_SOURCE",
     "LABELS",
+    "SEARCH_SOURCE",
     "SETTING_KEYS",
     "Installation",
     "downloads_dir",
@@ -44,6 +42,19 @@ __all__ = [
 API_KEY = "LXO_MCP_API_KEY"
 POLICY_KEY = "LXO_MCP_TOOL_POLICY"
 BEARER_KEY = "LXO_MCP_BEARER_TOKEN"
+
+# Where a setting actually comes from. Showing the file alone would be
+# misleading exactly when it matters most: a real environment variable
+# outranks it, and that is how a client starts this server with its own
+# account. See settings/locations.py for the full precedence.
+ENV_SOURCE = "Umgebung"
+CLI_SOURCE = "Aufruf"
+# Nobody named this file: the search of section 7 found it when the process
+# started, and it has been held since. Not a built-in default, which is the
+# name of a file rather than a path to one.
+SEARCH_SOURCE = "Suche"
+FILE_SOURCE = "Datei"
+DEFAULT_SOURCE = "Default"
 
 
 @dataclass

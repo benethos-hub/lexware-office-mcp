@@ -14,6 +14,8 @@ A new module or subpackage fails the last test until it is given a row in
 from __future__ import annotations
 
 import ast
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -114,6 +116,56 @@ def test_every_layer_has_a_row() -> None:
         path.relative_to(_SOURCE).parts[0].removesuffix(".py") for path in _modules()
     } - {"__init__"}
     assert layers == set(MAY_IMPORT)
+
+
+# A dependency some modules may import and no other: the one module that is
+# its interface to the rest of the package.
+CONFINED: dict[str, str] = {
+    # The configuration interface's templates. The server never renders a
+    # page, so nothing but `setup` has a reason to load it.
+    "jinja2": "configui/templates.py",
+}
+
+
+def _third_party(path: Path) -> set[str]:
+    """The top-level names of what ``path`` imports from outside the package."""
+    found: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ImportFrom) and not node.level and node.module:
+            found.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Import):
+            found |= {alias.name.split(".")[0] for alias in node.names}
+    return found
+
+
+@pytest.mark.parametrize(("dependency", "home"), CONFINED.items())
+def test_a_confined_dependency_is_imported_in_one_module(
+    dependency: str, home: str
+) -> None:
+    importers = [
+        path.relative_to(_SOURCE).as_posix()
+        for path in _modules()
+        if dependency in _third_party(path)
+    ]
+    assert importers == [home]
+
+
+def test_the_server_starts_without_the_template_engine() -> None:
+    """The console script imports `configui` for every start, the server's
+    included, and only `setup` renders a page.
+
+    A subprocess, because this one has imported everything by now.
+    """
+    script = (
+        "import sys\n"
+        "from benethos_lexware_office_mcp import cli, server, settings\n"
+        "server.build_server(settings.Settings())\n"
+        "assert 'jinja2' not in sys.modules, 'jinja2 loaded'\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=120
+    )
+    assert done.returncode == 0, done.stderr
 
 
 def test_the_table_reads_real_imports() -> None:

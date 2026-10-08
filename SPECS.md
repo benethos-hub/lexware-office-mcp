@@ -111,7 +111,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `transport/stdio.py` | The default transport: the client starts the process and owns stdin and stdout. See section 6. | built |
 | `transport/http.py` | The HTTP transport: the bearer guard in front of it, a generated token written into the settings file where that was asked for, and the DNS-rebinding allowlist. Nothing here is reached under stdio. See section 6. | built |
 | `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
-| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `assets` the stylesheet and the two scripts it carries inline, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its two CSRF guards and the routing. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `templates` is the one module importing Jinja2, with the templates under `templates/` and the stylesheet and the script under `static/`, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` each screen as a template and its context, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its two CSRF guards and the routing. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
@@ -140,7 +140,7 @@ below it:
 | `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
 | `server` | `tools`, `policy`, `api`, `files` and the three above |
 | `transport` | `server` and the three above |
-| `configui` | everything but `transport` and `cli`, imported by `cli` alone |
+| `configui` | everything but `transport` and `cli`, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
 | `cli` | everything, imported by nothing but `python -m` |
 
 Two things the table does not follow from, decided 2026-09-30. `errors` is
@@ -1097,13 +1097,14 @@ the key, the HTTP token and every other setting in one form, the permissions
 page put the legend and the profiles before the boxes and the save button
 after twenty-five rows, and a reload after a save repeated the post. The
 rework gives the interface a template engine, a frame, four pages and a
-start code, in four steps. Each step is a branch of its own, green on its
-own, and the table says how far it is.
+start code, in four steps. The first is a branch of its own, the other three
+share one with a commit per step and per page, each green on its own, and
+the table says how far it is.
 
 | Step | What it brings | Status |
 |---|---|---|
 | 1 | This section, and the layout in the working guidelines | built 2026-10-08 |
-| 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | planned |
+| 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | built 2026-10-08 |
 | 3 | The four pages below, one pull request each, with Post/Redirect/Get and a question before every destructive action | planned |
 | 4 | The start code | planned |
 
@@ -1121,8 +1122,8 @@ markup of its own for any of these. `pages/` has one file per page,
 tool group. The server stays the standard library's threading HTTP server: a
 web framework would be a second one in the package, for four forms.
 `pages.py` builds the context of each page and nothing else, `actions.py`
-answers with a template and a context rather than bytes, and `render.py` and
-`assets.py` go. `state.py`, `probe.py`, `profiles.py`, `transfer.py`,
+answers with a template and a context rather than bytes, and the page shell
+and the inline assets of August are gone. `state.py`, `probe.py`, `profiles.py`, `transfer.py`,
 `stamp.py` and `cost.py` do not change. The import table of
 `tests/test_layers.py` allows `jinja2` in that one module alone.
 
@@ -1131,9 +1132,15 @@ script are files under `configui/static/`, served under `/static/`, and
 every response carries `Content-Security-Policy: default-src 'self'`. No
 inline style, no inline script, no inline handler. The script carries the
 file picker of the import, the live counter of the permissions page and the
-question a form asks through `data-confirm`. Until step 2 the stylesheet and
-two scripts are strings sent inline with every page, which was the right
-size for a page opened for minutes and has no answer to a policy.
+question a form asks through `data-confirm`. What the counter needs, the
+cost of each tool and whether it reads or removes, is on the checkbox as a
+`data-` attribute rather than in a script block. Until step 2 the stylesheet
+and two scripts were strings sent inline with every page, which was the
+right size for a page opened for minutes and had no answer to a policy. The
+policy names `base-uri`, `form-action` and `frame-ancestors` beside
+`default-src`, which does not cover them, and the static files are a fixed
+list: a request names one of the two or is answered with a 404, so no path
+a browser sends reaches the filesystem.
 
 **The look.** Colour tokens in a light, bluish palette, dark mode following
 the system setting, and three state colours, green, amber and red, each with

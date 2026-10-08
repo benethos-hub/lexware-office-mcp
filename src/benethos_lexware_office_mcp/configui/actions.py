@@ -1,9 +1,9 @@
 """What each form on the three pages does, as plain functions.
 
-An action takes the installation it edits, the submitted form and the
-session's CSRF token, which every page it renders carries, and answers with a
-:class:`Reply`: a page with a message on it, or a file to download. ``None``
-means there is no such action, which the handler answers as a 404.
+An action takes the installation it edits and the submitted form, and
+answers with a :class:`Reply`: a page with a message on it, or a file to
+download. ``None`` means there is no such action, which the handler answers
+as a 404.
 
 Nothing here knows about HTTP. By the time an action runs, the handler in
 :mod:`.app` has checked the ``Host``, the ``Origin`` and the token, and
@@ -17,7 +17,6 @@ import dataclasses
 import secrets
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from .. import logbook
 from ..errors import ConfigError
@@ -26,8 +25,8 @@ from ..settings import LOG_LEVELS, load_settings
 from ..settings.envfile import update_env_file
 from ..settings.parse import credential
 from . import pages, probe, transfer
+from .pages import Message, Page
 from .profiles import Profile, ProfileError
-from .render import esc, note
 from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
 
 __all__ = [
@@ -55,38 +54,38 @@ LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 @dataclasses.dataclass(frozen=True)
 class Reply:
-    """What an action answers with: a page, or a file under ``download``."""
+    """What an action answers with: a page and its message, or a file.
 
-    body: bytes
+    A file is ``body`` under the name ``download``, and has no page.
+    """
+
+    page: Page | None = None
+    message: Message | None = None
+    body: bytes = b""
     download: str | None = None
 
 
-Action = Callable[[Installation, Form, str], Reply | None]
+Action = Callable[[Installation, Form], Reply | None]
 
 
-def check(inst: Installation, form: Form, csrf: str) -> Reply:
-    account, message = probe.check(inst.settings)
-    if account is None:
-        body = pages.raw_message(esc(message), "bad")
-    else:
-        body = pages.raw_message(
-            f"{esc(message)} {pages.account_summary(account)}", "good"
-        )
-    return Reply(pages.overview(inst, csrf=csrf, message=body))
+def check(inst: Installation, form: Form) -> Reply:
+    account, text = probe.check(inst.settings)
+    message = Message(text, "err") if account is None else Message.found(text, account)
+    return Reply(pages.overview(inst), message)
 
 
-def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
+def save_key(inst: Installation, form: Form) -> Reply:
     key = field(form, "api_key")
     skip_check = bool(form.get("unchecked"))
     if not key:
         return _credentials(
-            inst, csrf, "Kein Schlüssel eingegeben, nichts geändert.", kind=""
+            inst, "Kein Schlüssel eingegeben, nichts geändert.", kind="warn"
         )
 
     try:
         credential(key, name=API_KEY)
     except ConfigError as exc:
-        return _refused_by_server(inst, csrf, exc)
+        return _refused_by_server(inst, exc)
 
     verified: probe.Account | None = None
     if not skip_check:
@@ -94,9 +93,9 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
         verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
-            return _credentials(inst, csrf, f"Nicht gespeichert. {message}")
+            return _credentials(inst, f"Nicht gespeichert. {message}")
 
-    failed = _write_env(inst, csrf, {API_KEY: key})
+    failed = _write_env(inst, {API_KEY: key})
     if failed is not None:
         return failed
     if verified is not None:
@@ -113,11 +112,11 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
         else ""
     )
     return _written(
-        inst, csrf, f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}"
+        inst, f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}"
     )
 
 
-def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
+def save_bearer(inst: Installation, form: Form) -> Reply:
     """Write the HTTP token, or make one. Never write an empty one.
 
     Empty means "leave alone" for the API key, where the field is blank by
@@ -133,17 +132,16 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
         if not token:
             return _credentials(
                 inst,
-                csrf,
                 "Nicht gespeichert: ein leeres Token wäre kein Token. "
                 "Der Server startet den HTTP-Transport dann nicht.",
             )
         try:
             credential(token, name=BEARER_KEY)
         except ConfigError as exc:
-            return _refused_by_server(inst, csrf, exc)
+            return _refused_by_server(inst, exc)
         done = "Token gespeichert."
 
-    failed = _write_env(inst, csrf, {BEARER_KEY: token})
+    failed = _write_env(inst, {BEARER_KEY: token})
     if failed is not None:
         return failed
     logbook.configui.token_saved(
@@ -156,13 +154,12 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
     )
     return _written(
         inst,
-        csrf,
         f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
         f"jeder Client braucht es dann neu.{shadow}",
     )
 
 
-def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
+def save_settings(inst: Installation, form: Form) -> Reply:
     current = inst.file_env()
     # The form sends every field, blank ones included. A blank one clears a
     # value the file holds, and for a key the file does not carry there is
@@ -179,7 +176,6 @@ def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
     if level and level.upper() not in LOG_LEVELS:
         return _credentials(
             inst,
-            csrf,
             f"Nicht gespeichert: {LOG_LEVEL_KEY} kennt nur "
             f"{', '.join(LOG_LEVELS)}, nicht {level}.",
         )
@@ -189,39 +185,39 @@ def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
     try:
         load_settings(env=proposed)
     except ConfigError as exc:
-        return _refused_by_server(inst, csrf, exc)
-    failed = _write_env(inst, csrf, submitted)
+        return _refused_by_server(inst, exc)
+    failed = _write_env(inst, submitted)
     if failed is not None:
         return failed
     logbook.configui.settings_saved(inst.env_path.name, list(submitted))
     return _written(
-        inst, csrf, f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben."
+        inst, f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben."
     )
 
 
-def permissions(inst: Installation, form: Form, csrf: str) -> Reply | None:
+def permissions(inst: Installation, form: Form) -> Reply | None:
     """One form, seven buttons: the button's value says which."""
     chosen = [name for name in form.get("tool", []) if name in known_tools()]
     actions: dict[str, Callable[[], Reply]] = {
-        "save": lambda: _save_policy(inst, csrf, chosen),
-        "load": lambda: _load_profile(inst, csrf, form),
-        "profile-save": lambda: _save_profile(inst, csrf, form, chosen),
-        "profile-overwrite": lambda: _overwrite_profile(inst, csrf, form, chosen),
-        "profile-delete": lambda: _delete_profile(inst, csrf, form),
+        "save": lambda: _save_policy(inst, chosen),
+        "load": lambda: _load_profile(inst, form),
+        "profile-save": lambda: _save_profile(inst, form, chosen),
+        "profile-overwrite": lambda: _overwrite_profile(inst, form, chosen),
+        "profile-delete": lambda: _delete_profile(inst, form),
         "policy-export": lambda: export(inst),
-        "policy-import": lambda: _import_policy(inst, csrf, form, chosen),
+        "policy-import": lambda: _import_policy(inst, form, chosen),
     }
     action = actions.get(field(form, "action"))
     return None if action is None else action()
 
 
-def _save_policy(inst: Installation, csrf: str, chosen: list[str]) -> Reply:
+def _save_policy(inst: Installation, chosen: list[str]) -> Reply:
     """Write the file. The one action here that changes what a server does."""
     flags = _flags(chosen)
     try:
         inst.policy.save(flags)
     except (OSError, ValueError) as exc:
-        return _permissions(inst, csrf, _write_failed(inst.policy_path, exc))
+        return _permissions(inst, _write_failed(inst.policy_path, exc))
     writers = sorted(writing(chosen))
     logbook.configui.policy_saved(inst.policy_path, len(chosen), len(flags), writers)
     text = f"{len(chosen)} von {len(flags)} Tools aktiv."
@@ -231,14 +227,14 @@ def _save_policy(inst: Installation, csrf: str, chosen: list[str]) -> Reply:
             + ", ".join(writers)
             + "."
         )
-    return _permissions(inst, csrf, text, kind="" if writers else "good")
+    return _permissions(inst, text, kind="warn" if writers else "ok")
 
 
-def _load_profile(inst: Installation, csrf: str, form: Form) -> Reply:
+def _load_profile(inst: Installation, form: Form) -> Reply:
     name = field(form, "profile")
     profile = inst.profiles.get(name)
     if profile is None:
-        return _permissions(inst, csrf, f"Kein Profil namens {name}.")
+        return _permissions(inst, f"Kein Profil namens {name}.")
     known = list(known_tools())
     newer = profile.newer_tools(known)
     unknown = profile.unknown(known)
@@ -253,19 +249,10 @@ def _load_profile(inst: Installation, csrf: str, form: Form) -> Reply:
         )
     if unknown:
         text += f" Übergangen, weil es sie nicht mehr gibt: {', '.join(unknown)}."
-    return Reply(
-        pages.permissions(
-            inst,
-            csrf=csrf,
-            message=note(esc(text)),
-            flags=profile.flags(known),
-        )
-    )
+    return Reply(pages.permissions(inst, flags=profile.flags(known)), Message(text))
 
 
-def _save_profile(
-    inst: Installation, csrf: str, form: Form, chosen: list[str]
-) -> Reply:
+def _save_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     """Create a profile under a new name, and only under a new one.
 
     A name that is already taken is refused rather than silently replacing
@@ -279,7 +266,6 @@ def _save_profile(
     if clash is not None:
         return _permissions(
             inst,
-            csrf,
             f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
             "auswählen und überschreiben, oder einen anderen Namen nehmen.",
             chosen=chosen,
@@ -288,11 +274,10 @@ def _save_profile(
     try:
         profile = inst.profiles.save(name, chosen, known_tools())
     except ProfileError as exc:
-        return _permissions(inst, csrf, str(exc), chosen=chosen, opened="profiles")
+        return _permissions(inst, str(exc), chosen=chosen, opened="profiles")
     except OSError as exc:
         return _permissions(
             inst,
-            csrf,
             _write_failed(inst.profiles.path, exc),
             chosen=chosen,
             opened="profiles",
@@ -300,24 +285,20 @@ def _save_profile(
     logbook.configui.profile_saved(profile.name, len(profile.tools), False)
     return _permissions(
         inst,
-        csrf,
         f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
         "Die Rechtedatei selbst ist unverändert.",
-        kind="good",
+        kind="ok",
         chosen=chosen,
         opened="profiles",
     )
 
 
-def _overwrite_profile(
-    inst: Installation, csrf: str, form: Form, chosen: list[str]
-) -> Reply:
+def _overwrite_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     """Replace the selected profile with what is ticked right now."""
     name = field(form, "profile")
     if inst.profiles.get(name) is None:
         return _permissions(
             inst,
-            csrf,
             f"Kein Profil namens {name}.",
             chosen=chosen,
             opened="profiles",
@@ -327,7 +308,6 @@ def _overwrite_profile(
     except OSError as exc:
         return _permissions(
             inst,
-            csrf,
             _write_failed(inst.profiles.path, exc),
             chosen=chosen,
             opened="profiles",
@@ -335,30 +315,28 @@ def _overwrite_profile(
     logbook.configui.profile_saved(profile.name, len(profile.tools), True)
     return _permissions(
         inst,
-        csrf,
         f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
         "Die Rechtedatei selbst ist unverändert.",
-        kind="good",
+        kind="ok",
         chosen=chosen,
         opened="profiles",
     )
 
 
-def _delete_profile(inst: Installation, csrf: str, form: Form) -> Reply:
+def _delete_profile(inst: Installation, form: Form) -> Reply:
     name = field(form, "profile")
     try:
         gone = inst.profiles.delete(name)
     except OSError as exc:
         return _permissions(
-            inst, csrf, _write_failed(inst.profiles.path, exc), opened="profiles"
+            inst, _write_failed(inst.profiles.path, exc), opened="profiles"
         )
     if gone:
         logbook.configui.profile_deleted(name)
     return _permissions(
         inst,
-        csrf,
         f"Profil {name} gelöscht." if gone else f"Kein Profil namens {name}.",
-        kind="good" if gone else "bad",
+        kind="ok" if gone else "err",
         opened="profiles",
     )
 
@@ -374,13 +352,12 @@ def export(inst: Installation) -> Reply:
     what the server makes of it, one flag for every tool it knows.
     """
     return Reply(
-        transfer.dumps(inst.policy.as_map()).encode("utf-8"), download=_EXPORT_NAME
+        body=transfer.dumps(inst.policy.as_map()).encode("utf-8"),
+        download=_EXPORT_NAME,
     )
 
 
-def _import_policy(
-    inst: Installation, csrf: str, form: Form, chosen: list[str]
-) -> Reply:
+def _import_policy(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     """Read a policy file into the form. Saving is still a separate act.
 
     The rule is the one `--tools sync` follows: a tool the file does not name
@@ -393,7 +370,7 @@ def _import_policy(
     try:
         arriving = transfer.parse(text)
     except transfer.TransferError as exc:
-        return _permissions(inst, csrf, str(exc), chosen=chosen, opened="policy")
+        return _permissions(inst, str(exc), chosen=chosen, opened="policy")
 
     known = known_tools()
     # Read as a profile that knew exactly the tools the file names: what is
@@ -422,53 +399,23 @@ def _import_policy(
     if unknown:
         text_out += f" Übergangen, weil es sie hier nicht gibt: {', '.join(unknown)}."
     return Reply(
-        pages.permissions(
-            inst,
-            csrf=csrf,
-            message=note(esc(text_out)),
-            flags=flags,
-            opened="policy",
-        )
+        pages.permissions(inst, flags=flags, opened="policy"), Message(text_out)
     )
 
 
 # --- small helpers ---------------------------------------------------------
 
 
-def _page_with(
-    inst: Installation,
-    csrf: str,
-    render: Callable[..., bytes],
-    text: str,
-    *,
-    kind: str = "",
-    flags: dict[str, bool] | None = None,
-    opened: str = "",
-) -> Reply:
-    """A page with one message box on it, the way most actions answer."""
-    extra: dict[str, Any] = {}
-    if flags is not None:
-        extra["flags"] = flags
-    if opened:
-        extra["opened"] = opened
-    return Reply(
-        render(inst, csrf=csrf, message=pages.message_box(text, kind), **extra)
-    )
-
-
-def _credentials(
-    inst: Installation, csrf: str, text: str, *, kind: str = "bad"
-) -> Reply:
+def _credentials(inst: Installation, text: str, *, kind: str = "err") -> Reply:
     """The credentials page with one message, a refusal unless said otherwise."""
-    return _page_with(inst, csrf, pages.credentials, text, kind=kind)
+    return Reply(pages.credentials(inst), Message(text, kind))
 
 
 def _permissions(
     inst: Installation,
-    csrf: str,
     text: str,
     *,
-    kind: str = "bad",
+    kind: str = "err",
     chosen: list[str] | None = None,
     opened: str = "",
 ) -> Reply:
@@ -477,18 +424,13 @@ def _permissions(
     ``chosen`` keeps the boxes as they were ticked when the form was sent, so
     an answer about a profile does not undo what somebody had just ticked.
     """
-    return _page_with(
-        inst,
-        csrf,
-        pages.permissions,
-        text,
-        kind=kind,
-        flags=None if chosen is None else _flags(chosen),
-        opened=opened,
+    flags = None if chosen is None else _flags(chosen)
+    return Reply(
+        pages.permissions(inst, flags=flags, opened=opened), Message(text, kind)
     )
 
 
-def _refused_by_server(inst: Installation, csrf: str, exc: ConfigError) -> Reply:
+def _refused_by_server(inst: Installation, exc: ConfigError) -> Reply:
     """A value the server would refuse, in the server's own words.
 
     Quoted rather than translated: a German paraphrase here would be a second
@@ -496,24 +438,24 @@ def _refused_by_server(inst: Installation, csrf: str, exc: ConfigError) -> Reply
     the first change.
     """
     return _credentials(
-        inst, csrf, f"Nicht gespeichert, der Server würde das ablehnen: {exc}"
+        inst, f"Nicht gespeichert, der Server würde das ablehnen: {exc}"
     )
 
 
-def _write_env(inst: Installation, csrf: str, updates: dict[str, str]) -> Reply | None:
+def _write_env(inst: Installation, updates: dict[str, str]) -> Reply | None:
     """Write ``updates`` into the ``.env``: ``None``, or the page saying why not."""
     try:
         update_env_file(inst.env_path, updates)
     except (OSError, ValueError) as exc:
-        return _credentials(inst, csrf, _write_failed(inst.env_path, exc))
+        return _credentials(inst, _write_failed(inst.env_path, exc))
     return None
 
 
-def _written(inst: Installation, csrf: str, text: str) -> Reply:
+def _written(inst: Installation, text: str) -> Reply:
     """The answer to a write that happened, with the settings read back."""
     refused = _reloaded(inst)
-    kind = "bad" if refused else "good"
-    return _credentials(inst, csrf, f"{text}{refused}", kind=kind)
+    kind = "err" if refused else "ok"
+    return _credentials(inst, f"{text}{refused}", kind=kind)
 
 
 def _reloaded(inst: Installation) -> str:

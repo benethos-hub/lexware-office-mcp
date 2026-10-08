@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import re
 import subprocess
 import sys
 from html.parser import HTMLParser
@@ -36,8 +36,14 @@ def inst(tmp_path: Path) -> Installation:
     return Installation(settings=settings, env_path=env, cwd=tmp_path)
 
 
-def text(body: bytes) -> str:
-    return body.decode("utf-8")
+def text(page: pages.Page) -> str:
+    """The page as a browser reads it: a line break in a template is a space."""
+    return text_with(page, None)
+
+
+def text_with(page: pages.Page, message: pages.Message | None) -> str:
+    """The page with the message an action left on it."""
+    return re.sub(r"\s+", " ", page.html(message=message).decode("utf-8"))
 
 
 # -- the shell --------------------------------------------------------------
@@ -111,9 +117,9 @@ inst = Installation(
     env_path=tmp / ".env",
     cwd=tmp,
 )
-assert b"get_profile" in pages.permissions(inst)
+assert b"get_profile" in pages.permissions(inst).html()
 # An empty registry renders as "0 von 0 Tools aktiv" rather than raising.
-assert b"von 0 Tools" not in pages.overview(inst)
+assert b"von 0 Tools" not in pages.overview(inst).html()
 """
     done = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, timeout=120
@@ -222,7 +228,7 @@ def test_a_file_that_enables_nothing_is_not_called_read_only(
 def test_a_read_only_installation_is_not_warned_about(inst: Installation) -> None:
     ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
 
-    assert "note good" in text(pages.overview(inst))
+    assert "notice ok" in text(pages.overview(inst))
 
 
 def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
@@ -492,8 +498,8 @@ def test_both_side_blocks_start_folded(inst: Installation) -> None:
     body = text(pages.permissions(inst))
 
     assert body.count("<details") == 2
-    assert '<details class="grp" open>' not in body
-    assert "Profile <span" in body
+    assert " open>" not in body
+    assert "<h2>Profile</h2>" in body
     assert "Rechtedatei: Import und Export" in body
 
 
@@ -581,12 +587,17 @@ def test_the_account_appears_on_every_page_once_it_is_known(
         assert "Konto: Test Inc." in text(render(inst))
 
 
-def test_an_account_summary_reads_as_a_sentence() -> None:
+def test_an_account_summary_reads_as_a_sentence(inst: Installation) -> None:
     account = probe.Account(company="Test Inc.", tax_type="net", small_business=False)
 
-    assert pages.account_summary(account) == (
-        "<strong>Test Inc.</strong> · Steuerart: net · kein Kleinunternehmer"
+    body = text_with(
+        pages.overview(inst), pages.Message.found("Verbindung steht.", account)
     )
+
+    assert (
+        "Verbindung steht. <strong>Test Inc.</strong> · Steuerart: net · "
+        "kein Kleinunternehmer</div>"
+    ) in body
 
 
 def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
@@ -598,16 +609,20 @@ def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
     assert "<script>böse" not in body
 
 
-def test_the_permissions_script_gets_its_data_as_one_json_object(
-    inst: Installation,
-) -> None:
-    """The script is a plain string, so what it needs arrives in front of it."""
-    body = pages.permissions(inst).decode("utf-8")
+def test_each_box_carries_what_the_tally_needs(inst: Installation) -> None:
+    """The policy allows no inline script, so the data is on the boxes."""
+    body = text(pages.permissions(inst))
 
-    start = body.index("var PERMISSIONS = ") + len("var PERMISSIONS = ")
-    data = json.loads(body[start : body.index(";", start)])
-
-    assert set(data) == {"cost", "read", "destructive", "perToken"}
-    assert "get_profile" in data["read"]
-    assert data["cost"]["get_profile"] > 0
-    assert "delete_article" in data["destructive"]
+    reading = re.search(
+        r'<input type="checkbox" name="tool" ([^>]*value="get_profile"[^>]*)>', body
+    )
+    removing = re.search(
+        r'<input type="checkbox" name="tool" ([^>]*value="delete_article"[^>]*)>', body
+    )
+    assert reading and removing
+    cost = re.search(r'data-cost="(\d+)"', reading.group(1))
+    assert cost and int(cost.group(1)) > 0
+    assert " data-read" in reading.group(1)
+    assert " data-destructive" not in reading.group(1)
+    assert " data-destructive" in removing.group(1)
+    assert 'data-per-token="3.5"' in body

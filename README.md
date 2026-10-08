@@ -226,8 +226,8 @@ and nothing outside it is read, links included.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
   its own Python and the `uvx` command every example below uses
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
-  in the MCP SDK, httpx, platformdirs and pypdfium2, the last of these to
-  render PDF pages
+  in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
+  Jinja2 for the pages of `setup`
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 

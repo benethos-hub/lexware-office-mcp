@@ -1,0 +1,33 @@
+{# The frame of every page: the sidebar, the top bar with the heading, the
+   line under it and the page's primary action, the message, the content,
+   and the version. No inline style and no inline script: the content
+   security policy allows files from this origin only. #}
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} — Lexware Office MCP</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<div class="layout">
+{% include "partials/sidebar.html" %}
+<div class="content">
+<header class="topbar">
+  <div>
+    <h1>{{ title }}</h1>
+    {% block subheading %}{% endblock %}
+  </div>
+  <div class="right">{% block actions %}{% endblock %}</div>
+</header>
+<main>
+{% include "partials/message.html" %}
+{% block content %}{% endblock %}
+</main>
+<footer>benethos-lexware-office-mcp {{ VERSION }}</footer>
+</div>
+</div>
+</body>
+</html>

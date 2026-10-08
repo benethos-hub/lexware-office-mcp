@@ -137,7 +137,7 @@ def browser(installation: Installation) -> Iterator[Browser]:
 
 
 def note(body: str) -> str:
-    found = re.search(r'<div class="note[^"]*">(.*?)</div>', body, re.S)
+    found = re.search(r'<div class="notice[^"]*" role="[^"]*">(.*?)</div>', body, re.S)
     return (
         re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", found.group(1))).strip()
         if found

@@ -13,14 +13,14 @@ does not exist. Code, comments and docstrings are English as everywhere else.
 The modules, in the order they depend on each other:
 
 - ``cost`` — what a tool costs in the model's context, measured once
-- ``assets`` — the stylesheet and the two scripts the pages carry inline
-- ``render`` — the page shell and the small pieces of markup
+- ``templates`` — the one module importing Jinja2, the templates and the
+  static files beside it
 - ``stamp`` — when a profile was saved, to a resolution that is not invented
 - ``profiles`` — named sets of permissions
 - ``state`` — which files apply and where each value came from
 - ``probe`` — the one API call this interface makes, on request
 - ``transfer`` — a policy file written out, and read back in
-- ``pages`` — the three screens, pure functions from state to bytes
+- ``pages`` — the three screens, each a template and its context
 - ``actions`` — what each form does, as plain functions without HTTP
 - ``app`` — the HTTP server, the routing, and the two CSRF guards
 """
@@ -29,9 +29,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..settings import Settings
+from ..settings import DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, Settings
 from ..settings.locations import resolve_config_file
-from .app import DEFAULT_HOST, DEFAULT_PORT, serve
 from .state import Installation
 
 __all__ = [
@@ -41,6 +40,12 @@ __all__ = [
     "start",
     "target_env_file",
 ]
+
+# Loopback, as the transport binds by default. The port is one above the
+# transport's, as the Compose files publish the two, so a server already
+# listening on its port does not end `setup` with "in use".
+DEFAULT_HOST = DEFAULT_HTTP_HOST
+DEFAULT_PORT = DEFAULT_HTTP_PORT + 1
 
 
 def target_env_file(named: Path | None = None, cwd: Path | None = None) -> Path:
@@ -64,7 +69,14 @@ def start(
     cwd: Path | None = None,
     tools_file_named: bool = False,
 ) -> None:
-    """Serve the interface until interrupted."""
+    """Serve the interface until interrupted.
+
+    The pages are imported here rather than at the top: the console script
+    imports this package for every start, the server's included, and the
+    server has no reason to load a template engine.
+    """
+    from .app import serve
+
     installation = Installation(
         settings=settings,
         env_path=env_path,

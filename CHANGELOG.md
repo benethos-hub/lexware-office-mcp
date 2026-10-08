@@ -109,6 +109,14 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The pages of `setup` have a frame of their own**: a sidebar, cards, a
+  light palette and a dark one that follows the system setting, every text
+  colour at 4.5:1 or better. The stylesheet and the script are files now,
+  and every answer carries `Content-Security-Policy: default-src 'self'`,
+  so no inline style or script runs on these pages. The texts, the
+  addresses and the forms are the same. Installing pulls in Jinja2 for
+  them, the server never loads it.
+
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named
   its own record. It is declared once now.
