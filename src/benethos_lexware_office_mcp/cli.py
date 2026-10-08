@@ -23,7 +23,7 @@ from typing import cast
 from . import __version__, configui, logbook
 from .errors import ConfigError
 from .files import storage
-from .policy import Preset, ToolPolicy, known_tools, preset
+from .policy import Preset, ToolPolicy, known_tools, preset, writing
 from .server import build_server
 from .settings import LOG_LEVELS, LOOPBACK_NAMES, TRANSPORTS, Settings, load_settings
 from .settings.locations import (
@@ -523,7 +523,7 @@ def _report_what_is_enabled(policy: ToolPolicy) -> None:
         return
     assert policy.path is not None
     enabled = [name for name, on in policy.as_map().items() if on]
-    writers = [name for name in enabled if known_tools()[name].access == "write"]
+    writers = writing(enabled)
     logbook.lifecycle.tools_enabled(
         len(enabled), len(known_tools()), writers, policy.path
     )

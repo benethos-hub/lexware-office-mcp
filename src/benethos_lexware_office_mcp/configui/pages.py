@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 
-from ..policy import ToolMeta, grouped_tools, known_tools, preset
+from ..policy import ToolMeta, grouped_tools, known_tools, preset, writing
 from ..settings import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
 from .assets import FILE_PICKER_SCRIPT, permissions_script
 from .cost import estimate_tokens, tool_costs
@@ -128,9 +128,8 @@ def overview(inst: Installation, *, csrf: str = "", message: str = "") -> bytes:
 
     policy = inst.policy
     flags = policy.as_map()
-    meta = known_tools()
     on = [name for name, flag in flags.items() if flag]
-    writers = [name for name in on if meta[name].access == "write"]
+    writers = writing(on)
     spend = sum(costs.get(name, 0) for name in on)
 
     if not policy.exists():

@@ -21,7 +21,7 @@ from typing import Any
 
 from .. import logbook
 from ..errors import ConfigError
-from ..policy import known_tools
+from ..policy import known_tools, writing
 from ..settings import LOG_LEVELS, load_settings
 from ..settings.envfile import update_env_file
 from ..settings.parse import credential
@@ -222,7 +222,7 @@ def _save_policy(inst: Installation, csrf: str, chosen: list[str]) -> Reply:
         inst.policy.save(flags)
     except (OSError, ValueError) as exc:
         return _permissions(inst, csrf, _write_failed(inst.policy_path, exc))
-    writers = sorted(n for n in chosen if known_tools()[n].access == "write")
+    writers = sorted(writing(chosen))
     logbook.configui.policy_saved(inst.policy_path, len(chosen), len(flags), writers)
     text = f"{len(chosen)} von {len(flags)} Tools aktiv."
     if writers:

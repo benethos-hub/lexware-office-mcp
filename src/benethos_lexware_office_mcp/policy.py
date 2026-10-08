@@ -29,7 +29,7 @@ from __future__ import annotations
 import functools
 import inspect
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
@@ -52,6 +52,7 @@ __all__ = [
     "known_tools",
     "policy_text",
     "preset",
+    "writing",
 ]
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -125,6 +126,20 @@ _REGISTRY: dict[str, ToolMeta] = {}
 def known_tools() -> dict[str, ToolMeta]:
     """Every tool that has been defined, and what it is."""
     return dict(_REGISTRY)
+
+
+def writing(names: Iterable[str]) -> list[str]:
+    """The tools among ``names`` that write, in the order given.
+
+    Asked wherever a set of enabled tools is reported, because the answer
+    that matters to whoever enabled them is which of them can change the
+    books. A name that is no tool is not among them.
+    """
+    return [
+        name
+        for name in names
+        if name in _REGISTRY and _REGISTRY[name].access == "write"
+    ]
 
 
 def grouped_tools() -> dict[str, list[str]]:
