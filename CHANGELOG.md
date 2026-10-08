@@ -15,6 +15,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **`read_download` no longer suggests that null renders every page.** Its
+  description said to pass null if the rest of a PDF matters, and null
+  renders at most 100 pages, as its parameter already said.
 - **`update_voucher` refuses `use_collective_contact=false` without a
   `contact_id` before reading the voucher.** It names no contact, and the
   API refuses a voucher without one, measured, so the call spent a read and

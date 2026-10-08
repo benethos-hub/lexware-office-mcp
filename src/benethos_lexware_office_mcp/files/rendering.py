@@ -68,6 +68,8 @@ def pdf_pages_as_png(
 
     Every page unless ``max_pages`` says otherwise. The total is returned
     either way, so a caller that did limit it can tell what it left behind.
+    ``read_download`` always passes a number, at most ``MAX_PDF_PAGES``, so
+    a call asking for null pages gets that many and not every page.
 
     Raises ``pypdfium2`` errors for a document that cannot be opened, which
     the caller turns into something a person can act on.

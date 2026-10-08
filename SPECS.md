@@ -2256,8 +2256,9 @@ every test in this repository. Section 14.3 says how to look.
     against 48.9 KiB) but an image is charged by its dimensions rather than
     its weight, so the saving is in transfer only, and a red overdue stamp on
     an invoice is information.
-  - **Ten pages by default**, with `max_pages` to raise or lift the limit and
-    `null` for all of them. The page count is the real budget: one page costs
+  - **Ten pages by default**, with `max_pages` to raise the limit and `null`
+    for as many as one call renders, which is 100 - not every page of a
+    longer document. The page count is the real budget: one page costs
     roughly its pixels divided by 750 in tokens whatever it weighs in bytes,
     so ten is already a substantial answer. What matters more than the number
     is that the cut-off is **declared** — it is the schema default the client
