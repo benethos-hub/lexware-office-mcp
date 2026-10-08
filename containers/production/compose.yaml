@@ -27,9 +27,9 @@ name: benethos-lexware-office-mcp
 # the oldest dropped first. Without it the json-file driver keeps everything
 # for as long as the container exists, and a restart - `unless-stopped`, or
 # the server ending on a changed .env - is the same container. The server
-# writes one access line per HTTP request on stdout, refused ones included,
-# and its own log on stderr, so a port that is reachable grows the log
-# whether or not anyone is using it. 50 MB is weeks of ordinary use.
+# writes a line for every request it refuses, and at DEBUG for every one it
+# receives, on stderr beside its own log, so a port that is reachable grows
+# the log whether or not anyone is using it. 50 MB is weeks of ordinary use.
 x-logging: &logging
   driver: json-file
   options:

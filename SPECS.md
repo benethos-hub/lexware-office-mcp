@@ -1381,7 +1381,7 @@ repository:
 { "get_profile": true, "search_vouchers": true, "create_voucher": false }
 ```
 
-It is found by `config.resolve_config_file`, the same search the `.env`
+It is found by `settings.locations.resolve_config_file`, the same search the `.env`
 goes through: the per-user directory, then `config/` of a checkout, then the
 working directory, last one found winning. One order for every configuration
 file there is, because two files searched two ways would be two rules to
@@ -2659,8 +2659,8 @@ order:
    `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, the name on PyPI,
    where it had carried the repository's. The publishing environment is
    named the same way, `pypi-benethos-lexware-office-mcp`, so the badge,
-   the deployment and the package name one thing. From the next release the
-   job pushes under both names, the package's first, so a pull of `:0.4` or
+   the deployment and the package name one thing. From 0.4.2 the job
+   pushes under both names, the package's first, so a pull of `:0.4` or
    `:latest` under the old one keeps getting releases. The old name gets
    the 0.4 patch releases and stops with 0.5.0, which the changelog
    announces. The documentation and the
