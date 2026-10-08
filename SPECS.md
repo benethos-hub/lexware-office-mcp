@@ -95,7 +95,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
 | `settings/` | Settings resolution and credential lookup, see section 7 for the precedence. `Settings` and `load_settings` in the package itself, `locations` for the directories, the search and the one file that applies, `parse` for reading one value, `envfile` for the file itself. | built |
 | `settings/envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
-| `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
+| `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, `_describe` says what of an exception or an id a line may carry, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
 | `records/types.py` | Every enumeration a tool takes and every model its arguments are built from, plus the two models the file tools answer with. The schema a client sees is generated from these, so this is the vocabulary of the whole tool list, in one place. | built |
 | `records/payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
@@ -965,10 +965,10 @@ arriving.
 
 | Env var | Meaning | Default |
 |---|---|---|
-| `LXO_MCP_API_KEY` | Lexware Office API key. Required. | — |
+| `LXO_MCP_API_KEY` | Lexware Office API key. Required. Visible ASCII only, `!` to `~`: a space or an invisible character copied along with it is refused with a `ConfigError`, since it cannot travel in a header. | — |
 | — | `--env-file` names the `.env` rather than searching for one, and nothing else is read: naming a file replaces the search exactly as `--tools-file` does. The real environment still wins over it, the order Docker and uvicorn use, so a client can override one value without editing the file. A path that does not exist ends the process rather than falling back to the search: starting anyway would mean behaving in a way the command line appears to rule out. | search |
-| `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. | `https://api.lexware.io` |
-| `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. | `https://app.lexware.de` |
+| `LXO_MCP_BASE_URL` | API base URL, for tests and sandboxes. `https://` with a host, or the start is refused: the key travels to it. | `https://api.lexware.io` |
+| `LXO_MCP_APP_BASE_URL` | Web app base used to build deeplinks. `https://` with a host, as for the API. | `https://app.lexware.de` |
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
@@ -980,7 +980,7 @@ arriving.
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
 | `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. httpx, httpcore and the SDK stay at `WARNING` whatever it says, because their `INFO` lines carry request URLs and error text. | `INFO` |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse`, see section 6. `--transport` wins. | `stdio` |
-| `LXO_MCP_BEARER_TOKEN` | The shared secret every HTTP request must carry. An HTTP transport refuses to start without one, see section 6. Registered as a secret, so it is redacted like the key. | — |
+| `LXO_MCP_BEARER_TOKEN` | The shared secret every HTTP request must carry. An HTTP transport refuses to start without one, see section 6. Visible ASCII only, as the key. Registered as a secret, so it is redacted like the key. | — |
 | `LXO_MCP_GENERATE_BEARER_TOKEN` | Make a token at startup when none is set, and write it into the settings file. For a deployment with nobody to type one - the image sets it. | off |
 | `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport. Anything but loopback is said on stderr. | `127.0.0.1` |
 | `LXO_MCP_HTTP_PORT` | Port to bind. | `8770` |
@@ -1027,9 +1027,9 @@ policy file and its profiles are read with a byte order mark allowed as
 well, since 2026-10-08: read as plain UTF-8, a `tools.json` saved by a
 Windows editor was broken JSON, and every tool was off.
 
-No secret is ever read from a versioned file. `config/.env` is gitignored and
-The settings sample, which is committed and ships inside the package, holds
-no key.
+No secret is ever read from a versioned file. `config/.env` is gitignored,
+and the settings sample, which is committed and ships inside the package,
+holds no key.
 
 ### 7.1 The configuration interface
 
@@ -1134,7 +1134,7 @@ showing them is honest. Once a file exists the boxes follow it, including a
 file that deliberately enables nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
-around 2,032 characters per tool, sent on every request for the life of the
+around 2,145 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible.
@@ -1229,16 +1229,17 @@ exposed one tool per path.
 2026-08-22 with the annotations below, again on 2026-08-23 after
 `create_voucher` lost a parameter that could not work, and twice on
 2026-09-27, the second time after the documentation review added
-`voucher_number`, three sort properties and `finalize`, and on 2026-09-30
+`voucher_number`, three sort properties and `finalize`, on 2026-09-30
 after the four price fields of a sales line became optional for a text
-line.** Serialized as the compact JSON a `tools/list` answer is,
-twenty-five tools come to **53,315 characters**, around 2,133 each. Roughly
-13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
-than counted with a tokenizer.
+line, and on 2026-10-08 after `document_type` took the voucher list's
+spelling as well.** Serialized as the compact JSON a `tools/list` answer
+is, twenty-five tools come to **53,619 characters**, around 2,145 each.
+Roughly 14,000 to 17,000 tokens, estimated at 3.2 to 3.8 characters per
+token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,290 | 64% |
+| Input schemas | 34,594 | 65% |
 | Tool descriptions, the part under a ceiling | 11,169 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
@@ -1268,10 +1269,12 @@ repeated delete finds nothing left, so neither changes the books twice.
 `open_world_hint` is the one stated only where it differs from the protocol's
 assumption, which is `get_deeplink` and `read_download` - the two tools that
 answer without reaching the API. Stating it on the other twenty-three would
-have cost 483 characters to repeat a default. The three hints above are
-stated either way, including where they match the default: a client that does
-not fill defaults in would otherwise read "this deletes things" as nothing at
-all, and that is not a saving worth 900 characters.
+have cost 483 characters to repeat a default. On a writing tool the three
+hints above are stated either way, including where they match the default: a
+client that does not fill defaults in would otherwise read "this deletes
+things" as nothing at all, and that is not a saving worth 900 characters. A
+reading tool carries `readOnlyHint` alone, since the protocol gives the
+other two a meaning only where that one is false.
 
 These are hints, and the protocol says a client must not make tool-use
 decisions on them from a server it does not trust. Nothing here enforces
@@ -1280,21 +1283,21 @@ consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 34,173
-characters of input schema, 13,516 are prose from `Field(description=...)` and
-the remaining 20,657 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,594
+characters of input schema, 13,682 are prose from `Field(description=...)` and
+the remaining 20,912 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,634 characters on
 sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,293), `create_voucher` (4,288), `update_voucher` (4,145), `create_contact`
+(5,410), `create_voucher` (4,288), `update_voucher` (4,203), `create_contact`
 (4,072), `update_contact` (4,023) and `search_vouchers` (3,770) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,563 characters, a little under half.
+`read-only` installation sends 23,809 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -1316,7 +1319,7 @@ arguments cost three to four times what the simple ones do.
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. Nothing but `organizationId` is dropped, because the API already sends a shorter row in a list than it sends for one record — see section 5, which is also why the tool says to read by id for the lines. Built and verified live 2026-08-21. | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts), `search`, `limit` | `{kind, total, matched?, shown, entries}`. Nothing is dropped from a row: every field of these four decides something, including a `contactRequired` of false. What is trimmed is the number of rows, because two of the lists run into the hundreds and none of them pages, so the whole list arrives whatever the caller wanted. `search` matches every text a row carries except its id, which is one parameter instead of one per field and narrows by name, group, country code or category type alike. `matched` appears only when a search was given, where it would otherwise restate `total`. Built and verified live 2026-08-21. | 1 |
-| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
+| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block, the same delivery as `download_file`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. No deeplink: a download reports where the bytes are, and a link into the web app is `get_deeplink`'s answer to a different question. The two were joined until 2026-08-21, which is how a link to a route that does not exist rode along with a download that worked. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
 | `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts and vouchers, since the permalink shape is the same for them and the extra entries cost nothing. A stored file is **not** a target and a contact ignores `edit`, both because the app answers those with a 404, see section 5. Built 2026-08-20, corrected against the live app 2026-08-21. | 0 |
@@ -1333,7 +1336,7 @@ arguments cost three to four times what the simple ones do.
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and sends only the leading figure whenever the price, the side or the rate changes, so a new rate is never sent beside two prices it contradicts. The API would tolerate that - measured 2026-09-27, a new rate beside both old prices is accepted and the other side recomputed, for `NET` and `GROSS` alike - but a body should not depend on it. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
-| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines - the tool takes no tax type, so a voucher keeps the one it has - and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. That voucher starts `unchecked`, and since 2026-09-27 the docstring also names `update_voucher` and its `finalize` as the way to fill it in and book it. |
@@ -1556,8 +1559,9 @@ already fetched stays until the client asks again, and most ask once.
 | Field | Values |
 |---|---|
 | `access` | `read` or `write` |
-| `domain` | diagnostics, contacts, vouchers, files, and the groups still to be built |
+| `domain` | the group it belongs to, one per module in `tools/`: diagnostics, contacts, articles, vouchers, sales_documents, files, master_data |
 | `effect` | write tools only: `create`, `update`, `delete` |
+| `permanence` | what the API cannot take back of what the tool writes: empty when a call here removes it again, `app` when only the web app deletes it, `books` when it is a bookkeeping record that a Festschreibung can later bind, see section 5 |
 
 `ToolMeta.irreversible` is true for `delete` alone, which in this product is
 not a figure of speech: what is deleted is gone, and what is created mostly
@@ -1602,7 +1606,7 @@ in doubt which account the permissions being granted apply to.
 
 **It shows what each tool costs in context, which nothing else here does.** A
 tool that is on is sent to the model on every single request, description and
-schemas alike, and section 8 measures that at around 2,032 characters per
+schemas alike, and section 8 measures that at around 2,145 characters per
 tool with `create_sales_document` at more than double. The page carries a
 per-row figure and a running total that follows the checkboxes, so a policy
 can be chosen against a budget rather than against a guess. Characters are
@@ -2066,10 +2070,11 @@ where it differs.
 |---|---|---|
 | `lifecycle` (`server`) | `INFO` | `0.4.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
-| `policy` | `INFO` | `The tool list changed, 2 sessions told` |
+| `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
+| | `INFO` | `The tool list changed, 2 sessions told` |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |
-| `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After |
-| | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
+| `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
+| | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name |
@@ -2099,11 +2104,14 @@ its name.
 |---|---|---|
 | 400, 406 | `ValidationError` | the API `errorCode` and `message`, plus the offending field path when the response names one |
 | 401 | `AuthError` | "API key rejected", with a pointer to the add-on page, never the key |
-| 404 | `NotFoundError` | resource type and the ID that was asked for |
-| 409 | `ConflictError` | version mismatch or locked state, naming the current version so the caller can re-read and retry |
-| 429 | `RateLimitError` | after retries are exhausted, with the wait hint |
+| 403 | `AuthError` | the method and path the key may not use, and to check the permissions it was created with |
+| 404 | `NotFoundError` | the path that answered nothing - a 404 does not say which part of it was wrong. A tool that looked a record up itself names the resource and the ID or number instead |
+| 406 naming `version`, 409 | `ConflictError` | a stale version (406) says to read the record again. A 409 says the record's current state refused the request, without naming a version. The one message that names both versions is the local check before an update, which compares the version read with the version passed |
+| 429 | `RateLimitError` | after retries are exhausted, to try again shortly. When the breaker trips it says how long it pauses, and when `Retry-After` asks for longer than a call waits it says that wait |
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
+| — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
+| — (settings) | `ConfigError` | no API key, said with the command that sets one and never with a path. At startup the same class ends the process in one line |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query
@@ -2138,8 +2146,9 @@ what the model sent - a path, a number that did not match - and that is
 exactly what section 11.2 keeps out of a line. So a `ToolError` also carries
 `status` and `code`: the HTTP status the API answered with, and the API's
 own codes for what it refused, which `from_response` sets and the client
-sets for a 5xx or a 429. A line names the class and those two, as in
-`update_voucher refused: ConflictError 406 version: invalid_value`.
+sets for a 5xx or a 429. A line names the class and those two, then what
+the call cost, as in
+`update_voucher refused: ConflictError 406 version: invalid_value, after 1 API call, 230 ms`.
 
 **What a crash sends depends on the SDK version, and the floor stays at
 2.0.0.** A traceback never travels on either, but on 2.0.0 an unanticipated
@@ -2159,9 +2168,12 @@ only `Error executing tool <name>`. So the hierarchy above derives from
 `mcp.server.mcpserver.exceptions.ToolError`, and without that inheritance
 every sentence in the table would be written and none of them delivered.
 
-The `ValueError` raised for an unknown preset or a rate of zero sits on the
-other side of that line deliberately. It is a mistake in how the process was
-configured, not an answer for the model, and withholding its text is right.
+The `ValueError` raised for an unknown preset sits on the other side of
+that line deliberately. It is a mistake in how the process was invoked, not
+an answer for the model, and withholding its text is right. A rate of zero
+used to be the second example and is not any more: the settings refuse it
+with a `ConfigError` before a bucket is built, and the process ends in one
+line.
 
 Measured 2026-09-02 over real stdio against mcp 2.1.1, upgrading from 2.0.0.
 The same denial arrived as:
@@ -2245,8 +2257,9 @@ every test in this repository. Section 14.3 says how to look.
     against 48.9 KiB) but an image is charged by its dimensions rather than
     its weight, so the saving is in transfer only, and a red overdue stamp on
     an invoice is information.
-  - **Ten pages by default**, with `max_pages` to raise or lift the limit and
-    `null` for all of them. The page count is the real budget: one page costs
+  - **Ten pages by default**, with `max_pages` to raise the limit and `null`
+    for as many as one call renders, which is 100 - not every page of a
+    longer document. The page count is the real budget: one page costs
     roughly its pixels divided by 750 in tokens whatever it weighs in bytes,
     so ten is already a substantial answer. What matters more than the number
     is that the cut-off is **declared** — it is the schema default the client

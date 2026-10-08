@@ -167,7 +167,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         What arrives depends on the file: XML as **text**, so an XRechnung can
         be read. PDF as **pictures of its pages**, first {pages} unless
         `max_pages` says otherwise — check `pages` against `pagesShown` and
-        raise it, or pass null, if the rest matters. Images as images.
+        raise it, or pass null for up to {limit}, if the rest matters. Images
+        as images.
         Anything else as an embedded binary.
         """
         if not uri.startswith(resources.SCHEME):
@@ -201,8 +202,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     field = max_pages_field(settings.pdf_pages)
     for fn in (read_download, inspect.unwrap(read_download)):
         fn.__annotations__ = dict(fn.__annotations__) | {"max_pages": field}
-    read_download.__doc__ = (read_download.__doc__ or "").replace(
-        "{pages}", str(settings.pdf_pages)
+    read_download.__doc__ = (
+        (read_download.__doc__ or "")
+        .replace("{pages}", str(settings.pdf_pages))
+        .replace("{limit}", str(MAX_PDF_PAGES))
     )
 
     @classify("write", "files", "create", permanence="books")

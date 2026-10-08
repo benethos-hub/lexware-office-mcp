@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 import struct
 import threading
 import zlib
@@ -14,7 +15,11 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp.files import rendering
 from benethos_lexware_office_mcp.server import build_server
-from benethos_lexware_office_mcp.settings import DEFAULT_PDF_PAGES, Settings
+from benethos_lexware_office_mcp.settings import (
+    DEFAULT_PDF_PAGES,
+    MAX_PDF_PAGES,
+    Settings,
+)
 from helpers import (
     API_KEY,
     FILE_ID,
@@ -454,7 +459,10 @@ async def test_a_configured_default_is_stated_in_the_schema_too() -> None:
     assert "Defaults to 4" in field["description"]
     assert tool.description is not None
     assert "first 4" in tool.description
-    assert str(DEFAULT_PDF_PAGES) not in tool.description, "the built-in default leaked"
+    # As a word: the description names the ceiling, 100, as well.
+    assert not re.search(rf"\b{DEFAULT_PDF_PAGES}\b", tool.description), (
+        "the built-in default leaked"
+    )
 
 
 async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> None:
@@ -467,4 +475,16 @@ async def test_the_caller_still_outranks_the_configuration(tmp_path: Path) -> No
     result = await server.call_tool("read_download", {"uri": uri, "max_pages": None})
 
     assert (result.structured_content or {})["pagesShown"] == 8
+    await provider.aclose()
+
+
+async def test_the_description_says_null_stops_at_the_ceiling(tmp_path: Path) -> None:
+    """It said to pass null if the rest matters, and null renders 100."""
+    server, provider = server_with(recorder(), download_path=tmp_path)
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    description = tools["read_download"].description or ""
+
+    assert f"null for up to {MAX_PDF_PAGES}" in description
+    assert "{limit}" not in description
     await provider.aclose()

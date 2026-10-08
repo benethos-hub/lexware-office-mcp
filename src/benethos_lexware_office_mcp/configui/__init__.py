@@ -12,13 +12,16 @@ does not exist. Code, comments and docstrings are English as everywhere else.
 
 The modules, in the order they depend on each other:
 
-- ``render`` — the page shell, the stylesheet, the small pieces of markup
-- ``state`` — which files apply and where each value came from
 - ``cost`` — what a tool costs in the model's context, measured once
-- ``probe`` — the one API call this interface makes, on request
+- ``assets`` — the stylesheet and the two scripts the pages carry inline
+- ``render`` — the page shell and the small pieces of markup
+- ``stamp`` — when a profile was saved, to a resolution that is not invented
 - ``profiles`` — named sets of permissions
+- ``state`` — which files apply and where each value came from
+- ``probe`` — the one API call this interface makes, on request
 - ``transfer`` — a policy file written out, and read back in
 - ``pages`` — the three screens, pure functions from state to bytes
+- ``actions`` — what each form does, as plain functions without HTTP
 - ``app`` — the HTTP server, the routing, and the two CSRF guards
 """
 

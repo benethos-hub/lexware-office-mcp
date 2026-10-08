@@ -51,6 +51,7 @@ version as the package on PyPI:
 | Event | Tags |
 |---|---|
 | release `v1.2.3` | `1.2.3`, `1.2`, `latest` |
+| pre-release `v1.3.0-rc.1` | `1.3.0-rc.1` only: neither the minor line nor `latest`, which a pull without a tag gets |
 | started by hand from `main` (Actions, Publish, Run workflow) | `edge` |
 
 Built from the repository root:

@@ -76,7 +76,8 @@ src/benethos_lexware_office_mcp/
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),
                   # the catalogue: lifecycle, policy, api, calls, files,
-                  # configui, and tally, which counts a tool call's API calls
+                  # configui, and tally, which counts a tool call's API calls,
+                  # and _describe, what of an error or an id a line may carry
   records/        # the shape of the data between the model and the API
     payloads.py   # tool arguments -> API request bodies
     formatting.py # API JSON -> compact tool output
