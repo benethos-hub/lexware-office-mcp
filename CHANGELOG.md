@@ -53,6 +53,9 @@ housekeeping are out of scope here — design decisions live in
   about "another file" that was the same one, and the client arguments it
   shows carried the relative path, which a client resolves against its own
   working directory.
+- **A host named in `--allowed-hosts` is allowed behind TLS as well.** Its
+  origin was derived as `http://` only, so a browser behind a proxy ending
+  TLS, whose `Origin` is `https://`, was refused by the DNS-rebinding guard.
 
 ### Changed
 

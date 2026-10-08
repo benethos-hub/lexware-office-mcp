@@ -771,8 +771,10 @@ arriving.
   no user to authorize, so an OAuth flow would be machinery for a case that
   does not exist. The SDK's DNS-rebinding `Host`/`Origin` guard sits on top of
   it, with the loopback names always kept and `--allowed-hosts` adding a
-  container or proxy name to them. There is no `--allowed-origins`: an origin
-  is derived from each allowed host, which is the only shape that has come up.
+  container or proxy name to them. There is no `--allowed-origins`: two
+  origins are derived from each allowed host, `http://` and `https://`, which
+  is the only shape that has come up. Until 2026-10-08 only the first, so a
+  browser behind a proxy ending TLS was refused.
 
   Neither guard makes the port safe on a network. They make it survivable on a
   machine shared with other processes, which is what a container published on
