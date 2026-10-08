@@ -35,7 +35,7 @@ from .. import logbook
 from ..errors import ConfigError, register_secret
 from ..settings import Settings
 from ..settings.envfile import update_env_file
-from .watch import watch_for_change
+from .watch import Snapshot, watch_for_change
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from mcp.server.mcpserver import MCPServer
@@ -54,6 +54,11 @@ __all__ = [
 # container host never removes local access.
 LOOPBACK_HOSTS = ("127.0.0.1:*", "localhost:*", "[::1]:*")
 LOOPBACK_ORIGINS = ("http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*")
+
+# How long a shutdown waits for open connections before it closes them. A
+# client's stream does not end because the server would like it to, and
+# without a bound the process waited for as long as the client stayed.
+SHUTDOWN_GRACE_SECONDS = 5
 
 
 def bearer_middleware(app: ASGIApp, token: str) -> ASGIApp:
@@ -195,6 +200,7 @@ def uvicorn_config(app: ASGIApp, settings: Settings) -> Any:
         host=settings.http_host,
         port=settings.http_port,
         log_config=None,
+        timeout_graceful_shutdown=SHUTDOWN_GRACE_SECONDS,
     )
 
 
@@ -203,6 +209,7 @@ def run_http(
     settings: Settings,
     *,
     watch: Path | None = None,
+    since: Snapshot | None = None,
 ) -> None:  # pragma: no cover - a socket and a signal, driven by hand
     """Serve over HTTP until interrupted, or until ``watch`` changes.
 
@@ -210,6 +217,7 @@ def run_http(
     - a container, a service manager - it can be told to end when that file
     changes, so a key saved in the browser takes effect without anyone
     opening a terminal. Nowhere else, since ending would be the whole of it.
+    ``since`` is that file as the settings were read from it.
     """
     import uvicorn
 
@@ -221,7 +229,7 @@ def run_http(
         threading.Thread(
             target=watch_for_change,
             args=(watch, lambda: setattr(running, "should_exit", True)),
-            kwargs={"stop": stop},
+            kwargs={"stop": stop, "since": since},
             name="settings-watch",
             daemon=True,
         ).start()

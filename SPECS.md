@@ -789,23 +789,52 @@ arriving.
 
   The watch compares a **hash of the content**, not a timestamp: the
   configuration interface rewrites the whole file on every save, changed or
-  not. Two further rules were bought with defects. The baseline is taken
-  *after* a generated bearer token has been written, or the process would
-  restart on its own first act. And **only a value that two reads in a row
-  agree on counts as a state at all**, at both ends of the comparison: a save
-  truncates before it writes, so a poll landing inside one reads an empty
-  file, and a watch that started during a save would otherwise hold that
-  emptiness as its baseline and end the process over the file coming back.
-  CI found it, as a rewrite of identical content ending the process for
-  nothing - a race that needs a loaded machine, which a developer's is not.
+  not. Three further rules were bought with defects.
 
-  **Over SSE, an open stream holds the end back (known, not fixed).** The
-  watch asks uvicorn to shut down, and uvicorn waits for every connection to
-  close. Streamable HTTP, the image's transport, ends within seconds with a
-  session's stream open. An SSE client's stream stays open until the client
-  lets go, so the process keeps running on the old settings until then.
-  Measured 2026-09-30 with sse-starlette 3.4.11 and 3.5.0 alike: still
-  running 75 seconds after the change.
+  **The baseline is the file as the settings were read from it**, taken
+  just before they are, since 2026-10-08. Until then the watch took the
+  file as it found it once two polls agreed, two to four seconds into the
+  start, and a save in those seconds became the baseline: measured in a
+  container, a key appended a second after the start never ended the
+  process, which kept running without it. Taken before the read, a change
+  landing in between ends the process once more than needed, which is the
+  cheaper mistake. If the settings caught a save half done, the finished
+  file is a change too, which is right, since that is what the process
+  holds.
+
+  **It is taken again after a generated bearer token has been written**, or
+  the process would restart on its own first act.
+
+  **Only a value that two reads in a row agree on counts as the current
+  state**: a save truncates before it writes, so a poll landing inside one
+  reads an empty file. CI found it, as a rewrite of identical content ending
+  the process for nothing - a race that needs a loaded machine, which a
+  developer's is not.
+
+  **An open stream holds the end back for five seconds at most**, since
+  2026-10-08. The watch asks uvicorn to shut down, and uvicorn waits for
+  every connection to close, for as long as it takes unless it is given a
+  bound. `SHUTDOWN_GRACE_SECONDS` is that bound, after which uvicorn cancels
+  what is still running, says so in an error line and logs the traceback of
+  each request it cancelled. The same bound applies when Ctrl+C or `docker
+  stop` ends the process, and the latter sends SIGKILL after ten seconds.
+
+  Measured 2026-09-30 over SSE: still running 75 seconds after the change,
+  with sse-starlette 3.4.11 and 3.5.0 alike. **Not reproduced on
+  2026-10-08**: sse-starlette closes its streams itself once uvicorn's
+  `should_exit` is set, and over SSE and streamable HTTP alike, a bare
+  stream or an initialized session, on Windows and in the image, with mcp
+  2.2.0 and 2.3.0, the process ended 3.8 to 4.3 seconds after the change.
+  What differed on 2026-09-30 is not known. The bound was measured with
+  that drain switched off, which keeps a stream open the way it was then:
+  without it the process still ran 40 seconds after the change, with it
+  the process ended after 8.8, the poll and the grace period.
+
+  **Every SSE stream that ends this way leaves a traceback** in the log,
+  `RuntimeError: Expected ASGI message 'http.response.body', but got
+  'http.response.start'`, raised by Starlette when the SDK's SSE endpoint
+  answers once more after its stream. It is the SDK's and changes nothing
+  for the client, which reconnects either way.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr through the one
   handler `logbook.configure` installs, uvicorn's included.
