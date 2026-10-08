@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 
-from ..policy import flags_from
+from ..policy import flags_from, policy_text
 
 __all__ = ["TransferError", "dumps", "parse"]
 
@@ -29,15 +29,8 @@ class TransferError(ValueError):
 
 
 def dumps(flags: dict[str, bool]) -> str:
-    """The flags as a policy file, byte for byte what ``ToolPolicy`` writes."""
-    return (
-        json.dumps(
-            {name: bool(flag) for name, flag in sorted(flags.items())},
-            indent=1,
-            ensure_ascii=False,
-        )
-        + "\n"
-    )
+    """The flags as a policy file, written by what ``ToolPolicy`` writes with."""
+    return policy_text(flags)
 
 
 def parse(text: str) -> dict[str, bool]:

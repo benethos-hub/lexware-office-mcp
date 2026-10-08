@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import logbook
+from ..policy import json_text
 from ..settings.envfile import write_atomically
 from .stamp import now
 
@@ -187,12 +188,7 @@ class ProfileStore:
         return data if isinstance(data, dict) else {}
 
     def _write(self, profiles: dict[str, Profile]) -> None:
-        write_atomically(
-            self._path,
-            (
-                json.dumps(_document(profiles), indent=1, ensure_ascii=False) + "\n"
-            ).encode("utf-8"),
-        )
+        write_atomically(self._path, json_text(_document(profiles)).encode("utf-8"))
 
 
 def _document(profiles: dict[str, Profile]) -> dict[str, Any]:
