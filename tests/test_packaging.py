@@ -168,6 +168,44 @@ def test_a_release_tag_ahead_of_the_version_fails(tmp_path: Path) -> None:
     assert "::error::" in done.stdout
 
 
+def test_the_publishing_environment_is_named_for_the_package() -> None:
+    """pypi- and the package's name, the one PyPI's publisher is bound to.
+
+    A renamed environment is refused by PyPI at the next release, not before,
+    so the name in the header the publisher is set up from and the name the
+    job uses have to be the same one.
+    """
+    import tomllib
+
+    project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    environment = f"pypi-{project['project']['name']}"
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert f"\n      name: {environment}\n" in workflow
+    assert f"#     Environment:       {environment}\n" in workflow
+
+
+def test_the_image_is_pushed_under_the_package_name_first() -> None:
+    """The readback inspects the first name, so that has to be the new one.
+
+    The repository's name follows for the transition, until 0.6.0.
+    """
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    block = workflow.split("          images: |\n", 1)[1].split("\n          flavor:")[
+        0
+    ]
+    images = [line.strip() for line in block.splitlines()]
+
+    assert images == [
+        "ghcr.io/${{ github.repository_owner }}/benethos-lexware-office-mcp",
+        "ghcr.io/${{ github.repository }}",
+    ]
+
+
 def test_both_publish_jobs_check_the_tag() -> None:
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"

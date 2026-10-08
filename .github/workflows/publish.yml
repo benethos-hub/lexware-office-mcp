@@ -24,10 +24,12 @@ name: Publish
 #     Owner:             benethos-hub
 #     Repository:        lexware-office-mcp
 #     Workflow filename: publish.yml
-#     Environment:       pypi
+#     Environment:       pypi-benethos-lexware-office-mcp
 #
 # All five have to match or the upload is refused, and the environment below
-# is the one it names.
+# is the one it names: pypi- and the package's name. On GitHub it is under
+# Settings -> Environments. For a project that exists already, the publisher
+# is added the same way, without the project name.
 #
 # The registry needed no setup, measured on 2026-08-22 with the first push:
 # the package came out public and was pulled with no login and no account,
@@ -57,7 +59,7 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     environment:
-      name: pypi
+      name: pypi-benethos-lexware-office-mcp
       url: https://pypi.org/p/benethos-lexware-office-mcp
     permissions:
       id-token: write # Trusted Publishing, in place of a stored token
@@ -147,7 +149,13 @@ jobs:
           # package page ends up saying "No description provided".
           DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest
         with:
-          images: ghcr.io/${{ github.repository }}
+          # The package's name first, which is what the readback below
+          # inspects. The repository's name second, under which the image was
+          # published until 0.4, so a pull of `:0.4` or `:latest` keeps getting
+          # releases. It goes with 0.6.0, announced in the changelog.
+          images: |
+            ghcr.io/${{ github.repository_owner }}/benethos-lexware-office-mcp
+            ghcr.io/${{ github.repository }}
           flavor: latest=false
           # `latest` is what a pull without a tag gets, so a pre-release never
           # becomes it. Its own version tag is still pushed.
