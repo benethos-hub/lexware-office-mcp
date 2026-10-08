@@ -149,14 +149,16 @@ class ProfileStore:
         ``known`` is every tool that exists right now, recorded so that a
         later version can tell "switched off" from "did not exist yet".
         """
-        clean = _valid_name(name)
+        profiles = self.all()
+        # A profile that exists keeps its name, which a file edited by hand
+        # may have made longer than a new one is allowed to be.
+        clean = name.strip() if name.strip() in profiles else _valid_name(name)
         profile = Profile(
             name=clean,
             tools=tuple(sorted(set(tools))),
             saved=now(),
             known=tuple(sorted(set(known))),
         )
-        profiles = self.all()
         profiles[clean] = profile
         self._write(profiles)
         return profile
@@ -215,8 +217,11 @@ def _from_stored(name: str, body: Any) -> Profile | None:
     tools = body.get("tools")
     if not isinstance(tools, list):
         return None
+    # The name as stored, however long. The limit is for a new name typed
+    # here: cut on reading, two long names edited in by hand became one,
+    # and the next write saved whichever came last under the cut name.
     return Profile(
-        name=clean[:MAX_NAME_LENGTH],
+        name=clean,
         tools=tuple(sorted({str(item) for item in tools if isinstance(item, str)})),
         saved=str(body.get("saved") or ""),
         known=tuple(sorted(_names(body.get("known")))),

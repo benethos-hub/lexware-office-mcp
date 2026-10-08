@@ -74,6 +74,9 @@ housekeeping are out of scope here — design decisions live in
 - **The policy download says what it is.** The page called it exactly the
   file the server reads. It is what the server makes of that file, one flag
   for every tool it knows, which differs from a file edited by hand.
+- **A profile name over 60 characters, edited into the file by hand, is
+  kept.** Names were cut to 60 on reading, so two that began alike became
+  one, and the next save in `setup` kept only the last of them.
 
 ### Changed
 
