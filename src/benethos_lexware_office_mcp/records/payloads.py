@@ -428,7 +428,19 @@ SHIPPING_REQUIRED = ("invoice", "order-confirmation", "delivery-note")
 def _line_item_body(
     item: SalesLineItem, tax_type: str, currency: str
 ) -> dict[str, Any]:
-    """One line, with the price on the side the document's tax type names."""
+    """One line, with the price on the side the document's tax type names.
+
+    An ``article_id`` on any line but ``material`` or ``service`` is refused
+    here. Measured 2026-10-08 on a ``custom`` line: the API answers 406,
+    "Only line items of type 'material' or 'service' can contain an ID", so
+    sending it spends the one POST on a refusal.
+    """
+    if item.article_id is not None and item.item_type not in ("material", "service"):
+        raise ValidationError(
+            f"The line {item.name!r} is '{item.item_type}' and carries "
+            "article_id, which only a 'material' or 'service' line can. Make "
+            "it one of those to quote the article, or leave article_id out."
+        )
     if item.item_type == "text":
         body: dict[str, Any] = {"type": "text", "name": item.name}
         _set(body, "description", item.description)

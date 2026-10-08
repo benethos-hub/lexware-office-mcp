@@ -594,6 +594,9 @@ still meets it.
   `service` quote an article by `id`, and `text` carries a name and no price
   at all — verified in one document holding a `service` line quoting a live
   article and a `text` line beside it.
+  **Only those two may carry the `id`**, measured 2026-10-08: a `custom`
+  line with one is refused with 406, "Only line items of type 'material' or
+  'service' can contain an ID", so the payload builder refuses it first.
 - **A down payment invoice cannot be created.** It has no POST, so the tool
   does not offer the type.
 

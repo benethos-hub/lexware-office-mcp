@@ -15,6 +15,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **`create_sales_document` refuses an `article_id` on a `custom` or `text`
+  line before sending anything.** The API refuses it with 406, measured,
+  so the call spent its one POST on a refusal - and a `text` line dropped
+  the id without a word.
 - **`get_voucher` by a number that matches nothing says so plainly**: "No
   voucher with the number RE-1." instead of "No voucher carrying the number
   with ID RE-1.".
