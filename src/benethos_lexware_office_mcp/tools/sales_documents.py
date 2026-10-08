@@ -35,9 +35,11 @@ from ..settings import Settings
 from ._base import (
     DocumentIdField,
     DocumentTypeField,
+    FinalizeConfirm,
     PageNumber,
     PageSize,
     register_tool,
+    require_finalize_confirmed,
 )
 
 __all__ = ["register"]
@@ -201,10 +203,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ] = False,
-        confirm: Annotated[
-            bool,
-            Field(description="Required only for finalize. Ignored otherwise."),
-        ] = False,
+        confirm: FinalizeConfirm = False,
     ) -> dict[str, Any]:
         """Create an invoice, quotation, credit note or one of their relatives.
 
@@ -222,13 +221,13 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
         Totals are added up by the API from the lines.
         """
-        if finalize and not confirm:
-            raise ValidationError(
-                "finalize issues the document and the API cannot take it "
-                "back. Use it only when the user asked to issue the document, "
-                "and pass confirm=true as well. Leaving finalize unset creates "
-                "a draft that can still be changed."
-            )
+        require_finalize_confirmed(
+            finalize,
+            confirm,
+            does="issues the document",
+            asked="issue the document",
+            otherwise="creates a draft that can still be changed",
+        )
         if document_type in SHIPPING_REQUIRED and shipping_date is None:
             raise ValidationError(
                 f"shipping_date is required for a document of type "

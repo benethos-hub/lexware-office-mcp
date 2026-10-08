@@ -13,7 +13,7 @@ from ..records import formatting
 from ..records.payloads import contact_body
 from ..records.types import Address, ContactKind, Role, RoleFilter
 from ..settings import Settings
-from ._base import PageNumber, PageSize, register_tool, require_version
+from ._base import PageNumber, PageSize, VersionField, register_tool, require_version
 
 __all__ = ["register"]
 
@@ -242,17 +242,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     @classify("write", "contacts", "update")
     async def update_contact(
         contact_id: ContactId,
-        version: Annotated[
-            int,
-            Field(
-                description=(
-                    "The `version` from the contact as you last read it. If "
-                    "the record has changed since, the update is refused "
-                    "instead of overwriting that change."
-                ),
-                ge=0,
-            ),
-        ],
+        version: VersionField,
         name: Annotated[
             str | None,
             Field(

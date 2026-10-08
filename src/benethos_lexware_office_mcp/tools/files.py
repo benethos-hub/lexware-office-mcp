@@ -27,7 +27,7 @@ from ..policy import classify
 from ..records import formatting
 from ..records.types import RESOURCES, Delivered, Download, Format
 from ..settings import MAX_PDF_PAGES, Settings
-from ._base import DocumentIdField, DocumentTypeField, register_tool
+from ._base import DocumentIdField, DocumentTypeField, UploadPath, register_tool
 
 __all__ = ["register"]
 
@@ -210,15 +210,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
     @classify("write", "files", "create", permanence="books")
     async def upload_file(
-        path: Annotated[
-            str,
-            Field(
-                description=(
-                    "Path to the file on this machine, for example a scanned "
-                    "receipt. PDFs and images are accepted, at most 5 MiB."
-                )
-            ),
-        ],
+        path: UploadPath,
     ) -> dict[str, Any]:
         """Upload a receipt, which also creates a bookkeeping voucher for it.
 
@@ -250,15 +242,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ],
-        path: Annotated[
-            str,
-            Field(
-                description=(
-                    "Path to the file on this machine, for example a scanned "
-                    "receipt. PDFs and images are accepted, at most 5 MiB."
-                )
-            ),
-        ],
+        path: UploadPath,
     ) -> dict[str, Any]:
         """Attach a file to a voucher that already exists.
 

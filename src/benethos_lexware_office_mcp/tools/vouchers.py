@@ -35,7 +35,15 @@ from ..records.types import (
     VoucherType,
 )
 from ..settings import Settings
-from ._base import PageNumber, PageSize, register_tool, require_version
+from ._base import (
+    FinalizeConfirm,
+    PageNumber,
+    PageSize,
+    VersionField,
+    register_tool,
+    require_finalize_confirmed,
+    require_version,
+)
 
 __all__ = ["register"]
 
@@ -347,17 +355,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     @classify("write", "vouchers", "update")
     async def update_voucher(
         voucher_id: VoucherId,
-        version: Annotated[
-            int,
-            Field(
-                description=(
-                    "The `version` from the voucher as you last read it. If "
-                    "it has changed since, the update is refused instead of "
-                    "overwriting that change."
-                ),
-                ge=0,
-            ),
-        ],
+        version: VersionField,
         voucher_date: Annotated[
             str | None, Field(description="New document date, as YYYY-MM-DD.")
         ] = None,
@@ -407,10 +405,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ] = False,
-        confirm: Annotated[
-            bool,
-            Field(description="Required only for finalize. Ignored otherwise."),
-        ] = False,
+        confirm: FinalizeConfirm = False,
     ) -> dict[str, Any]:
         """Change a bookkeeping voucher that is already recorded.
 
@@ -424,13 +419,13 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         If the voucher changed since that read, nothing is written. One that
         is already paid or booked may be refused whatever the version.
         """
-        if finalize and not confirm:
-            raise ValidationError(
-                "finalize books the voucher and the API cannot take it back. "
-                "Use it only when the user asked to book it, and pass "
-                "confirm=true as well. Leaving finalize unset changes the "
-                "voucher and leaves it unchecked."
-            )
+        require_finalize_confirmed(
+            finalize,
+            confirm,
+            does="books the voucher",
+            asked="book it",
+            otherwise="changes the voucher and leaves it unchecked",
+        )
         if contact_id is not None and use_collective_contact:
             raise ValidationError(
                 "Pass contact_id or use_collective_contact, not both: a voucher "
