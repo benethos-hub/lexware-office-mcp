@@ -448,6 +448,21 @@ def test_a_page_addressed_by_another_name_is_refused(
     assert "127.0.0.1" in body
 
 
+def test_a_refusal_shows_nothing_of_the_interface(browser: Browser) -> None:
+    """A page refused for its name is answered before any sign-in, to a
+    rebinding page among others. The frame of the pages names the account
+    and offers Beenden."""
+    probe.remember(ACCOUNT)
+    request = urllib.request.Request(browser.base + "/credentials")
+    request.add_header("Host", "attacker.example:8771")
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "Test Inc." not in body
+    assert "/shutdown" not in body
+
+
 @pytest.mark.parametrize("host", ["localhost", "127.0.0.1:9999", "[::1]:8771"])
 def test_any_loopback_name_and_port_is_answered(browser: Browser, host: str) -> None:
     """A container publishes under a port of its own choosing."""
