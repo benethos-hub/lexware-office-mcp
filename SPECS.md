@@ -1134,7 +1134,7 @@ showing them is honest. Once a file exists the boxes follow it, including a
 file that deliberately enables nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
-around 2,032 characters per tool, sent on every request for the life of the
+around 2,145 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible.
@@ -1229,16 +1229,17 @@ exposed one tool per path.
 2026-08-22 with the annotations below, again on 2026-08-23 after
 `create_voucher` lost a parameter that could not work, and twice on
 2026-09-27, the second time after the documentation review added
-`voucher_number`, three sort properties and `finalize`, and on 2026-09-30
+`voucher_number`, three sort properties and `finalize`, on 2026-09-30
 after the four price fields of a sales line became optional for a text
-line.** Serialized as the compact JSON a `tools/list` answer is,
-twenty-five tools come to **53,315 characters**, around 2,133 each. Roughly
-13,000 to 15,000 tokens, estimated at 3.2 to 3.8 characters per token rather
-than counted with a tokenizer.
+line, and on 2026-10-08 after `document_type` took the voucher list's
+spelling as well.** Serialized as the compact JSON a `tools/list` answer
+is, twenty-five tools come to **53,619 characters**, around 2,145 each.
+Roughly 14,000 to 17,000 tokens, estimated at 3.2 to 3.8 characters per
+token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,290 | 64% |
+| Input schemas | 34,594 | 65% |
 | Tool descriptions, the part under a ceiling | 11,169 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
@@ -1268,10 +1269,12 @@ repeated delete finds nothing left, so neither changes the books twice.
 `open_world_hint` is the one stated only where it differs from the protocol's
 assumption, which is `get_deeplink` and `read_download` - the two tools that
 answer without reaching the API. Stating it on the other twenty-three would
-have cost 483 characters to repeat a default. The three hints above are
-stated either way, including where they match the default: a client that does
-not fill defaults in would otherwise read "this deletes things" as nothing at
-all, and that is not a saving worth 900 characters.
+have cost 483 characters to repeat a default. On a writing tool the three
+hints above are stated either way, including where they match the default: a
+client that does not fill defaults in would otherwise read "this deletes
+things" as nothing at all, and that is not a saving worth 900 characters. A
+reading tool carries `readOnlyHint` alone, since the protocol gives the
+other two a meaning only where that one is false.
 
 These are hints, and the protocol says a client must not make tool-use
 decisions on them from a server it does not trust. Nothing here enforces
@@ -1280,21 +1283,21 @@ consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 34,173
-characters of input schema, 13,516 are prose from `Field(description=...)` and
-the remaining 20,657 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,594
+characters of input schema, 13,682 are prose from `Field(description=...)` and
+the remaining 20,912 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,634 characters on
 sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,293), `create_voucher` (4,288), `update_voucher` (4,145), `create_contact`
+(5,410), `create_voucher` (4,288), `update_voucher` (4,203), `create_contact`
 (4,072), `update_contact` (4,023) and `search_vouchers` (3,770) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,563 characters, a little under half.
+`read-only` installation sends 23,809 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -1316,7 +1319,7 @@ arguments cost three to four times what the simple ones do.
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. Nothing but `organizationId` is dropped, because the API already sends a shorter row in a list than it sends for one record — see section 5, which is also why the tool says to read by id for the lines. Built and verified live 2026-08-21. | 1 |
 | `get_master_data` | `kind` (countries, payment-conditions, posting-categories, print-layouts), `search`, `limit` | `{kind, total, matched?, shown, entries}`. Nothing is dropped from a row: every field of these four decides something, including a `contactRequired` of false. What is trimmed is the number of rows, because two of the lists run into the hundreds and none of them pages, so the whole list arrives whatever the caller wanted. `search` matches every text a row carries except its id, which is one parameter instead of one per field and narrows by name, group, country code or category type alike. `matched` appears only when a search was given, where it would otherwise restate `total`. Built and verified live 2026-08-21. | 1 |
-| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, mimeType, size}`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
+| `download_document` | `document_type`, `document_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block, the same delivery as `download_file`. Renamed from the planned `get_document_pdf`, which promised a format the tool does not always fetch, and reduced to **one** behaviour and **one** call: it downloads and saves. The planned variant that returned a `documentFileId` without saving was dropped, because the only thing a caller could do with that id is hand it to `download_file` — the same work through a second tool, and the two were measured on 2026-08-21 to return the same bytes. Verified live the same day against a real invoice, in both the rendered and the draft case. | 1 |
 | `download_file` | `file_id`, `file_format` (pdf/xml) | `{path, uri, mimeType, size}` plus a `resource_link` block. No deeplink: a download reports where the bytes are, and a link into the web app is `get_deeplink`'s answer to a different question. The two were joined until 2026-08-21, which is how a link to a route that does not exist rode along with a download that worked. The bytes stay out of the answer and are fetched by the client from `uri` when it wants them, see section 13. An existing file is never replaced. Built and verified live 2026-08-20. | 1 |
 | `read_download` | `uri` | `{uri, mimeType, size, deliveredAs, pages?, pagesShown?}` plus the content itself. The fallback for a client that does not follow resource links: it puts a downloaded file into the answer as text, as an image, as **rendered page images for a PDF**, or as an embedded binary, depending on what the file is. Refuses anything outside `lexware://download/`, so it is not a file reader, and refuses above 5 MiB. Built 2026-08-20 after Claude Desktop turned out not to resolve resource links. | 0 |
 | `get_deeplink` | `target`, `target_id`, `action` (view/edit) | `{url}`. `target` reaches past the sales documents to contacts and vouchers, since the permalink shape is the same for them and the extra entries cost nothing. A stored file is **not** a target and a contact ignores `edit`, both because the app answers those with a 404, see section 5. Built 2026-08-20, corrected against the live app 2026-08-21. | 0 |
@@ -1333,7 +1336,7 @@ arguments cost three to four times what the simple ones do.
 | `create_contact` / `update_contact` | **Built 2026-08-20**, see the read table above for what they cost. |
 | `create_article` / `update_article` | **Built 2026-08-21.** `create_article` takes the four fields the API insists on - title, type, unit and a price with its tax rate - plus a side, `NET` or `GROSS`, saying which figure the price is. The other is computed upstream rather than here: an amount this project derived and sent would be a number nobody checked. `update_article` reads, merges and replaces like `update_contact`, and sends only the leading figure whenever the price, the side or the rate changes, so a new rate is never sent beside two prices it contradicts. The API would tolerate that - measured 2026-09-27, a new rate beside both old prices is accepted and the other side recomputed, for `NET` and `GROSS` alike - but a body should not depend on it. |
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
-| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines or a new tax type, and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
+| `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines - the tool takes no tax type, so a voucher keeps the one it has - and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
 | `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
 | `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. That voucher starts `unchecked`, and since 2026-09-27 the docstring also names `update_voucher` and its `finalize` as the way to fill it in and book it. |
@@ -1602,7 +1605,7 @@ in doubt which account the permissions being granted apply to.
 
 **It shows what each tool costs in context, which nothing else here does.** A
 tool that is on is sent to the model on every single request, description and
-schemas alike, and section 8 measures that at around 2,032 characters per
+schemas alike, and section 8 measures that at around 2,145 characters per
 tool with `create_sales_document` at more than double. The page carries a
 per-row figure and a running total that follows the checkboxes, so a policy
 can be chosen against a budget rather than against a guess. Characters are
