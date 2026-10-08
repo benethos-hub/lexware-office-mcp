@@ -15,6 +15,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The image is published under the package's name as well**:
+  `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, beside
+  `ghcr.io/benethos-hub/lexware-office-mcp`. Both carry the same image.
+  The old name gets every release until 0.6.0 and none after it, so move
+  to the new one at your next update.
+
 - **The Dockerfile moved to `containers/images/lexware-office-mcp/`.** A
   build of your own names it, still from the repository root:
   `docker build -f containers/images/lexware-office-mcp/Dockerfile .`

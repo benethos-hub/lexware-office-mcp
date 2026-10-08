@@ -2625,6 +2625,17 @@ order:
    it generated its own token and refused a request without it. Contrary to
    the documented behaviour, the package did not need a visibility switch - it
    was public from the first push.
+
+   **The image takes the package's name**, decided 2026-10-08:
+   `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, the name on PyPI,
+   where it had carried the repository's. The publishing environment is
+   named the same way, `pypi-benethos-lexware-office-mcp`, so the badge,
+   the deployment and the package name one thing. From the next release the
+   job pushes under both names, the package's first, so a pull of `:0.4` or
+   `:latest` under the old one keeps getting releases. The old name stops
+   with 0.6.0, which the changelog announces. The documentation and the
+   Compose files move to the new name once a release has created the
+   package, since until then nothing can be pulled under it.
 6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after
    a review, reversing the major tags of 2026-08-23:
    `actions/checkout@3d3c42e… # v7.0.1`. A tag is a pointer its publisher

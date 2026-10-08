@@ -187,6 +187,25 @@ def test_the_publishing_environment_is_named_for_the_package() -> None:
     assert f"#     Environment:       {environment}\n" in workflow
 
 
+def test_the_image_is_pushed_under_the_package_name_first() -> None:
+    """The readback inspects the first name, so that has to be the new one.
+
+    The repository's name follows for the transition, until 0.6.0.
+    """
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    block = workflow.split("          images: |\n", 1)[1].split("\n          flavor:")[
+        0
+    ]
+    images = [line.strip() for line in block.splitlines()]
+
+    assert images == [
+        "ghcr.io/${{ github.repository_owner }}/benethos-lexware-office-mcp",
+        "ghcr.io/${{ github.repository }}",
+    ]
+
+
 def test_both_publish_jobs_check_the_tag() -> None:
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"
