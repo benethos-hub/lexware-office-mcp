@@ -31,7 +31,6 @@ __all__ = [
     "FILE_SOURCE",
     "LABELS",
     "SEARCH_SOURCE",
-    "SETTING_KEYS",
     "Installation",
     "defaults",
     "if_emptied",
@@ -39,11 +38,14 @@ __all__ = [
     "resolved",
 ]
 
-# The three settings with a form of their own, named here because the
-# lists below are built by leaving them out.
+# The three settings with a role of their own, which the settings page
+# leaves out: see SHOWN.
 API_KEY = "LXO_MCP_API_KEY"
 POLICY_KEY = "LXO_MCP_TOOL_POLICY"
 BEARER_KEY = "LXO_MCP_BEARER_TOKEN"
+# The one setting the settings page offers as a choice rather than a field,
+# and the one the server does not refuse, so the page refuses it instead.
+LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 # Where a setting actually comes from. Showing the file alone would be
 # misleading exactly when it matters most: a real environment variable
@@ -221,40 +223,33 @@ def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Shown:
-    """One setting as the pages show it.
+    """One setting as the settings page shows it.
 
     The key, the label a person reads beside it, and how a value in effect
     reads - not what a file says, but what the process resolved. A setting
-    added to the server is added here once, and the table, the labels and
-    the placeholders follow. ``show`` is ``None`` for the policy file, which
-    the installation pinned at start rather than the settings naming it.
+    added to the server is added here once, and the page, the labels and
+    the placeholders follow.
     """
 
     key: str
     label: str
-    show: Callable[[Settings], str] | None
+    show: Callable[[Settings], str]
 
 
-def _state(value: object) -> str:
-    """A secret is shown as a state, never as a value.
-
-    The overview is the page somebody screenshots. The credentials page
-    shows the bearer token itself, where it exists to be copied.
-    """
-    return "gesetzt" if value else "nicht gesetzt"
-
-
-# Every setting a person may see, in the order the settings sample introduces
-# them. The key is first because it is the one that has to be there.
+# The settings the settings page offers, in the order the settings sample
+# introduces them. Not the key and the token, which have forms of their own,
+# one because it is never shown back and one because it must never be
+# blank. Not `LXO_MCP_TOOL_POLICY` either: it decides which policy file this
+# interface is editing, and changing that from inside would swap the page's
+# own subject out under it. The command line says which one to work on, and
+# the overview shows which one won.
 SHOWN: tuple[Shown, ...] = (
-    Shown(API_KEY, "API-Schlüssel", lambda s: _state(s.api_key)),
     Shown("LXO_MCP_BASE_URL", "API-Adresse", lambda s: s.base_url),
     Shown(
         "LXO_MCP_APP_BASE_URL",
         "Web-App für Deeplinks",
         lambda s: s.app_base_url,
     ),
-    Shown(POLICY_KEY, "Rechtedatei", None),
     Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda s: downloads_dir(s)),
     Shown(
         "LXO_MCP_KEPT_DOWNLOADS",
@@ -279,45 +274,22 @@ SHOWN: tuple[Shown, ...] = (
         "PDF-Seiten je Ansicht",
         lambda s: str(s.pdf_pages),
     ),
-    Shown("LXO_MCP_LOG_LEVEL", "Protokollstufe", lambda s: s.log_level),
-    Shown(BEARER_KEY, "HTTP-Token", lambda s: _state(s.bearer_token)),
+    Shown(LOG_LEVEL_KEY, "Protokollstufe", lambda s: s.log_level),
 )
 
-SETTING_KEYS: tuple[str, ...] = tuple(shown.key for shown in SHOWN)
 LABELS: dict[str, str] = {shown.key: shown.label for shown in SHOWN}
-
-# Editable on the settings page. `LXO_MCP_TOOL_POLICY` is deliberately not:
-# it decides which policy file this interface is editing, and changing that
-# from inside would swap the page's own subject out under it. The command line
-# says which one to work on, and the overview shows which one won.
-EDITABLE_KEYS: tuple[str, ...] = tuple(
-    key
-    for key in SETTING_KEYS
-    # The key and the token have their own forms, one because it is
-    # never shown back and one because it must never be blank. The
-    # policy file is decided at start, see the overview page.
-    if key not in (API_KEY, POLICY_KEY, BEARER_KEY)
-)
+EDITABLE_KEYS: tuple[str, ...] = tuple(shown.key for shown in SHOWN)
 
 
 def resolved(inst: Installation) -> dict[str, str]:
     """What each setting actually is in this process, not what a file says."""
-    return {
-        shown.key: str(inst.policy_path)
-        if shown.show is None
-        else shown.show(inst.settings)
-        for shown in SHOWN
-    }
+    return {shown.key: shown.show(inst.settings) for shown in SHOWN}
 
 
 def defaults() -> dict[str, str]:
     """What each editable setting is when nothing sets it, read the same way."""
     settings = Settings()
-    return {
-        shown.key: shown.show(settings)
-        for shown in SHOWN
-        if shown.key in EDITABLE_KEYS and shown.show is not None
-    }
+    return {shown.key: shown.show(settings) for shown in SHOWN}
 
 
 def if_emptied(inst: Installation) -> dict[str, str]:
@@ -339,8 +311,6 @@ def if_emptied(inst: Installation) -> dict[str, str]:
     fallback = defaults()
     found: dict[str, str] = {}
     for shown in SHOWN:
-        if shown.key not in fallback or shown.show is None:
-            continue
         try:
             emptied = load_settings(env={**current, shown.key: ""})
         except ConfigError:

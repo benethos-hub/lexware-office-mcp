@@ -85,7 +85,7 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
 {% endcall %}
 
 {% call ui.fold("Rechtedatei: Import und Export", open=open_policy) %}
-  {% if policy_exists %}
+  {% if not fresh %}
   <p><button type="submit" name="action" value="policy-export">Rechtedatei herunterladen</button>
   <span class="hint">Die Rechte, nach denen dieser Server sich richtet, als
      vollständige Datei: jedes Tool mit true oder false, was er nicht kennt,

@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp import server as _server  # noqa: F401
+from benethos_lexware_office_mcp.configui import probe
 from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER
 from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
@@ -54,6 +55,16 @@ async def providers_closed() -> AsyncIterator[None]:
     yield
     while OPEN_PROVIDERS:
         await OPEN_PROVIDERS.pop().aclose()
+
+
+@pytest.fixture(autouse=True)
+def no_account_from_another_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The account the last connection test found is held by the process.
+
+    Every page of the configuration interface names it, so one test's check
+    would otherwise be on the next test's pages.
+    """
+    monkeypatch.setattr(probe, "_last", None)
 
 
 @pytest.fixture

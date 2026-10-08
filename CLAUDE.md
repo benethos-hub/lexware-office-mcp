@@ -109,7 +109,8 @@ src/benethos_lexware_office_mcp/
                   # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, deeplinks, master_data
 tests/            # offline, httpx MockTransport - the whole of the gate
-  helpers.py      # the client, provider, server and scripted transport every suite builds
+  helpers.py      # the client, provider, server and scripted transport every suite builds,
+                  # and the served configuration interface with a browser for it
 live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff

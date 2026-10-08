@@ -7,46 +7,19 @@ the palette's contrast in both modes, and the rules the templates keep.
 
 from __future__ import annotations
 
-import http.cookiejar
 import re
-import threading
-import urllib.error
-import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
 
 import jinja2
 import pytest
 
-from benethos_lexware_office_mcp.configui import pages, probe, templates
-from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
+from benethos_lexware_office_mcp.configui import pages, templates
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.settings import Settings
+from helpers import Browser, serving, signed_in
 
 PAGES = ("/", "/credentials", "/permissions", "/settings")
-
-
-class Site:
-    """A browser signed in with the start code, as the address of the start
-    signs one in."""
-
-    def __init__(self, base: str, code: str) -> None:
-        self.base = base
-        self.opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-        )
-        self.get(f"/?code={code}")
-
-    def get(self, path: str) -> tuple[int, str, dict[str, str]]:
-        try:
-            with self.opener.open(self.base + path) as response:
-                return (
-                    response.status,
-                    response.read().decode("utf-8"),
-                    dict(response.headers),
-                )
-        except urllib.error.HTTPError as exc:
-            return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
 
 
 @pytest.fixture
@@ -54,26 +27,16 @@ def site(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     no_configuration_from_this_machine: None,
-) -> Iterator[Site]:
-    monkeypatch.setattr(probe, "_last", None)
+) -> Iterator[Browser]:
     env = tmp_path / ".env"
     env.write_text("", encoding="utf-8")
-    server = ConfigServer(("127.0.0.1", 0), Handler)
-    server.installation = Installation(
+    installation = Installation(
         settings=Settings(tool_policy_path=tmp_path / "tools.json"),
         env_path=env,
         cwd=tmp_path,
     )
-    thread = threading.Thread(
-        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
-    )
-    thread.start()
-    try:
-        yield Site(f"http://127.0.0.1:{server.server_address[1]}", server.code)
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+    with serving(installation) as server:
+        yield signed_in(server)
 
 
 # -- static files and the policy --------------------------------------------
@@ -82,7 +45,7 @@ def site(
 @pytest.mark.parametrize(
     ("name", "kind"), [("app.css", "text/css"), ("app.js", "text/javascript")]
 )
-def test_the_static_files_are_served(site: Site, name: str, kind: str) -> None:
+def test_the_static_files_are_served(site: Browser, name: str, kind: str) -> None:
     status, body, headers = site.get(f"/static/{name}")
 
     assert status == 200
@@ -100,13 +63,13 @@ def test_the_static_files_are_served(site: Site, name: str, kind: str) -> None:
         "/static/app.css/x",
     ],
 )
-def test_nothing_else_is_served_from_there(site: Site, path: str) -> None:
+def test_nothing_else_is_served_from_there(site: Browser, path: str) -> None:
     """A fixed list, so no path a browser sends reaches the filesystem."""
     assert site.get(path)[0] == 404
 
 
 @pytest.mark.parametrize("path", [*PAGES, "/static/app.css", "/nope"])
-def test_every_response_carries_the_policy(site: Site, path: str) -> None:
+def test_every_response_carries_the_policy(site: Browser, path: str) -> None:
     policy = site.get(path)[2]["Content-Security-Policy"]
 
     assert "default-src 'self'" in policy
@@ -115,7 +78,7 @@ def test_every_response_carries_the_policy(site: Site, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_no_page_has_inline_script_or_style(site: Site, path: str) -> None:
+def test_no_page_has_inline_script_or_style(site: Browser, path: str) -> None:
     """The policy would block them, so one would be a page that breaks."""
     body = site.get(path)[1]
 
@@ -126,7 +89,7 @@ def test_no_page_has_inline_script_or_style(site: Site, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_a_page_names_its_static_files(site: Site, path: str) -> None:
+def test_a_page_names_its_static_files(site: Browser, path: str) -> None:
     body = site.get(path)[1]
 
     assert '<link rel="stylesheet" href="/static/app.css">' in body
@@ -137,20 +100,20 @@ def test_a_page_names_its_static_files(site: Site, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_the_sidebar_marks_the_page_it_is_on(site: Site, path: str) -> None:
+def test_the_sidebar_marks_the_page_it_is_on(site: Browser, path: str) -> None:
     body = site.get(path)[1]
 
     assert f'<a href="{path}" class="active" aria-current="page">' in body
     assert body.count('aria-current="page"') == 1
 
 
-def test_the_footer_names_the_version(site: Site) -> None:
+def test_the_footer_names_the_version(site: Browser) -> None:
     from benethos_lexware_office_mcp import __version__
 
     assert f"benethos-lexware-office-mcp {__version__}</footer>" in site.get("/")[1]
 
 
-def test_an_unknown_address_is_a_page_without_the_navigation(site: Site) -> None:
+def test_an_unknown_address_is_a_page_without_the_navigation(site: Browser) -> None:
     """An error page is also what a request refused before the sign-in sees,
     so it has the frame of the code page and a way back."""
     status, body, headers = site.get("/nope")
@@ -214,6 +177,26 @@ def test_every_class_a_template_names_is_styled() -> None:
         for names in re.findall(r'class="([^"{}]*)"', text):
             unstyled |= {f"{path.name}: {n}" for n in names.split() if n not in styled}
     assert not unstyled, sorted(unstyled)
+
+
+def test_every_class_the_stylesheet_styles_is_named_somewhere() -> None:
+    """The other direction: a rule for a class nothing names is left over.
+
+    Named means a word of a template, the script or a module here, since a
+    tag's or a notice's kind is passed in as a string.
+    """
+    css = (templates.STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    styled = set(
+        re.findall(r"\.([a-zA-Z][\w-]*)", re.sub(r"/\*.*?\*/", "", css, flags=re.S))
+    )
+    named: set[str] = set()
+    for path in [
+        *_templates(),
+        templates.STATIC_DIR / "app.js",
+        *templates.HERE.glob("*.py"),
+    ]:
+        named |= set(re.findall(r"[\w-]+", path.read_text(encoding="utf-8")))
+    assert sorted(styled - named) == []
 
 
 def test_every_static_file_on_the_list_exists() -> None:

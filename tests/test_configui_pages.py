@@ -1,4 +1,4 @@
-"""What the three pages say, rendered without a server and without a network."""
+"""What the four pages say, rendered without a server and without a network."""
 
 from __future__ import annotations
 
@@ -18,11 +18,8 @@ from benethos_lexware_office_mcp.settings import Settings, locations
 
 
 @pytest.fixture(autouse=True)
-def only_this_tests_env(
-    no_configuration_from_this_machine: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def only_this_tests_env(no_configuration_from_this_machine: None) -> None:
     """Nothing from the developer's machine in the rendered source badges."""
-    monkeypatch.setattr(probe, "_last", None)
 
 
 @pytest.fixture

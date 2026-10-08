@@ -40,7 +40,6 @@ import threading
 import time
 import webbrowser
 from collections.abc import Callable
-from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -96,19 +95,6 @@ PAGES: dict[str, Callable[..., Page]] = {
 }
 
 
-@dataclass(frozen=True)
-class Once:
-    """What a form that went through leaves for the page after the redirect.
-
-    The message is shown on whichever page opens next. ``view`` only on the
-    page at ``address``, the one the form redirected to.
-    """
-
-    address: str
-    message: Message | None
-    view: dict[str, Any]
-
-
 class ConfigServer(ThreadingHTTPServer):
     """A server that knows which installation its handlers are editing.
 
@@ -134,7 +120,7 @@ class ConfigServer(ThreadingHTTPServer):
         # In the order they were issued, so the oldest can go first.
         self.sessions: dict[str, None] = {}
         self._sessions_lock = threading.Lock()
-        self._once: dict[str, Once] = {}
+        self._once: dict[str, Reply] = {}
         # The start code, made once, written to stderr, and asked for by
         # every page until a session has given it.
         self.code = secrets.token_urlsafe(16)
@@ -204,8 +190,10 @@ class ConfigServer(ThreadingHTTPServer):
                 self.pause(WAIT_SECONDS)
         return False
 
-    def leave(self, session: str, once: Once) -> None:
-        """Keep ``once`` for the next page this session opens.
+    def leave(self, session: str, once: Reply) -> None:
+        """Keep a redirect's message and view for the next page this session
+        opens: the message for whichever page that is, the view only for the
+        page the redirect named.
 
         Held here beside the session rather than in the URL, so a link
         cannot put words into the interface.
@@ -213,7 +201,7 @@ class ConfigServer(ThreadingHTTPServer):
         with self._sessions_lock:
             self._once[session] = once
 
-    def take(self, session: str) -> Once | None:
+    def take(self, session: str) -> Reply | None:
         """What the last form left for this session, once."""
         with self._sessions_lock:
             return self._once.pop(session, None)
@@ -452,7 +440,7 @@ class Handler(BaseHTTPRequestHandler):
             once = (
                 None if self._fresh_cookie else self.config_server.take(self._session)
             )
-            view = once.view if once is not None and once.address == path else {}
+            view = once.view if once is not None and once.redirect == path else {}
             self._page(200, page(inst, **view), once.message if once else None)
         else:
             self._not_found()
@@ -492,21 +480,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._session = self._session_token()
 
-        routes: dict[str, actions.Action | None] = {
+        routes: dict[str, Callable[[Form], None]] = {
             # Answered here rather than by an action: the first decides the
             # sign-in, the second ends the process the actions run in.
-            "/code": None,
-            "/shutdown": None,
-            "/check": actions.check,
-            "/credentials": actions.save_key,
-            "/bearer": actions.save_bearer,
-            "/settings": actions.save_settings,
-            "/permissions": actions.permissions,
+            "/code": lambda form: self._sign_in(field(form, "code"), then="/"),
+            "/shutdown": lambda form: self._stop(),
+            "/check": self._acting(actions.check),
+            "/credentials": self._acting(actions.save_key),
+            "/bearer": self._acting(actions.save_bearer),
+            "/settings": self._acting(actions.save_settings),
+            "/permissions": self._acting(actions.permissions),
         }
-        if path not in routes:
+        answer = routes.get(path)
+        if answer is None:
             self._not_found()
             return
-        action = routes[path]
         if not self._origin_ok():
             logbook.configui.request_refused("origin")
             self._deny(
@@ -522,26 +510,30 @@ class Handler(BaseHTTPRequestHandler):
                 "Seite neu laden und noch einmal absenden."
             )
             return
-        if path == "/code":
-            self._sign_in(field(form, "code"), then="/")
-            return
-        if not self.config_server.signed_in(self._session):
-            logbook.configui.request_refused("code")
-            self._page(403, pages.code())
-            return
-        if self.config_server.stopped_from_page:
-            # Ending: nothing more is written, "Beenden" included again.
-            self._page(503, pages.stopped())
-            return
-        if action is None:
-            self._stop()
-            return
-        try:
-            with self.config_server.acting:
-                reply = action(self.installation, form)
-            self._reply(reply)
-        except ConfigError as exc:
-            self._unreadable(exc)
+        # The one form a session may send before it has given the code.
+        if path != "/code":
+            if not self.config_server.signed_in(self._session):
+                logbook.configui.request_refused("code")
+                self._page(403, pages.code())
+                return
+            if self.config_server.stopped_from_page:
+                # Ending: nothing more is written, "Beenden" included again.
+                self._page(503, pages.stopped())
+                return
+        answer(form)
+
+    def _acting(self, action: actions.Action) -> Callable[[Form], None]:
+        """``action`` run on this installation, one at a time, and answered."""
+
+        def act(form: Form) -> None:
+            try:
+                with self.config_server.acting:
+                    reply = action(self.installation, form)
+                self._reply(reply)
+            except ConfigError as exc:
+                self._unreadable(exc)
+
+        return act
 
     def _stop(self) -> None:
         """End the process from the page, as Ctrl+C ends it from the terminal.
@@ -573,9 +565,7 @@ class Handler(BaseHTTPRequestHandler):
         if reply is None:
             self._not_found()
         elif reply.redirect is not None:
-            self.config_server.leave(
-                self._session, Once(reply.redirect, reply.message, reply.view)
-            )
+            self.config_server.leave(self._session, reply)
             self._redirect(reply.redirect)
         elif reply.download is not None:
             self._download(reply.body, reply.download)

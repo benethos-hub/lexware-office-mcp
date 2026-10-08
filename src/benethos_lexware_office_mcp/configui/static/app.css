@@ -165,7 +165,6 @@ footer {
   border-bottom: 1px solid var(--border);
 }
 .card > header h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.card > header .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 /* Choices that act on one card, right after its heading. */
 .card > header .choices { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .card .meta { color: var(--text-muted); font-size: 13px; }
@@ -181,31 +180,6 @@ details.card > summary.card-summary {
 }
 details.card[open] > summary.card-summary { border-bottom: 1px solid var(--border); }
 details.card > summary.card-summary h2 { display: inline; margin: 0; font-size: 15px; font-weight: 600; }
-
-/* --- tables ---------------------------------------------------------------- */
-
-.table-scroll { overflow-x: auto; }
-
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-
-thead th {
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border-strong);
-  padding: 9px 12px;
-  text-align: left;
-  font-size: 12px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .04em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-tbody td {
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-tbody tr:last-child td { border-bottom: 0; }
-td.wrap { overflow-wrap: anywhere; }
 
 /* --- small parts ----------------------------------------------------------- */
 

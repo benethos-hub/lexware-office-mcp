@@ -30,7 +30,7 @@
       {% endif %}
       {% endif %}
     {% else %}
-      {% if row.account %}<strong>{{ row.account }}</strong>{% for fact in row.facts %} · {{ fact }}{% endfor %}{% else %}Seit dem Start dieser Oberfläche noch nicht getestet. Nur ein Knopf ruft die API auf, nie das Öffnen einer Seite.{% endif %}
+      {% if row.account %}{{ ui.account(row.account, row.facts) }}{% else %}Seit dem Start dieser Oberfläche noch nicht getestet. Nur ein Knopf ruft die API auf, nie das Öffnen einer Seite.{% endif %}
     {% endif %}
     </span>
     {% if row.link %}<a href="{{ row.link[0] }}">{{ row.link[1] }}</a>{% endif %}

@@ -36,6 +36,7 @@ from .state import (
     CLI_SOURCE,
     ENV_SOURCE,
     LABELS,
+    LOG_LEVEL_KEY,
     POLICY_KEY,
     Installation,
     if_emptied,
@@ -47,9 +48,12 @@ __all__ = [
     "Badge",
     "Message",
     "Page",
+    "Stand",
+    "Tag",
     "account_facts",
     "code",
     "credentials",
+    "elsewhere",
     "error",
     "overview",
     "permissions",
@@ -91,8 +95,6 @@ SETTINGS_CARDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("LXO_MCP_DOWNLOAD_DIR", "LXO_MCP_KEPT_DOWNLOADS", "LXO_MCP_UPLOAD_DIR"),
     ),
 )
-
-LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 # A domain is an identifier in the code and a heading on the screen, and the
 # two want different words. An unmapped domain shows its own name rather than
@@ -164,6 +166,36 @@ class Badge:
     def loud(self) -> bool:
         """Marked when the file lost: something outranks what is typed here."""
         return self.source in (ENV_SOURCE, CLI_SOURCE)
+
+
+@dataclass(frozen=True, slots=True)
+class Tag:
+    """A small mark: its text and its colour, ``accent``, ``ok``, ``warn``,
+    ``err``, or plain."""
+
+    text: str
+    kind: str = ""
+
+
+@dataclass(frozen=True)
+class Stand:
+    """One row of the card *Stand*: what, its tag, what to read, where to go.
+
+    Every row has every field, so the template asks what a row says rather
+    than whether it says it.
+    """
+
+    name: str
+    label: str
+    tag: Tag
+    link: tuple[str, str] | None = None
+    badge: Badge | None = None
+    state: str = ""
+    count: str = ""
+    spend: str = ""
+    writers: list[str] = field(default_factory=list)
+    account: str = ""
+    facts: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -275,7 +307,7 @@ def overview(inst: Installation) -> Page:
         _policy_row(inst, costs),
         _connection_row(),
     ]
-    step = next((row["link"] for row in rows if row["tag"]["kind"] == "err"), None)
+    step = next((row.link for row in rows if row.tag.kind == "err"), None)
     return Page(
         "pages/overview.html",
         "Übersicht",
@@ -292,51 +324,23 @@ def overview(inst: Installation) -> Page:
     )
 
 
-def _stand(
-    name: str,
-    label: str,
-    tag: str,
-    kind: str,
-    *,
-    link: tuple[str, str] | None = None,
-    **say: Any,
-) -> dict[str, Any]:
-    """One row of the card *Stand*: what, its tag, what to read, where to go.
-
-    Every row has every key, so the template asks what a row says rather
-    than whether it says it.
-    """
-    return {
-        "name": name,
-        "label": label,
-        "tag": {"text": tag, "kind": kind},
-        "link": link,
-        "badge": None,
-        "state": "",
-        "count": "",
-        "spend": "",
-        "writers": [],
-        "account": "",
-        "facts": [],
-        **say,
-    }
-
-
-def _key_row(inst: Installation, env: dict[str, str]) -> dict[str, Any]:
+def _key_row(inst: Installation, env: dict[str, str]) -> Stand:
     if inst.has_api_key():
-        return _stand(
-            "key", "API-Schlüssel", "hinterlegt", "ok", badge=_badge(inst, API_KEY, env)
+        return Stand(
+            "key",
+            "API-Schlüssel",
+            Tag("hinterlegt", "ok"),
+            badge=_badge(inst, API_KEY, env),
         )
-    return _stand(
+    return Stand(
         "key",
         "API-Schlüssel",
-        "fehlt",
-        "err",
+        Tag("fehlt", "err"),
         link=("/credentials", "Schlüssel eintragen"),
     )
 
 
-def _policy_row(inst: Installation, costs: dict[str, int]) -> dict[str, Any]:
+def _policy_row(inst: Installation, costs: dict[str, int]) -> Stand:
     """The permissions: how many are on, what they cost, and who may write."""
     policy = inst.policy
     flags = policy.as_map()
@@ -346,51 +350,57 @@ def _policy_row(inst: Installation, costs: dict[str, int]) -> dict[str, Any]:
     spend = _cost_note(sum(costs.get(name, 0) for name in on))
     link = ("/permissions", "Rechte festlegen")
     if not policy.exists():
-        return _stand(
+        return Stand(
             "policy",
             "Rechte",
-            "keine Datei",
-            "err",
+            Tag("keine Datei", "err"),
             link=link,
             state="missing",
             count=count,
         )
     if not on:
-        return _stand(
-            "policy", "Rechte", "kein Tool", "err", link=link, state="none", count=count
-        )
-    if writers:
-        return _stand(
+        return Stand(
             "policy",
             "Rechte",
-            f"{len(writers)} schreibend",
-            "warn",
+            Tag("kein Tool", "err"),
+            link=link,
+            state="none",
+            count=count,
+        )
+    if writers:
+        return Stand(
+            "policy",
+            "Rechte",
+            Tag(f"{len(writers)} schreibend", "warn"),
             state="writers",
             count=count,
             spend=spend,
             writers=writers,
         )
-    return _stand(
-        "policy", "Rechte", "nur lesend", "ok", state="read", count=count, spend=spend
+    return Stand(
+        "policy",
+        "Rechte",
+        Tag("nur lesend", "ok"),
+        state="read",
+        count=count,
+        spend=spend,
     )
 
 
-def _connection_row() -> dict[str, Any]:
+def _connection_row() -> Stand:
     """The last connection test, which only a button runs."""
     account = last_account()
     if account is None:
-        return _stand(
+        return Stand(
             "connection",
             "Verbindung",
-            "nicht getestet",
-            "",
+            Tag("nicht getestet"),
             link=("/credentials", "Verbindung testen"),
         )
-    return _stand(
+    return Stand(
         "connection",
         "Verbindung",
-        "verbunden",
-        "ok",
+        Tag("verbunden", "ok"),
         account=account.label,
         facts=account_facts(account),
     )
@@ -599,7 +609,8 @@ def permissions(
     saved = inst.profiles.all()
     # The tally as the page opens, so it is right before the script runs,
     # and without it.
-    spend = sum(costs.get(name, 0) for name, on in state.items() if on and name in meta)
+    on = [name for name, flag in state.items() if flag and name in meta]
+    spend = sum(costs.get(name, 0) for name in on)
     return Page(
         "pages/permissions.html",
         "Rechte",
@@ -610,10 +621,9 @@ def permissions(
             "fresh": fresh,
             "suggested": fresh and flags is None,
             "policy_path": str(inst.policy_path),
-            "policy_exists": not fresh,
             "groups": groups,
             "total": len(meta),
-            "on": sum(1 for name, on in state.items() if on and name in meta),
+            "on": len(on),
             "cost": spend,
             "tokens": estimate_tokens(spend),
             "per_token": CHARS_PER_TOKEN,
@@ -644,12 +654,9 @@ def _tool_row(
 ) -> dict[str, Any]:
     """One tool as its row shows it: the box, the marks and the cost."""
     if info.access == "read":
-        tag = {"text": "lesend", "kind": "accent"}
+        tag = Tag("lesend", "accent")
     else:
-        tag = {
-            "text": f"schreibend · {info.effect}",
-            "kind": "err" if info.irreversible else "warn",
-        }
+        tag = Tag(f"schreibend · {info.effect}", "err" if info.irreversible else "warn")
     return {
         "name": name,
         "checked": bool(state.get(name)),
