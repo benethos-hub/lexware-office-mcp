@@ -1,4 +1,4 @@
-"""The local server: routing, the two guards, and what each action writes.
+"""The local server: routing, the guards, and what each action writes.
 
 A real ``ThreadingHTTPServer`` on a loopback port, driven through a real
 cookie jar. Nothing here reaches the API — ``probe.check`` is replaced, which
@@ -7,7 +7,6 @@ is the only function in the interface that would.
 
 from __future__ import annotations
 
-import http.cookiejar
 import json
 import logging
 import re
@@ -36,6 +35,7 @@ from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import DEFAULT_PAGE_SIZE, Settings, envfile
 from benethos_lexware_office_mcp.settings.envfile import read_env_file
+from helpers import Browser, serving, signed_in
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
 
@@ -51,90 +51,12 @@ def fake_check(settings: Settings, *, keep: bool = True) -> tuple[probe.Account,
     return ACCOUNT, "Verbindung steht."
 
 
-class Stay(urllib.request.HTTPRedirectHandler):
-    """Answers a redirect with the redirect itself, rather than following it."""
-
-    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
-        return None
-
-
-class Browser:
-    """Just enough of one: a cookie jar, forms, and the CSRF token.
-
-    It follows a redirect as a browser does, unless ``follow`` says not to.
-    """
-
-    # The server it talks to, for a test about the start code.
-    server: ConfigServer
-
-    def __init__(self, base: str) -> None:
-        self.base = base
-        self.jar = http.cookiejar.CookieJar()
-        self.opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self.jar)
-        )
-        self.staying = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self.jar), Stay()
-        )
-
-    def get(self, path: str) -> tuple[int, str, dict[str, str]]:
-        return self._open(urllib.request.Request(self.base + path))
-
-    def token(self) -> str:
-        """Any page with a form carries it: it is the session cookie, echoed back."""
-        _, body, _ = self.get("/credentials")
-        found = re.search(r'name="_csrf" value="([^"]+)"', body)
-        assert found, "the page carried no CSRF token"
-        return found.group(1)
-
-    def post(
-        self,
-        path: str,
-        fields: dict[str, object],
-        *,
-        origin: bool = True,
-        csrf: str | None = "",
-        follow: bool = True,
-    ) -> tuple[int, str, dict[str, str]]:
-        pairs: list[tuple[str, str]] = []
-        for key, value in fields.items():
-            if isinstance(value, (list, tuple)):
-                pairs.extend((key, str(item)) for item in value)
-            else:
-                pairs.append((key, str(value)))
-        if csrf == "":
-            csrf = self.token()
-        if csrf is not None:
-            pairs.append(("_csrf", csrf))
-        request = urllib.request.Request(
-            self.base + path, data=urlencode(pairs).encode("utf-8")
-        )
-        if origin:
-            request.add_header("Origin", self.base)
-        return self._open(request, follow=follow)
-
-    def _open(
-        self, request: urllib.request.Request, *, follow: bool = True
-    ) -> tuple[int, str, dict[str, str]]:
-        opener = self.opener if follow else self.staying
-        try:
-            with opener.open(request) as response:
-                return (
-                    response.status,
-                    response.read().decode("utf-8"),
-                    dict(response.headers),
-                )
-        except urllib.error.HTTPError as exc:
-            return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
-
-
 @pytest.fixture
 def installation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     no_configuration_from_this_machine: None,
 ) -> Installation:
-    monkeypatch.setattr(probe, "_last", None)
     monkeypatch.setattr(probe, "check", fake_check)
     env = tmp_path / ".env"
     env.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
@@ -146,24 +68,8 @@ def installation(
 
 @pytest.fixture
 def browser(installation: Installation) -> Iterator[Browser]:
-    server = ConfigServer(("127.0.0.1", 0), Handler)
-    server.installation = installation
-    # A short poll interval only so that shutdown() returns promptly: the
-    # default half second would be spent in the teardown of every test here.
-    thread = threading.Thread(
-        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
-    )
-    thread.start()
-    try:
-        browser = Browser(f"http://127.0.0.1:{server.server_address[1]}")
-        # Signed in the way the address the start prints signs one in.
-        browser.get(f"/?code={server.code}")
-        browser.server = server
-        yield browser
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+    with serving(installation) as server:
+        yield signed_in(server)
 
 
 def note(body: str) -> str:
@@ -783,23 +689,11 @@ def test_a_missing_token_is_refused(browser: Browser) -> None:
 
 def test_a_client_without_a_cookie_cannot_act(installation: Installation) -> None:
     """The token has to be echoed back, so a first-contact POST cannot pass."""
-    server = ConfigServer(("127.0.0.1", 0), Handler)
-    server.installation = installation
-    # A short poll interval only so that shutdown() returns promptly: the
-    # default half second would be spent in the teardown of every test here.
-    thread = threading.Thread(
-        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
-    )
-    thread.start()
-    try:
+    with serving(installation) as server:
         naive = Browser(f"http://127.0.0.1:{server.server_address[1]}")
         stolen = naive.token()
         naive.jar.clear()
         assert naive.post("/permissions", {"action": "save"}, csrf=stolen)[0] == 403
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
 
 
 # -- permissions ------------------------------------------------------------

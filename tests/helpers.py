@@ -7,23 +7,34 @@ change to how a client is built was ten edits and a fixture that behaved
 differently across the suite by accident.
 
 Nothing here touches the network or the clock: the bucket is huge and its
-sleep returns at once, and so does the client's.
+sleep returns at once, and so does the client's. The one exception is the
+configuration interface at the end, served on a loopback port and driven by
+a browser of a cookie jar and forms, as its suites did with a copy each.
 """
 
 from __future__ import annotations
 
+import http.cookiejar
 import io
 import json
 import logging
-from collections.abc import Callable, Mapping
+import re
+import threading
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 
 from benethos_lexware_office_mcp.api.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
+from benethos_lexware_office_mcp.configui.app import ConfigServer
+from benethos_lexware_office_mcp.configui.app import Handler as PageHandler
+from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.logbook import configure
 from benethos_lexware_office_mcp.logbook.output import PACKAGE
 from benethos_lexware_office_mcp.server import PolicyServer, build_server
@@ -31,6 +42,9 @@ from benethos_lexware_office_mcp.settings import Settings
 
 __all__ = [
     "API_KEY",
+    "Browser",
+    "serving",
+    "signed_in",
     "FILE_ID",
     "OPEN_PROVIDERS",
     "PDF",
@@ -297,3 +311,111 @@ async def downloaded(server: Any, handler: Scripted, fmt: str = "pdf") -> str:
         "download_file", {"file_id": FILE_ID, "file_format": fmt}
     )
     return (result.structured_content or {})["uri"]
+
+
+# --- the configuration interface --------------------------------------------
+
+
+class Stay(urllib.request.HTTPRedirectHandler):
+    """Answers a redirect with the redirect itself, rather than following it."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+class Browser:
+    """Just enough of one for the configuration interface: a cookie jar,
+    forms, and the CSRF token.
+
+    It follows a redirect as a browser does, unless ``follow`` says not to.
+    """
+
+    # The server it talks to, for a test about the start code.
+    server: ConfigServer
+
+    def __init__(self, base: str) -> None:
+        self.base = base
+        self.jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar)
+        )
+        self.staying = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar), Stay()
+        )
+
+    def get(self, path: str) -> tuple[int, str, dict[str, str]]:
+        return self._open(urllib.request.Request(self.base + path))
+
+    def token(self) -> str:
+        """Any page with a form carries it: it is the session cookie, echoed back."""
+        _, body, _ = self.get("/credentials")
+        found = re.search(r'name="_csrf" value="([^"]+)"', body)
+        assert found, "the page carried no CSRF token"
+        return found.group(1)
+
+    def post(
+        self,
+        path: str,
+        fields: dict[str, object],
+        *,
+        origin: bool = True,
+        csrf: str | None = "",
+        follow: bool = True,
+    ) -> tuple[int, str, dict[str, str]]:
+        pairs: list[tuple[str, str]] = []
+        for key, value in fields.items():
+            if isinstance(value, (list, tuple)):
+                pairs.extend((key, str(item)) for item in value)
+            else:
+                pairs.append((key, str(value)))
+        if csrf == "":
+            csrf = self.token()
+        if csrf is not None:
+            pairs.append(("_csrf", csrf))
+        request = urllib.request.Request(
+            self.base + path, data=urlencode(pairs).encode("utf-8")
+        )
+        if origin:
+            request.add_header("Origin", self.base)
+        return self._open(request, follow=follow)
+
+    def _open(
+        self, request: urllib.request.Request, *, follow: bool = True
+    ) -> tuple[int, str, dict[str, str]]:
+        opener = self.opener if follow else self.staying
+        try:
+            with opener.open(request) as response:
+                return (
+                    response.status,
+                    response.read().decode("utf-8"),
+                    dict(response.headers),
+                )
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
+
+
+@contextmanager
+def serving(installation: Installation) -> Iterator[ConfigServer]:
+    """The configuration interface on a free loopback port, in a thread."""
+    server = ConfigServer(("127.0.0.1", 0), PageHandler)
+    server.installation = installation
+    # A short poll interval only so that shutdown() returns promptly: the
+    # default half second would be spent in the teardown of every test.
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def signed_in(server: ConfigServer) -> Browser:
+    """A browser signed in the way the address the start prints signs one in."""
+    browser = Browser(f"http://127.0.0.1:{server.server_address[1]}")
+    browser.get(f"/?code={server.code}")
+    browser.server = server
+    return browser

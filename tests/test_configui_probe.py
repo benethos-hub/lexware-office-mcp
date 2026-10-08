@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import httpx
-import pytest
 
 from benethos_lexware_office_mcp.api.client import ClientProvider
 from benethos_lexware_office_mcp.configui import probe
@@ -18,11 +17,6 @@ PROFILE = {
 }
 
 SETTINGS = Settings(api_key="k" * 20)
-
-
-@pytest.fixture(autouse=True)
-def forget_the_last_account(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(probe, "_last", None)
 
 
 def answering(response: httpx.Response) -> ClientProvider:
