@@ -11,11 +11,12 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from .. import logbook
 
-__all__ = ["CONFIG_POLL_SECONDS", "watch_for_change"]
+__all__ = ["CONFIG_POLL_SECONDS", "Snapshot", "snapshot", "watch_for_change"]
 
 # How often the settings file is looked at. Slow enough to cost nothing, fast
 # enough that a person who just saved the key does not wait for it.
@@ -35,6 +36,24 @@ def _fingerprint(path: Path) -> str | None:
         return None
 
 
+@dataclass(frozen=True)
+class Snapshot:
+    """What the settings file said at one moment, for a watch to compare with."""
+
+    digest: str | None
+
+
+def snapshot(path: Path) -> Snapshot:
+    """The file as it is now, taken before the settings are read from it.
+
+    Before rather than after: a change landing in between then reads as one,
+    and the process ends once more than it had to. Taken after, the same
+    change would be the state the watch compares with, and a setting saved in
+    the first seconds of a start would never reach the process.
+    """
+    return Snapshot(_fingerprint(path))
+
+
 def watch_for_change(
     path: Path,
     on_change: Callable[[], None],
@@ -42,8 +61,9 @@ def watch_for_change(
     stop: threading.Event,
     poll: float = CONFIG_POLL_SECONDS,
     ready: threading.Event | None = None,
+    since: Snapshot | None = None,
 ) -> None:
-    """Call ``on_change`` once the file differs from what it said at the start.
+    """Call ``on_change`` once the file differs from what the process read.
 
     Settings are read when the process starts and never again - the API key
     goes into a long-lived client, and the rate limiter that hangs off it is
@@ -52,14 +72,22 @@ def watch_for_change(
     the problem to whatever started it, and a fresh one reads everything
     again. Nothing calls this unless something is there to restart it.
 
+    ``since`` is the file as the settings were read from it, which is what a
+    change is measured against. Without it the watch takes the file as it
+    finds it, once two reads agree - two polls after the start, and a save in
+    those seconds then became the baseline and never ended the process.
+
     ``ready`` is set once the file this is measured against has been read.
     Nothing in the server passes it: it exists so that a test can write to the
     file knowing the watch is already looking at it, rather than racing the
     thread it just started and calling whichever won a property of the code.
     """
-    settled, baseline = _settled(path, stop=stop, poll=poll)
-    if not settled:
-        return
+    if since is not None:
+        baseline = since.digest
+    else:
+        settled, baseline = _settled(path, stop=stop, poll=poll)
+        if not settled:
+            return
     if ready is not None:
         ready.set()
     while True:

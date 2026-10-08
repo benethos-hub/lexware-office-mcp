@@ -13,6 +13,16 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Fixed
+
+- **A setting saved in the first seconds after a start reaches the
+  server.** With `LXO_MCP_EXIT_ON_CONFIG_CHANGE`, as in the image, the
+  watch took the `.env` as it found it two polls into the start, so a save
+  in those two to four seconds - a key entered while the container was
+  coming up - was taken as the starting state and never ended the process,
+  which kept running without it. The watch now compares with the file as
+  the settings were read from it.
+
 ### Changed
 
 - **The image is published under the package's name as well**:

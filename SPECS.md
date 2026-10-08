@@ -789,15 +789,27 @@ arriving.
 
   The watch compares a **hash of the content**, not a timestamp: the
   configuration interface rewrites the whole file on every save, changed or
-  not. Two further rules were bought with defects. The baseline is taken
-  *after* a generated bearer token has been written, or the process would
-  restart on its own first act. And **only a value that two reads in a row
-  agree on counts as a state at all**, at both ends of the comparison: a save
-  truncates before it writes, so a poll landing inside one reads an empty
-  file, and a watch that started during a save would otherwise hold that
-  emptiness as its baseline and end the process over the file coming back.
-  CI found it, as a rewrite of identical content ending the process for
-  nothing - a race that needs a loaded machine, which a developer's is not.
+  not. Three further rules were bought with defects.
+
+  **The baseline is the file as the settings were read from it**, taken
+  just before they are, since 2026-10-08. Until then the watch took the
+  file as it found it once two polls agreed, two to four seconds into the
+  start, and a save in those seconds became the baseline: measured in a
+  container, a key appended a second after the start never ended the
+  process, which kept running without it. Taken before the read, a change
+  landing in between ends the process once more than needed, which is the
+  cheaper mistake. If the settings caught a save half done, the finished
+  file is a change too, which is right, since that is what the process
+  holds.
+
+  **It is taken again after a generated bearer token has been written**, or
+  the process would restart on its own first act.
+
+  **Only a value that two reads in a row agree on counts as the current
+  state**: a save truncates before it writes, so a poll landing inside one
+  reads an empty file. CI found it, as a rewrite of identical content ending
+  the process for nothing - a race that needs a loaded machine, which a
+  developer's is not.
 
   **Over SSE, an open stream holds the end back (known, not fixed).** The
   watch asks uvicorn to shut down, and uvicorn waits for every connection to

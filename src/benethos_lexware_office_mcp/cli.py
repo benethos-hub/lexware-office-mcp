@@ -34,6 +34,7 @@ from .settings.locations import (
 from .settings.parse import csv_tuple
 from .transport.http import bearer_ready, run_http
 from .transport.stdio import run_stdio
+from .transport.watch import Snapshot, snapshot
 
 __all__ = ["main"]
 
@@ -360,6 +361,10 @@ def main(argv: list[str] | None = None) -> None:
     # before argparse has had its turn, though: `--version` and `--help` have
     # nothing to do with the settings, and `setup` is where one is repaired.
     broken: ConfigError | None = None
+    # The file as the settings are about to be read from it, which is what a
+    # watch for a change compares with. No file is a state as well.
+    in_effect = env_file_in_effect(named=named_env)
+    loaded = snapshot(in_effect) if in_effect is not None else Snapshot(None)
     try:
         settings = load_settings(env_file=named_env)
     except ConfigError as exc:
@@ -370,7 +375,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(2)
     # The same for one found later, such as no home to find a file in.
     try:
-        _run(args, settings, named_env)
+        _run(args, settings, named_env, loaded)
     except ConfigError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from None
@@ -384,8 +389,16 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(130) from None  # 128 + SIGINT
 
 
-def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -> None:
-    """What the command line asked for, once the settings have been read."""
+def _run(
+    args: argparse.Namespace,
+    settings: Settings,
+    named_env: Path | None,
+    loaded: Snapshot,
+) -> None:
+    """What the command line asked for, once the settings have been read.
+
+    ``loaded`` is the settings file as they were read from it.
+    """
     # The command line wins over the environment, which wins over the search.
     # Left unset it stays None, so the search decides - and no absolute path
     # from this machine has to appear in --help to explain that.
@@ -428,7 +441,11 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
     )
 
     if settings.transport != "stdio":
+        generating = not settings.bearer_token
         settings = bearer_ready(settings, _env_in_effect(named_env))
+        if generating:
+            # This process wrote that, so the file now says what it holds.
+            loaded = snapshot(_env_in_effect(named_env))
 
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
@@ -444,7 +461,7 @@ def _run(args: argparse.Namespace, settings: Settings, named_env: Path | None) -
 
     _report_where_it_listens(settings)
     watch = _env_in_effect(named_env) if settings.exit_on_config_change else None
-    run_http(server, settings, watch=watch)
+    run_http(server, settings, watch=watch, since=loaded)
 
 
 def _env_in_effect(named: Path | None) -> Path:

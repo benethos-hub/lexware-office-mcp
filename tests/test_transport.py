@@ -421,6 +421,130 @@ def test_a_change_that_stays_changed_still_ends_the_process(
     watcher.join(timeout=5)
 
 
+def test_a_change_before_the_watch_starts_still_ends_the_process(
+    tmp_path: Path,
+) -> None:
+    """Measured against what the settings were read from, not what it finds.
+
+    Without that the watch took its baseline two polls into the start, and a
+    key saved in those seconds was the baseline: measured 2026-10-08 in a
+    container, the server kept running without the key it had been given.
+    """
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=read-at-start\n", encoding="utf-8")
+    read_from = watch.snapshot(env)
+    env.write_text("LXO_MCP_API_KEY=saved-while-starting\n", encoding="utf-8")
+    ended = threading.Event()
+    stop = threading.Event()
+
+    watcher = threading.Thread(
+        target=watch.watch_for_change,
+        args=(env, ended.set),
+        kwargs={"stop": stop, "poll": 0.01, "since": read_from},
+        daemon=True,
+    )
+    watcher.start()
+
+    assert ended.wait(5), "a change made while starting was taken as the start"
+    stop.set()
+    watcher.join(timeout=5)
+
+
+def test_the_file_as_it_was_read_is_not_a_change(tmp_path: Path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("LXO_MCP_API_KEY=same\n", encoding="utf-8")
+    ended = threading.Event()
+    stop = threading.Event()
+    looking = threading.Event()
+
+    watcher = threading.Thread(
+        target=watch.watch_for_change,
+        args=(env, ended.set),
+        kwargs={
+            "stop": stop,
+            "poll": 0.01,
+            "ready": looking,
+            "since": watch.snapshot(env),
+        },
+        daemon=True,
+    )
+    watcher.start()
+    assert looking.wait(5)
+    assert not ended.wait(0.2)
+
+    stop.set()
+    watcher.join(timeout=5)
+
+
+def _start_watched(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    env_text: str,
+    while_reading: str | None = None,
+) -> tuple[Path, watch.Snapshot | None]:
+    """Run the CLI up to the transport, and return what the watch is given.
+
+    ``while_reading`` is written into the .env right after the settings were
+    read from it, the way a save lands while a server starts.
+    """
+    env = tmp_path / ".env"
+    env.write_text(env_text, encoding="utf-8")
+    policy = tmp_path / "tools.json"
+    policy.write_text("{}", encoding="utf-8")
+    given: dict[str, Any] = {}
+    real_load = cli.load_settings
+
+    def load_then_save(*args: Any, **kwargs: Any) -> Settings:
+        settings = real_load(*args, **kwargs)
+        if while_reading is not None:
+            env.write_text(while_reading, encoding="utf-8")
+        return settings
+
+    def served(*args: Any, **kwargs: Any) -> None:
+        given.update(kwargs)
+
+    monkeypatch.setattr(cli, "load_settings", load_then_save)
+    monkeypatch.setattr(cli, "run_http", served)
+    monkeypatch.setenv("LXO_MCP_EXIT_ON_CONFIG_CHANGE", "1")
+    monkeypatch.setenv("LXO_MCP_DOWNLOAD_DIR", str(tmp_path / "dl"))
+    main(
+        [
+            "--transport",
+            "streamable-http",
+            "--env-file",
+            str(env),
+            "--tools-file",
+            str(policy),
+        ]
+    )
+    return env, given["since"]
+
+
+def test_a_save_while_the_server_starts_is_a_change_to_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env, since = _start_watched(
+        tmp_path,
+        monkeypatch,
+        f"LXO_MCP_BEARER_TOKEN={TOKEN}\n",
+        while_reading=f"LXO_MCP_BEARER_TOKEN={TOKEN}\nLXO_MCP_API_KEY=late\n",
+    )
+
+    assert since is not None
+    assert since != watch.snapshot(env), "the watch would take the save as the start"
+
+
+def test_a_token_this_process_wrote_is_not_a_change_to_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Or a fresh container would end over its own first act, every time."""
+    monkeypatch.setenv("LXO_MCP_GENERATE_BEARER_TOKEN", "1")
+    env, since = _start_watched(tmp_path, monkeypatch, "LXO_MCP_LOG_LEVEL=INFO\n")
+
+    assert "LXO_MCP_BEARER_TOKEN=" in env.read_text(encoding="utf-8")
+    assert since == watch.snapshot(env)
+
+
 def test_ending_on_a_change_is_off_unless_asked_for() -> None:
     """Outside a container nothing would start it again, so it must not end."""
     assert load_settings({}).exit_on_config_change is False
