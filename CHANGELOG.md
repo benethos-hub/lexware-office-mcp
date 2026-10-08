@@ -141,6 +141,11 @@ housekeeping are out of scope here — design decisions live in
   program or user on the same machine cannot open the pages through the
   loopback port. After five wrong codes each further try waits. In a
   container the address is in the log, `docker compose logs setup`.
+- **`setup` writes its lines on stderr in the log format, in English**,
+  with the time and the level like the server's: the address with the
+  start code, the three files it edits, a bind beyond loopback, a port it
+  could not open, and how it stopped. They were German lines without either.
+  The address is at `WARNING`, so no log level hides it.
 - **`setup` can be ended from the page**: *Beenden* in the sidebar, with
   a question first, ends the process as Ctrl+C does. It waits for a save
   in progress, and in a container leaves the `setup` service stopped.

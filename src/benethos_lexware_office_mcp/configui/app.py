@@ -550,20 +550,18 @@ def serve(
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
 ) -> None:
-    """Run until interrupted. Everything it says goes to stderr.
+    """Run until interrupted or ended from a page.
 
-    stdout stays free even here, where nothing would be listening to it: the
-    command shares an entry point with a server for which stdout is the
-    protocol, and one habit is easier to keep than two.
+    Everything it says is a line of the log on stderr, English like every
+    other: the German of this interface is for its pages. stdout stays free
+    even here, where nothing would be listening to it: the command shares an
+    entry point with a server for which stdout is the protocol, and one habit
+    is easier to keep than two.
     """
     try:
         server = ConfigServer((host, port), Handler)
     except OSError as exc:
-        print(
-            f"Konnte {host}:{port} nicht öffnen: {exc.strerror or exc}. Läuft "
-            "die Oberfläche schon? Sonst mit --port einen anderen Port wählen.",
-            file=sys.stderr,
-        )
+        logbook.configui.port_taken(host, port, exc)
         raise SystemExit(1) from None
     server.installation = installation
     # The address a person opens, which is not always the one that was bound:
@@ -571,29 +569,20 @@ def serve(
     reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
     # The code goes with the address, so the browser this opens is signed
     # in at once and the line is all a person copies from a container's log.
-    url = f"http://{reachable}:{port}/?code={server.code}"
-    print(f"Konfiguration im Browser: {url}", file=sys.stderr)
+    logbook.configui.serving(reachable, port, server.code)
     if host not in LOOPBACK_NAMES:
-        print(
-            f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
-            "aus erreichbar. Der Code geht unverschlüsselt über HTTP: wer "
-            "diesen Port im Netz erreicht und mitliest, kann die Seiten "
-            "aufrufen und den Schlüssel ändern. Außerhalb eines Containers "
-            "nur mit --host 127.0.0.1 starten.",
-            file=sys.stderr,
-        )
-    print(f".env:    {installation.env_path}", file=sys.stderr)
-    print(f"Rechte:  {installation.policy_path}", file=sys.stderr)
-    print(f"Profile: {installation.profiles.path}", file=sys.stderr)
-    print("Beenden mit Strg+C.", file=sys.stderr)
+        logbook.configui.bound_beyond_loopback(host)
+    logbook.configui.editing("settings", installation.env_path)
+    logbook.configui.editing("policy", installation.policy_path)
+    logbook.configui.editing("profiles", installation.profiles.path)
     if open_browser:
-        webbrowser.open(url)
+        webbrowser.open(f"http://{reachable}:{port}/?code={server.code}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("Beendet.", file=sys.stderr)
+        logbook.configui.interrupted()
     else:
         if server.stopped_from_page:
-            print("Beendet über die Oberfläche.", file=sys.stderr)
+            logbook.configui.stopped_from_page()
     finally:
         server.server_close()

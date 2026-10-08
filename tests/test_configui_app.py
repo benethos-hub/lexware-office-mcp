@@ -316,21 +316,25 @@ def test_a_sign_in_is_a_line_and_the_code_is_not(
 def test_the_start_prints_the_address_with_the_code(
     installation: Installation,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    lines: pytest.LogCaptureFixture,
 ) -> None:
-    """The line a person copies, from a terminal or from a container's log."""
+    """The line a person copies, from a terminal or from a container's log.
+
+    At WARNING, so a log level set higher than INFO cannot hide it.
+    """
     opened: list[str] = []
     monkeypatch.setattr("webbrowser.open", opened.append)
     monkeypatch.setattr(ConfigServer, "serve_forever", lambda self: None)
 
     serve(installation, port=0, open_browser=True)
 
-    err = capsys.readouterr().err
-    found = re.search(
-        r"Konfiguration im Browser: (http://127\.0\.0\.1:\d+/\?code=\S+)", err
-    )
+    (record,) = [r for r in lines.records if "interface at" in r.getMessage()]
+    assert record.levelno == logging.WARNING
+    found = re.search(r"(http://127\.0\.0\.1:\d+/\?code=\S+)", record.getMessage())
     assert found
     assert opened == [found.group(1)]
+    for kind in ("settings", "policy", "profiles"):
+        assert f"Editing the {kind} file" in lines.text
 
 
 # -- Post/Redirect/Get ------------------------------------------------------
@@ -1259,7 +1263,7 @@ def test_a_second_interface_cannot_take_a_port_already_served() -> None:
 
 
 def test_a_taken_port_is_one_line_and_no_traceback(
-    installation: Installation, capsys: pytest.CaptureFixture[str]
+    installation: Installation, lines: pytest.LogCaptureFixture
 ) -> None:
     taken = socket.socket()
     taken.bind(("127.0.0.1", 0))
@@ -1271,9 +1275,10 @@ def test_a_taken_port_is_one_line_and_no_traceback(
         taken.close()
 
     assert ended.value.code == 1
-    err = capsys.readouterr().err
-    assert "--port" in err
-    assert "Traceback" not in err
+    (record,) = [r for r in lines.records if "Could not open" in r.getMessage()]
+    assert record.levelno == logging.ERROR
+    assert "--port" in record.getMessage()
+    assert "Traceback" not in lines.text
 
 
 @pytest.mark.parametrize(
@@ -1390,7 +1395,7 @@ def test_every_page_offers_beenden_with_a_question(browser: Browser) -> None:
 def test_ended_from_the_page_is_said_on_stderr(
     installation: Installation,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    lines: pytest.LogCaptureFixture,
 ) -> None:
     def served_until_beenden(self: ConfigServer) -> None:
         self.stopped_from_page = True
@@ -1399,4 +1404,19 @@ def test_ended_from_the_page_is_said_on_stderr(
 
     serve(installation, port=0, open_browser=False)
 
-    assert "Beendet über die Oberfläche." in capsys.readouterr().err
+    assert "Stopped from the page" in lines.text
+
+
+def test_ctrl_c_is_a_line_rather_than_a_traceback(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    def interrupted(self: ConfigServer) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(ConfigServer, "serve_forever", interrupted)
+
+    serve(installation, port=0, open_browser=False)
+
+    assert "Stopped by an interrupt" in lines.text

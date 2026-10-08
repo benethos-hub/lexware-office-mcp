@@ -2199,8 +2199,11 @@ ends the same way. `cli.main` catches it around the whole run, writes
 `Stopped by an interrupt` and exits with 130, which is 128 plus SIGINT, for
 every transport. SIGTERM, which `docker stop` and systemd send, is not
 affected, since Python turns only SIGINT into an exception: the server shuts
-down without the extra line and without a traceback. `setup` has always
-caught Ctrl+C itself and ends with `Beendet.`
+down without the extra line and without a traceback. `setup` catches Ctrl+C
+itself and ends with the same line, or with `Stopped from the page` after
+*Beenden*. Its lines were German `print` calls until 2026-10-08 and go
+through the catalogue since, so they carry the time and the level like
+every other.
 
 **The catalogue**, by module. The logger name a line carries is in brackets
 where it differs.
@@ -2218,8 +2221,9 @@ where it differs.
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name |
 | | `DEBUG` | a download that reused an identical file, by size |
-| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code |
-| | `WARNING` | the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
+| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
+| | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
+| | `ERROR` | a port `setup` could not open, before it ends |
 
 **Where a tool's line comes from.** Not from the tools, which stay thin.
 `register_tool` puts `logged()` around every tool, outside the policy guard,

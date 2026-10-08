@@ -725,7 +725,7 @@ docker run --rm -d --name lexware-office-mcp-setup \
 Its log has the address with the start code, which is the line to open:
 
 ```bash
-docker logs lexware-office-mcp-setup 2>&1 | grep "im Browser"
+docker logs lexware-office-mcp-setup 2>&1 | grep "interface at"
 ```
 
 It was started with `--rm`, so stopping it is also the end of it:
