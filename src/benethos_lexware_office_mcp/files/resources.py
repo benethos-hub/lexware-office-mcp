@@ -85,15 +85,6 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
     """
     if directory is None or limit <= 0 or not directory.is_dir():
         return []
-    found: list[tuple[float, str, Path]] = []
-    for path in directory.iterdir():
-        try:
-            if path.is_symlink() or not path.is_file():
-                continue
-            found.append((path.stat().st_mtime, path.name, path))
-        except OSError:
-            continue  # gone between listing the directory and looking at it
-    found.sort(key=lambda entry: (-entry[0], entry[1]))
     return [
         Resource(
             uri=uri_for(path.name),
@@ -102,7 +93,7 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
             description=_DESCRIPTION,
             mime_type=_plain(storage.content_type_for(path)),
         )
-        for _, _, path in found[:limit]
+        for path in storage.newest(directory)[:limit]
     ]
 
 

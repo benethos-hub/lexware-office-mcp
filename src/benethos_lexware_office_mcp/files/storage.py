@@ -28,6 +28,7 @@ __all__ = [
     "UPLOAD_TYPES",
     "content_type_for",
     "directory_for",
+    "newest",
     "read_upload",
     "resolve",
     "save",
@@ -76,25 +77,42 @@ def prune(directory: Path, keep: int) -> int:
     """
     if keep <= 0 or not directory.is_dir():
         return 0
-    found: list[tuple[float, str, Path]] = []
-    for path in directory.iterdir():
-        try:
-            if path.is_symlink() or not path.is_file():
-                continue
-            if not _could_be_a_download(path):
-                continue
-            found.append((path.stat().st_mtime, path.name, path))
-        except OSError:
-            continue
-    found.sort(key=lambda entry: (-entry[0], entry[1]))
     removed = 0
-    for _, _, path in found[keep:]:
+    for path in newest(directory, downloads_only=True)[keep:]:
         try:
             path.unlink()
         except OSError:
             continue
         removed += 1
     return removed
+
+
+def newest(directory: Path, *, downloads_only: bool = False) -> list[Path]:
+    """The plain files in ``directory``, newest first.
+
+    Newest by modification time, which a reused download renews, and by name
+    where two share one, so the order is the same on every call. A symbolic
+    link or a subdirectory was put there by someone else and is skipped, and
+    so is a file that goes between listing the directory and looking at it.
+
+    One scan for the clean-up and the resource list, so the two cannot come
+    to disagree about which files are the newest. They do differ in one
+    thing, deliberately: ``downloads_only`` leaves out a file this server
+    could not have written, which the clean-up must never delete and the
+    list still names.
+    """
+    found: list[tuple[float, str, Path]] = []
+    for path in directory.iterdir():
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            if downloads_only and not _could_be_a_download(path):
+                continue
+            found.append((path.stat().st_mtime, path.name, path))
+        except OSError:
+            continue
+    found.sort(key=lambda entry: (-entry[0], entry[1]))
+    return [path for _, _, path in found]
 
 
 def _could_be_a_download(path: Path) -> bool:
