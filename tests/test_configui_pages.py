@@ -827,3 +827,13 @@ def test_the_key_is_saved_from_the_top_right(inst: Installation) -> None:
     top = body.split('<div class="right">')[1].split("</header>")[0]
     assert 'form="keyform"' in top and "Schlüssel speichern" in top
     assert 'id="keyform"' in body
+
+
+def test_every_group_offers_the_four_choices_of_the_bar(inst: Installation) -> None:
+    """The bar above acts on every tool, the same four act on one group."""
+    body = text(pages.permissions(inst))
+
+    for act in ("all-on", "all-off", "all-read", "all-reversible"):
+        assert body.count(f'data-act="{act}"') == 1, act
+        scoped = act.replace("all-", "grp-")
+        assert body.count(f'data-act="{scoped}"') == len(pages.GROUP_LABELS), scoped

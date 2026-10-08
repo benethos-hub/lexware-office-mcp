@@ -165,6 +165,8 @@ footer {
 }
 .card > header h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .card > header .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+/* Choices that act on one card, right after its heading. */
+.card > header .choices { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .card .meta { color: var(--text-muted); font-size: 13px; }
 .card .body { padding: var(--pad); }
 .card .body > p:first-child { margin-top: 0; }

@@ -144,7 +144,9 @@ housekeeping are out of scope here — design decisions live in
 - **The permissions page of `setup` saves from the top right**, beside the
   count and what the ticked tools cost, which used to sit at the end of
   twenty-five rows. The presets come first, then the groups, and the
-  legend, the profiles and the policy file follow folded.
+  legend, the profiles and the policy file follow folded. Each group
+  offers the same four choices for itself, beside its heading, where three
+  of them used to sit at the far edge of the card.
 
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named

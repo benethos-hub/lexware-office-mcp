@@ -6,10 +6,13 @@
 <section class="card" data-group="{{ group.domain }}">
   <header>
     <h2>{{ group.label }}</h2>
-    <span class="right">
-      <button type="button" class="small" data-act="grp-on">alle an</button>
-      <button type="button" class="small" data-act="grp-off">alle aus</button>
+    {# The four choices of the bar above the groups, for this group alone,
+       beside its heading where the eye already is. #}
+    <span class="choices">
+      <button type="button" class="small" data-act="grp-on">alles an</button>
+      <button type="button" class="small" data-act="grp-off">alles aus</button>
       <button type="button" class="small" data-act="grp-read">nur lesend</button>
+      <button type="button" class="small" data-act="grp-reversible">schreibend ohne löschen</button>
     </span>
   </header>
   <div class="body">
