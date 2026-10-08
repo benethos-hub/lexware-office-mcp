@@ -71,6 +71,12 @@ CONTENT_SECURITY_POLICY = (
 FREE_TRIES = 5
 WAIT_SECONDS = 2.0
 
+# Sessions kept that have not given the start code. Every request without a
+# known cookie makes one, so whatever loops requests without keeping cookies
+# would grow them for as long as the process runs. The oldest goes first,
+# and a signed-in session never does.
+MAX_WAITING_SESSIONS = 100
+
 # How long the process stays after "Beenden" was answered: long enough for
 # the browser to fetch the stylesheet of the page that says so.
 LINGER_SECONDS = 1.0
@@ -106,7 +112,8 @@ class Once:
 class ConfigServer(ThreadingHTTPServer):
     """A server that knows which installation its handlers are editing.
 
-    It also remembers every session token it has handed out. A cookie is
+    It also remembers the session tokens it has handed out, every signed-in
+    one and the newest of the rest, see :data:`MAX_WAITING_SESSIONS`. A cookie is
     accepted only if it is one of those: cookies are not scoped by port, so a
     page on any other loopback port can set ``lxo_config`` to a value of its
     choosing and put the same value in a form. A token only this process
@@ -124,7 +131,8 @@ class ConfigServer(ThreadingHTTPServer):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.sessions: set[str] = set()
+        # In the order they were issued, so the oldest can go first.
+        self.sessions: dict[str, None] = {}
         self._sessions_lock = threading.Lock()
         self._once: dict[str, Once] = {}
         # The start code, made once, written to stderr, and asked for by
@@ -148,7 +156,11 @@ class ConfigServer(ThreadingHTTPServer):
     def issue_session(self) -> str:
         token = secrets.token_urlsafe(32)
         with self._sessions_lock:
-            self.sessions.add(token)
+            self.sessions[token] = None
+            waiting = [s for s in self.sessions if s not in self._signed_in]
+            for old in waiting[: max(0, len(waiting) - MAX_WAITING_SESSIONS)]:
+                del self.sessions[old]
+                self._once.pop(old, None)
         return token
 
     def knows_session(self, token: str) -> bool:

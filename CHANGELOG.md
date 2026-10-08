@@ -19,6 +19,10 @@ housekeeping are out of scope here — design decisions live in
   server's own refusals included: a `HEAD` or `OPTIONS`, which no page
   has, and a request with more headers than it reads. Those came without
   `Content-Security-Policy`, `X-Frame-Options`, `nosniff` and `no-store`.
+- **`setup` keeps at most 100 sessions that never gave the start code.**
+  Every request without a known cookie made one, so a program sending
+  requests in a loop grew its memory for as long as it ran. The oldest go
+  first, a signed-in session stays.
 
 ### Fixed
 

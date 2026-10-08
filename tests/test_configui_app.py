@@ -26,6 +26,7 @@ import pytest
 from benethos_lexware_office_mcp.configui import probe, transfer
 from benethos_lexware_office_mcp.configui.app import (
     CONTENT_SECURITY_POLICY,
+    MAX_WAITING_SESSIONS,
     ConfigServer,
     Handler,
     serve,
@@ -220,6 +221,19 @@ def test_a_session_cookie_is_issued_once(browser: Browser) -> None:
     assert "HttpOnly" in headers["Set-Cookie"]
 
     assert "Set-Cookie" not in newcomer.get("/")[2]
+
+
+def test_sessions_that_never_signed_in_are_not_kept_forever(browser: Browser) -> None:
+    """Every request without a known cookie makes one, so a loop of them
+    grew the set for as long as the process ran."""
+    server = browser.server
+    first = server.issue_session()
+    issued = [server.issue_session() for _ in range(MAX_WAITING_SESSIONS + 50)]
+
+    assert not server.knows_session(first)
+    assert all(server.knows_session(token) for token in issued[-MAX_WAITING_SESSIONS:])
+    assert len(server.sessions) == MAX_WAITING_SESSIONS + 1
+    assert browser.get("/settings")[0] == 200  # the signed-in one stays
 
 
 # -- the start code ---------------------------------------------------------
