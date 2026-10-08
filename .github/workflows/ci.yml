@@ -202,8 +202,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # The configuration interface has no login and takes an API key. It is
-      # behind a profile so that a plain `up` leaves it out, and that is a
+      # The configuration interface asks for a start code, not a password,
+      # and takes an API key. It is behind a profile so that a plain `up` leaves it out, and that is a
       # property worth failing a build over. Both folders, production with
       # its .env made from the template, as someone setting it up would.
       # What Compose itself resolves is what is checked for the loopback, so
