@@ -5,10 +5,12 @@ keep stdout to itself. This is a separate command, started by a person, that
 serves on the loopback interface and stops when they are done. The two share
 their configuration modules and nothing else.
 
-**It binds 127.0.0.1 unless told otherwise.** The pages have no login,
-because a page only the local machine can reach does not need one. A
-container is the case that has to say otherwise: a process bound to the
-container's own loopback cannot be reached through a published port at all.
+**It binds 127.0.0.1 unless told otherwise.** The pages have no password,
+and the start code below is what closes them to the rest of the machine.
+Neither keeps out whoever can read the traffic, so the bind keeps other
+machines away. A container is the case that has to say otherwise: a process
+bound to the container's own loopback cannot be reached through a published
+port at all.
 There the isolation is the network namespace and the host-side publish, not
 the bind address. Anywhere else, changing it is a decision with consequences,
 and the server says so on stderr when it does.
