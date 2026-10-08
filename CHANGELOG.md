@@ -15,6 +15,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **`update_voucher` refuses `use_collective_contact=false` without a
+  `contact_id` before reading the voucher.** It names no contact, and the
+  API refuses a voucher without one, measured, so the call spent a read and
+  a write on a refusal.
 - **`create_sales_document` refuses an `article_id` on a `custom` or `text`
   line before sending anything.** The API refuses it with 406, measured,
   so the call spent its one POST on a refusal - and a `text` line dropped

@@ -722,6 +722,26 @@ async def test_a_named_and_the_collective_contact_at_once_is_refused() -> None:
     await provider.aclose()
 
 
+async def test_leaving_the_collective_contact_needs_the_contact_it_moves_to() -> None:
+    """Measured 2026-10-08: refused with `contactId: Missing_ContactId`,
+    after the read the call had spent first."""
+    handler = Scripted((200, VOUCHER), (200, WRITTEN))
+    server, provider = server_with(handler)
+
+    with pytest.raises(ToolError, match="Pass contact_id"):
+        await server.call_tool(
+            "update_voucher",
+            {
+                "voucher_id": "PLACEHOLDER-VOUCHER-1",
+                "version": 3,
+                "use_collective_contact": False,
+            },
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 async def test_a_stale_version_stops_before_the_write() -> None:
     handler = Scripted((200, VOUCHER), (200, WRITTEN))
     server, provider = server_with(handler)

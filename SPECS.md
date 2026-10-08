@@ -704,6 +704,13 @@ arriving.
   with `confirm`. Without it an unchecked voucher takes new data and stays
   unchecked - the documentation says it cannot be updated at all, which is
   not what the API does.
+- **Off the collective contact needs a named one.** A PUT with
+  `useCollectiveContact: false` and no `contactId` is refused with 406,
+  `contactId: Missing_ContactId`, measured 2026-10-08 on an open sales
+  voucher, so `update_voucher` refuses `use_collective_contact=false`
+  without `contact_id` before it reads anything. An unchecked voucher was
+  no test of it: a PUT on one without a date, a number and a total is
+  refused for those first.
 - **The API checks the totals against the lines** and refuses a mismatch with
   `totalGrossAmount: invalid_total_amount`, and the tax against the tax type
   with `voucherItems[0].taxAmount: invalid_taxamount`. Every voucher
