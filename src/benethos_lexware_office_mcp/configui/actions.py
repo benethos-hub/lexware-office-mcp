@@ -26,7 +26,7 @@ from ..settings import LOG_LEVELS, load_settings
 from ..settings.envfile import update_env_file
 from ..settings.parse import credential
 from . import pages, probe, transfer
-from .profiles import ProfileError
+from .profiles import Profile, ProfileError
 from .render import esc, note
 from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
 
@@ -79,21 +79,14 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
     key = field(form, "api_key")
     skip_check = bool(form.get("unchecked"))
     if not key:
-        return _page_with(
-            inst, csrf, pages.credentials, "Kein Schlüssel eingegeben, nichts geändert."
+        return _credentials(
+            inst, csrf, "Kein Schlüssel eingegeben, nichts geändert.", kind=""
         )
 
     try:
         credential(key, name=API_KEY)
     except ConfigError as exc:
-        # The server's own wording, quoted as for any refused setting.
-        return _page_with(
-            inst,
-            csrf,
-            pages.credentials,
-            f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
-            kind="bad",
-        )
+        return _refused_by_server(inst, csrf, exc)
 
     verified: probe.Account | None = None
     if not skip_check:
@@ -101,28 +94,14 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
         verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
-            return _page_with(
-                inst,
-                csrf,
-                pages.credentials,
-                f"Nicht gespeichert. {message}",
-                kind="bad",
-            )
+            return _credentials(inst, csrf, f"Nicht gespeichert. {message}")
 
-    try:
-        update_env_file(inst.env_path, {API_KEY: key})
-    except (OSError, ValueError) as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.credentials,
-            _write_failed(inst.env_path, exc),
-            kind="bad",
-        )
+    failed = _write_env(inst, csrf, {API_KEY: key})
+    if failed is not None:
+        return failed
     if verified is not None:
         probe.remember(verified)
     logbook.configui.key_saved(inst.env_path.name, verified is not None)
-    refused = _reloaded(inst)
     suffix = (
         " Ungeprüft übernommen."
         if verified is None
@@ -133,12 +112,8 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
         if inst.shadowed(API_KEY)
         else ""
     )
-    return _page_with(
-        inst,
-        csrf,
-        pages.credentials,
-        f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}{refused}",
-        kind="bad" if refused else "good",
+    return _written(
+        inst, csrf, f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}"
     )
 
 
@@ -156,53 +131,34 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
     else:
         token = field(form, "bearer")
         if not token:
-            return _page_with(
+            return _credentials(
                 inst,
                 csrf,
-                pages.credentials,
                 "Nicht gespeichert: ein leeres Token wäre kein Token. "
                 "Der Server startet den HTTP-Transport dann nicht.",
-                kind="bad",
             )
         try:
             credential(token, name=BEARER_KEY)
         except ConfigError as exc:
-            return _page_with(
-                inst,
-                csrf,
-                pages.credentials,
-                f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
-                kind="bad",
-            )
+            return _refused_by_server(inst, csrf, exc)
         done = "Token gespeichert."
 
-    try:
-        update_env_file(inst.env_path, {BEARER_KEY: token})
-    except (OSError, ValueError) as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.credentials,
-            _write_failed(inst.env_path, exc),
-            kind="bad",
-        )
-
+    failed = _write_env(inst, csrf, {BEARER_KEY: token})
+    if failed is not None:
+        return failed
     logbook.configui.token_saved(
         inst.env_path.name, field(form, "action") == "generate"
     )
-    refused = _reloaded(inst)
     shadow = (
         " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
         if inst.shadowed(BEARER_KEY)
         else ""
     )
-    return _page_with(
+    return _written(
         inst,
         csrf,
-        pages.credentials,
         f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
-        f"jeder Client braucht es dann neu.{shadow}{refused}",
-        kind="bad" if refused else "good",
+        f"jeder Client braucht es dann neu.{shadow}",
     )
 
 
@@ -221,13 +177,11 @@ def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
     # here it would be stored, shown as that default, and never take effect.
     level = submitted.get(LOG_LEVEL_KEY, "")
     if level and level.upper() not in LOG_LEVELS:
-        return _page_with(
+        return _credentials(
             inst,
             csrf,
-            pages.credentials,
             f"Nicht gespeichert: {LOG_LEVEL_KEY} kennt nur "
             f"{', '.join(LOG_LEVELS)}, nicht {level}.",
-            kind="bad",
         )
     # Validated by the same code the server uses, so a value accepted here
     # cannot be one that stops the server from starting later.
@@ -235,34 +189,13 @@ def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
     try:
         load_settings(env=proposed)
     except ConfigError as exc:
-        # The server's own wording, quoted rather than translated. A German
-        # paraphrase here would be a second copy of a rule that lives in
-        # settings/, and the two would part company on the first change.
-        return _page_with(
-            inst,
-            csrf,
-            pages.credentials,
-            f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
-            kind="bad",
-        )
-    try:
-        update_env_file(inst.env_path, submitted)
-    except (OSError, ValueError) as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.credentials,
-            _write_failed(inst.env_path, exc),
-            kind="bad",
-        )
+        return _refused_by_server(inst, csrf, exc)
+    failed = _write_env(inst, csrf, submitted)
+    if failed is not None:
+        return failed
     logbook.configui.settings_saved(inst.env_path.name, list(submitted))
-    refused = _reloaded(inst)
-    return _page_with(
-        inst,
-        csrf,
-        pages.credentials,
-        f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.{refused}",
-        kind="bad" if refused else "good",
+    return _written(
+        inst, csrf, f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben."
     )
 
 
@@ -284,17 +217,11 @@ def permissions(inst: Installation, form: Form, csrf: str) -> Reply | None:
 
 def _save_policy(inst: Installation, csrf: str, chosen: list[str]) -> Reply:
     """Write the file. The one action here that changes what a server does."""
-    flags = {name: name in chosen for name in known_tools()}
+    flags = _flags(chosen)
     try:
         inst.policy.save(flags)
     except (OSError, ValueError) as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.permissions,
-            _write_failed(inst.policy_path, exc),
-            kind="bad",
-        )
+        return _permissions(inst, csrf, _write_failed(inst.policy_path, exc))
     writers = sorted(n for n in chosen if known_tools()[n].access == "write")
     logbook.configui.policy_saved(inst.policy_path, len(chosen), len(flags), writers)
     text = f"{len(chosen)} von {len(flags)} Tools aktiv."
@@ -304,18 +231,14 @@ def _save_policy(inst: Installation, csrf: str, chosen: list[str]) -> Reply:
             + ", ".join(writers)
             + "."
         )
-    return _page_with(
-        inst, csrf, pages.permissions, text, kind="" if writers else "good"
-    )
+    return _permissions(inst, csrf, text, kind="" if writers else "good")
 
 
 def _load_profile(inst: Installation, csrf: str, form: Form) -> Reply:
     name = field(form, "profile")
     profile = inst.profiles.get(name)
     if profile is None:
-        return _page_with(
-            inst, csrf, pages.permissions, f"Kein Profil namens {name}.", kind="bad"
-        )
+        return _permissions(inst, csrf, f"Kein Profil namens {name}.")
     known = list(known_tools())
     newer = profile.newer_tools(known)
     unknown = profile.unknown(known)
@@ -354,47 +277,34 @@ def _save_profile(
     name = field(form, "profile_name")
     clash = inst.profiles.find(name)
     if clash is not None:
-        return _page_with(
+        return _permissions(
             inst,
             csrf,
-            pages.permissions,
             f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
             "auswählen und überschreiben, oder einen anderen Namen nehmen.",
-            kind="bad",
-            flags=_flags(chosen),
+            chosen=chosen,
             opened="profiles",
         )
     try:
         profile = inst.profiles.save(name, chosen, known_tools())
     except ProfileError as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.permissions,
-            str(exc),
-            kind="bad",
-            flags=_flags(chosen),
-            opened="profiles",
-        )
+        return _permissions(inst, csrf, str(exc), chosen=chosen, opened="profiles")
     except OSError as exc:
-        return _page_with(
+        return _permissions(
             inst,
             csrf,
-            pages.permissions,
             _write_failed(inst.profiles.path, exc),
-            kind="bad",
-            flags=_flags(chosen),
+            chosen=chosen,
             opened="profiles",
         )
     logbook.configui.profile_saved(profile.name, len(profile.tools), False)
-    return _page_with(
+    return _permissions(
         inst,
         csrf,
-        pages.permissions,
         f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
         "Die Rechtedatei selbst ist unverändert.",
         kind="good",
-        flags=_flags(chosen),
+        chosen=chosen,
         opened="profiles",
     )
 
@@ -405,36 +315,31 @@ def _overwrite_profile(
     """Replace the selected profile with what is ticked right now."""
     name = field(form, "profile")
     if inst.profiles.get(name) is None:
-        return _page_with(
+        return _permissions(
             inst,
             csrf,
-            pages.permissions,
             f"Kein Profil namens {name}.",
-            kind="bad",
-            flags=_flags(chosen),
+            chosen=chosen,
             opened="profiles",
         )
     try:
         profile = inst.profiles.save(name, chosen, known_tools())
     except OSError as exc:
-        return _page_with(
+        return _permissions(
             inst,
             csrf,
-            pages.permissions,
             _write_failed(inst.profiles.path, exc),
-            kind="bad",
-            flags=_flags(chosen),
+            chosen=chosen,
             opened="profiles",
         )
     logbook.configui.profile_saved(profile.name, len(profile.tools), True)
-    return _page_with(
+    return _permissions(
         inst,
         csrf,
-        pages.permissions,
         f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
         "Die Rechtedatei selbst ist unverändert.",
         kind="good",
-        flags=_flags(chosen),
+        chosen=chosen,
         opened="profiles",
     )
 
@@ -444,20 +349,14 @@ def _delete_profile(inst: Installation, csrf: str, form: Form) -> Reply:
     try:
         gone = inst.profiles.delete(name)
     except OSError as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.permissions,
-            _write_failed(inst.profiles.path, exc),
-            kind="bad",
-            opened="profiles",
+        return _permissions(
+            inst, csrf, _write_failed(inst.profiles.path, exc), opened="profiles"
         )
     if gone:
         logbook.configui.profile_deleted(name)
-    return _page_with(
+    return _permissions(
         inst,
         csrf,
-        pages.permissions,
         f"Profil {name} gelöscht." if gone else f"Kein Profil namens {name}.",
         kind="good" if gone else "bad",
         opened="profiles",
@@ -494,19 +393,20 @@ def _import_policy(
     try:
         arriving = transfer.parse(text)
     except transfer.TransferError as exc:
-        return _page_with(
-            inst,
-            csrf,
-            pages.permissions,
-            str(exc),
-            kind="bad",
-            flags=_flags(chosen),
-            opened="policy",
-        )
+        return _permissions(inst, csrf, str(exc), chosen=chosen, opened="policy")
 
     known = known_tools()
-    flags = {name: arriving.get(name, False) for name in known}
-    newer = sorted(name for name in known if name not in arriving)
+    # Read as a profile that knew exactly the tools the file names: what is
+    # on is a flag, and a tool the file does not name is one newer than it,
+    # the same question a loaded profile answers.
+    imported = Profile(
+        name="",
+        tools=tuple(name for name, on in arriving.items() if on),
+        known=tuple(arriving),
+    )
+    flags = imported.flags(known)
+    newer = imported.newer_tools(known)
+    # Every name in the file, on or off, unlike a profile's own question.
     unknown = sorted(name for name in arriving if name not in known)
 
     on = sum(flags.values())
@@ -554,6 +454,66 @@ def _page_with(
     return Reply(
         render(inst, csrf=csrf, message=pages.message_box(text, kind), **extra)
     )
+
+
+def _credentials(
+    inst: Installation, csrf: str, text: str, *, kind: str = "bad"
+) -> Reply:
+    """The credentials page with one message, a refusal unless said otherwise."""
+    return _page_with(inst, csrf, pages.credentials, text, kind=kind)
+
+
+def _permissions(
+    inst: Installation,
+    csrf: str,
+    text: str,
+    *,
+    kind: str = "bad",
+    chosen: list[str] | None = None,
+    opened: str = "",
+) -> Reply:
+    """The permissions page with one message, a refusal unless said otherwise.
+
+    ``chosen`` keeps the boxes as they were ticked when the form was sent, so
+    an answer about a profile does not undo what somebody had just ticked.
+    """
+    return _page_with(
+        inst,
+        csrf,
+        pages.permissions,
+        text,
+        kind=kind,
+        flags=None if chosen is None else _flags(chosen),
+        opened=opened,
+    )
+
+
+def _refused_by_server(inst: Installation, csrf: str, exc: ConfigError) -> Reply:
+    """A value the server would refuse, in the server's own words.
+
+    Quoted rather than translated: a German paraphrase here would be a second
+    copy of a rule that lives in settings/, and the two would part company on
+    the first change.
+    """
+    return _credentials(
+        inst, csrf, f"Nicht gespeichert, der Server würde das ablehnen: {exc}"
+    )
+
+
+def _write_env(inst: Installation, csrf: str, updates: dict[str, str]) -> Reply | None:
+    """Write ``updates`` into the ``.env``: ``None``, or the page saying why not."""
+    try:
+        update_env_file(inst.env_path, updates)
+    except (OSError, ValueError) as exc:
+        return _credentials(inst, csrf, _write_failed(inst.env_path, exc))
+    return None
+
+
+def _written(inst: Installation, csrf: str, text: str) -> Reply:
+    """The answer to a write that happened, with the settings read back."""
+    refused = _reloaded(inst)
+    kind = "bad" if refused else "good"
+    return _credentials(inst, csrf, f"{text}{refused}", kind=kind)
 
 
 def _reloaded(inst: Installation) -> str:
