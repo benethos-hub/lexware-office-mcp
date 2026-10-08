@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.4.2.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.5.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -111,7 +111,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `transport/stdio.py` | The default transport: the client starts the process and owns stdin and stdout. See section 6. | built |
 | `transport/http.py` | The HTTP transport: the bearer guard in front of it, a generated token written into the settings file where that was asked for, and the DNS-rebinding allowlist. Nothing here is reached under stdio. See section 6. | built |
 | `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
-| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `templates` is the one module importing Jinja2, with the templates under `templates/` and the stylesheet and the script under `static/`, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` each screen as a template and its context, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its two CSRF guards and the routing. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `templates` is the one module importing Jinja2, with the templates under `templates/` and the stylesheet and the script under `static/`, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` each screen as a template and its context, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its guards and the routing. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
@@ -949,8 +949,11 @@ arriving.
   `LXO_MCP_HTTP_PATH`, and one more `handle` in the Caddyfile per instance.
   Nothing here stands in that way, and nothing of it is built until it is
   wanted.
-- **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
-  `--env-file` today, plus the transport flags when HTTP arrives. `--mode` and
+- **CLI flags:** `--version`, `--settings-sample`, `--log-level`, `--tools`,
+  `--tools-file` and `--env-file` for any run, `--transport`, `--host`,
+  `--port`, `--path` and `--allowed-hosts` for the HTTP transport since
+  0.2.0, and for `setup` the same `--host` and `--port` with `--no-browser`
+  and `--public-port` beside them, see section 7.1. `--mode` and
   `--download-dir` were planned here and never built: the mode is gone with
   the tier of section 9.1, and the download directory stayed an environment
   setting because a client spawns the server and passes no arguments.
@@ -1346,7 +1349,7 @@ showing them is honest. Once a file exists the boxes follow it, including a
 file that deliberately enables nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
-around 2,145 characters per tool, sent on every request for the life of the
+around 2,146 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible.
@@ -1429,6 +1432,7 @@ actually runs on.
 
 No format carried the API key, and this one has nowhere to put a setting at
 all.
+
 ## 8. Tools
 
 Tool count is kept deliberately low. Descriptions and schemas are sent on
@@ -1443,18 +1447,19 @@ exposed one tool per path.
 `voucher_number`, three sort properties and `finalize`, on 2026-09-30
 after the four price fields of a sales line became optional for a text
 line, and on 2026-10-08 after `document_type` took the voucher list's
-spelling as well.** Serialized as the compact JSON a `tools/list` answer
-is, twenty-five tools come to **53,619 characters**, around 2,145 each.
+spelling as well and `read_download` stopped suggesting that null renders
+every page.** Serialized as the compact JSON a `tools/list` answer is,
+twenty-five tools come to **53,639 characters**, around 2,146 each.
 Roughly 14,000 to 17,000 tokens, estimated at 3.2 to 3.8 characters per
 token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,594 | 65% |
-| Tool descriptions, the part under a ceiling | 11,169 | 21% |
+| Input schemas | 34,599 | 65% |
+| Tool descriptions, the part under a ceiling | 11,183 | 21% |
 | Output schemas | 4,340 | 8% |
 | Annotations | 1,041 | 2% |
-| Names, titles and the rest | ~2,475 | 5% |
+| Names, titles and the rest | ~2,476 | 5% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
@@ -1494,8 +1499,8 @@ consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 34,594
-characters of input schema, 13,682 are prose from `Field(description=...)` and
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,599
+characters of input schema, 13,687 are prose from `Field(description=...)` and
 the remaining 20,912 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
@@ -1503,12 +1508,12 @@ where it should be watched: `create_voucher` spends 1,634 characters on
 sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,410), `create_voucher` (4,288), `update_voucher` (4,203), `create_contact`
-(4,072), `update_contact` (4,023) and `search_vouchers` (3,770) come to 48% of
+(5,410), `create_voucher` (4,288), `update_voucher` (4,210), `create_contact`
+(4,072), `update_contact` (4,022) and `search_vouchers` (3,770) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,809 characters, a little under half.
+`read-only` installation sends 23,824 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -1817,7 +1822,7 @@ in doubt which account the permissions being granted apply to.
 
 **It shows what each tool costs in context, which nothing else here does.** A
 tool that is on is sent to the model on every single request, description and
-schemas alike, and section 8 measures that at around 2,145 characters per
+schemas alike, and section 8 measures that at around 2,146 characters per
 tool with `create_sales_document` at more than double. The page carries a
 per-row figure and a running total that follows the checkboxes, so a policy
 can be chosen against a budget rather than against a guess. Characters are
@@ -2282,7 +2287,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.4.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.5.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
@@ -2801,15 +2806,17 @@ Built, tested offline and exercised against a live test account:
   before it is written, one checkbox per tool with what it costs the model
   in context, permission profiles and the policy file as a download, and
   every setting with where its value came from. Reworked 2026-10-08 with
-  templates, a content security policy and Post/Redirect/Get.
-  Never part of the server process, loopback only, see section 7.1
-- **a container image and two Compose folders**, two stages, non-root, 168 MB.
-  The server on a loopback-published port and the configuration interface
-  behind a `setup` profile on the same volume. A bearer token made on first
+  templates, a content security policy, Post/Redirect/Get and a start
+  code. Never part of the server process, loopback only, see section 7.1
+- **a container image and two Compose folders**, two stages, non-root,
+  174 MB on 2026-10-08. The server on a loopback-published port and the
+  configuration interface behind a `setup` profile on the same volume. A bearer token made on first
   start rather than baked in, and a process that ends when its settings file
   changes so the new ones take effect. `containers/production/` runs the
-  published image at a version named in `.env`, `containers/development/`
-  builds from the checkout beside it, see section 6
+  published image at a version named in `.env` and puts Caddy in front of
+  it behind an `https` profile for clients on the local network,
+  `containers/development/` builds from the checkout beside it, see
+  section 6
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over
@@ -2936,11 +2943,12 @@ order:
    `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, the name on PyPI,
    where it had carried the repository's. The publishing environment is
    named the same way, `pypi-benethos-lexware-office-mcp`, so the badge,
-   the deployment and the package name one thing. From 0.4.2 the job
-   pushes under both names, the package's first, so a pull of `:0.4` or
-   `:latest` under the old one keeps getting releases. The old name gets
-   the 0.4 patch releases and stops with 0.5.0, which the changelog
-   announces. The documentation and the Compose files moved to the new
+   the deployment and the package name one thing. For 0.4.2 the job
+   pushed under both names, the package's first, so a pull of `:0.4` or
+   `:latest` under the old one kept getting releases. The old name got
+   the 0.4 patch releases and stopped with 0.5.0, as the changelog had
+   announced, and since then the job pushes under the package's name
+   alone. The documentation and the Compose files moved to the new
    name once 0.4.2 had created the package, since until then nothing
    could be pulled under it.
 
@@ -3016,6 +3024,7 @@ suggested they were.
 | 0.4.0 | The download directory as a cache, a logging concept, the package layers, and a review's findings | **released 2026-09-30** - a minor, because an installation can trip over it: the download directory is cut down to its newest 100 files on the first start, a key or bearer token with a character no header can carry stops the start, `create_contact` and `update_contact` refuse a field the contact's kind has no place for, and every log line has a new time format and short sources. Workflow actions pinned to a commit and the images by digest. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture that differs from 0.3.0's only where the account holds different records |
 | 0.4.1 | The image on current dependencies | **released 2026-10-05** - no change to the package itself. Python 3.14.8, cryptography 50.0.2 with OpenSSL 4.0.3, MCP SDK 2.3.0 and pypdfium2 5.14.0 with PDFium 156, built with uv 0.12.23 from a stage of its own, so Dependabot sees it. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.0's |
 | 0.4.2 | The container files in `containers/`, and a restart on a changed `.env` that loses nothing | **released 2026-10-08** - `containers/production/` runs the published image at the version its `.env` names, `containers/development/` builds from the checkout beside it, both hardened. The image is published under the package's name as well, and under the old one through the 0.4 line. A save in the first seconds after a start reaches the server, and an open stream holds a shutdown back for five seconds at most |
+| 0.5.0 | The configuration interface rebuilt, HTTPS for the local network, and two reviews' findings | **released 2026-10-08** - a minor, because an installation can trip over it: the image is published under the package's name alone, and `setup` listens on 8771, asks for a start code and has no `/export` any more. `setup` has four pages in a frame of its own, `containers/production/` puts Caddy in front of the server for clients on the local network, and the image is built on pydantic 2.14 and a rebuilt Python 3.14.8 base. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.1's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

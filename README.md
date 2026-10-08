@@ -34,7 +34,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.4.2.**
+> **Status: 0.5.0.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is connected. Every
@@ -294,7 +294,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.4.2"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.0"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -354,9 +354,8 @@ uvx benethos-lexware-office-mcp setup
 ```
 
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
-or Ctrl+C - one port above
-the HTTP transport's `8770`, so both can run at once. `--port` picks another.
-They write the same files the
+or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
+run at once, and `--port` picks another. They write the same files the
 command line does, so you can use either or both. The screens are in German,
 because Lexware Office is sold for German companies only, and each is named
 below by what it does with its label in brackets.
@@ -377,8 +376,9 @@ whatever you save. The token of the HTTP transport is folded underneath,
 open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
-as buttons and the save button at the top right beside the count. On a fresh installation with no policy file yet, the reading tools
-come pre-ticked as a starting point — a proposal in a form, not a permission:
+as buttons and the save button at the top right beside the count. On a fresh
+installation with no policy file yet, the reading tools come pre-ticked as a
+starting point — a proposal in a form, not a permission:
 there is still no file and therefore still no tool until you press save, and
 the page says so. Each row carries what that tool costs the assistant in
 context, and the total follows your ticks: every enabled tool is sent to the
@@ -425,10 +425,10 @@ server never serves HTTP, and a client such as Claude Desktop starts that
 one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
-and `--tools-file` say which files it edits. `--public-port N` is for a
-container published under another port than the one it binds: the address
-it prints and opens names that one. Unlike everywhere else those files do
-not have to exist yet.
+and `--tools-file` say which files it edits. Unlike everywhere else those
+files do not have to exist yet. `--public-port N` is for a container
+published under another port than the one it binds: the address it prints
+and opens names that one.
 
 **If your client starts the server with `--tools-file`, give `setup` the same
 argument** — otherwise it edits a different file and reports success. Both
@@ -636,17 +636,17 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.4.2` for an exact release,
-`:0.4` to follow its patch releases. `:latest` moves with every release, and
+Pin a version for anything you depend on - `:0.5.0` for an exact release,
+`:0.5` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
 **The image carries the package's name, every release from 0.2.0 on.**
 It was published as `ghcr.io/benethos-hub/lexware-office-mcp` until 0.4.2,
 and the earlier releases were copied over with the same digest, so a tag
-pulls the same bytes under either name. The old name still gets the 0.4
-patch releases and none from 0.5.0 on. Pulling that name, change it to the
-one above: the volumes stay as they are.
+pulls the same bytes under either name. The old name got the 0.4 patch
+releases and none from 0.5.0 on. Pulling that name, change it to the one
+above: the volumes stay as they are.
 
 ### With Compose
 

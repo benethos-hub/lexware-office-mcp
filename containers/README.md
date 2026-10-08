@@ -14,14 +14,14 @@ containers/
     Caddyfile             #   HTTPS for clients on the local network
     README.md             #   how to get the folder, set it up and update it
   development/            # for development, built from this checkout
-    compose.yaml          #   the same two services, a project, ports and
-                          #   volumes of their own
+    compose.yaml          #   the server and the interface, a project,
+                          #   ports and volumes of their own
 ```
 
-| Folder | For | Image | Ports on 127.0.0.1 | Compose project |
+| Folder | For | Image | Ports | Compose project |
 |---|---|---|---|---|
-| `production/` | running the server, without a clone of the repository | from the GitHub container registry, the version named in `.env` | 8770, 8771 | `benethos-lexware-office-mcp` |
-| `development/` | trying a change in a container | built from this checkout | 8780, 8781 | `benethos-lexware-office-mcp-dev` |
+| `production/` | running the server, without a clone of the repository | from the GitHub container registry, the version named in `.env` | 8770 and 8771 on 127.0.0.1, and 443 on every address with the profile `https` | `benethos-lexware-office-mcp` |
+| `development/` | trying a change in a container | built from this checkout | 8780 and 8781 on 127.0.0.1 | `benethos-lexware-office-mcp-dev` |
 
 The two run side by side. Each has its own volumes, so a trial in
 `development/` never reaches the key, the token or the tools of the
@@ -74,7 +74,7 @@ docker build -f containers/images/lexware-office-mcp/Dockerfile -t benethos-lexw
 
 `ci.yml` builds the image on every pull request and every push to
 `main`, for arm64 as well. It checks that both Compose files are valid,
-keep every port on the loopback address and start the configuration
-interface only with its profile, and it starts the image once: it makes
-its own token, refuses a request without it, and offers no tools while
-no policy file names one.
+keep every port on the loopback address but Caddy's 443 and start the
+configuration interface and Caddy only with their profiles, and it starts
+the image once: it makes its own token, refuses a request without it, and
+offers no tools while no policy file names one.

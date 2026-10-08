@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-08
+
+A minor release, because an installation can trip over three of these:
+the image is no longer published under its old name, `setup` listens on
+port 8771 and asks for a start code, and its address `/export` is gone.
+The pages of `setup` are rebuilt, the production folder can put HTTPS in
+front of the server for clients on the local network, and two reviews'
+findings are fixed. No tool is added or removed.
+
 ### Added
 
 - **HTTPS for clients on the local network**: `containers/production/`
@@ -214,7 +223,6 @@ housekeeping are out of scope here — design decisions live in
   legend, the profiles and the policy file follow folded. Each group
   offers the same four choices for itself, beside its heading, where three
   of them used to sit at the far edge of the card.
-
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named
   its own record. It is declared once now.
@@ -231,9 +239,8 @@ housekeeping are out of scope here — design decisions live in
   "in use". `--port` still picks another.
 - **The documentation and `containers/production/` name the image
   `ghcr.io/benethos-hub/benethos-lexware-office-mcp`**, which 0.4.2
-  introduced. It is the image `ghcr.io/benethos-hub/lexware-office-mcp`
-  carries as well, until 0.5.0. Downloading the production folder again
-  moves an installation over, and its volumes stay.
+  introduced and which alone carries this release. Downloading the
+  production folder again moves an installation over, and its volumes stay.
 - **Every release from 0.2.0 is under the new image name**: 0.2.0 to
   0.4.1 and their minor lines were copied over with the same digest, so a
   pinned tag can move to the new name without pulling different bytes.
@@ -251,6 +258,11 @@ housekeeping are out of scope here — design decisions live in
 
 ### Removed
 
+- **The image is no longer published as
+  `ghcr.io/benethos-hub/lexware-office-mcp`**, as 0.4.2 announced. Its
+  tags up to 0.4.2 stay, `:0.4` and `:latest` included, and no release
+  after 0.4 reaches them. `ghcr.io/benethos-hub/benethos-lexware-office-mcp`
+  carries every release from 0.2.0 on.
 - **The address `/export` of `setup` is gone.** No page linked it, and
   without a policy file it answered a download with every tool off, which
   reads like a file somebody wrote. *Rechtedatei herunterladen* on the
@@ -1302,7 +1314,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...v0.4.0

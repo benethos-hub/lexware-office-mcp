@@ -32,11 +32,12 @@ docker compose up -d                      # the server, on 127.0.0.1:8770
 docker compose --profile setup up -d      # the configuration interface
 ```
 
-Open <http://127.0.0.1:8771/>, enter the API key, tick the tools. The
-server notices the changed settings and restarts itself. The page shows
-the bearer token the server made on its first start, which is what a
-client sends. Then take the interface away again, because nothing else
-will:
+Open the address `docker compose logs setup` prints, start code included,
+enter the API key, tick the tools. The server notices the changed
+settings and restarts itself. The page shows the bearer token the server
+made on its first start, which is what a client sends. Then take the
+interface away again, because nothing else will: *Beenden* in its sidebar
+ends it and leaves the stopped container behind, and this removes it:
 
 ```sh
 docker compose rm -f -s setup
