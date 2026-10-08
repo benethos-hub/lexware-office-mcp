@@ -246,6 +246,12 @@ class Handler(BaseHTTPRequestHandler):
             if self.config_server.knows_session(value):
                 self._fresh_cookie = None
                 return value
+        if self._opened_by_another_page():
+            # SameSite=Strict withheld the cookie, if there is one, and a new
+            # one in the answer would replace it: any page could sign the
+            # browser out with a link. No session, so no form goes through.
+            self._fresh_cookie = None
+            return ""
         # No cookie, or one this process never issued - planted by another
         # page, or left over from an earlier run. Either way a new one.
         self._fresh_cookie = self.config_server.issue_session()
@@ -392,6 +398,9 @@ class Handler(BaseHTTPRequestHandler):
             # The stylesheet and the script, which the code page needs too.
             self._static(address.path.removeprefix("/static/"))
             return
+        if not self._session:
+            self._page(200, pages.elsewhere(_page_address(address.path)))
+            return
         typed = parse_qs(address.query).get("code")
         if typed is not None and self._opened_by_another_page():
             logbook.configui.request_refused("origin")
@@ -417,9 +426,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         if self.config_server.try_code(self._session, typed.strip()):
             logbook.configui.signed_in()
-            # A page's address and nothing else: a browser reads `/\` as
-            # `//`, the start of another host.
-            self._redirect(then if then in PAGES else "/")
+            self._redirect(_page_address(then))
             return
         logbook.configui.request_refused("code")
         self._page(
@@ -569,6 +576,15 @@ class Handler(BaseHTTPRequestHandler):
             self._download(reply.body, reply.download)
         elif reply.page is not None:
             self._page(reply.status, reply.page, reply.message)
+
+
+def _page_address(path: str) -> str:
+    """``path`` if it is a page's address, else the overview's.
+
+    For a link this interface builds from the address it was asked for: a
+    browser reads ``/\\`` as ``//``, the start of another host.
+    """
+    return path if path in PAGES else "/"
 
 
 def _cookie_values(header: str, name: str) -> list[str]:

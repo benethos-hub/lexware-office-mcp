@@ -23,6 +23,11 @@ housekeeping are out of scope here — design decisions live in
   Every request without a known cookie made one, so a program sending
   requests in a loop grew its memory for as long as it ran. The oldest go
   first, a signed-in session stays.
+- **A link from another site no longer signs `setup` out.** The browser
+  withholds the session cookie from such a request, and the answer set a
+  new one in its place, so any page could end the session, and the forms
+  of an open tab were refused from then on. Such a request now gets a page
+  with a link to the same address and no new cookie.
 
 ### Fixed
 

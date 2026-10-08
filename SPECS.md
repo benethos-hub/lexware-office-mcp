@@ -1068,7 +1068,18 @@ token from a `SameSite=Strict` cookie has to come back in the form. The port
 matters because loopback alone admits any local program's page, and the token
 has to be one this process issued, because cookies are not scoped by port: a
 page on another local port can set the cookie to a value of its choosing and
-put the same value in its form.
+put the same value in its form. Every value under the cookie's name is tried,
+so one planted beside the real one does not win, and the header is read by
+hand, since the standard library's parser drops all of it over one foreign
+cookie it finds illegal. **A request another site started gets no new
+cookie.** `SameSite=Strict` keeps the cookie off it, but a top-level
+navigation may still set one, and a new session in the answer would replace
+the signed-in one, so any page could sign the browser out with a link. Such
+a request, `Sec-Fetch-Site` `cross-site` or `same-site` without a cookie
+this process knows, gets a page with a link to the same address, which the
+browser follows with the cookie. At most 100 sessions that never gave the
+start code are kept, the oldest goes first, since every request without a
+cookie makes one.
 
 **A port in use ends the start.** On Windows `SO_REUSEADDR`, which the
 standard library's HTTP server sets, lets a second process bind a port

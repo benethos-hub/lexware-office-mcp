@@ -223,6 +223,31 @@ def test_a_session_cookie_is_issued_once(browser: Browser) -> None:
     assert "Set-Cookie" not in newcomer.get("/")[2]
 
 
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_a_link_from_another_site_does_not_sign_the_browser_out(
+    browser: Browser, method: str
+) -> None:
+    """SameSite=Strict keeps the cookie off a request another site started,
+    but a top-level navigation may still set one. A new session in the
+    answer replaced the signed-in cookie, so any page could sign one out.
+
+    An empty ``Cookie`` header is what the browser sends then, and keeps
+    the jar from adding its own.
+    """
+    request = urllib.request.Request(
+        browser.base + "/settings", data=b"" if method == "POST" else None
+    )
+    request.add_header("Sec-Fetch-Site", "cross-site")
+    request.add_header("Cookie", "")
+
+    _, body, headers = browser._open(request)
+
+    assert "Set-Cookie" not in headers
+    if method == "GET":
+        assert '<a href="/settings">' in body
+    assert browser.get("/settings")[0] == 200
+
+
 def test_sessions_that_never_signed_in_are_not_kept_forever(browser: Browser) -> None:
     """Every request without a known cookie makes one, so a loop of them
     grew the set for as long as the process ran."""
@@ -292,9 +317,11 @@ def test_a_code_in_an_address_another_page_opened_is_not_tried(
     """A page elsewhere could load the address in a loop, unseen, and each
     wrong code it sent counted, and waited, for the person's own too.
 
-    ``same-site`` is another port on the same loopback name.
+    ``same-site`` is another port on the same loopback name, which gets the
+    cookie sent along, so the stranger here holds a session.
     """
     stranger = Browser(browser.base)
+    stranger.get("/")
     request = urllib.request.Request(f"{browser.base}/?code={browser.server.code}")
     request.add_header("Sec-Fetch-Site", site)
 
