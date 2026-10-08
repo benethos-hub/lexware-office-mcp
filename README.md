@@ -353,7 +353,8 @@ for permissions: change those later and the running client is told, see
 uvx benethos-lexware-office-mcp setup
 ```
 
-Four pages on `http://127.0.0.1:8771/`, closed with Ctrl+C - one port above
+Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
+or Ctrl+C - one port above
 the HTTP transport's `8770`, so both can run at once. `--port` picks another.
 They write the same files the
 command line does, so you can use either or both. The screens are in German,
@@ -745,12 +746,15 @@ above 1024 needs no Linux capability at all.
 ### Turn the interface off when you are done
 
 Open the address from its log, `docker compose logs setup` with Compose,
-enter the key, tick the tools — and then stop it. The address names the
-port inside the container, so with a publish on another port, as the
-development folder's `8781`, change the port and keep the code. **Nothing
-stops it for you.** It accepts an API key behind a code that travels in the
-clear, and it will happily keep serving that page for as long as the
-machine is up.
+enter the key, tick the tools — and then stop it, with *Beenden* in the
+sidebar or one of the commands below. The address names the port inside
+the container, so with a publish on another port, as the development
+folder's `8781`, change the port and keep the code. **Nothing stops it for
+you.** It accepts an API key behind a code that travels in the clear, and
+it will happily keep serving that page for as long as the machine is up.
+*Beenden* ends the process and leaves a stopped container behind, which
+`docker compose rm -f -s setup` removes, and a `docker run --rm` one
+removes itself.
 
 ```bash
 docker compose rm -f -s setup             # Compose

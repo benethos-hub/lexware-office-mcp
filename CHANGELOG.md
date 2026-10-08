@@ -141,6 +141,9 @@ housekeeping are out of scope here — design decisions live in
   program or user on the same machine cannot open the pages through the
   loopback port. After five wrong codes each further try waits. In a
   container the address is in the log, `docker compose logs setup`.
+- **`setup` can be ended from the page**: *Beenden* in the sidebar, with
+  a question first, ends the process as Ctrl+C does. It waits for a save
+  in progress, and in a container leaves the `setup` service stopped.
 - **The permissions page of `setup` saves from the top right**, beside the
   count and what the ticked tools cost, which used to sit at the end of
   twenty-five rows. The presets come first, then the groups, and the

@@ -54,6 +54,7 @@ __all__ = [
     "overview",
     "permissions",
     "settings",
+    "stopped",
 ]
 
 # The sidebar, in reading order: (address, label).
@@ -198,6 +199,15 @@ def code() -> Page:
         "Code eingeben",
         subtitle="Diese Seiten öffnen sich mit dem Code, den setup beim Start "
         "ausgegeben hat.",
+    )
+
+
+def stopped() -> Page:
+    """What "Beenden" answers: the process is going, the tab can go too."""
+    return Page(
+        "pages/stopped.html",
+        "Beendet",
+        subtitle="Die Oberfläche läuft nicht mehr. Dieser Tab kann zu.",
     )
 
 

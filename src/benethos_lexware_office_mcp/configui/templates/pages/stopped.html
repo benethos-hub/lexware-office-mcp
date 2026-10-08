@@ -1,0 +1,9 @@
+{% extends "bare.html" %}
+{% import "components/ui.html" as ui with context %}
+{% block content %}
+{% call ui.card(title) %}
+<p>{{ subtitle }} Der MCP-Server läuft davon unabhängig weiter, und was hier
+   gespeichert wurde, bleibt gespeichert. Wieder geöffnet wird sie mit
+   <code>setup</code>, und der neue Start gibt einen neuen Code aus.</p>
+{% endcall %}
+{% endblock %}

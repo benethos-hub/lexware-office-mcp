@@ -1329,3 +1329,74 @@ def test_a_connection_test_lands_on_the_credentials_page(browser: Browser) -> No
 
     assert status == 303
     assert headers["Location"] == "/credentials"
+
+
+# -- ending it from the page ------------------------------------------------
+
+
+def test_beenden_answers_and_then_ends_the_process(browser: Browser) -> None:
+    browser.server.linger = 0
+    stopped = threading.Event()
+    real = browser.server.stop_after_actions
+
+    def stop() -> None:
+        real()
+        stopped.set()
+
+    browser.server.stop_after_actions = stop  # type: ignore[method-assign]
+
+    status, body, _ = browser.post("/shutdown", {})
+
+    assert status == 200
+    assert "<h2>Beendet</h2>" in body
+    assert stopped.wait(5)
+
+
+def test_beenden_needs_the_start_code(browser: Browser) -> None:
+    stranger = Browser(browser.base)
+
+    status, _, _ = stranger.post("/shutdown", {})
+
+    assert status == 403
+    assert not browser.server.stopped_from_page
+    assert browser.get("/")[0] == 200
+
+
+def test_beenden_needs_the_token(browser: Browser) -> None:
+    assert browser.post("/shutdown", {}, csrf="nope")[0] == 403
+    assert not browser.server.stopped_from_page
+
+
+def test_while_ending_no_form_is_acted_on(
+    browser: Browser, installation: Installation
+) -> None:
+    """The second it lingers is for the stylesheet, not for another save."""
+    browser.server.linger = 60  # the timer is a daemon, the test ends first
+    browser.post("/shutdown", {})
+
+    status, _, _ = browser.post("/permissions", {"action": "save", "tool": []})
+
+    assert status == 503
+    assert not installation.policy_path.exists()
+
+
+def test_every_page_offers_beenden_with_a_question(browser: Browser) -> None:
+    for path in ("/", "/credentials", "/permissions", "/settings"):
+        body = browser.get(path)[1]
+        form = re.search(r'<form[^>]*action="/shutdown"[^>]*>', body)
+        assert form and "data-confirm=" in form.group(0), path
+
+
+def test_ended_from_the_page_is_said_on_stderr(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def served_until_beenden(self: ConfigServer) -> None:
+        self.stopped_from_page = True
+
+    monkeypatch.setattr(ConfigServer, "serve_forever", served_until_beenden)
+
+    serve(installation, port=0, open_browser=False)
+
+    assert "Beendet über die Oberfläche." in capsys.readouterr().err

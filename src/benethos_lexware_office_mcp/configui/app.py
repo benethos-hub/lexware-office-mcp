@@ -69,6 +69,10 @@ CONTENT_SECURITY_POLICY = (
 FREE_TRIES = 5
 WAIT_SECONDS = 2.0
 
+# How long the process stays after "Beenden" was answered: long enough for
+# the browser to fetch the stylesheet of the page that says so.
+LINGER_SECONDS = 1.0
+
 # The largest form this interface accepts. An imported policy file is the
 # biggest thing any of them carries, and that is a few kilobytes.
 MAX_BODY = 1024 * 1024
@@ -129,6 +133,10 @@ class ConfigServer(ThreadingHTTPServer):
         self._trying = threading.Lock()
         # How a wrong code waits. A test replaces it, so it waits for nothing.
         self.pause: Callable[[float], None] = time.sleep
+        # Set when "Beenden" on a page ended the process, and how long the
+        # process lingers after answering it.
+        self.stopped_from_page = False
+        self.linger = LINGER_SECONDS
         # One action at a time. Each reads a file, changes it and writes it
         # back - the .env, the policy, the profiles - and every request has
         # a thread of its own, so two tabs saving at once each wrote what
@@ -144,6 +152,16 @@ class ConfigServer(ThreadingHTTPServer):
     def knows_session(self, token: str) -> bool:
         with self._sessions_lock:
             return token in self.sessions
+
+    def stop_after_actions(self) -> None:
+        """Stop serving once no action is writing a file.
+
+        The request threads are daemons and would not outlive the process,
+        so a save cut off halfway is what waiting here prevents. A form that
+        arrives meanwhile is refused, see the handler.
+        """
+        with self.acting:
+            self.shutdown()
 
     def signed_in(self, session: str) -> bool:
         """Whether this session has given the start code."""
@@ -426,8 +444,10 @@ class Handler(BaseHTTPRequestHandler):
         self._session = self._session_token()
 
         routes: dict[str, actions.Action | None] = {
-            # Answered here rather than by an action: it decides the sign-in.
+            # Answered here rather than by an action: the first decides the
+            # sign-in, the second ends the process the actions run in.
             "/code": None,
+            "/shutdown": None,
             "/check": actions.check,
             "/credentials": actions.save_key,
             "/bearer": actions.save_bearer,
@@ -452,12 +472,19 @@ class Handler(BaseHTTPRequestHandler):
                 "Seite neu laden und noch einmal absenden."
             )
             return
-        if action is None:
+        if path == "/code":
             self._sign_in(field(form, "code"), then="/")
             return
         if not self.config_server.signed_in(self._session):
             logbook.configui.request_refused("code")
             self._page(403, pages.code())
+            return
+        if self.config_server.stopped_from_page:
+            # Ending: nothing more is written, "Beenden" included again.
+            self._page(503, pages.stopped())
+            return
+        if action is None:
+            self._stop()
             return
         try:
             with self.config_server.acting:
@@ -465,6 +492,21 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(reply)
         except ConfigError as exc:
             self._unreadable(exc)
+
+    def _stop(self) -> None:
+        """End the process from the page, as Ctrl+C ends it from the terminal.
+
+        The answer goes out first, and the server stops a moment later from
+        a thread of its own: ``shutdown`` waits for the serving loop, which
+        would wait for this request. Behind every guard a form has, the
+        start code included, so the worst a stranger could do is nothing.
+        """
+        server = self.config_server
+        server.stopped_from_page = True
+        self._page(200, pages.stopped())
+        timer = threading.Timer(server.linger, server.stop_after_actions)
+        timer.daemon = True
+        timer.start()
 
     def _unreadable(self, exc: ConfigError) -> None:
         """A configuration file this page cannot read, said on the page.
@@ -550,5 +592,8 @@ def serve(
         server.serve_forever()
     except KeyboardInterrupt:
         print("Beendet.", file=sys.stderr)
+    else:
+        if server.stopped_from_page:
+            print("Beendet über die Oberfläche.", file=sys.stderr)
     finally:
         server.server_close()

@@ -1,5 +1,7 @@
-{# The navigation, and the account the last connection test found: which
-   records these permissions are about has to stay in view. #}
+{# The navigation, the account the last connection test found - which
+   records these permissions are about has to stay in view - and the way
+   to end the process from here rather than from its terminal. #}
+{% import "components/ui.html" as ui with context %}
 <aside class="sidebar">
   <div class="brand">Lexware Office MCP</div>
   <nav class="nav">
@@ -8,7 +10,8 @@
   {% endfor %}
   </nav>
   <div class="spacer"></div>
-  {% if account %}
-  <div class="foot">Konto: {{ account.label }}</div>
-  {% endif %}
+  <div class="foot">
+    {% if account %}<div class="who">Konto: {{ account.label }}</div>{% endif %}
+    {{ ui.action("/shutdown", "Beenden", confirm="Die Oberfläche beenden? Der MCP-Server läuft davon unabhängig weiter.", cls="small") }}
+  </div>
 </aside>

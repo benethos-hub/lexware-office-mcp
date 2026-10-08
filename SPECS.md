@@ -1199,6 +1199,20 @@ password was weighed and dropped: it needs a stored hash, a way to reset it
 and a first run that creates it, for a page that runs for minutes and ends.
 A code has no secret that outlives its process.
 
+**Beenden ends it from the page**, added 2026-10-08 beside the start code.
+The interface is meant to run for minutes and nothing stops it, so the way
+out sits in the sidebar of every page, with a question first, rather than
+only in a terminal that may be behind other windows. It is a form behind
+every guard a form has, the start code included, so a stranger can end
+nothing. The answer goes out first and the server stops a second later,
+long enough for the browser to fetch the stylesheet, from a thread of its
+own, since `shutdown` waits for the serving loop the request is part of.
+That thread waits for a running action to finish, because the request
+threads are daemons and a save cut off halfway would be the one harm, and
+a form arriving meanwhile is answered with a 503. In a container the
+process ends and the `setup` service, which has no restart policy, stays
+stopped.
+
 **Rules for every page, the four and any later one.** A page is one template
 under `pages/` and one entry in the sidebar. A route reads the form, calls
 one function of `actions.py` and renders or redirects, and decides nothing
