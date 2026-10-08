@@ -86,6 +86,20 @@ def test_a_key_that_appears_twice_is_rewritten_both_times(tmp_path: Path) -> Non
     assert "second" not in path.read_text(encoding="utf-8")
 
 
+def test_an_exported_key_stays_exported(tmp_path: Path) -> None:
+    """The reader takes the form, so a shell may source the file too."""
+    path = tmp_path / ".env"
+    path.write_text(
+        "export LXO_MCP_PAGE_SIZE=25\nLXO_MCP_TIMEOUT=30\n", encoding="utf-8"
+    )
+
+    update_env_file(path, {"LXO_MCP_PAGE_SIZE": "40", "LXO_MCP_TIMEOUT": "20"})
+
+    assert path.read_text(encoding="utf-8") == (
+        "export LXO_MCP_PAGE_SIZE=40\nLXO_MCP_TIMEOUT=20\n"
+    )
+
+
 def test_a_missing_file_is_empty_rather_than_an_error(tmp_path: Path) -> None:
     assert read_env_file(tmp_path / "absent.env") == {}
 

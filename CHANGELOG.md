@@ -45,6 +45,9 @@ housekeeping are out of scope here — design decisions live in
   tool off, and the saved profiles gone from `setup`. The `.env` was read
   that way already. Importing such a file on the permissions page works
   too.
+- **`setup` keeps `export` in front of a setting it rewrites.** A `.env`
+  that a shell sources as well, with `export LXO_MCP_PAGE_SIZE=25`, lost the
+  word on the first save, although the server reads that form.
 
 ### Changed
 

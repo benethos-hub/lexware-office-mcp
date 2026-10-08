@@ -83,7 +83,10 @@ def update_env_file(path: Path, updates: dict[str, str]) -> None:
     for raw in _existing_lines(path):
         key, _ = _split(raw)
         if key and key in updates:
-            lines.append(f"{key}={updates[key]}")
+            # The reader takes `export KEY=`, so a file may be sourced by a
+            # shell as well. Dropping the word would quietly end that.
+            export = "export " if raw.strip().startswith("export ") else ""
+            lines.append(f"{export}{key}={updates[key]}")
             written.add(key)
         else:
             lines.append(raw)
