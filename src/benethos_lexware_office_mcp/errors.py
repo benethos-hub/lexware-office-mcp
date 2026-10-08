@@ -136,7 +136,13 @@ class ConflictError(ToolError):
 
 
 class RateLimitError(ToolError):
-    """The rate limit was hit and retrying did not clear it (HTTP 429)."""
+    """The rate limit was hit and retrying did not clear it (HTTP 429).
+
+    The status is the class's own: every way of raising one - retries out,
+    the breaker, a ``Retry-After`` too long to wait - follows a 429.
+    """
+
+    status = 429
 
 
 class LocalFileError(ToolError):

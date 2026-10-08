@@ -229,6 +229,26 @@ async def test_a_stale_version_after_a_lost_answer_blames_the_first_attempt() ->
     assert excinfo.value.status == 406
 
 
+async def test_a_conflict_on_a_retried_read_is_not_blamed_on_the_read() -> None:
+    """A GET changes nothing, so its first attempt cannot have moved anything.
+
+    The file of a draft answers 409 for its own reason, and that reason is
+    what the caller needs.
+    """
+    body = {
+        "status": 409,
+        "message": "Document with status 'draft' does not provide a file.",
+    }
+    async with make_client(
+        httpx.TimeoutException("too slow"), httpx.Response(409, json=body)
+    ) as client:
+        with pytest.raises(ConflictError) as excinfo:
+            await client.request("GET", "/v1/invoices/abc/file")
+
+    assert "most likely carried out" not in str(excinfo.value)
+    assert "status 'draft'" in str(excinfo.value)
+
+
 async def test_a_stale_version_on_the_first_attempt_is_somebody_elses() -> None:
     stale = {"IssueList": [{"source": "version", "i18nKey": "invalid_value"}]}
     async with make_client(httpx.Response(406, json=stale)) as client:
@@ -383,6 +403,31 @@ async def test_a_put_is_retried_because_the_version_protects_it() -> None:
         assert client.handler.calls == 2  # type: ignore[attr-defined]
 
 
+@pytest.mark.parametrize("method", ["PUT", "DELETE"])
+@pytest.mark.parametrize(
+    "lost",
+    [httpx.ReadTimeout("slow"), httpx.ConnectError("reset"), httpx.Response(502)],
+    ids=["timeout", "connection", "bad gateway"],
+)
+async def test_an_update_out_of_retries_has_an_unknown_outcome(
+    method: str, lost: httpx.Response | Exception
+) -> None:
+    """Any of the three attempts may have been carried out. Reported as a
+    plain failure, the caller sent it again into a stale version or a 404."""
+    async with make_client(lost, lost, lost) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request(method, "/v1/contacts/abc", json={})
+        assert client.handler.calls == 3  # type: ignore[attr-defined]
+    assert excinfo.value.outcome_unknown is True
+
+
+async def test_a_read_out_of_retries_has_nothing_unknown() -> None:
+    async with make_client(*[httpx.ReadTimeout("slow")] * 3) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request("GET", "/v1/profile")
+    assert excinfo.value.outcome_unknown is False
+
+
 async def test_a_post_is_retried_after_429_because_it_was_not_performed() -> None:
     """The one failure mode whose outcome the documentation states."""
     async with make_client(httpx.Response(429), httpx.Response(201)) as client:
@@ -411,6 +456,7 @@ async def test_repeated_rate_limiting_trips_the_breaker() -> None:
             await client.request("GET", "/v1/profile")
         assert client.handler.calls == BREAKER_THRESHOLD  # type: ignore[attr-defined]
     assert "whole account" in str(excinfo.value)
+    assert excinfo.value.status == 429, "the log line names the status"
 
 
 async def test_a_transport_error_ends_the_rate_limit_streak() -> None:
@@ -500,9 +546,10 @@ async def test_a_retry_after_beyond_the_cap_is_not_slept_through(seconds: str) -
         bucket=TokenBucket(1000.0, 100, sleep=record),
         sleep=record,
     )
-    with pytest.raises(RateLimitError, match="longer than this call waits"):
+    with pytest.raises(RateLimitError, match="longer than this call waits") as info:
         await client.request("GET", "/v1/profile")
     await client.aclose()
+    assert info.value.status == 429
 
     assert handler.calls == 1
     assert all(delay <= 8.0 for delay in slept)
