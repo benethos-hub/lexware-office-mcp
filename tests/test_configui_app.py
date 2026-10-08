@@ -560,7 +560,7 @@ def test_a_wrong_token_is_refused(browser: Browser) -> None:
     status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nope")
 
     assert status == 403
-    assert "Sicherheitstoken" in body
+    assert "nicht zu dieser Sitzung" in body
 
 
 def test_a_token_with_a_non_ascii_character_is_refused_too(browser: Browser) -> None:
@@ -572,7 +572,7 @@ def test_a_token_with_a_non_ascii_character_is_refused_too(browser: Browser) -> 
     status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nöpe")
 
     assert status == 403
-    assert "Sicherheitstoken" in body
+    assert "nicht zu dieser Sitzung" in body
 
 
 @pytest.mark.parametrize("host", ["attacker.example:8770", "192.168.1.20:8770", ""])
@@ -718,7 +718,7 @@ def test_a_planted_cookie_is_not_a_session(browser: Browser) -> None:
     status, body, _ = browser._open(request)
 
     assert status == 403
-    assert "Sicherheitstoken" in body
+    assert "nicht zu dieser Sitzung" in body
 
 
 @pytest.mark.parametrize(

@@ -516,8 +516,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._csrf_ok(form):
             logbook.configui.request_refused("token")
+            # Not "Token": on these pages that is the HTTP transport's.
             self._deny(
-                "Abgelehnt: das Sicherheitstoken fehlt oder passt nicht. "
+                "Abgelehnt: das Formular gehört nicht zu dieser Sitzung. "
                 "Seite neu laden und noch einmal absenden."
             )
             return
