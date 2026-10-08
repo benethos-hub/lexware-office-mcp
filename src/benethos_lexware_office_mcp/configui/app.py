@@ -66,8 +66,9 @@ CONTENT_SECURITY_POLICY = (
     "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 )
 
-# Wrong start codes answered at once. Each one after these waits first, one
-# at a time, so the waits cannot be run around in parallel either.
+# Wrong start codes answered at once. Each wrong one after these waits before
+# it is answered, one at a time, so a loop cannot fill the log faster in
+# parallel either.
 FREE_TRIES = 5
 WAIT_SECONDS = 2.0
 
@@ -173,20 +174,24 @@ class ConfigServer(ThreadingHTTPServer):
     def try_code(self, session: str, typed: str) -> bool:
         """Sign ``session`` in if ``typed`` is the start code.
 
-        After :data:`FREE_TRIES` wrong codes every attempt waits first, and
-        attempts are taken one at a time. A right code starts the count over.
+        After :data:`FREE_TRIES` wrong codes every wrong one waits before it
+        is answered, one at a time. A right code never waits behind them, or
+        whatever loops wrong codes would keep the person out, and it starts
+        the count over.
         """
-        with self._trying:
-            if self._wrong >= FREE_TRIES:
-                self.pause(WAIT_SECONDS)
-            # As bytes, for the reason _csrf_ok gives.
-            if typed and secrets.compare_digest(typed.encode(), self.code.encode()):
+        # As bytes, for the reason _csrf_ok gives.
+        if typed and secrets.compare_digest(typed.encode(), self.code.encode()):
+            with self._sessions_lock:
                 self._wrong = 0
-                with self._sessions_lock:
-                    self._signed_in.add(session)
-                return True
-            self._wrong += 1
-            return False
+                self._signed_in.add(session)
+            return True
+        with self._trying:
+            with self._sessions_lock:
+                self._wrong += 1
+                waits = self._wrong > FREE_TRIES
+            if waits:
+                self.pause(WAIT_SECONDS)
+        return False
 
     def leave(self, session: str, once: Once) -> None:
         """Keep ``once`` for the next page this session opens.

@@ -298,10 +298,41 @@ def test_after_five_wrong_codes_each_waits(browser: Browser) -> None:
 
     stranger.post("/code", {"code": "guessed"})
     stranger.get(f"/?code={browser.server.code}")
-    assert waited == [2.0, 2.0]
+    assert waited == [2.0]  # the right one did not wait
 
     stranger.post("/code", {"code": "guessed"})
-    assert waited == [2.0, 2.0]  # a right code started the count over
+    assert waited == [2.0]  # and it started the count over
+
+
+def test_a_right_code_is_not_held_behind_a_waiting_wrong_one(
+    browser: Browser,
+) -> None:
+    """Whatever loops wrong codes must not keep the person out."""
+    server = browser.server
+    paused, release = threading.Event(), threading.Event()
+
+    def pause(seconds: float) -> None:
+        paused.set()
+        release.wait(10)
+
+    server.pause = pause
+    for _ in range(5):
+        server.try_code("loop", "guessed")
+    waiting = threading.Thread(target=server.try_code, args=("loop", "guessed"))
+    waiting.start()
+    assert paused.wait(5)
+    signed_in = threading.Event()
+
+    def person() -> None:
+        if server.try_code("person", server.code):
+            signed_in.set()
+
+    threading.Thread(target=person, daemon=True).start()
+    try:
+        assert signed_in.wait(2)
+    finally:
+        release.set()
+        waiting.join(timeout=5)
 
 
 def test_a_sign_in_is_a_line_and_the_code_is_not(

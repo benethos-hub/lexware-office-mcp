@@ -1185,9 +1185,11 @@ every page shows one field, *Code eingeben*, and the static files are the
 one thing served without it, since that page needs them too. After the
 first valid request the session cookie carries the sign-in, and a redirect
 takes the code out of the URL. The field is a form like any other, behind
-the `Origin` and CSRF checks. After five wrong codes every further try
-waits two seconds first, and tries are taken one at a time, so the wait
-cannot be run around in parallel. A right code starts the count over. The
+the `Origin` and CSRF checks. After five wrong codes every further wrong
+one is answered two seconds later, and those answers go out one at a time,
+so a loop cannot fill the log faster in parallel either. A right code is
+checked first and never waits behind them, or a script looping wrong codes
+would keep the person out, and it starts the count over. The
 code is 16 random bytes, so the wait is not what protects it: it keeps a
 stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the

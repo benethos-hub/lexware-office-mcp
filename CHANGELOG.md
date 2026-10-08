@@ -139,8 +139,9 @@ housekeeping are out of scope here — design decisions live in
   address it prints and opens carries it, so the browser it opens is
   signed in at once. Without it every page shows one field, so another
   program or user on the same machine cannot open the pages through the
-  loopback port. After five wrong codes each further try waits. In a
-  container the address is in the log, `docker compose logs setup`.
+  loopback port. After five wrong codes each further wrong one waits, and
+  a right one never waits behind them. In a container the address is in
+  the log, `docker compose logs setup`.
 - **`setup` writes its lines on stderr in the log format, in English**,
   with the time and the level like the server's: the address with the
   start code, the three files it edits, a bind beyond loopback, a port it
