@@ -45,7 +45,9 @@ from .state import Installation
 __all__ = ["ConfigServer", "Handler", "serve"]
 
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8770
+# One above the HTTP transport's, as the Compose files publish the two, so a
+# server already listening on its port does not end `setup` with "in use".
+DEFAULT_PORT = 8771
 
 _SESSION_COOKIE = "lxo_config"
 

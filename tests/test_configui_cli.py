@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from benethos_lexware_office_mcp import cli, configui
-from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings import DEFAULT_HTTP_PORT, Settings
 
 
 @pytest.fixture
@@ -100,3 +100,16 @@ def test_a_named_file_wins_over_the_search(tmp_path: Path) -> None:
     named = tmp_path / "named.env"
 
     assert configui.target_env_file(named) == named
+
+
+def test_setup_and_the_transport_do_not_share_a_default_port(
+    started: list[dict[str, Any]], tmp_path: Path
+) -> None:
+    """Both on 8770, setup beside a running server ended with "in use"."""
+    env = tmp_path / ".env"
+    env.write_text("", encoding="utf-8")
+
+    cli.main(["setup", "--env-file", str(env), "--no-browser"])
+
+    assert started[0]["port"] == configui.DEFAULT_PORT
+    assert configui.DEFAULT_PORT != DEFAULT_HTTP_PORT

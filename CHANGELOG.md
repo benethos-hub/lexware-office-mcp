@@ -86,6 +86,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **`setup` listens on port `8771` by default**, one above the HTTP
+  transport's `8770`, as the Compose files already publish the two. Both
+  used `8770`, so `setup` beside a server on its default port ended with
+  "in use". `--port` still picks another.
 - **The documentation and `containers/production/` name the image
   `ghcr.io/benethos-hub/benethos-lexware-office-mcp`**, which 0.4.2
   introduced. It is the image `ghcr.io/benethos-hub/lexware-office-mcp`

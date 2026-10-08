@@ -1023,8 +1023,11 @@ no key.
 
 ### 7.1 The configuration interface
 
-`benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1` and
-opens a browser. It writes the same `.env` and `tools.json` the command line does,
+`benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1:8771` and
+opens a browser. **The port is one above the HTTP transport's**, since
+2026-10-08: both used `8770`, so `setup` beside a server on its default port
+ended with "in use", and no document said why. The Compose files already
+published the two that way. It writes the same `.env` and `tools.json` the command line does,
 so the two are interchangeable and neither owns the files.
 
 **It is never part of the MCP server.** That process speaks JSON-RPC over
