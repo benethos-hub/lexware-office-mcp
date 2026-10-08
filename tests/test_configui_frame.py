@@ -193,6 +193,16 @@ def test_no_template_marks_text_as_safe() -> None:
     assert marked == []
 
 
+def test_a_german_quotation_closes_as_one() -> None:
+    """„ opens, “ closes. A typed " in its place reads as a stray mark."""
+    wrong = [
+        f"{path.name}: {found}"
+        for path in [*_templates(), *templates.HERE.glob("*.py")]
+        for found in re.findall(r'„[^“"\n]*"', path.read_text(encoding="utf-8"))
+    ]
+    assert wrong == []
+
+
 def test_every_class_a_template_names_is_styled() -> None:
     """A class without a rule in app.css is a leftover or a typo."""
     css = (templates.STATIC_DIR / "app.css").read_text(encoding="utf-8")

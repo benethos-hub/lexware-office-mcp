@@ -58,7 +58,7 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
 {% call ui.fold("Profile", profiles_meta, open=open_profiles) %}
   <p class="hint">Ein Profil ist eine benannte Auswahl, keine zweite
      Rechtedatei. Laden füllt nur die Haken — geschrieben wird erst mit
-     „Rechte speichern". Ein vorhandenes Profil wird überschrieben, nicht durch
+     „Rechte speichern“. Ein vorhandenes Profil wird überschrieben, nicht durch
      einen zweiten Eintrag mit demselben Namen.</p>
   <div class="toolbar">
   {% if profiles %}
@@ -100,7 +100,7 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
   <p><button type="submit" name="action" value="policy-import">Rechtedatei einlesen</button>
   <span class="hint">Setzt nur die Haken. Tools, die die Datei nicht nennt,
      bleiben aus — wie <code>--tools sync</code> auf der Kommandozeile.
-     Geschrieben wird erst mit „Rechte speichern".</span></p>
+     Geschrieben wird erst mit „Rechte speichern“.</span></p>
 {% endcall %}
 </form>
 {% endblock %}
