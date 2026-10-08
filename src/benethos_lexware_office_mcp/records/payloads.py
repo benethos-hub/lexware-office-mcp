@@ -35,6 +35,7 @@ from .types import (
 __all__ = [
     "article_body",
     "contact_body",
+    "require_type_fields",
     "sales_document_body",
     "voucher_body",
 ]
@@ -423,6 +424,35 @@ def article_body(
 # minimal body to each of them and reading what came back. A credit note
 # wants nothing beyond the common fields.
 SHIPPING_REQUIRED = ("invoice", "order-confirmation", "delivery-note")
+
+
+def require_type_fields(
+    document_type: str,
+    *,
+    shipping_date: str | None,
+    expiration_date: str | None,
+    preceding_sales_voucher_id: str | None,
+) -> None:
+    """Refuse a sales document missing the field its type insists on.
+
+    Beside the table it reads, so that what each type needs is said in one
+    place. Checked before the one POST a create gets, which the API would
+    otherwise spend on the refusal.
+    """
+    if document_type in SHIPPING_REQUIRED and shipping_date is None:
+        raise ValidationError(
+            f"shipping_date is required for a document of type "
+            f"'{document_type}': the day it was delivered or performed. "
+            "The API refuses it otherwise."
+        )
+    if document_type == "quotation" and expiration_date is None:
+        raise ValidationError(
+            "A quotation needs expiration_date, the day it stops standing."
+        )
+    if document_type == "dunning" and preceding_sales_voucher_id is None:
+        raise ValidationError(
+            "A dunning follows an invoice. Pass its id as preceding_sales_voucher_id."
+        )
 
 
 def _line_item_body(
