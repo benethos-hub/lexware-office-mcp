@@ -2661,8 +2661,9 @@ order:
    named the same way, `pypi-benethos-lexware-office-mcp`, so the badge,
    the deployment and the package name one thing. From the next release the
    job pushes under both names, the package's first, so a pull of `:0.4` or
-   `:latest` under the old one keeps getting releases. The old name stops
-   with 0.6.0, which the changelog announces. The documentation and the
+   `:latest` under the old one keeps getting releases. The old name gets
+   the 0.4 patch releases and stops with 0.5.0, which the changelog
+   announces. The documentation and the
    Compose files move to the new name once a release has created the
    package, since until then nothing can be pulled under it.
 6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after

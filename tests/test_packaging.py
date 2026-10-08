@@ -190,7 +190,7 @@ def test_the_publishing_environment_is_named_for_the_package() -> None:
 def test_the_image_is_pushed_under_the_package_name_first() -> None:
     """The readback inspects the first name, so that has to be the new one.
 
-    The repository's name follows for the transition, until 0.6.0.
+    The repository's name follows for the 0.4 patch releases, until 0.5.0.
     """
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"
