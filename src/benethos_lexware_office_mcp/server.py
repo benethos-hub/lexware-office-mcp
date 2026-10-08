@@ -236,7 +236,12 @@ class PolicyServer(MCPServer):
         logbook.policy.list_changed(told)
 
     async def stop_watching(self) -> None:
-        """Cancel the watcher. For shutdown, and for tests."""
+        """Cancel the watcher. For tests, which run many servers in one loop.
+
+        Nothing calls it on shutdown, and nothing has to: the watcher is a
+        task of the event loop, and ``asyncio.run`` cancels every task left
+        when the transport returns.
+        """
         task, self._watcher = self._watcher, None
         if task is None:
             return
