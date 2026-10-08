@@ -106,6 +106,12 @@ housekeeping are out of scope here — design decisions live in
 - **`setup` names `--tools-file` as the source of the policy file whenever
   it was given.** With `LXO_MCP_TOOL_POLICY` set as well, the badge said
   the environment beside the path the flag had named.
+- **Another program's cookie no longer locks `setup` out.** Cookies ignore
+  the port, so whatever else runs on `localhost` adds its own, and one with
+  a space in its value made `setup` drop the whole header: every request
+  got a new session, and every save was refused for a token that did not
+  match. The header is read by hand now, and a cookie of the same name
+  planted beside the real one no longer wins either.
 
 ### Changed
 

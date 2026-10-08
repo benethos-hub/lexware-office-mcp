@@ -41,7 +41,6 @@ import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
-from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -231,15 +230,10 @@ class Handler(BaseHTTPRequestHandler):
         """Silence. A request log of a single-user local page is noise."""
 
     def _session_token(self) -> str:
-        jar = SimpleCookie()
-        try:
-            jar.load(self.headers.get("Cookie", ""))
-        except Exception:  # noqa: BLE001 - a malformed cookie is not our problem
-            pass
-        morsel = jar.get(_SESSION_COOKIE)
-        if morsel and morsel.value and self.config_server.knows_session(morsel.value):
-            self._fresh_cookie = None
-            return str(morsel.value)
+        for value in _cookie_values(self.headers.get("Cookie", ""), _SESSION_COOKIE):
+            if self.config_server.knows_session(value):
+                self._fresh_cookie = None
+                return value
         # No cookie, or one this process never issued - planted by another
         # page, or left over from an earlier run. Either way a new one.
         self._fresh_cookie = self.config_server.issue_session()
@@ -555,6 +549,22 @@ class Handler(BaseHTTPRequestHandler):
             self._download(reply.body, reply.download)
         elif reply.page is not None:
             self._page(reply.status, reply.page, reply.message)
+
+
+def _cookie_values(header: str, name: str) -> list[str]:
+    """Every value a ``Cookie`` header carries under ``name``, in order.
+
+    Read by hand: cookies ignore the port, so other programs on the same
+    loopback name add theirs, and ``SimpleCookie`` drops the whole header
+    over one it finds illegal, a value with a space for instance. Every
+    value, because one of them may have been planted under the same name.
+    """
+    values = []
+    for pair in header.split(";"):
+        key, sep, value = pair.partition("=")
+        if sep and key.strip() == name and value.strip():
+            values.append(value.strip())
+    return values
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:

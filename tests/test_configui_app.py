@@ -608,6 +608,31 @@ def test_a_planted_cookie_is_not_a_session(browser: Browser) -> None:
     assert "Sicherheitstoken" in body
 
 
+@pytest.mark.parametrize(
+    "header",
+    [
+        "other=a b; lxo_config={session}",
+        'lxo_config={session}; other="unclosed',
+        "lxo_config=planted-by-another-page; lxo_config={session}",
+        "lxo_config={session}; lxo_config=planted-by-another-page",
+    ],
+)
+def test_another_programs_cookie_does_not_end_the_session(
+    browser: Browser, header: str
+) -> None:
+    """Cookies ignore the port, so other programs on the same loopback name
+    add theirs to this header. One the cookie parser found illegal made it
+    drop the whole header, and the session with it, for good."""
+    (cookie,) = [c for c in browser.jar if c.name == "lxo_config"]
+    request = urllib.request.Request(browser.base + "/settings")
+    request.add_header("Cookie", header.format(session=cookie.value))
+
+    status, _, headers = browser._open(request)
+
+    assert status == 200
+    assert "Set-Cookie" not in headers
+
+
 def test_a_missing_token_is_refused(browser: Browser) -> None:
     assert browser.post("/permissions", {"action": "save"}, csrf=None)[0] == 403
 
