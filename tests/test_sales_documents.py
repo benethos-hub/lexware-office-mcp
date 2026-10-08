@@ -373,6 +373,33 @@ async def test_a_line_may_quote_an_article_or_carry_no_price_at_all() -> None:
     await provider.aclose()
 
 
+@pytest.mark.parametrize("item_type", ["custom", "text"])
+async def test_an_article_id_on_a_line_that_cannot_carry_one_is_refused_here(
+    item_type: str,
+) -> None:
+    """Measured 2026-10-08: the API answers 406, "Only line items of type
+    'material' or 'service' can contain an ID". The one POST was spent."""
+    handler = Scripted((201, CREATED))
+    server, provider = server_with(handler)
+
+    with pytest.raises(ToolError, match="only a 'material' or 'service' line"):
+        await server.call_tool(
+            "create_sales_document",
+            _create_args(
+                items=[
+                    {
+                        **LINE,
+                        "item_type": item_type,
+                        "article_id": "PLACEHOLDER-ARTICLE-1",
+                    }
+                ]
+            ),
+        )
+
+    assert handler.requests == []
+    await provider.aclose()
+
+
 async def test_a_text_line_needs_nothing_but_its_text() -> None:
     """No quantity, unit, price or tax rate, which the schema used to demand."""
     handler = Scripted((201, CREATED))
@@ -542,4 +569,19 @@ async def test_the_finalize_parameter_repeats_the_rule_where_it_is_set() -> None
     schema = tools["create_sales_document"].input_schema
 
     assert "asked for that" in schema["properties"]["finalize"]["description"]
+    await provider.aclose()
+
+
+async def test_the_voucher_list_spelling_of_a_type_is_taken_too() -> None:
+    """The description says to copy `voucherType`, which spells four of the
+    seven types without hyphens. Copying it was refused by the schema."""
+    handler = Scripted((200, INVOICE))
+    server, provider = server_with(handler)
+
+    await server.call_tool(
+        "get_sales_document",
+        {"document_type": "orderconfirmation", "document_id": "PLACEHOLDER-DOC-1"},
+    )
+
+    assert handler.path == "/v1/order-confirmations/PLACEHOLDER-DOC-1"
     await provider.aclose()

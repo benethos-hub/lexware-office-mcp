@@ -39,7 +39,12 @@ __all__ = [
 # reaches the disk should be boring.
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
-_FILENAME = re.compile(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', re.IGNORECASE)
+_FILENAME = re.compile(r'filename\s*=\s*"?([^";]+)"?', re.IGNORECASE)
+# RFC 6266: `filename*=charset'language'percent-encoded`, which wins over a
+# plain `filename` beside it.
+_FILENAME_STAR = re.compile(
+    r"filename\*\s*=\s*([\w!#$&+.^`|~-]+)'[^']*'([^;]+)", re.IGNORECASE
+)
 
 MAX_NAME = 120
 
@@ -134,12 +139,29 @@ def suggested_name(response: httpx.Response, fallback: str) -> str:
     to the caller's own.
     """
     header = response.headers.get("content-disposition", "")
-    match = _FILENAME.search(header)
-    raw = match.group(1) if match else ""
-    cleaned = _safe_name(raw)
+    cleaned = _safe_name(_header_name(header))
     if cleaned:
         return cleaned
     return _safe_name(fallback) or "download"
+
+
+def _header_name(header: str) -> str:
+    """The filename a ``Content-Disposition`` suggests, not yet made safe.
+
+    The encoded form is decoded: read as it stands, `Rechnung%20M%C3%A4rz`
+    reached the disk as `Rechnung_20M_C3_A4rz`. A charset Python does not
+    know is read as UTF-8, and a byte that is no character in it is
+    replaced, which the sanitizing then replaces again.
+    """
+    star = _FILENAME_STAR.search(header)
+    if star:
+        charset, encoded = star.group(1), star.group(2).strip()
+        try:
+            return unquote(encoded, encoding=charset, errors="replace")
+        except LookupError:
+            return unquote(encoded, errors="replace")
+    plain = _FILENAME.search(header)
+    return plain.group(1) if plain else ""
 
 
 def _safe_name(raw: str) -> str:
@@ -295,16 +317,23 @@ def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     where one is set, the file has to resolve inside it - links followed
     first, so one placed in the directory cannot point out of it. What the
     operating system refuses is left to the caller to turn into an answer.
+
+    **The directory is checked before the file is looked for.** The other
+    way round, a path outside it was answered "no file" or "outside the
+    directory" depending on whether it existed - which tells the model what
+    is on the disk where it may not upload from.
     """
-    path = Path(raw_path).expanduser()
-    if not path.is_file():
+    try:
+        path = Path(raw_path).expanduser()
+    except RuntimeError:
+        # `~` with no home directory to expand it to.
         raise ValidationError(
             f"No file at {raw_path}. Give the path to an existing receipt."
-        )
+        ) from None
     if allowed is not None:
         try:
             path.resolve().relative_to(allowed.expanduser().resolve())
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             # Without the directory: it describes this machine, and the
             # person who can change it knows where it is.
             raise ValidationError(
@@ -312,6 +341,10 @@ def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
                 "from. Move the file there, or ask the account owner about "
                 "LXO_MCP_UPLOAD_DIR."
             ) from None
+    if not path.is_file():
+        raise ValidationError(
+            f"No file at {raw_path}. Give the path to an existing receipt."
+        )
 
     size = path.stat().st_size
     if size > MAX_UPLOAD:

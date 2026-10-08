@@ -594,6 +594,9 @@ still meets it.
   `service` quote an article by `id`, and `text` carries a name and no price
   at all — verified in one document holding a `service` line quoting a live
   article and a `text` line beside it.
+  **Only those two may carry the `id`**, measured 2026-10-08: a `custom`
+  line with one is refused with 406, "Only line items of type 'material' or
+  'service' can contain an ID", so the payload builder refuses it first.
 - **A down payment invoice cannot be created.** It has no POST, so the tool
   does not offer the type.
 
@@ -701,6 +704,13 @@ arriving.
   with `confirm`. Without it an unchecked voucher takes new data and stays
   unchecked - the documentation says it cannot be updated at all, which is
   not what the API does.
+- **Off the collective contact needs a named one.** A PUT with
+  `useCollectiveContact: false` and no `contactId` is refused with 406,
+  `contactId: Missing_ContactId`, measured 2026-10-08 on an open sales
+  voucher, so `update_voucher` refuses `use_collective_contact=false`
+  without `contact_id` before it reads anything. An unchecked voucher was
+  no test of it: a PUT on one without a date, a number and a total is
+  refused for those first.
 - **The API checks the totals against the lines** and refuses a mismatch with
   `totalGrossAmount: invalid_total_amount`, and the tax against the tax type
   with `voucherItems[0].taxAmount: invalid_taxamount`. Every voucher
@@ -1301,7 +1311,7 @@ arguments cost three to four times what the simple ones do.
 | `search_articles` | `article_number`, `gtin`, `article_type`, `page`, `size` | `{articles: [{id, version, title, articleNumber, type, unitName, price, archived?}], page: {...}}`. **No `query`.** It was specified here and dropped on 2026-08-21 when the endpoint turned out to filter on three fields and to ignore every other parameter silently, so a text search would have answered with the whole catalogue while looking like it had searched. Both filters match in full. `description` and `note` are dropped from a row and kept by `get_article`. There is no `currency`: an article's price block carries none. Built and verified live 2026-08-21. | 1 |
 | `get_article` | `article_id` | the article in full, `organizationId` dropped, including the price block and `version`. The block carries a net and a gross figure with the tax rate between them and `leadingPrice` saying which of the two was entered - dropping either half would leave a number that cannot be checked. Built and verified live 2026-08-21. | 1 |
 | `search_vouchers` | `voucher_type`, `voucher_status`, `contact_id`, `voucher_number`, `date_from`, `date_to`, `only_open`, `only_overdue`, `archived`, `sort`, `page`, `size` | `{vouchers: [{id, voucherType, voucherStatus, voucherNumber, voucherDate, dueDate, contactName, totalAmount, openAmount, currency, archived?}], page: {...}}`. The central discovery tool, and the only way to find a document at all. `voucher_type` and `voucher_status` default to `any` because the API requires them, so the tool always sends both. `createdDate` and `updatedDate` are dropped from the rows: they say when somebody typed it in, not when the document is dated. `voucher_number` matches the whole number, ignoring case, never a prefix, and combines with the other filters - measured 2026-09-27, when it turned out the filter had been in the documentation since 2021 while this table said it did not exist. Built and verified live 2026-08-20. | 1 |
-| `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
+| `get_sales_document` | `document_type` (invoice, quotation, credit-note, order-confirmation, delivery-note, dunning, down-payment-invoice, and the four hyphenated ones also as `search_vouchers` spells them in `voucherType`, `creditnote` and the like, since 2026-10-08), `document_id` | the document as the API holds it: recipient, line items with their unit prices, totals, tax breakdown, payment and shipping conditions, and `version`. A drop-list of one, `organizationId`, rather than an allow-list: the seven types differ field by field and an allow-list would swallow whatever makes a dunning a dunning. Built and verified live 2026-08-21, in both `open` and `draft`. | 1 |
 | `get_voucher` | `voucher_id` **or** `voucher_number` | the bookkeeping voucher with its lines, posting categories, tax type and `version`. Takes a number as well as an id. The lookup goes through `/v1/vouchers?voucherNumber=`, which answers with the whole voucher in one call. The documentation marks that filter deprecated in favour of `voucherlist`'s own, which would cost a second call for the record - it still answers, measured 2026-09-27. Until then this table said `voucherlist` could not filter by number, which was never measured and is false. A number matching several vouchers is refused with their ids rather than guessed at. Built and verified live 2026-08-20. | 1 |
 | `get_payments` | `voucher_id` | `{openAmount, paymentStatus, currency, voucherType, voucherStatus, paymentItems}`. An `openAmount` of 0 is the answer to "is it settled" and is reported, not dropped. Refused by the API for a voucher that is not booked yet. Built and verified live 2026-08-20. | 1 |
 | `get_recurring_templates` | `template_id`, `sort`, `page`, `size` | with an id the template itself, without one `{templates: [...], page: {...}}`. One tool rather than two because there is nothing to search by: the endpoint takes paging and a `sort` and ignores anything else, and a second tool would have cost a second description for the same call. `sort` is a `Literal` of the four dates the API named when it refused `title`, each way round. Nothing but `organizationId` is dropped, because the API already sends a shorter row in a list than it sends for one record — see section 5, which is also why the tool says to read by id for the lines. Built and verified live 2026-08-21. | 1 |
@@ -2264,7 +2274,11 @@ every test in this repository. Section 14.3 says how to look.
   file outlives the process, and nothing about a link is tied to one. The name is sanitized and
   the result checked to be inside the directory, since it arrives from the
   caller. Its content type comes from the extension, which is the name the API
-  itself chose in its `Content-Disposition`.
+  itself chose in its `Content-Disposition`. **That name always carried an
+  extension**, checked 2026-10-08 over every file and every rendered
+  document in the test account (`{id}.pdf`, `{id}.png`,
+  `Rechnung_RE0001.pdf`), so a name without one, which would be delivered as
+  an opaque blob, is a case the API has not produced. Nothing guards it.
 - **The URI is an MCP resource, listed per file.** A path only means
   something while client and server share a filesystem, which the stdio
   transport happens to give and the HTTP transport of section 6 will not. What

@@ -15,6 +15,26 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **`update_voucher` refuses `use_collective_contact=false` without a
+  `contact_id` before reading the voucher.** It names no contact, and the
+  API refuses a voucher without one, measured, so the call spent a read and
+  a write on a refusal.
+- **`create_sales_document` refuses an `article_id` on a `custom` or `text`
+  line before sending anything.** The API refuses it with 406, measured,
+  so the call spent its one POST on a refusal - and a `text` line dropped
+  the id without a word.
+- **`get_voucher` by a number that matches nothing says so plainly**: "No
+  voucher with the number RE-1." instead of "No voucher carrying the number
+  with ID RE-1.".
+- **A PDF that cannot be rendered no longer ends its reason with two full
+  stops.** PDFium's message brings one of its own.
+- **A download named in the encoded form of `Content-Disposition` keeps its
+  name.** `filename*=UTF-8''Rechnung%20M%C3%A4rz.pdf` was saved with the
+  percent signs replaced, as `Rechnung_20M_C3_A4rz.pdf`, and a plain
+  `filename` beside it won although the encoded one is meant to.
+- **An upload outside `LXO_MCP_UPLOAD_DIR` is refused the same way
+  whether the file exists or not.** The file was looked for first, so the
+  answer told the model what is on the disk where it may not upload from.
 - **An update or a delete that runs out of retries says its outcome is
   unknown.** After three attempts ending in a timeout, a lost connection or
   a 5xx, any of them may have been carried out, but the error read like a
@@ -86,6 +106,13 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **`get_sales_document` and `download_document` take a document type as
+  `search_vouchers` spells it.** Their description says to copy the
+  `voucherType`, which is `creditnote`, `orderconfirmation`,
+  `deliverynote` or `downpaymentinvoice` for four of the seven types, and
+  the schema took only `credit-note` and the like, so four of seven were
+  refused. Both spellings are accepted now, which adds four values to each
+  schema.
 - **`setup` listens on port `8771` by default**, one above the HTTP
   transport's `8770`, as the Compose files already publish the two. Both
   used `8770`, so `setup` beside a server on its default port ended with

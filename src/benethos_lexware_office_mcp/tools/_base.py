@@ -20,7 +20,7 @@ from pydantic import Field
 from .. import logbook
 from ..errors import ConflictError, ToolError
 from ..policy import ToolPolicy, guarded, known_tools
-from ..records.types import DocumentType
+from ..records.types import DocumentTypeSpelling
 from ..settings import MAX_PAGE_SIZE
 
 __all__ = [
@@ -62,11 +62,12 @@ PageSize = Annotated[
 # The sales document tools and `download_document` address the same seven
 # documents, so they share these two as well, for the same reason.
 DocumentTypeField = Annotated[
-    DocumentType,
+    DocumentTypeSpelling,
     Field(
         description=(
             "Which kind of document this is. Take it from the `voucherType` "
-            "search_vouchers reported, where a sales invoice is 'invoice'."
+            "search_vouchers reported, where a sales invoice is 'invoice'. "
+            "Either spelling works, 'creditnote' or 'credit-note'."
         )
     ),
 ]

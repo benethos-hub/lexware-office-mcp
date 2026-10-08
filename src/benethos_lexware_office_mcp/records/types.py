@@ -25,6 +25,7 @@ __all__ = [
     "CreatableType",
     "Delivered",
     "DocumentType",
+    "DocumentTypeSpelling",
     "Download",
     "Format",
     "LeadingPrice",
@@ -189,10 +190,24 @@ CreatableType = Literal[
 # lists all seven and a new type is added in exactly one place.
 DocumentType = Literal[CreatableType, "down-payment-invoice"]
 
+# The same four as `search_vouchers` reports them in `voucherType`: the
+# voucher list spells the types without hyphens. A caller told to copy that
+# value is not refused for doing so - the tools that take a document type
+# accept both spellings, and the path is the same for either.
+VoucherListSpelling = Literal[
+    "creditnote", "orderconfirmation", "deliverynote", "downpaymentinvoice"
+]
+DocumentTypeSpelling = Literal[DocumentType, VoucherListSpelling]
+
 # The path segment each type lives under: plural and kebab-cased, which is
 # also what the web app's permalinks use. Every one of the seven pluralizes
-# with an `s`, so the table is derived rather than kept by hand.
-RESOURCES: dict[str, str] = {name: f"{name}s" for name in get_args(DocumentType)}
+# with an `s`, so the table is derived rather than kept by hand, and the
+# voucher list's spelling of a type maps to the same segment.
+RESOURCES: dict[str, str] = {
+    spelling: f"{name}s"
+    for name in get_args(DocumentType)
+    for spelling in (name, name.replace("-", ""))
+}
 
 # Measured 2026-08-21 by sending `title`: the API names the four it takes.
 RecurringSort = Literal[

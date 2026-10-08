@@ -220,7 +220,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         found = await client.vouchers_by_number(voucher_number or "")
         matches = found.get("content") or []
         if not matches:
-            raise NotFoundError("voucher carrying the number", voucher_number or "")
+            raise NotFoundError("voucher", voucher_number or "", by="the number")
         if len(matches) > 1:
             ids = ", ".join(str(match.get("id")) for match in matches)
             raise ValidationError(
@@ -375,7 +375,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             Field(
                 description=(
                     "True moves it to the collective contact instead of a "
-                    "named one. Not together with contact_id."
+                    "named one. Not together with contact_id. To leave the "
+                    "collective contact, pass contact_id instead."
                 )
             ),
         ] = None,
@@ -434,6 +435,15 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             raise ValidationError(
                 "Pass contact_id or use_collective_contact, not both: a voucher "
                 "belongs either to a named contact or to the collective one."
+            )
+        # Measured 2026-10-08: off the collective contact without a named
+        # one is refused with `contactId: Missing_ContactId` - after the read
+        # this call would spend first.
+        if use_collective_contact is False and contact_id is None:
+            raise ValidationError(
+                "use_collective_contact=false on its own names no contact, and "
+                "the API refuses a voucher without one. Pass contact_id to move "
+                "it to a named contact, or leave both out to keep its contact."
             )
         client = provider.get()
         current = await client.voucher(voucher_id)
