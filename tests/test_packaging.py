@@ -325,6 +325,26 @@ def test_development_and_production_run_the_server_alike() -> None:
             )
 
 
+HARDENING = (
+    "\n    read_only: true\n",
+    "\n    tmpfs:\n      - /tmp\n",
+    "\n    cap_drop:\n      - ALL\n",
+    "\n    security_opt:\n      - no-new-privileges:true\n",
+)
+
+
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_every_compose_service_is_hardened(compose: Path) -> None:
+    """Nothing written but the volumes and /tmp, and no capability kept.
+
+    Measured 2026-10-08 against a test account: the token, the policy, a
+    restart on a changed .env, a download and its rendering all work so.
+    """
+    for name, block in _services(compose).items():
+        missing = [line.strip() for line in HARDENING if line not in block + "\n"]
+        assert not missing, f"{name} lacks {missing}"
+
+
 def test_production_runs_the_published_image_at_the_named_version() -> None:
     services = _services(COMPOSE_FILES[1])
     image = "image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?"

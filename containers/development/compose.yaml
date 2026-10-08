@@ -38,6 +38,13 @@ services:
     volumes:
       - config:/config
       - downloads:/downloads
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   # Started by name, never by a plain `up`, and put away by hand:
   #   docker compose --profile setup up -d
@@ -71,6 +78,13 @@ services:
     volumes:
       - config:/config
       - downloads:/downloads
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   config:

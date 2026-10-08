@@ -847,6 +847,17 @@ arriving.
   read as the other, by a person or by the server's search, which takes an
   `.env` in the working directory and ignores names it does not know.
 
+  **Both run the container hardened**: a read-only root file system,
+  `/tmp` as a `tmpfs`, every Linux capability dropped and
+  `no-new-privileges`. Every file this server writes goes through one atomic
+  write into the directory of its target, so the `.env`, the policy file and
+  the profiles land in `/config`, and downloads in `/downloads`. Measured
+  2026-10-08 against the test account with the image built from the
+  checkout: the token generated, a policy written, a restart on a changed
+  `.env`, `get_profile`, an invoice downloaded and rendered into a page
+  image, the configuration interface served - no traceback, no refused
+  write. `tests/test_packaging.py` holds every service of both files to it.
+
   Two things were left out on purpose. **No TLS proxy**: the server speaks
   for one account and is published on the loopback, and putting it on a
   network is a decision for a proxy that authenticates, not for a file

@@ -660,6 +660,7 @@ grow the log for as long as the container exists.
 docker run -d --name lexware-office-mcp \
   --restart unless-stopped \
   --log-opt max-size=10m --log-opt max-file=5 \
+  --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:8770:8770 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
   ghcr.io/benethos-hub/lexware-office-mcp:latest
@@ -681,6 +682,7 @@ at the same volume:
 
 ```bash
 docker run --rm -d --name lexware-office-mcp-setup \
+  --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:8771:8771 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
   ghcr.io/benethos-hub/lexware-office-mcp:latest \
@@ -697,6 +699,11 @@ docker stop lexware-office-mcp-setup
 **`--restart unless-stopped` is not decoration here.** The container ends its
 process when the settings file changes, which is what carries a saved setting
 into a running server. With no restart policy it ends and stays ended.
+
+**The rest of the second line is hardening, and the Compose files do the
+same.** The server writes nothing but its two volumes and `/tmp`, so the
+image itself can stay read-only, and a process of an ordinary user on a port
+above 1024 needs no Linux capability at all.
 
 ### Turn the interface off when you are done
 

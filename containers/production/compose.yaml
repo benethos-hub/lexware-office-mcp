@@ -80,6 +80,17 @@ services:
       # Documents fetched from the API, the newest 100 of them: the image sets
       # LXO_MCP_KEPT_DOWNLOADS. Set it under `environment` to change that.
       - downloads:/downloads
+    # Nothing is written but the two volumes and /tmp, which lives in memory:
+    # the image, the code in it included, stays as it was pulled. No Linux
+    # capability is kept, since a process of uid 10001 on a port above 1024
+    # needs none, and nothing can gain one later through a setuid binary.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   # Started by name, never by a plain `up`:
   #   docker compose --profile setup up -d
@@ -120,6 +131,13 @@ services:
     volumes:
       - config:/config
       - downloads:/downloads
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   config:

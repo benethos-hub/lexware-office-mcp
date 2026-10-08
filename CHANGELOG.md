@@ -29,6 +29,10 @@ housekeeping are out of scope here — design decisions live in
   checkout under a project of its own, on `127.0.0.1:8780` and `8781`,
   with volumes of its own. Switching to the published image by commenting
   lines is no longer needed.
+- **The container runs hardened under Compose**: a read-only root file
+  system, `/tmp` in memory, no Linux capabilities and `no-new-privileges`.
+  It writes nothing but its volumes and `/tmp`, so nothing it does changes.
+  The README's `docker run` examples carry the same flags.
 
 ## [0.4.1] - 2026-10-05
 

@@ -64,6 +64,9 @@ docker build -f containers/images/lexware-office-mcp/Dockerfile -t benethos-lexw
 - Its settings live in the volume `/config`, documents fetched from the
   API in `/downloads`. The configuration interface writes the first one.
 - Its health check connects to the transport port.
+- Both Compose files run it with a read-only root file system, `/tmp`
+  in memory, no Linux capabilities and `no-new-privileges`. It writes
+  nothing but its two volumes and `/tmp`.
 - Both Compose files cap the log Docker keeps of each container at five
   files of 10 MB, the oldest dropped first.
 
