@@ -44,6 +44,9 @@ __all__ = [
 API_KEY = "LXO_MCP_API_KEY"
 POLICY_KEY = "LXO_MCP_TOOL_POLICY"
 BEARER_KEY = "LXO_MCP_BEARER_TOKEN"
+# The one setting the settings page offers as a choice rather than a field,
+# and the one the server does not refuse, so the page refuses it instead.
+LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 # Where a setting actually comes from. Showing the file alone would be
 # misleading exactly when it matters most: a real environment variable

@@ -34,7 +34,7 @@ from ..settings.parse import credential
 from . import pages, probe, transfer
 from .pages import Message, Page
 from .profiles import Profile, ProfileError
-from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, Installation
+from .state import API_KEY, BEARER_KEY, EDITABLE_KEYS, LOG_LEVEL_KEY, Installation
 
 __all__ = [
     "Action",
@@ -56,13 +56,10 @@ Form = dict[str, list[str]]
 # The name the file has on disk, so a download can simply replace one.
 _EXPORT_NAME = "tools.json"
 
-LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
-
 # Where each form sends the browser once it went through.
 _CREDENTIALS = "/credentials"
 _PERMISSIONS = "/permissions"
 _SETTINGS = "/settings"
-_CHECKED = "/credentials"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -90,7 +87,7 @@ Action = Callable[[Installation, Form], Reply | None]
 def check(inst: Installation, form: Form) -> Reply:
     account, text = probe.check(inst.settings)
     message = Message(text, "err") if account is None else Message.found(text, account)
-    return Reply(redirect=_CHECKED, message=message)
+    return Reply(redirect=_CREDENTIALS, message=message)
 
 
 def save_key(inst: Installation, form: Form) -> Reply:

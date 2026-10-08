@@ -36,6 +36,7 @@ from .state import (
     CLI_SOURCE,
     ENV_SOURCE,
     LABELS,
+    LOG_LEVEL_KEY,
     POLICY_KEY,
     Installation,
     if_emptied,
@@ -94,8 +95,6 @@ SETTINGS_CARDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("LXO_MCP_DOWNLOAD_DIR", "LXO_MCP_KEPT_DOWNLOADS", "LXO_MCP_UPLOAD_DIR"),
     ),
 )
-
-LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 # A domain is an identifier in the code and a heading on the screen, and the
 # two want different words. An unmapped domain shows its own name rather than
