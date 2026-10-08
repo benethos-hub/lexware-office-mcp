@@ -92,16 +92,32 @@ def contact_body(
         body["roles"] = {"customer": {}}
 
     _apply_identity(body, is_company, name, first_name, salutation)
-
     if is_company:
-        company = dict(body.get("company") or {})
-        if vat_registration_id is not None:
-            company["vatRegistrationId"] = vat_registration_id
-        if tax_number is not None:
-            company["taxNumber"] = tax_number
-        if company:
-            body["company"] = company
+        _apply_tax_ids(body, vat_registration_id, tax_number)
+    _apply_reachability(body, is_company, email, phone)
+    _apply_addresses(body, billing_address, shipping_address)
+    if note is not None:
+        body["note"] = note
+    return body
 
+
+def _apply_tax_ids(
+    body: dict[str, Any], vat_registration_id: str | None, tax_number: str | None
+) -> None:
+    """Set a company's VAT id and tax number, keeping what else it holds."""
+    company = dict(body.get("company") or {})
+    if vat_registration_id is not None:
+        company["vatRegistrationId"] = vat_registration_id
+    if tax_number is not None:
+        company["taxNumber"] = tax_number
+    if company:
+        body["company"] = company
+
+
+def _apply_reachability(
+    body: dict[str, Any], is_company: bool, email: str | None, phone: str | None
+) -> None:
+    """Replace the email address and the phone number, each where it is given."""
     if email is not None:
         default = _COMPANY_EMAIL if is_company else _PERSON_EMAIL
         body["emailAddresses"] = {_kind(body.get("emailAddresses"), default): [email]}
@@ -109,18 +125,18 @@ def contact_body(
         default = _COMPANY_PHONE if is_company else _PERSON_PHONE
         body["phoneNumbers"] = {_kind(body.get("phoneNumbers"), default): [phone]}
 
+
+def _apply_addresses(
+    body: dict[str, Any], billing: Address | None, shipping: Address | None
+) -> None:
+    """Replace the billing and the shipping address, each where it is given."""
     addresses = dict(body.get("addresses") or {})
-    if billing_address is not None:
-        addresses["billing"] = [_address_body(billing_address)]
-    if shipping_address is not None:
-        addresses["shipping"] = [_address_body(shipping_address)]
+    if billing is not None:
+        addresses["billing"] = [_address_body(billing)]
+    if shipping is not None:
+        addresses["shipping"] = [_address_body(shipping)]
     if addresses:
         body["addresses"] = addresses
-
-    if note is not None:
-        body["note"] = note
-
-    return body
 
 
 def _kind(current: Any, default: str) -> str:
