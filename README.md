@@ -348,7 +348,9 @@ for permissions: change those later and the running client is told, see
 uvx benethos-lexware-office-mcp setup
 ```
 
-Three pages on `127.0.0.1`, closed with Ctrl+C. They write the same files the
+Three pages on `http://127.0.0.1:8771/`, closed with Ctrl+C - one port above
+the HTTP transport's `8770`, so both can run at once. `--port` picks another.
+They write the same files the
 command line does, so you can use either or both. The screens are in German,
 because Lexware Office is sold for German companies only, and each is named
 below by what it does with its label in brackets.

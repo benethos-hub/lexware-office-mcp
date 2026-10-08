@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +44,28 @@ def test_a_byte_order_mark_does_not_lose_the_profiles(store: ProfileStore) -> No
     path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
 
     assert store.get("Nur Lesen") is not None
+
+
+def test_long_names_edited_in_by_hand_stay_apart(store: ProfileStore) -> None:
+    """Cut to 60 on reading, two names that began alike became one."""
+    first, second = "x" * 61 + " eins", "x" * 61 + " zwei"
+    store.path.write_text(
+        json.dumps(
+            {
+                "profiles": {
+                    first: {"tools": ["get_profile"]},
+                    second: {"tools": ["search_vouchers"]},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert set(store.all()) == {first, second}
+    store.save(first, ["create_voucher"], KNOWN)
+    assert store.delete(second)
+    assert set(store.all()) == {first}
+    assert store.all()[first].tools == ("create_voucher",)
 
 
 def test_a_saved_profile_comes_back(store: ProfileStore) -> None:

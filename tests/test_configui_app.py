@@ -13,6 +13,7 @@ import logging
 import re
 import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
@@ -27,19 +28,20 @@ from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serv
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
-from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings import DEFAULT_PAGE_SIZE, Settings, envfile
 from benethos_lexware_office_mcp.settings.envfile import read_env_file
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
 
 
-def fake_check(settings: Settings) -> tuple[probe.Account, str]:
+def fake_check(settings: Settings, *, keep: bool = True) -> tuple[probe.Account, str]:
     """Stands in for the one function here that would reach the API.
 
     It remembers the account the way the real one does, because the chip on
     every page is drawn from that memory.
     """
-    probe._last = ACCOUNT
+    if keep:
+        probe.remember(ACCOUNT)
     return ACCOUNT, "Verbindung steht."
 
 
@@ -528,11 +530,26 @@ def test_a_key_is_verified_before_it_is_written(
     )
 
 
+def test_a_key_that_could_not_be_written_does_not_name_its_account(
+    browser: Browser, installation: Installation
+) -> None:
+    """The chip says whose records the permissions are about. A key that
+    was checked and then not saved is not this installation's key."""
+    installation.env_path.unlink()
+    installation.env_path.mkdir()
+
+    _, body, _ = browser.post("/credentials", {"api_key": "a-new-key"})
+
+    assert "nicht schreiben" in note(body)
+    assert probe.last_account() is None
+    assert "Test Inc." not in browser.get("/permissions")[1]
+
+
 def test_a_key_the_api_rejects_is_not_written(
     browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        probe, "check", lambda settings: (None, "Die API hat abgelehnt")
+        probe, "check", lambda settings, **_: (None, "Die API hat abgelehnt")
     )
 
     _, body, _ = browser.post("/credentials", {"api_key": "wrong"})
@@ -546,7 +563,7 @@ def test_the_check_can_be_skipped(
 ) -> None:
     """Otherwise a machine that is offline could never be configured."""
     monkeypatch.setattr(
-        probe, "check", lambda settings: pytest.fail("must not ask the API")
+        probe, "check", lambda settings, **_: pytest.fail("must not ask the API")
     )
 
     _, body, _ = browser.post("/credentials", {"api_key": "offline", "unchecked": "1"})
@@ -567,7 +584,9 @@ def test_the_connection_test_reports_the_account(browser: Browser) -> None:
 def test_a_failed_connection_test_says_why(
     browser: Browser, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(probe, "check", lambda settings: (None, "Kein API-Schlüssel"))
+    monkeypatch.setattr(
+        probe, "check", lambda settings, **_: (None, "Kein API-Schlüssel")
+    )
 
     _, body, _ = browser.post("/check", {})
 
@@ -584,6 +603,72 @@ def test_a_setting_is_written_and_takes_effect(
 
     assert "LXO_MCP_PAGE_SIZE=80" in installation.env_path.read_text(encoding="utf-8")
     assert installation.settings.page_size == 80
+
+
+def test_an_emptied_setting_falls_back_to_the_default(
+    browser: Browser, installation: Installation
+) -> None:
+    """The page says empty means the default. The empty field used to be
+    dropped before the action saw it, the old value stayed, and the page
+    reported success."""
+    browser.post("/settings", {"LXO_MCP_PAGE_SIZE": ""})
+
+    assert read_env_file(installation.env_path)["LXO_MCP_PAGE_SIZE"] == ""
+    assert installation.settings.page_size == DEFAULT_PAGE_SIZE
+
+
+def test_an_unknown_log_level_is_refused_rather_than_stored(
+    browser: Browser, installation: Installation
+) -> None:
+    """The server falls back to INFO for it, so stored it never took effect."""
+    _, body, _ = browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "verbose"})
+
+    assert "Nicht gespeichert" in note(body)
+    assert "verbose" not in installation.env_path.read_text(encoding="utf-8")
+
+    browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "debug"})
+    assert installation.settings.log_level == "DEBUG"
+
+
+def test_two_saves_at_once_both_arrive(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every request has a thread. Each save reads the file, changes it and
+    writes it back, so two at once each wrote what they had read."""
+    real_read = envfile._existing_lines
+
+    def slow_read(path: Path) -> list[str]:
+        seen = real_read(path)
+        time.sleep(0.2)  # long enough for the other save to read the same
+        return seen
+
+    monkeypatch.setattr(envfile, "_existing_lines", slow_read)
+    token = browser.token()
+    saves = [
+        threading.Thread(
+            target=browser.post,
+            args=("/settings", {key: value}),
+            kwargs={"csrf": token},
+        )
+        for key, value in (("LXO_MCP_PAGE_SIZE", "80"), ("LXO_MCP_TIMEOUT", "20"))
+    ]
+    for save in saves:
+        save.start()
+    for save in saves:
+        save.join(timeout=10)
+
+    written = read_env_file(installation.env_path)
+    assert written["LXO_MCP_PAGE_SIZE"] == "80"
+    assert written["LXO_MCP_TIMEOUT"] == "20"
+
+
+def test_a_blank_field_the_file_does_not_carry_is_not_written(
+    browser: Browser, installation: Installation
+) -> None:
+    """The form sends every field. Nothing to clear means nothing to write."""
+    browser.post("/settings", {"LXO_MCP_PAGE_SIZE": "80", "LXO_MCP_TIMEOUT": ""})
+
+    assert "LXO_MCP_TIMEOUT" not in installation.env_path.read_text(encoding="utf-8")
 
 
 def test_a_setting_the_server_would_refuse_is_not_written(
@@ -875,7 +960,7 @@ def test_a_saved_key_is_a_line_and_the_key_is_not(
 def test_a_key_the_account_refused_is_a_warning(
     browser: Browser, lines: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(probe, "check", lambda settings: (None, "abgelehnt"))
+    monkeypatch.setattr(probe, "check", lambda settings, **_: (None, "abgelehnt"))
 
     browser.post("/credentials", {"api_key": "wrong-key-0123456789"})
 
@@ -1016,7 +1101,7 @@ def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
 ) -> None:
     """A zero-width space pasted along: encoding it failed inside the check."""
     monkeypatch.setattr(
-        probe, "check", lambda settings: pytest.fail("must not ask the API")
+        probe, "check", lambda settings, **_: pytest.fail("must not ask the API")
     )
 
     status, body, _ = browser.post("/credentials", {"api_key": "a-new​key"})

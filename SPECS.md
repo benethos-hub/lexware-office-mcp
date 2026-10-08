@@ -1023,8 +1023,11 @@ no key.
 
 ### 7.1 The configuration interface
 
-`benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1` and
-opens a browser. It writes the same `.env` and `tools.json` the command line does,
+`benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1:8771` and
+opens a browser. **The port is one above the HTTP transport's**, since
+2026-10-08: both used `8770`, so `setup` beside a server on its default port
+ended with "in use", and no document said why. The Compose files already
+published the two that way. It writes the same `.env` and `tools.json` the command line does,
 so the two are interchangeable and neither owns the files.
 
 **It is never part of the MCP server.** That process speaks JSON-RPC over
@@ -1174,8 +1177,11 @@ is running. Six digits of clock beats six digits of clock and three of
 padding, because somebody eventually relies on the difference.
 
 **One policy file can be carried to another installation, and nothing else
-can.** The download is the file itself, in the shape `tools.json` already
-has: one flag per tool, no wrapper, no format version. So it can be dropped
+can.** The download is a policy file in the shape `tools.json` already
+has: one flag per tool, no wrapper, no format version. It is written the way
+a save writes the file, from what the server makes of it, so a file edited
+by hand comes out complete - every known tool named, a name that is no tool
+dropped, only `true` read as on. So it can be dropped
 into another installation's config directory or named with `--tools-file`,
 and a file written by `--tools` reads here — one format for one thing, rather
 than a second one wrapping it.

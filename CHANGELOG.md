@@ -58,9 +58,38 @@ housekeeping are out of scope here — design decisions live in
   TLS, whose `Origin` is `https://`, was refused by the DNS-rebinding guard.
 - **`--help` names the Compose service as it is called now**,
   `benethos-lexware-office-mcp:8770`, in its example for `--allowed-hosts`.
+- **A setting can be emptied in `setup` again.** The page says an empty
+  field means the default, but the empty field was dropped before it was
+  saved: the old value stayed, and the page reported success.
+- **The account shown in `setup` changes only once a new key is saved.**
+  It was taken from the check that runs before saving, so a key that could
+  not be written still put its account on every page, beside permissions
+  that belong to the old one.
+- **The permissions page no longer says the reading tools are ticked
+  when a loaded profile or an imported file ticked others.** Without a
+  policy file, the note about the suggestion stood above every form.
+- **`setup` refuses a log level the server does not know.** `verbose` was
+  saved, shown as `INFO` and never took effect, since the server falls back
+  to the default rather than refusing to start over a log level.
+- **The policy download says what it is.** The page called it exactly the
+  file the server reads. It is what the server makes of that file, one flag
+  for every tool it knows, which differs from a file edited by hand.
+- **A profile name over 60 characters, edited into the file by hand, is
+  kept.** Names were cut to 60 on reading, so two that began alike became
+  one, and the next save in `setup` kept only the last of them.
+- **Two tabs of `setup` saving at once no longer lose one save.** Each
+  request reads a file, changes it and writes it back, and two at the same
+  time each wrote what they had read. Saves now run one after the other.
+- **`setup` names `--tools-file` as the source of the policy file whenever
+  it was given.** With `LXO_MCP_TOOL_POLICY` set as well, the badge said
+  the environment beside the path the flag had named.
 
 ### Changed
 
+- **`setup` listens on port `8771` by default**, one above the HTTP
+  transport's `8770`, as the Compose files already publish the two. Both
+  used `8770`, so `setup` beside a server on its default port ended with
+  "in use". `--port` still picks another.
 - **The documentation and `containers/production/` name the image
   `ghcr.io/benethos-hub/benethos-lexware-office-mcp`**, which 0.4.2
   introduced. It is the image `ghcr.io/benethos-hub/lexware-office-mcp`

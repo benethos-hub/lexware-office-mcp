@@ -271,6 +271,23 @@ def test_a_searched_policy_file_is_not_called_a_default(
     assert "aus: Suche" in text(pages.overview(plain))
 
 
+def test_the_flag_outranks_the_variable_on_the_badge_too(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With both set, the path is the flag's, so the source is the flag."""
+    monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(inst.cwd / "from-env.json"))
+    named = Installation(
+        settings=inst.settings,
+        env_path=inst.env_path,
+        cwd=inst.cwd,
+        tools_file_named=True,
+    )
+
+    assert named.source_of("LXO_MCP_TOOL_POLICY") == "Aufruf"
+    assert "--tools-file" in named.source_detail("LXO_MCP_TOOL_POLICY")
+    assert inst.source_of("LXO_MCP_TOOL_POLICY") == "Umgebung"
+
+
 def test_the_policy_file_is_fixed_for_the_life_of_the_process(
     inst: Installation, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -432,6 +449,14 @@ def test_without_a_file_the_boxes_open_on_read_only(inst: Installation) -> None:
     assert 'value="create_voucher" id="create_voucher">' in body
     assert "aktiv ist also nichts" in body
     assert "angehakt sind die lesenden" in body
+
+
+def test_a_loaded_profile_is_not_called_the_suggestion(inst: Installation) -> None:
+    """Still no file, so still nothing on, but the ticks are the profile's."""
+    body = text(pages.permissions(inst, flags={"create_voucher": True}))
+
+    assert "aktiv ist also nichts" in body
+    assert "angehakt sind die lesenden" not in body
 
 
 def test_ticks_that_do_not_describe_the_file_are_labelled(

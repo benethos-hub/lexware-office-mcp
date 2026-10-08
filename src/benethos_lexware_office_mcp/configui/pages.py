@@ -382,10 +382,17 @@ def permissions(
         state = inst.policy.as_map()
 
     if fresh:
+        # The suggestion is named only where it is what the boxes show. A
+        # loaded profile or an imported file ticks its own tools.
+        suggested = (
+            " Vorgeschlagen und angehakt sind die lesenden Tools."
+            if flags is None
+            else ""
+        )
         message += note(
             "Es gibt noch keine Rechtedatei, <strong>aktiv ist also "
-            "nichts</strong>. Vorgeschlagen und angehakt sind die lesenden "
-            "Tools. Erst „Rechte speichern“ legt die Datei an."
+            f"nichts</strong>.{suggested} Erst „Rechte speichern“ legt die "
+            "Datei an."
         )
 
     blocks = []
@@ -564,9 +571,10 @@ def _policy_transfer(inst: Installation, opened: bool = False) -> str:
     export = (
         '<p><button type="submit" name="action" value="policy-export">'
         "Rechtedatei herunterladen</button> "
-        '<span class="hint">Genau die Datei, die dieser Server liest — '
-        "auf einer anderen Installation nutzbar, mit oder ohne diese "
-        "Oberfläche.</span></p>"
+        '<span class="hint">Die Rechte, nach denen dieser Server sich '
+        "richtet, als vollständige Datei: jedes Tool mit true oder false, "
+        "was er nicht kennt, weggelassen. Auf einer anderen Installation "
+        "nutzbar, mit oder ohne diese Oberfläche.</span></p>"
         if inst.policy.exists()
         else '<p class="hint">Es gibt noch keine Rechtedatei zum Herunterladen. '
         "Einmal speichern legt sie an.</p>"

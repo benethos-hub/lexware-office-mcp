@@ -439,6 +439,7 @@ def _run(
             host=args.host or configui.DEFAULT_HOST,
             port=args.port or configui.DEFAULT_PORT,
             open_browser=not args.no_browser,
+            tools_file_named=bool(args.tools_file),
         )
         return
 

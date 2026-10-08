@@ -22,7 +22,7 @@ from typing import Any
 from .. import logbook
 from ..errors import ConfigError
 from ..policy import known_tools
-from ..settings import load_settings
+from ..settings import LOG_LEVELS, load_settings
 from ..settings.envfile import update_env_file
 from ..settings.parse import credential
 from . import pages, probe, transfer
@@ -49,6 +49,8 @@ Form = dict[str, list[str]]
 
 # The name the file has on disk, so a download can simply replace one.
 _EXPORT_NAME = "tools.json"
+
+LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -96,7 +98,7 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
     verified: probe.Account | None = None
     if not skip_check:
         probe_settings = dataclasses.replace(inst.settings, api_key=key)
-        verified, message = probe.check(probe_settings)
+        verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
             return _page_with(
@@ -117,6 +119,8 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
             _write_failed(inst.env_path, exc),
             kind="bad",
         )
+    if verified is not None:
+        probe.remember(verified)
     logbook.configui.key_saved(inst.env_path.name, verified is not None)
     refused = _reloaded(inst)
     suffix = (
@@ -203,10 +207,31 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
 
 
 def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
-    submitted = {key: field(form, key) for key in EDITABLE_KEYS if key in form}
+    current = inst.file_env()
+    # The form sends every field, blank ones included. A blank one clears a
+    # value the file holds, and for a key the file does not carry there is
+    # nothing to clear - writing `KEY=` for it would only clutter the file.
+    submitted = {
+        key: value
+        for key in EDITABLE_KEYS
+        if key in form and ((value := field(form, key)) or key in current)
+    }
+    # The one setting the server does not refuse: an unknown log level
+    # falls back to the default rather than stopping a start. Written from
+    # here it would be stored, shown as that default, and never take effect.
+    level = submitted.get(LOG_LEVEL_KEY, "")
+    if level and level.upper() not in LOG_LEVELS:
+        return _page_with(
+            inst,
+            csrf,
+            pages.credentials,
+            f"Nicht gespeichert: {LOG_LEVEL_KEY} kennt nur "
+            f"{', '.join(LOG_LEVELS)}, nicht {level}.",
+            kind="bad",
+        )
     # Validated by the same code the server uses, so a value accepted here
     # cannot be one that stops the server from starting later.
-    proposed = {**inst.file_env(), **submitted}
+    proposed = {**current, **submitted}
     try:
         load_settings(env=proposed)
     except ConfigError as exc:
@@ -443,7 +468,12 @@ def _delete_profile(inst: Installation, csrf: str, form: Form) -> Reply:
 
 
 def export(inst: Installation) -> Reply:
-    """The policy file as a download, byte for byte what is on disk."""
+    """The policy in effect as a download, written the way a save writes it.
+
+    Not the bytes on disk: a file edited by hand may leave tools out, carry
+    names that are no tool, or say ``1`` for ``true``. The download says
+    what the server makes of it, one flag for every tool it knows.
+    """
     return Reply(
         transfer.dumps(inst.policy.as_map()).encode("utf-8"), download=_EXPORT_NAME
     )
