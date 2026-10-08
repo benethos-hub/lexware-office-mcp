@@ -95,7 +95,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
 | `settings/` | Settings resolution and credential lookup, see section 7 for the precedence. `Settings` and `load_settings` in the package itself, `locations` for the directories, the search and the one file that applies, `parse` for reading one value, `envfile` for the file itself. | built |
 | `settings/envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
-| `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
+| `logbook/` | Every line on stderr, see section 11.2. `output` is the one handler and the levels, `access` cuts uvicorn's request line down, `tally` counts a tool call's API calls, `_describe` says what of an exception or an id a line may carry, and `lifecycle`, `policy`, `api`, `calls`, `files` and `configui` are the catalogue: one function per line, and no other module imports `logging`. | built |
 | `records/types.py` | Every enumeration a tool takes and every model its arguments are built from, plus the two models the file tools answer with. The schema a client sees is generated from these, so this is the vocabulary of the whole tool list, in one place. | built |
 | `records/payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
@@ -1027,9 +1027,9 @@ policy file and its profiles are read with a byte order mark allowed as
 well, since 2026-10-08: read as plain UTF-8, a `tools.json` saved by a
 Windows editor was broken JSON, and every tool was off.
 
-No secret is ever read from a versioned file. `config/.env` is gitignored and
-The settings sample, which is committed and ships inside the package, holds
-no key.
+No secret is ever read from a versioned file. `config/.env` is gitignored,
+and the settings sample, which is committed and ships inside the package,
+holds no key.
 
 ### 7.1 The configuration interface
 
