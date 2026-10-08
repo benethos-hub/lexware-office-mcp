@@ -360,10 +360,12 @@ command line does, so you can use either or both. The screens are in German,
 because Lexware Office is sold for German companies only, and each is named
 below by what it does with its label in brackets.
 
-**Overview** (`Übersicht`) — which `.env` and which `tools.json` are actually
-in effect, what every setting resolves to and where that value came from,
-whether each file exists yet, how many tools are on and what they cost. A
-connection test on the button, never on page load.
+**Overview** (`Übersicht`) — where the installation stands, in three rows: the
+key stored or missing, how many tools are on and what they cost, and what the
+last connection test found. The first row in red is the next step, and the
+button at the top right goes there. Below it the `"args"` entry that makes a
+client use the same files, and which files those are and whether each exists
+yet.
 
 **Credentials** (`Zugangsdaten`) — the API key, checked against the API before
 it is saved unless you say otherwise, and beside it the connection test: one

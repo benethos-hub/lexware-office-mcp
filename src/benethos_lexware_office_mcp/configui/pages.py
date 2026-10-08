@@ -35,7 +35,7 @@ from .state import (
     CLI_SOURCE,
     ENV_SOURCE,
     LABELS,
-    SETTING_KEYS,
+    POLICY_KEY,
     Installation,
     defaults,
     resolved,
@@ -224,54 +224,141 @@ def _cost_note(characters: int) -> str:
 
 
 def overview(inst: Installation) -> Page:
-    """What this installation is, which files it reads, and what it may do."""
+    """Where this installation stands, what a client needs, which files.
+
+    The card *Stand* has three rows, the key, the permissions and the last
+    connection test, each with a tag in a state colour. The first red row is
+    the next step, and the page's primary action goes there.
+    """
     # Measured first, and not only because the figure is wanted below:
     # building a server is what *defines* the tools, since `classify` runs as
     # each one is registered. Asking `known_tools()` before this returns an
     # empty registry in any process that has not built one.
     costs = tool_costs(inst.settings)
-    values = resolved(inst)
-    # The file once, for the whole table, rather than once per row.
     env = inst.file_env()
     rows = [
-        {
-            "label": LABELS[key],
-            "key": key,
-            "value": values[key],
-            "badge": _badge(inst, key, env),
-        }
-        for key in SETTING_KEYS
+        _key_row(inst, env),
+        _policy_row(inst, costs),
+        _connection_row(),
     ]
-
-    policy = inst.policy
-    flags = policy.as_map()
-    on = [name for name, flag in flags.items() if flag]
-    writers = sorted(writing(on))
-    if not policy.exists():
-        state = "missing"
-    elif not on:
-        state = "none"
-    elif writers:
-        state = "writers"
-    else:
-        state = "read"
-
+    step = next((row["link"] for row in rows if row["tag"]["kind"] == "err"), None)
     return Page(
         "pages/overview.html",
         "Übersicht",
         "/",
         {
             "rows": rows,
-            "on": len(on),
-            "total": len(flags),
-            "spend": _cost_note(sum(costs.get(name, 0) for name in on)),
-            "policy_state": state,
-            "policy_path": str(policy.path),
-            "writers": writers,
-            "files": _files(inst),
+            "step": step,
+            "files": _files(inst, env),
             "outranked": _outranked(inst),
             "args": _client_arguments(inst),
         },
+        "Wo diese Installation steht, was ein Client braucht und welche "
+        "Dateien gelten.",
+    )
+
+
+def _stand(
+    name: str,
+    label: str,
+    tag: str,
+    kind: str,
+    *,
+    link: tuple[str, str] | None = None,
+    **say: Any,
+) -> dict[str, Any]:
+    """One row of the card *Stand*: what, its tag, what to read, where to go.
+
+    Every row has every key, so the template asks what a row says rather
+    than whether it says it.
+    """
+    return {
+        "name": name,
+        "label": label,
+        "tag": {"text": tag, "kind": kind},
+        "link": link,
+        "badge": None,
+        "state": "",
+        "count": "",
+        "spend": "",
+        "writers": [],
+        "account": "",
+        "facts": [],
+        **say,
+    }
+
+
+def _key_row(inst: Installation, env: dict[str, str]) -> dict[str, Any]:
+    if inst.has_api_key():
+        return _stand(
+            "key", "API-Schlüssel", "hinterlegt", "ok", badge=_badge(inst, API_KEY, env)
+        )
+    return _stand(
+        "key",
+        "API-Schlüssel",
+        "fehlt",
+        "err",
+        link=("/credentials", "Schlüssel eintragen"),
+    )
+
+
+def _policy_row(inst: Installation, costs: dict[str, int]) -> dict[str, Any]:
+    """The permissions: how many are on, what they cost, and who may write."""
+    policy = inst.policy
+    flags = policy.as_map()
+    on = [name for name, flag in flags.items() if flag]
+    writers = sorted(writing(on))
+    count = f"{len(on)} von {len(flags)} Tools aktiv."
+    spend = _cost_note(sum(costs.get(name, 0) for name in on))
+    link = ("/permissions", "Rechte festlegen")
+    if not policy.exists():
+        return _stand(
+            "policy",
+            "Rechte",
+            "keine Datei",
+            "err",
+            link=link,
+            state="missing",
+            count=count,
+        )
+    if not on:
+        return _stand(
+            "policy", "Rechte", "kein Tool", "err", link=link, state="none", count=count
+        )
+    if writers:
+        return _stand(
+            "policy",
+            "Rechte",
+            f"{len(writers)} schreibend",
+            "warn",
+            state="writers",
+            count=count,
+            spend=spend,
+            writers=writers,
+        )
+    return _stand(
+        "policy", "Rechte", "nur lesend", "ok", state="read", count=count, spend=spend
+    )
+
+
+def _connection_row() -> dict[str, Any]:
+    """The last connection test, which only a button runs."""
+    account = last_account()
+    if account is None:
+        return _stand(
+            "connection",
+            "Verbindung",
+            "nicht getestet",
+            "",
+            link=("/credentials", "Verbindung testen"),
+        )
+    return _stand(
+        "connection",
+        "Verbindung",
+        "verbunden",
+        "ok",
+        account=account.label,
+        facts=account_facts(account),
     )
 
 
@@ -290,14 +377,24 @@ def _client_arguments(inst: Installation) -> str:
     )
 
 
-def _files(inst: Installation) -> list[dict[str, Any]]:
-    """The three files, each with its label, its path and whether it exists."""
+def _files(inst: Installation, env: dict[str, str]) -> list[dict[str, Any]]:
+    """The three files: a name, whether it exists yet, the path to unfold.
+
+    The policy file carries its badge as well, since nobody naming it means
+    the search found it, which is worth knowing when it is the wrong one.
+    """
     return [
-        {"label": label, "code": code, "path": str(path), "exists": path.is_file()}
-        for label, code, path in (
-            ("Einstellungen", ".env", inst.env_path),
-            ("Rechte", "", inst.policy_path),
-            ("Profile", "", inst.profiles.path),
+        {
+            "label": label,
+            "name": path.name,
+            "path": str(path),
+            "exists": path.is_file(),
+            "badge": badge,
+        }
+        for label, path, badge in (
+            ("Einstellungen", inst.env_path, None),
+            ("Rechte", inst.policy_path, _badge(inst, POLICY_KEY, env)),
+            ("Profile", inst.profiles.path, None),
         )
     ]
 
@@ -440,7 +537,7 @@ def permissions(
         {
             "domain": domain,
             "label": GROUP_LABELS.get(domain, domain),
-            "tools": [_row(name, meta[name], state, costs) for name in names],
+            "tools": [_tool_row(name, meta[name], state, costs) for name in names],
         }
         for domain, names in grouped_tools().items()
     ]
@@ -479,7 +576,7 @@ def permissions(
     )
 
 
-def _row(
+def _tool_row(
     name: str, info: ToolMeta, state: dict[str, bool], costs: dict[str, int]
 ) -> dict[str, Any]:
     """One tool as its row shows it: the box, the marks and the cost."""

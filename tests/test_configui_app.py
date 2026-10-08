@@ -72,8 +72,8 @@ class Browser:
         return self._open(urllib.request.Request(self.base + path))
 
     def token(self) -> str:
-        """Any page carries it: it is the session cookie, echoed back."""
-        _, body, _ = self.get("/")
+        """Any page with a form carries it: it is the session cookie, echoed back."""
+        _, body, _ = self.get("/credentials")
         found = re.search(r'name="_csrf" value="([^"]+)"', body)
         assert found, "the page carried no CSRF token"
         return found.group(1)

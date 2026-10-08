@@ -235,6 +235,22 @@ td.wrap { overflow-wrap: anywhere; }
 .notice code { background: transparent; padding: 0; color: inherit; }
 .card .notice { margin: 12px 0 0; }
 
+/* Lines to read and act on, each with its tag and its link. */
+ul.lines { list-style: none; margin: 0; padding: 0; }
+ul.lines li {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+ul.lines li:first-child { padding-top: 0; }
+ul.lines li:last-child { border-bottom: 0; padding-bottom: 0; }
+ul.lines .what { min-width: 8.5em; font-weight: 600; }
+ul.lines .grow { flex: 1 1 18em; }
+
+/* A full path, folded until somebody asks for it. */
+details.path { flex-basis: 100%; }
+details.path > summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+details.path > code { display: block; margin-top: 6px; }
+
 /* --- controls -------------------------------------------------------------- */
 
 button {
@@ -253,6 +269,15 @@ button.primary:hover { filter: brightness(1.08); background: var(--accent); }
 button.danger { color: var(--err); border-color: var(--err); }
 button.danger:hover { background: var(--err-soft); }
 button.small { padding: 3px 9px; font-size: 12px; }
+/* A link that leads to the next step, drawn as the primary button. */
+a.btn {
+  display: inline-block; padding: 7px 13px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+  white-space: nowrap;
+}
+a.btn:hover { text-decoration: none; }
+a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+a.btn.primary:hover { filter: brightness(1.08); }
 form.inline { display: inline; }
 
 input, select, textarea {

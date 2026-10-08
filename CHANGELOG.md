@@ -130,6 +130,11 @@ housekeeping are out of scope here — design decisions live in
 - **The connection test of `setup` sits beside the key** on the credentials
   page and says which account the last test found. The HTTP token is folded
   underneath, open when the server is set to an HTTP transport.
+- **The overview of `setup` says where the installation stands** rather
+  than listing fourteen settings: the key, the permissions with what they
+  cost, the last connection test, each with a tag in a state colour, and
+  the first red one as the next step at the top right. The client entry and
+  the three files follow, each file by its name, with the full path folded.
 
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named

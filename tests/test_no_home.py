@@ -150,7 +150,7 @@ def test_the_pages_render_and_say_why_there_is_no_download_directory(
     )
 
     overview = pages.overview(inst).html().decode("utf-8")
-    credentials = pages.credentials(inst).html().decode("utf-8")
+    settings = pages.settings(inst).html().decode("utf-8")
 
-    assert "LXO_MCP_DOWNLOAD_DIR, or HOME" in overview
-    assert "Zugangsdaten" in credentials
+    assert "Übersicht" in overview
+    assert "LXO_MCP_DOWNLOAD_DIR, or HOME" in settings

@@ -151,7 +151,7 @@ def test_the_overview_never_prints_the_key(inst: Installation) -> None:
     body = text(pages.overview(inst))
 
     assert "secret-value-do-not-print" not in body
-    assert "gesetzt" in body
+    assert ">hinterlegt</span>" in body
 
 
 def test_the_overview_says_when_a_server_would_read_a_different_env(
@@ -234,7 +234,7 @@ def test_a_file_that_enables_nothing_is_not_called_read_only(
 def test_a_read_only_installation_is_not_warned_about(inst: Installation) -> None:
     ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
 
-    assert "notice ok" in text(pages.overview(inst))
+    assert '<span class="tag ok">nur lesend</span>' in text(pages.overview(inst))
 
 
 def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
@@ -347,7 +347,54 @@ def test_an_environment_variable_outranking_a_file_is_marked(
 ) -> None:
     monkeypatch.setenv("LXO_MCP_PAGE_SIZE", "9")
 
-    assert "aus: Umgebung" in text(pages.overview(inst))
+    assert "aus: Umgebung" in text(pages.settings(inst))
+
+
+def _top_right(body: str) -> str:
+    return body.split('<div class="right">')[1].split("</header>")[0]
+
+
+def test_the_first_red_row_is_the_next_step(inst: Installation) -> None:
+    """No key comes first: without it nothing else can be tried."""
+    inst.settings = dataclasses.replace(inst.settings, api_key="")
+
+    assert "Schlüssel eintragen" in _top_right(text(pages.overview(inst)))
+
+    inst.settings = dataclasses.replace(inst.settings, api_key="k")
+    top = _top_right(text(pages.overview(inst)))
+    assert '<a class="btn primary" href="/permissions">Rechte festlegen</a>' in top
+
+
+def test_nothing_red_means_no_next_step(inst: Installation) -> None:
+    """An untested connection is no fault: only a button ever tests it."""
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+
+    body = text(pages.overview(inst))
+
+    assert "btn primary" not in _top_right(body)
+    assert '<span class="tag">nicht getestet</span>' in body
+
+
+def test_the_stand_names_the_account_once_it_is_known(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        probe, "_last", probe.Account(company="Test Inc.", tax_type="net")
+    )
+
+    body = text(pages.overview(inst))
+
+    assert '<span class="tag ok">verbunden</span>' in body
+    assert "<strong>Test Inc.</strong> · Steuerart: net" in body
+
+
+def test_every_file_path_is_folded(inst: Installation) -> None:
+    """The name is enough to read, the full path is there for who asks."""
+    body = text(pages.overview(inst))
+
+    for path in (inst.env_path, inst.policy_path, inst.profiles.path):
+        assert f"<summary>Pfad</summary> <code>{path}</code> </details>" in body
+    assert body.count("<code>tools.json</code>") == 1
 
 
 # -- credentials ------------------------------------------------------------
@@ -711,7 +758,7 @@ def test_every_destructive_button_asks_first(inst: Installation) -> None:
     assert generate and "data-confirm=" in generate.group(0)
 
 
-# -- credentials ------------------------------------------------------------
+# -- the credentials page, card by card -----------------------------------
 
 
 def test_the_token_is_folded_while_the_server_speaks_stdio(
