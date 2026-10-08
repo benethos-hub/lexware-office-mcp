@@ -98,8 +98,10 @@ def _rendered(
     try:
         pages, total = rendering.pdf_pages_as_png(payload, max_pages=max_pages)
     except Exception as exc:  # pypdfium2 raises its own errors
+        # Its messages end in a full stop of their own.
+        reason = str(exc).rstrip(".")
         raise ValidationError(
-            f"{uri} could not be rendered: {exc}. It may be encrypted or "
+            f"{uri} could not be rendered: {reason}. It may be encrypted or "
             "damaged. The file itself is on disk either way."
         ) from exc
 

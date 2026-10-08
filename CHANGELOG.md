@@ -18,6 +18,8 @@ housekeeping are out of scope here — design decisions live in
 - **`get_voucher` by a number that matches nothing says so plainly**: "No
   voucher with the number RE-1." instead of "No voucher carrying the number
   with ID RE-1.".
+- **A PDF that cannot be rendered no longer ends its reason with two full
+  stops.** PDFium's message brings one of its own.
 - **An upload outside `LXO_MCP_UPLOAD_DIR` is refused the same way
   whether the file exists or not.** The file was looked for first, so the
   answer told the model what is on the disk where it may not upload from.

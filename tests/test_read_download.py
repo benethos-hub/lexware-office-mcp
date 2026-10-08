@@ -247,6 +247,7 @@ async def test_a_damaged_pdf_says_what_happened(tmp_path: Path) -> None:
         await server.call_tool("read_download", {"uri": uri})
 
     assert "could not be rendered" in str(excinfo.value)
+    assert ".." not in str(excinfo.value), "PDFium's message ends in a full stop"
     await provider.aclose()
 
 
