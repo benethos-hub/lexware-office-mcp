@@ -128,6 +128,10 @@ housekeeping are out of scope here — design decisions live in
   got a new session, and every save was refused for a token that did not
   match. The header is read by hand now, and a cookie of the same name
   planted beside the real one no longer wins either.
+- **Enter in the name of a new profile creates the profile.** A form sends
+  itself with its first button on Enter, which on the permissions page is
+  "Rechte speichern", so the policy file was written instead and no
+  profile made. Without JavaScript it still is.
 
 ### Changed
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp.configui import pages, probe
+from benethos_lexware_office_mcp.configui import pages, probe, templates
 from benethos_lexware_office_mcp.configui.state import EDITABLE_KEYS, Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import Settings, locations
@@ -624,6 +624,22 @@ def test_the_counter_and_the_save_are_at_the_top_right(inst: Installation) -> No
     assert '<span id="count">2</span> von 25' in top
     assert 'form="permform" name="action" value="save"' in top
     assert re.search(r'<span id="cost">[\d.]+</span>', top)
+
+
+def test_enter_in_the_profile_name_creates_the_profile(inst: Installation) -> None:
+    """A form submits with its first submit button on Enter, and that is
+    "Rechte speichern" at the top, which wrote the policy file instead.
+
+    The field names the button Enter stands for, and the script presses it.
+    """
+    body = text(pages.permissions(inst))
+
+    field = re.search(r'<input id="f-profile_name"[^>]*>', body)
+    assert field and 'data-enter="profile-save"' in field.group(0)
+    assert 'name="action" value="profile-save"' in body
+    script = (templates.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "dataset.enter" in script
+    assert "requestSubmit" in script
 
 
 def test_a_block_unfolds_when_its_own_action_answered(inst: Installation) -> None:

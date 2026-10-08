@@ -79,7 +79,7 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
   {% endif %}
   </div>
   <div class="toolbar spaced">
-    {{ ui.field("profile_name", "Aktuelle Auswahl als neues Profil", maxlength=60, placeholder="z. B. Steuerberater, nur lesend") }}
+    {{ ui.field("profile_name", "Aktuelle Auswahl als neues Profil", maxlength=60, placeholder="z. B. Steuerberater, nur lesend", enter="profile-save") }}
     <button type="submit" name="action" value="profile-save">Neu anlegen</button>
   </div>
 {% endcall %}

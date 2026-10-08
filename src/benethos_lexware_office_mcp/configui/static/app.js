@@ -1,6 +1,7 @@
 // The configuration interface's one script. Every page works without it:
-// it asks before a destructive form is sent, reads a chosen policy file
-// into the import field, and keeps the tally of the permissions page. No
+// it asks before a destructive form is sent, gives Enter in a field to the
+// button meant for it, reads a chosen policy file into the import field,
+// and keeps the tally of the permissions page. No
 // inline handler and no inline data - the content security policy allows
 // scripts from this origin only, so what the tally needs is on the boxes.
 "use strict";
@@ -15,6 +16,22 @@ document.addEventListener("submit", function (event) {
   if (question && !window.confirm(question)) {
     event.preventDefault();
   }
+});
+
+// Enter in a field submits its form with the first submit button, which
+// on the permissions page is "Rechte speichern" at the top. A field with
+// data-enter="..." presses the action button of that value instead.
+document.addEventListener("keydown", function (event) {
+  var input = event.target;
+  if (event.key !== "Enter" || !(input instanceof HTMLInputElement)) return;
+  var wanted = input.dataset.enter;
+  if (!wanted || !input.form) return;
+  var button = input.form.querySelector(
+    'button[name=action][value="' + wanted + '"]'
+  );
+  if (!button) return;
+  event.preventDefault();
+  input.form.requestSubmit(button);
 });
 
 // A chosen policy file goes into the textarea, so reading one is the same
