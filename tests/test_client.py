@@ -383,6 +383,31 @@ async def test_a_put_is_retried_because_the_version_protects_it() -> None:
         assert client.handler.calls == 2  # type: ignore[attr-defined]
 
 
+@pytest.mark.parametrize("method", ["PUT", "DELETE"])
+@pytest.mark.parametrize(
+    "lost",
+    [httpx.ReadTimeout("slow"), httpx.ConnectError("reset"), httpx.Response(502)],
+    ids=["timeout", "connection", "bad gateway"],
+)
+async def test_an_update_out_of_retries_has_an_unknown_outcome(
+    method: str, lost: httpx.Response | Exception
+) -> None:
+    """Any of the three attempts may have been carried out. Reported as a
+    plain failure, the caller sent it again into a stale version or a 404."""
+    async with make_client(lost, lost, lost) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request(method, "/v1/contacts/abc", json={})
+        assert client.handler.calls == 3  # type: ignore[attr-defined]
+    assert excinfo.value.outcome_unknown is True
+
+
+async def test_a_read_out_of_retries_has_nothing_unknown() -> None:
+    async with make_client(*[httpx.ReadTimeout("slow")] * 3) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request("GET", "/v1/profile")
+    assert excinfo.value.outcome_unknown is False
+
+
 async def test_a_post_is_retried_after_429_because_it_was_not_performed() -> None:
     """The one failure mode whose outcome the documentation states."""
     async with make_client(httpx.Response(429), httpx.Response(201)) as client:

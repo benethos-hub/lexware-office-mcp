@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Fixed
+
+- **An update or a delete that runs out of retries says its outcome is
+  unknown.** After three attempts ending in a timeout, a lost connection or
+  a 5xx, any of them may have been carried out, but the error read like a
+  plain failure, and sending the change again ran into a stale version or a
+  404. It now says what a failed create says: check the record first.
+
 ### Changed
 
 - **The documentation and `containers/production/` name the image

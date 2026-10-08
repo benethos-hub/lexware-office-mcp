@@ -48,6 +48,11 @@ __all__ = ["BREAKER_THRESHOLD", "Connection"]
 # applying the change twice. `_own_change` says which attempt moved it.
 RETRYABLE_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
 
+# The methods whose failure leaves nothing to find out. Any other one that ends
+# without an answer may have changed a record, retried or not: the last
+# attempt can have been carried out as well as an earlier one.
+READ_METHODS = frozenset({"GET", "HEAD"})
+
 MAX_ATTEMPTS = 3
 BACKOFF_BASE = 0.5
 BACKOFF_CAP = 8.0
@@ -122,6 +127,7 @@ class Connection:
         """
         method = method.upper()
         retryable = method in RETRYABLE_METHODS
+        writes = method not in READ_METHODS
         headers = {"Authorization": f"Bearer {self.settings.require_api_key()}"}
         if accept is not None:
             headers["Accept"] = accept
@@ -157,7 +163,7 @@ class Connection:
                     await self._retry(method, path, attempt, error=exc)
                     continue
                 raise UpstreamError(
-                    f"{method} {path} timed out.", outcome_unknown=not retryable
+                    f"{method} {path} timed out.", outcome_unknown=writes
                 ) from exc
             # RequestError rather than TransportError: an answer whose body
             # cannot be decoded, or a redirect loop, is not a transport error
@@ -172,7 +178,7 @@ class Connection:
                     continue
                 raise UpstreamError(
                     f"{method} {path} could not be completed: {exc}.",
-                    outcome_unknown=not retryable,
+                    outcome_unknown=writes,
                 ) from exc
 
             status = response.status_code
@@ -215,7 +221,7 @@ class Connection:
                     continue
                 failed = UpstreamError(
                     f"The API returned {status} for {method} {path}.",
-                    outcome_unknown=not retryable,
+                    outcome_unknown=writes,
                 )
                 failed.status = status
                 raise failed

@@ -1783,6 +1783,14 @@ it read. If the first attempt succeeded, the version has moved on and the retry
 fails with 409 rather than applying the change twice. Optimistic locking makes
 the retry self-protecting.
 
+**Why a PUT or DELETE out of retries is an unknown outcome as well.** The
+retry is safe, the last failure is not certain: any of the three attempts may
+have been carried out with only its answer lost, the last one included. So
+when the retries run out on a timeout, a lost connection or a 5xx, the
+`UpstreamError` says the outcome is unknown, exactly as for a POST. Reported
+as a plain failure, the caller sent the update again, into a stale version or
+a 404.
+
 **Why a DELETE retried into a 404 has succeeded.** A second delete of the same
 article is a 404, measured 2026-08-21. So when an attempt timed out, lost its
 connection or got a 5xx and the retry then finds nothing, the likeliest reading
@@ -2061,7 +2069,7 @@ its name.
 | 404 | `NotFoundError` | resource type and the ID that was asked for |
 | 409 | `ConflictError` | version mismatch or locked state, naming the current version so the caller can re-read and retry |
 | 429 | `RateLimitError` | after retries are exhausted, with the wait hint |
-| 5xx, network | `UpstreamError` | short, no traceback. On a POST, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
+| 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 
 **Two lists of issues are in use upstream, and they share no field names.**
