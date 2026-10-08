@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 import benethos_lexware_office_mcp
+from benethos_lexware_office_mcp import cli
 
 PACKAGE_DIR = Path(benethos_lexware_office_mcp.__file__).resolve().parent
 REPO = PACKAGE_DIR.parents[1]
@@ -418,3 +419,19 @@ def test_the_readme_run_example_caps_the_log_as_well() -> None:
     readme = (REPO / "README.md").read_text(encoding="utf-8")
 
     assert "--log-opt max-size=10m --log-opt max-file=5" in readme
+
+
+def test_the_allowed_hosts_example_is_the_compose_service(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The help named the service by the image's old name after both moved."""
+    production = (CONTAINERS / "production" / "compose.yaml").read_text(
+        encoding="utf-8"
+    )
+    found = re.search(r'LXO_MCP_ALLOWED_HOSTS: "([^"]+)"', production)
+    assert found, "production names its own host"
+
+    with pytest.raises(SystemExit):
+        cli.main(["--help"])
+
+    assert f"example {found.group(1)}" in " ".join(capsys.readouterr().out.split())

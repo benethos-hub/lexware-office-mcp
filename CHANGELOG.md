@@ -56,6 +56,8 @@ housekeeping are out of scope here — design decisions live in
 - **A host named in `--allowed-hosts` is allowed behind TLS as well.** Its
   origin was derived as `http://` only, so a browser behind a proxy ending
   TLS, whose `Origin` is `https://`, was refused by the DNS-rebinding guard.
+- **`--help` names the Compose service as it is called now**,
+  `benethos-lexware-office-mcp:8770`, in its example for `--allowed-hosts`.
 
 ### Changed
 

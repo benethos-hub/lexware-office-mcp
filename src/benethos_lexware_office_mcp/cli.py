@@ -246,7 +246,7 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         metavar="LIST",
         help=(
             "comma-separated Host values to accept besides loopback, for a "
-            "container or a proxy, for example lexware-office-mcp:8770"
+            "container or a proxy, for example benethos-lexware-office-mcp:8770"
         ),
     )
     parser.add_argument(
