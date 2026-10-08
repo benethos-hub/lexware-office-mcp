@@ -362,7 +362,8 @@ class Handler(BaseHTTPRequestHandler):
     def _opened_by_another_page(self) -> bool:
         """Whether a browser says another page made this request.
 
-        For the start code in an address, which a GET carries and the
+        Such a request gets no new session cookie, see _session_token, and
+        no try of a start code in its address, which a GET carries and the
         ``Origin`` check therefore never sees: a page elsewhere could load
         it in a loop, and every wrong code would count and wait for the
         person's right one too. ``same-site`` is another port on the same
