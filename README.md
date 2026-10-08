@@ -425,8 +425,10 @@ server never serves HTTP, and a client such as Claude Desktop starts that
 one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
-and `--tools-file` say which files it edits. Unlike everywhere else those
-files do not have to exist yet.
+and `--tools-file` say which files it edits. `--public-port N` is for a
+container published under another port than the one it binds: the address
+it prints and opens names that one. Unlike everywhere else those files do
+not have to exist yet.
 
 **If your client starts the server with `--tools-file`, give `setup` the same
 argument** — otherwise it edits a different file and reports success. Both
@@ -722,6 +724,9 @@ docker run --rm -d --name lexware-office-mcp-setup \
         --env-file /config/.env --tools-file /config/tools.json
 ```
 
+Published under another port, `-p 127.0.0.1:9000:8771`, add
+`--public-port 9000`, so the address in its log names the port to open.
+
 Its log has the address with the start code, which is the line to open:
 
 ```bash
@@ -747,11 +752,11 @@ above 1024 needs no Linux capability at all.
 
 Open the address from its log, `docker compose logs setup` with Compose,
 enter the key, tick the tools — and then stop it, with *Beenden* in the
-sidebar or one of the commands below. The address names the port inside
-the container, so with a publish on another port, as the development
-folder's `8781`, change the port and keep the code. **Nothing stops it for
-you.** It accepts an API key behind a code that travels in the clear, and
-it will happily keep serving that page for as long as the machine is up.
+sidebar or one of the commands below. The address names the port it is
+published on, which both Compose files pass in from `LXO_SETUP_PORT` as
+`--public-port`. **Nothing stops it for you.** It accepts an API key behind
+a code that travels in the clear, and it will happily keep serving that page
+for as long as the machine is up.
 *Beenden* ends the process and leaves a stopped container behind, which
 `docker compose rm -f -s setup` removes, and a `docker run --rm` one
 removes itself.

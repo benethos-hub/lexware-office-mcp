@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **`setup --public-port N`** names the port the address it prints and
+  opens should carry, where a container is published under another port
+  than the one it binds. Both Compose folders pass `LXO_SETUP_PORT` in, so
+  the line in `docker compose logs setup` is the address to open on this
+  machine, `8781` in the development folder rather than the `8771` inside.
+
 ### Security
 
 - **Every answer of `setup` carries its security headers**, the HTTP

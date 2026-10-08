@@ -113,3 +113,18 @@ def test_setup_and_the_transport_do_not_share_a_default_port(
 
     assert started[0]["port"] == configui.DEFAULT_PORT
     assert configui.DEFAULT_PORT != DEFAULT_HTTP_PORT
+
+
+def test_setup_can_name_the_port_its_address_is_reached_on(
+    started: list[dict[str, Any]], tmp_path: Path
+) -> None:
+    """A container binds 8771 inside and is published under another port."""
+    env = tmp_path / ".env"
+    env.write_text("", encoding="utf-8")
+
+    cli.main(["setup", "--env-file", str(env), "--no-browser", "--public-port", "8781"])
+    cli.main(["setup", "--env-file", str(env), "--no-browser"])
+
+    assert started[0]["port"] == configui.DEFAULT_PORT
+    assert started[0]["public_port"] == 8781
+    assert started[1]["public_port"] is None

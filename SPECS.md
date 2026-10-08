@@ -1251,7 +1251,10 @@ context function, the tests, a row in the table above, and a changelog entry
 only when a person notices.
 
 **What does not change.** The command and its flags, `--port`, `--host`,
-`--no-browser`, `--env-file` and `--tools-file`, and the port. The three
+`--no-browser`, `--env-file` and `--tools-file`, and the port.
+`--public-port` was added after the rework, for a container published under
+another port: it changes the port the printed address names and nothing
+else. The three
 files, their formats, the search of section 7 and the pinning below. The
 URLs of the pages and the posts, with `/settings` as a page, `/code` and
 `/static/` added. The guards above: loopback, the `Host` check, `Origin`

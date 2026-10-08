@@ -120,6 +120,8 @@ services:
       - /config/.env
       - --tools-file
       - /config/tools.json
+      - --public-port
+      - "${LXO_SETUP_PORT:-8771}"
     ports:
       - "127.0.0.1:${LXO_SETUP_PORT:-8771}:8771"
     # The image checks the transport port, which this one does not serve. A

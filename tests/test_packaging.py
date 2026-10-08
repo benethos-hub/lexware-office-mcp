@@ -347,6 +347,26 @@ def test_every_compose_port_is_published_on_the_loopback(compose: Path) -> None:
     assert all(port.startswith("127.0.0.1:") for port in published)
 
 
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_setup_names_the_port_it_is_published_on(compose: Path) -> None:
+    """The address in its log is what a person opens on this machine, and
+    the port inside the container is not that one."""
+    setup = _services(compose)["setup"]
+    published = re.search(r'- "127\.0\.0\.1:(\$\{LXO_SETUP_PORT:-\d+\}):8771"', setup)
+
+    assert published
+    assert f'- --public-port\n      - "{published.group(1)}"' in setup
+
+
+def _no_defaults(block: str) -> str:
+    """A service block with ``${NAME:-default}`` read as ``${NAME}``.
+
+    The two folders publish on ports of their own by design, so where a
+    command names the published port, its default is the one difference.
+    """
+    return re.sub(r"\$\{(\w+):-[^}]*\}", r"${\1}", block) + "\n"
+
+
 def test_development_and_production_run_the_server_alike() -> None:
     """The same settings pinned, so trying a change tries what runs.
 
@@ -357,8 +377,8 @@ def test_development_and_production_run_the_server_alike() -> None:
     for name in ("benethos-lexware-office-mcp", "setup"):
         for section in ("environment", "command", "volumes"):
             pattern = rf"^    {section}:\n((?:      .*\n)+)"
-            ours = re.search(pattern, development[name] + "\n", flags=re.MULTILINE)
-            theirs = re.search(pattern, production[name] + "\n", flags=re.MULTILINE)
+            ours = re.search(pattern, _no_defaults(development[name]), re.MULTILINE)
+            theirs = re.search(pattern, _no_defaults(production[name]), re.MULTILINE)
             assert (ours and ours.group(1)) == (theirs and theirs.group(1)), (
                 f"{name} differs in {section}"
             )

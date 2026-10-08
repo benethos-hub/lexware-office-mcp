@@ -66,9 +66,11 @@ the configuration interface:
   --host exists for a container, where the loopback of the host publishes
   the port.
 
-  --port and --no-browser belong to it. --env-file and --tools-file say which
-  files it edits, and unlike everywhere else the .env does not have to exist
-  yet - creating one is part of what the interface is for.
+  --port, --public-port and --no-browser belong to it, --public-port for a
+  container published under another port than the one it binds.
+  --env-file and --tools-file say which files it edits, and unlike
+  everywhere else the .env does not have to exist yet - creating one is
+  part of what the interface is for.
 
 choosing the tools:
 
@@ -257,6 +259,15 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         action="store_true",
         help="setup only: do not open a browser, just print the address",
     )
+    parser.add_argument(
+        "--public-port",
+        type=int,
+        help=(
+            "setup only: the port the address it prints and opens names, "
+            "where a container publishes setup under another one "
+            "(default: the port it binds)"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -443,6 +454,7 @@ def _run(
             port=args.port or configui.DEFAULT_PORT,
             open_browser=not args.no_browser,
             tools_file_named=bool(args.tools_file),
+            public_port=args.public_port,
         )
         return
 

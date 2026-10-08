@@ -624,8 +624,13 @@ def serve(
     host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
+    public_port: int | None = None,
 ) -> None:
     """Run until interrupted or ended from a page.
+
+    ``public_port`` is the port the address it prints and opens names, where
+    that is not the bound one: a container binds its own port and is
+    published under another, and the line in its log is what a person copies.
 
     Everything it says is a line of the log on stderr, English like every
     other: the German of this interface is for its pages. stdout stays free
@@ -642,16 +647,17 @@ def serve(
     # The address a person opens, which is not always the one that was bound:
     # 0.0.0.0 is a bind, not a destination.
     reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
+    shown_port = public_port or server.server_address[1]
     # The code goes with the address, so the browser this opens is signed
     # in at once and the line is all a person copies from a container's log.
-    logbook.configui.serving(reachable, port, server.code)
+    logbook.configui.serving(reachable, shown_port, server.code)
     if host not in LOOPBACK_NAMES:
         logbook.configui.bound_beyond_loopback(host)
     logbook.configui.editing("settings", installation.env_path)
     logbook.configui.editing("policy", installation.policy_path)
     logbook.configui.editing("profiles", installation.profiles.path)
     if open_browser:
-        webbrowser.open(f"http://{reachable}:{port}/?code={server.code}")
+        webbrowser.open(f"http://{reachable}:{shown_port}/?code={server.code}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

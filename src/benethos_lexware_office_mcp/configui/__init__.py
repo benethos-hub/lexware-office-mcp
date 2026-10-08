@@ -68,6 +68,7 @@ def start(
     open_browser: bool = True,
     cwd: Path | None = None,
     tools_file_named: bool = False,
+    public_port: int | None = None,
 ) -> None:
     """Serve the interface until interrupted.
 
@@ -83,4 +84,10 @@ def start(
         cwd=cwd or Path.cwd(),
         tools_file_named=tools_file_named,
     )
-    serve(installation, host=host, port=port, open_browser=open_browser)
+    serve(
+        installation,
+        host=host,
+        port=port,
+        open_browser=open_browser,
+        public_port=public_port,
+    )

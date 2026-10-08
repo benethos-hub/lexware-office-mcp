@@ -479,6 +479,24 @@ def test_the_start_prints_the_address_with_the_code(
         assert f"Editing the {kind} file" in lines.text
 
 
+def test_the_address_names_the_port_it_is_published_on(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    """In a container the bound port is the one inside, and the line is
+    what a person copies from the log."""
+    opened: list[str] = []
+    monkeypatch.setattr("webbrowser.open", opened.append)
+    monkeypatch.setattr(ConfigServer, "serve_forever", lambda self: None)
+
+    serve(installation, port=0, open_browser=True, public_port=8781)
+
+    found = re.search(r"(http://127\.0\.0\.1:8781/\?code=\S+)", lines.text)
+    assert found
+    assert opened == [found.group(1)]
+
+
 # -- Post/Redirect/Get ------------------------------------------------------
 
 
