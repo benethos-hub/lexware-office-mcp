@@ -96,6 +96,7 @@ def check(inst: Installation, form: Form) -> Reply:
 def save_key(inst: Installation, form: Form) -> Reply:
     key = field(form, "api_key")
     skip_check = bool(form.get("unchecked"))
+    here = pages.credentials(inst, unchecked=skip_check)
     if not key:
         return _done(
             _CREDENTIALS, "Kein Schlüssel eingegeben, nichts geändert.", "warn"
@@ -104,7 +105,7 @@ def save_key(inst: Installation, form: Form) -> Reply:
     try:
         credential(key, name=API_KEY)
     except ConfigError as exc:
-        return _refused_by_server(pages.credentials(inst), exc)
+        return _refused_by_server(here, exc)
 
     verified: probe.Account | None = None
     if not skip_check:
@@ -112,9 +113,9 @@ def save_key(inst: Installation, form: Form) -> Reply:
         verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
-            return _refused(pages.credentials(inst), f"Nicht gespeichert. {message}")
+            return _refused(here, f"Nicht gespeichert. {message}")
 
-    failed = _write_env(inst, {API_KEY: key})
+    failed = _write_env(inst, {API_KEY: key}, here)
     if failed is not None:
         return failed
     if verified is not None:

@@ -141,6 +141,9 @@ housekeeping are out of scope here — design decisions live in
   sends every field, and each was written back and counted, so a save
   that changed nothing rewrote the `.env` and reported settings written.
   It now says that nothing changed, and one setting is "1 Einstellung".
+- **A refused key keeps the tick "Ohne Prüfung speichern".** The form
+  came back with what was typed and the box cleared, so sending it again
+  checked the key against the account after all.
 
 ### Changed
 

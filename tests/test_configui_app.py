@@ -532,6 +532,19 @@ def test_a_refused_form_comes_back_at_once_with_what_was_typed(
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
 
 
+def test_a_refused_form_keeps_the_tick_and_the_level_it_was_sent_with(
+    browser: Browser,
+) -> None:
+    """Shown again with what was typed: a box or a choice is typed too."""
+    _, key_page, _ = browser.post(
+        "/credentials", {"api_key": "a-new\u200bkey", "unchecked": "1"}
+    )
+    _, level_page, _ = browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "verbose"})
+
+    assert 'name="unchecked" value="1" checked' in key_page
+    assert '<option value="verbose" selected>' in level_page
+
+
 def test_a_refused_key_is_not_shown_again(
     browser: Browser, monkeypatch: pytest.MonkeyPatch
 ) -> None:

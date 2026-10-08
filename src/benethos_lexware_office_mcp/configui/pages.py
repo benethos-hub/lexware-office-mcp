@@ -448,12 +448,18 @@ def _outranked(inst: Installation) -> str:
 # --- credentials -----------------------------------------------------------
 
 
-def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
+def credentials(
+    inst: Installation,
+    *,
+    typed: dict[str, str] | None = None,
+    unchecked: bool = False,
+) -> Page:
     """The key, the connection test beside it, and the HTTP token.
 
     ``typed`` is what a refused form held, shown again in place of the file's
     value so nothing has to be typed twice. Never the API key, which no page
-    shows.
+    shows. ``unchecked``: the key's form was sent to be saved without the
+    check, which a refusal keeps ticked.
 
     The token is folded unless the server is set to an HTTP transport, the
     one case it is for - or a refused form is about it, which would
@@ -484,6 +490,7 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
             "bearer_open": inst.settings.transport != "stdio"
             or BEARER_KEY in (typed or {}),
             "facts": account_facts(account) if account else [],
+            "unchecked": unchecked,
         },
         "Der API-Schlüssel, die Verbindung zum Konto und das Token für den "
         "HTTP-Transport.",
@@ -515,6 +522,12 @@ def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page
             choices = [("", f"Standard ({default[key]})")] + [
                 (level, level) for level in LOG_LEVELS
             ]
+            # One no choice offers, refused or edited into the file by
+            # hand: shown as it is, or the page would show the default
+            # and the next save would write it.
+            if value and value not in LOG_LEVELS:
+                value = shown.get(key, "")
+                choices.append((value, f"{value} (unbekannt)"))
         return {
             "key": key,
             "label": LABELS[key],
