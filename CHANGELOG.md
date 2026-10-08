@@ -80,6 +80,9 @@ housekeeping are out of scope here — design decisions live in
 - **Two tabs of `setup` saving at once no longer lose one save.** Each
   request reads a file, changes it and writes it back, and two at the same
   time each wrote what they had read. Saves now run one after the other.
+- **`setup` names `--tools-file` as the source of the policy file whenever
+  it was given.** With `LXO_MCP_TOOL_POLICY` set as well, the badge said
+  the environment beside the path the flag had named.
 
 ### Changed
 

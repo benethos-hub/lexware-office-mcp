@@ -55,6 +55,10 @@ class Installation:
     settings: Settings
     env_path: Path
     cwd: Path = field(default_factory=Path.cwd)
+    # Whether --tools-file named the policy file. The settings cannot say:
+    # the path lands in them whichever named it, and the flag outranks the
+    # variable, so the badge has to be told.
+    tools_file_named: bool = False
 
     def __post_init__(self) -> None:
         # **Pinned once, at start**, exactly as the server pins its own: the
@@ -135,7 +139,12 @@ class Installation:
         ``env`` is the file's content as :meth:`file_env` read it, for a page
         that asks about every setting in one go and wants the file read once
         rather than once per row. Left out, the file is read here.
+
+        ``--tools-file`` is asked first of all for the policy file, because it
+        outranks the environment: with both set, the path is the flag's.
         """
+        if key == POLICY_KEY and self.tools_file_named:
+            return CLI_SOURCE
         if os.environ.get(key, "").strip():
             return ENV_SOURCE
         if self.source_file(key, env) is not None:
@@ -161,6 +170,8 @@ class Installation:
 
     def source_detail(self, key: str, env: dict[str, str] | None = None) -> str:
         """A tooltip for the badge: which file, or which variable."""
+        if key == POLICY_KEY and self.tools_file_named:
+            return "Mit --tools-file auf der Kommandozeile benannt."
         if self.shadowed(key):
             return f"Umgebungsvariable {key}"
         supplier = self.source_file(key, env)

@@ -82,6 +82,7 @@ def test_the_named_policy_file_is_the_one_edited(
     cli.main(["setup", "--no-browser", "--tools-file", str(policy)])
 
     assert started[0]["settings"].policy_file() == policy
+    assert started[0]["tools_file_named"] is True
 
 
 def test_without_a_named_file_the_search_decides(

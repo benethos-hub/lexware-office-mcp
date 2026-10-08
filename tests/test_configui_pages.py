@@ -271,6 +271,23 @@ def test_a_searched_policy_file_is_not_called_a_default(
     assert "aus: Suche" in text(pages.overview(plain))
 
 
+def test_the_flag_outranks_the_variable_on_the_badge_too(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With both set, the path is the flag's, so the source is the flag."""
+    monkeypatch.setenv("LXO_MCP_TOOL_POLICY", str(inst.cwd / "from-env.json"))
+    named = Installation(
+        settings=inst.settings,
+        env_path=inst.env_path,
+        cwd=inst.cwd,
+        tools_file_named=True,
+    )
+
+    assert named.source_of("LXO_MCP_TOOL_POLICY") == "Aufruf"
+    assert "--tools-file" in named.source_detail("LXO_MCP_TOOL_POLICY")
+    assert inst.source_of("LXO_MCP_TOOL_POLICY") == "Umgebung"
+
+
 def test_the_policy_file_is_fixed_for_the_life_of_the_process(
     inst: Installation, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -59,9 +59,13 @@ def start(
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
     cwd: Path | None = None,
+    tools_file_named: bool = False,
 ) -> None:
     """Serve the interface until interrupted."""
     installation = Installation(
-        settings=settings, env_path=env_path, cwd=cwd or Path.cwd()
+        settings=settings,
+        env_path=env_path,
+        cwd=cwd or Path.cwd(),
+        tools_file_named=tools_file_named,
     )
     serve(installation, host=host, port=port, open_browser=open_browser)
