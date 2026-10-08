@@ -249,6 +249,39 @@ def test_the_code_in_the_address_signs_in_and_leaves_the_address(
     assert stranger.get("/permissions")[0] == 200
 
 
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_a_code_in_an_address_another_page_opened_is_not_tried(
+    browser: Browser, site: str
+) -> None:
+    """A page elsewhere could load the address in a loop, unseen, and each
+    wrong code it sent counted, and waited, for the person's own too.
+
+    ``same-site`` is another port on the same loopback name.
+    """
+    stranger = Browser(browser.base)
+    request = urllib.request.Request(f"{browser.base}/?code={browser.server.code}")
+    request.add_header("Sec-Fetch-Site", site)
+
+    status, body, _ = stranger._open(request)
+
+    assert status == 403
+    assert "<h2>Code eingeben</h2>" in body
+    assert stranger.get("/")[0] == 403
+
+
+def test_a_code_in_an_address_typed_or_opened_by_setup_is_tried(
+    browser: Browser,
+) -> None:
+    """What a browser sends for an address typed, pasted or handed to it."""
+    stranger = Browser(browser.base)
+    request = urllib.request.Request(f"{browser.base}/?code={browser.server.code}")
+    request.add_header("Sec-Fetch-Site", "none")
+
+    stranger._open(request)
+
+    assert stranger.get("/")[0] == 200
+
+
 def test_the_code_typed_into_the_field_signs_in(browser: Browser) -> None:
     stranger = Browser(browser.base)
 

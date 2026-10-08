@@ -341,6 +341,19 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return origin == target
 
+    def _opened_by_another_page(self) -> bool:
+        """Whether a browser says another page made this request.
+
+        For the start code in an address, which a GET carries and the
+        ``Origin`` check therefore never sees: a page elsewhere could load
+        it in a loop, and every wrong code would count and wait for the
+        person's right one too. ``same-site`` is another port on the same
+        loopback name. An address typed, pasted or handed over by ``setup``
+        is ``none``, and a client that sends no such header is no browser
+        a page could steer.
+        """
+        return self.headers.get("Sec-Fetch-Site", "") in ("cross-site", "same-site")
+
     def _csrf_ok(self, form: Form) -> bool:
         if self._fresh_cookie:
             return False  # no session cookie was presented at all
@@ -368,6 +381,10 @@ class Handler(BaseHTTPRequestHandler):
             self._static(address.path.removeprefix("/static/"))
             return
         typed = parse_qs(address.query).get("code")
+        if typed is not None and self._opened_by_another_page():
+            logbook.configui.request_refused("origin")
+            self._page(403, pages.code())
+            return
         if typed is not None:
             self._sign_in(typed[0], then=address.path)
             return
