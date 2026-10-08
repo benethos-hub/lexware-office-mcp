@@ -40,7 +40,6 @@ import threading
 import time
 import webbrowser
 from collections.abc import Callable
-from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -96,19 +95,6 @@ PAGES: dict[str, Callable[..., Page]] = {
 }
 
 
-@dataclass(frozen=True)
-class Once:
-    """What a form that went through leaves for the page after the redirect.
-
-    The message is shown on whichever page opens next. ``view`` only on the
-    page at ``address``, the one the form redirected to.
-    """
-
-    address: str
-    message: Message | None
-    view: dict[str, Any]
-
-
 class ConfigServer(ThreadingHTTPServer):
     """A server that knows which installation its handlers are editing.
 
@@ -134,7 +120,7 @@ class ConfigServer(ThreadingHTTPServer):
         # In the order they were issued, so the oldest can go first.
         self.sessions: dict[str, None] = {}
         self._sessions_lock = threading.Lock()
-        self._once: dict[str, Once] = {}
+        self._once: dict[str, Reply] = {}
         # The start code, made once, written to stderr, and asked for by
         # every page until a session has given it.
         self.code = secrets.token_urlsafe(16)
@@ -204,8 +190,10 @@ class ConfigServer(ThreadingHTTPServer):
                 self.pause(WAIT_SECONDS)
         return False
 
-    def leave(self, session: str, once: Once) -> None:
-        """Keep ``once`` for the next page this session opens.
+    def leave(self, session: str, once: Reply) -> None:
+        """Keep a redirect's message and view for the next page this session
+        opens: the message for whichever page that is, the view only for the
+        page the redirect named.
 
         Held here beside the session rather than in the URL, so a link
         cannot put words into the interface.
@@ -213,7 +201,7 @@ class ConfigServer(ThreadingHTTPServer):
         with self._sessions_lock:
             self._once[session] = once
 
-    def take(self, session: str) -> Once | None:
+    def take(self, session: str) -> Reply | None:
         """What the last form left for this session, once."""
         with self._sessions_lock:
             return self._once.pop(session, None)
@@ -452,7 +440,7 @@ class Handler(BaseHTTPRequestHandler):
             once = (
                 None if self._fresh_cookie else self.config_server.take(self._session)
             )
-            view = once.view if once is not None and once.address == path else {}
+            view = once.view if once is not None and once.redirect == path else {}
             self._page(200, page(inst, **view), once.message if once else None)
         else:
             self._not_found()
@@ -573,9 +561,7 @@ class Handler(BaseHTTPRequestHandler):
         if reply is None:
             self._not_found()
         elif reply.redirect is not None:
-            self.config_server.leave(
-                self._session, Once(reply.redirect, reply.message, reply.view)
-            )
+            self.config_server.leave(self._session, reply)
             self._redirect(reply.redirect)
         elif reply.download is not None:
             self._download(reply.body, reply.download)
