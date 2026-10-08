@@ -216,6 +216,26 @@ def test_every_class_a_template_names_is_styled() -> None:
     assert not unstyled, sorted(unstyled)
 
 
+def test_every_class_the_stylesheet_styles_is_named_somewhere() -> None:
+    """The other direction: a rule for a class nothing names is left over.
+
+    Named means a word of a template, the script or a module here, since a
+    tag's or a notice's kind is passed in as a string.
+    """
+    css = (templates.STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    styled = set(
+        re.findall(r"\.([a-zA-Z][\w-]*)", re.sub(r"/\*.*?\*/", "", css, flags=re.S))
+    )
+    named: set[str] = set()
+    for path in [
+        *_templates(),
+        templates.STATIC_DIR / "app.js",
+        *templates.HERE.glob("*.py"),
+    ]:
+        named |= set(re.findall(r"[\w-]+", path.read_text(encoding="utf-8")))
+    assert sorted(styled - named) == []
+
+
 def test_every_static_file_on_the_list_exists() -> None:
     assert sorted(templates.STATIC_FILES) == sorted(
         path.name for path in templates.STATIC_DIR.iterdir()
