@@ -456,6 +456,7 @@ async def test_repeated_rate_limiting_trips_the_breaker() -> None:
             await client.request("GET", "/v1/profile")
         assert client.handler.calls == BREAKER_THRESHOLD  # type: ignore[attr-defined]
     assert "whole account" in str(excinfo.value)
+    assert excinfo.value.status == 429, "the log line names the status"
 
 
 async def test_a_transport_error_ends_the_rate_limit_streak() -> None:
@@ -545,9 +546,10 @@ async def test_a_retry_after_beyond_the_cap_is_not_slept_through(seconds: str) -
         bucket=TokenBucket(1000.0, 100, sleep=record),
         sleep=record,
     )
-    with pytest.raises(RateLimitError, match="longer than this call waits"):
+    with pytest.raises(RateLimitError, match="longer than this call waits") as info:
         await client.request("GET", "/v1/profile")
     await client.aclose()
+    assert info.value.status == 429
 
     assert handler.calls == 1
     assert all(delay <= 8.0 for delay in slept)

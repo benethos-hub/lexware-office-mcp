@@ -24,6 +24,9 @@ housekeeping are out of scope here — design decisions live in
   read whose first attempt got no answer and whose retry got a 409, such as
   the file of a draft, was answered with "the first attempt was most likely
   carried out", which only an update can be. It now says why it was refused.
+- **The log names the 429 behind every rate limit.** The breaker and a
+  `Retry-After` too long to wait raised their error without a status, so
+  their log line said less than the one for retries running out.
 
 ### Changed
 

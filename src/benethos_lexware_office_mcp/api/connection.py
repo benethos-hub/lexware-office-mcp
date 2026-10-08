@@ -206,11 +206,9 @@ class Connection:
                         retry_after=response.headers.get("Retry-After"),
                     )
                     continue
-                limited = RateLimitError(
+                raise RateLimitError(
                     "Rate limited. Retrying did not clear it, try again shortly."
                 )
-                limited.status = status
-                raise limited
 
             self._consecutive_429 = 0
 
