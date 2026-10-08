@@ -109,6 +109,53 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The pages of `setup` have a frame of their own**: a sidebar, cards, a
+  light palette and a dark one that follows the system setting, every text
+  colour at 4.5:1 or better. The stylesheet and the script are files now,
+  and every answer carries `Content-Security-Policy: default-src 'self'`,
+  so no inline style or script runs on these pages. The texts, the
+  addresses and the forms are the same. Installing pulls in Jinja2 for
+  them, the server never loads it.
+- **A form on `setup` that went through answers with a redirect**, and the
+  next page shows its message once, so a reload repeats nothing. A refused
+  form comes back at once with what was typed, the key excepted, and the
+  reason at the top, as a 400. Deleting or overwriting a profile and
+  making a new HTTP token ask first.
+- **The settings of `setup` have a page of their own**, `Einstellungen` at
+  `/settings`, in three cards: the connection, the output, the files. The
+  placeholder of an empty field is the built-in default rather than the
+  value in effect, the log level is a choice rather than free text, and a
+  setting an environment variable holds is shown as such and offered as no
+  field. The credentials page keeps the key and the HTTP token.
+- **The connection test of `setup` sits beside the key** on the credentials
+  page and says which account the last test found. The HTTP token is folded
+  underneath, open when the server is set to an HTTP transport.
+- **The overview of `setup` says where the installation stands** rather
+  than listing fourteen settings: the key, the permissions with what they
+  cost, the last connection test, each with a tag in a state colour, and
+  the first red one as the next step at the top right. The client entry and
+  the three files follow, each file by its name, with the full path folded.
+- **`setup` asks for a start code.** Every start makes one, and the
+  address it prints and opens carries it, so the browser it opens is
+  signed in at once. Without it every page shows one field, so another
+  program or user on the same machine cannot open the pages through the
+  loopback port. After five wrong codes each further try waits. In a
+  container the address is in the log, `docker compose logs setup`.
+- **`setup` writes its lines on stderr in the log format, in English**,
+  with the time and the level like the server's: the address with the
+  start code, the three files it edits, a bind beyond loopback, a port it
+  could not open, and how it stopped. They were German lines without either.
+  The address is at `WARNING`, so no log level hides it.
+- **`setup` can be ended from the page**: *Beenden* in the sidebar, with
+  a question first, ends the process as Ctrl+C does. It waits for a save
+  in progress, and in a container leaves the `setup` service stopped.
+- **The permissions page of `setup` saves from the top right**, beside the
+  count and what the ticked tools cost, which used to sit at the end of
+  twenty-five rows. The presets come first, then the groups, and the
+  legend, the profiles and the policy file follow folded. Each group
+  offers the same four choices for itself, beside its heading, where three
+  of them used to sit at the far edge of the card.
+
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named
   its own record. It is declared once now.

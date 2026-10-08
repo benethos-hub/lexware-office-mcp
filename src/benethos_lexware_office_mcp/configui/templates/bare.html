@@ -1,0 +1,20 @@
+{# The frame of a page outside the navigation: the field for the start
+   code, which a session sees before it may see anything else. #}
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} — Lexware Office MCP</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<div class="signin">
+  <div class="brand">Lexware Office MCP</div>
+  {% include "partials/message.html" %}
+  {% block content %}{% endblock %}
+  <footer>benethos-lexware-office-mcp {{ VERSION }}</footer>
+</div>
+</body>
+</html>

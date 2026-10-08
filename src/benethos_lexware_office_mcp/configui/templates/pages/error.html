@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui with context %}
+{% block content %}
+{% call ui.notice("err") %}{{ text }}{% endcall %}
+<p><a href="/">Zur Übersicht</a></p>
+{% endblock %}

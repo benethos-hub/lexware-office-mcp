@@ -7,6 +7,11 @@ refused, so that whoever changed the key or switched on a writing tool left
 a trace on stderr. Never the key or the token themselves, and never a
 setting's value: the names say what changed, the file says to what.
 
+**One line carries a secret, on purpose**: the address with the start code,
+since handing the code to the person who started the process is what the
+line is for. The code lives as long as the process does, and no other line
+carries it.
+
 These lines are English like every other line on stderr. The German of this
 interface is for its pages.
 """
@@ -21,19 +26,77 @@ from ._describe import describe
 from .output import PACKAGE
 
 __all__ = [
+    "bound_beyond_loopback",
+    "editing",
+    "interrupted",
     "key_refused",
     "key_saved",
     "policy_saved",
+    "port_taken",
     "profile_deleted",
     "profile_saved",
     "profiles_unreadable",
     "request_refused",
+    "serving",
     "settings_saved",
+    "signed_in",
+    "stopped_from_page",
     "token_saved",
     "write_failed",
 ]
 
 _log = logging.getLogger(f"{PACKAGE}.configui")
+
+
+def serving(host: str, port: int, code: str) -> None:
+    """The address to open, start code included.
+
+    At WARNING so that no log level hides it: without this line the pages
+    cannot be opened, the way a generated bearer token is said at WARNING
+    because a client cannot connect without it.
+    """
+    _log.warning(
+        "Configuration interface at http://%s:%s/?code=%s - "
+        "stop it with Ctrl+C or Beenden on the page",
+        host,
+        port,
+        code,
+    )
+
+
+def editing(kind: str, path: Path) -> None:
+    """One of the three files this interface writes, pinned at its start."""
+    _log.info("Editing the %s file %s", kind, path)
+
+
+def bound_beyond_loopback(host: str) -> None:
+    _log.warning(
+        "Bound to %s, so the pages are reachable from outside this machine. "
+        "The start code travels in the clear over HTTP: whoever reaches this "
+        "port and reads along can open the pages and change the key. Outside "
+        "a container start it with --host 127.0.0.1 only.",
+        host,
+    )
+
+
+def port_taken(host: str, port: int, error: BaseException) -> None:
+    _log.error(
+        "Could not open %s:%s: %s. Is the interface running already? "
+        "Otherwise pick another port with --port.",
+        host,
+        port,
+        describe(error),
+    )
+
+
+def interrupted() -> None:
+    """Ctrl+C, which this command catches itself."""
+    _log.info("Stopped by an interrupt")
+
+
+def stopped_from_page() -> None:
+    """Beenden on a page, after the answer went out."""
+    _log.info("Stopped from the page")
 
 
 def profiles_unreadable(path: Path, error: BaseException) -> None:
@@ -105,5 +168,11 @@ def write_failed(path: Path, error: BaseException) -> None:
 
 
 def request_refused(check: str) -> None:
-    """A request turned away by one of the guards: host, origin, token, size."""
+    """A request turned away by one of the guards: host, origin, token, size,
+    or the start code."""
     _log.warning("Request refused by the %s check", check)
+
+
+def signed_in() -> None:
+    """A browser gave the start code. Never the code itself."""
+    _log.info("A browser signed in with the start code")

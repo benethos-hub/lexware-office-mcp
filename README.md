@@ -4,7 +4,7 @@
 [![PyPI benethos-lexware-office-mcp](https://img.shields.io/pypi/v/benethos-lexware-office-mcp?label=PyPI%20benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Container benethos-lexware-office-mcp](https://img.shields.io/badge/ghcr.io-benethos--lexware--office--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/pkgs/container/benethos-lexware-office-mcp)
 [![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
-[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
 
 > **Disclaimer**
@@ -226,8 +226,8 @@ and nothing outside it is read, links included.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
   its own Python and the `uvx` command every example below uses
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
-  in the MCP SDK, httpx, platformdirs and pypdfium2, the last of these to
-  render PDF pages
+  in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
+  Jinja2 for the pages of `setup`
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 
@@ -353,26 +353,31 @@ for permissions: change those later and the running client is told, see
 uvx benethos-lexware-office-mcp setup
 ```
 
-Three pages on `http://127.0.0.1:8771/`, closed with Ctrl+C - one port above
+Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
+or Ctrl+C - one port above
 the HTTP transport's `8770`, so both can run at once. `--port` picks another.
 They write the same files the
 command line does, so you can use either or both. The screens are in German,
 because Lexware Office is sold for German companies only, and each is named
 below by what it does with its label in brackets.
 
-**Overview** (`Übersicht`) — which `.env` and which `tools.json` are actually
-in effect, what every setting resolves to and where that value came from,
-whether each file exists yet, how many tools are on and what they cost. A
-connection test on the button, never on page load.
+**Overview** (`Übersicht`) — where the installation stands, in three rows: the
+key stored or missing, how many tools are on and what they cost, and what the
+last connection test found. The first row in red is the next step, and the
+button at the top right goes there. Below it the `"args"` entry that makes a
+client use the same files, and which files those are and whether each exists
+yet.
 
 **Credentials** (`Zugangsdaten`) — the API key, checked against the API before
-it is saved unless you say otherwise, and the settings that are not secret. The
-key is never shown back to you, never logged and never exported. If an
-environment variable is setting it, the page says so, because that would
-override whatever you save.
+it is saved unless you say otherwise, and beside it the connection test: one
+call on the button, never on page load, and the account it found. The key is
+never shown back to you, never logged and never exported. If an environment
+variable is setting it, the page says so, because that would override
+whatever you save. The token of the HTTP transport is folded underneath,
+open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
-as buttons. On a fresh installation with no policy file yet, the reading tools
+as buttons and the save button at the top right beside the count. On a fresh installation with no policy file yet, the reading tools
 come pre-ticked as a starting point — a proposal in a form, not a permission:
 there is still no file and therefore still no tool until you press save, and
 the page says so. Each row carries what that tool costs the assistant in
@@ -399,13 +404,25 @@ Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
 
-Two things worth knowing. It **binds `127.0.0.1`** — the pages have no
-password, which is only defensible while they cannot be reached from another
-machine. `--host` exists for a container, where the host-side publish keeps
-the port local, see [In a container](#in-a-container). Anywhere else a bind
-beyond loopback leaves the pages open to whoever reaches the port, and the
-start says so. And it is a **separate command**: the MCP server never serves
-HTTP, and a client such as Claude Desktop starts that one, not this.
+**Settings** (`Einstellungen`) — the eleven settings that are not secret, in
+three cards: the connection, the output, the files. An empty field means the
+built-in default, which the placeholder shows. A setting a real environment
+variable holds is shown rather than offered, since saving over it would change
+nothing.
+
+Three things worth knowing. Every start makes a **start code**, and the
+address it prints and opens carries it: `http://127.0.0.1:8771/?code=…`.
+Without it every page shows one field, *Code eingeben*, so another program
+or another user on the same machine cannot open the pages through the
+loopback port. The code lives as long as the process, and after five wrong
+ones each further try waits. It **binds `127.0.0.1`**, because the code
+travels in the clear and keeps nobody out who can read the traffic.
+`--host` exists for a container, where the host-side publish keeps the port
+local, see [In a container](#in-a-container). Anywhere else a bind beyond
+loopback leaves the pages open to whoever reaches the port and reads the
+code, and the start says so. And it is a **separate command**: the MCP
+server never serves HTTP, and a client such as Claude Desktop starts that
+one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
 and `--tools-file` say which files it edits. Unlike everywhere else those
@@ -705,6 +722,12 @@ docker run --rm -d --name lexware-office-mcp-setup \
         --env-file /config/.env --tools-file /config/tools.json
 ```
 
+Its log has the address with the start code, which is the line to open:
+
+```bash
+docker logs lexware-office-mcp-setup 2>&1 | grep "interface at"
+```
+
 It was started with `--rm`, so stopping it is also the end of it:
 
 ```bash
@@ -722,9 +745,16 @@ above 1024 needs no Linux capability at all.
 
 ### Turn the interface off when you are done
 
-Open <http://127.0.0.1:8771/>, enter the key, tick the tools — and then stop
-it. **Nothing stops it for you.** It has no login, it accepts an API key, and
+Open the address from its log, `docker compose logs setup` with Compose,
+enter the key, tick the tools — and then stop it, with *Beenden* in the
+sidebar or one of the commands below. The address names the port inside
+the container, so with a publish on another port, as the development
+folder's `8781`, change the port and keep the code. **Nothing stops it for
+you.** It accepts an API key behind a code that travels in the clear, and
 it will happily keep serving that page for as long as the machine is up.
+*Beenden* ends the process and leaves a stopped container behind, which
+`docker compose rm -f -s setup` removes, and a `docker run --rm` one
+removes itself.
 
 ```bash
 docker compose rm -f -s setup             # Compose

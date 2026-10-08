@@ -111,7 +111,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `transport/stdio.py` | The default transport: the client starts the process and owns stdin and stdout. See section 6. | built |
 | `transport/http.py` | The HTTP transport: the bearer guard in front of it, a generated token written into the settings file where that was asked for, and the DNS-rebinding allowlist. Nothing here is reached under stdio. See section 6. | built |
 | `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
-| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `render` is the page shell, `assets` the stylesheet and the two scripts it carries inline, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` the three screens as pure functions, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its two CSRF guards and the routing. | built |
+| `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `templates` is the one module importing Jinja2, with the templates under `templates/` and the stylesheet and the script under `static/`, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` each screen as a template and its context, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its two CSRF guards and the routing. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
@@ -140,7 +140,7 @@ below it:
 | `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
 | `server` | `tools`, `policy`, `api`, `files` and the three above |
 | `transport` | `server` and the three above |
-| `configui` | everything but `transport` and `cli`, imported by `cli` alone |
+| `configui` | everything but `transport` and `cli`, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
 | `cli` | everything, imported by nothing but `python -m` |
 
 Two things the table does not follow from, decided 2026-09-30. `errors` is
@@ -1097,20 +1097,22 @@ the key, the HTTP token and every other setting in one form, the permissions
 page put the legend and the profiles before the boxes and the save button
 after twenty-five rows, and a reload after a save repeated the post. The
 rework gives the interface a template engine, a frame, four pages and a
-start code, in four steps. Each step is a branch of its own, green on its
-own, and the table says how far it is.
+start code, in four steps. The first is a branch of its own, the other three
+share one with a commit per step and per page, each green on its own, and
+the table says how far it is.
 
 | Step | What it brings | Status |
 |---|---|---|
 | 1 | This section, and the layout in the working guidelines | built 2026-10-08 |
-| 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | planned |
-| 3 | The four pages below, one pull request each, with Post/Redirect/Get and a question before every destructive action | planned |
-| 4 | The start code | planned |
+| 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | built 2026-10-08 |
+| 3 | The four pages below, a commit each, with Post/Redirect/Get and a question before every destructive action | built 2026-10-08 |
+| 4 | The start code | built 2026-10-08 |
 
 **The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
 with autoescaping on and `StrictUndefined`, so a typo in a template raises
-instead of rendering an empty cell. The filters live there as well: German
-numbers, shortened paths, the source badge. The templates are package data
+instead of rendering an empty cell. The one filter lives there as well,
+German numbers, and the source badge is a macro. A path is not shortened but
+folded, behind its file's name. The templates are package data
 under `configui/templates/`. `base.html` holds the sidebar, the top bar with
 the heading, the line under it and the page's primary action, the message,
 the content and a footer with the version. `components/ui.html` holds the
@@ -1121,19 +1123,30 @@ markup of its own for any of these. `pages/` has one file per page,
 tool group. The server stays the standard library's threading HTTP server: a
 web framework would be a second one in the package, for four forms.
 `pages.py` builds the context of each page and nothing else, `actions.py`
-answers with a template and a context rather than bytes, and `render.py` and
-`assets.py` go. `state.py`, `probe.py`, `profiles.py`, `transfer.py`,
-`stamp.py` and `cost.py` do not change. The import table of
-`tests/test_layers.py` allows `jinja2` in that one module alone.
+answers with a redirect, a page and its message, or a download rather than
+bytes, and the page shell and the inline assets of August are gone.
+`state.py` changed in two places: the names of a value's source moved in
+from the page shell, and a setting's display reads a `Settings`, so the
+settings page reads its defaults the same way. `probe.py`, `profiles.py`,
+`transfer.py`, `stamp.py` and `cost.py` did not change. `tests/test_layers.py`
+confines `jinja2` to that one module, and checks that the server starts
+without loading it: the console script imports `configui` for every start,
+so `configui.start` imports the pages only when it runs.
 
 **Static files and a content security policy.** The stylesheet and the one
 script are files under `configui/static/`, served under `/static/`, and
 every response carries `Content-Security-Policy: default-src 'self'`. No
 inline style, no inline script, no inline handler. The script carries the
 file picker of the import, the live counter of the permissions page and the
-question a form asks through `data-confirm`. Until step 2 the stylesheet and
-two scripts are strings sent inline with every page, which was the right
-size for a page opened for minutes and has no answer to a policy.
+question a form asks through `data-confirm`. What the counter needs, the
+cost of each tool and whether it reads or removes, is on the checkbox as a
+`data-` attribute rather than in a script block. Until step 2 the stylesheet
+and two scripts were strings sent inline with every page, which was the
+right size for a page opened for minutes and had no answer to a policy. The
+policy names `base-uri`, `form-action` and `frame-ancestors` beside
+`default-src`, which does not cover them, and the static files are a fixed
+list: a request names one of the two or is answered with a 404, so no path
+a browser sends reaches the filesystem.
 
 **The look.** Colour tokens in a light, bluish palette, dark mode following
 the system setting, and three state colours, green, amber and red, each with
@@ -1149,11 +1162,14 @@ for, and its primary action at the top right.
 | Overview (`Übersicht`) | A card *Stand* with three rows and their tags: the key stored or missing, the permissions as n of 25 on with what they cost or no file yet, the last connection test with the account or never run. The first red row is the next step and links to the page that does it. A card *Client* with the `"args"` entry to copy, and the warning that a server without `--env-file` reads another file only when that is true. A card *Dateien* with each file's name and state, the full path folded. |
 | Credentials (`Zugangsdaten`) | The key, checked against the API before it is written unless that is declined, and the connection test as a card beside it. The HTTP token as a folded card, open only when the transport is not stdio, *Neu erzeugen* with a question before it. |
 | Permissions (`Rechte`) | The counter and *Rechte speichern* at the top right, the presets as a bar, then one card per domain with its group switches and the tool rows with mark and cost. The legend, the profiles and import and export folded underneath, deleting a profile with a question before it. |
-| Settings (`Einstellungen`) | The twelve settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows the default, empty means the default, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
+| Settings (`Einstellungen`) | The eleven settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows the default, empty means the default, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
 
-Until step 3 the three pages of August stand: the overview with the settings
-table, the files and the client entry, the credentials page with the key,
-the token and the settings, and the permissions page with everything on it.
+The settings page reads a value in effect and a default the same way, so
+the placeholder of an empty field is what empty means rather than what
+applies right now, and the log level is a choice of the levels the server
+knows rather than free text. On the overview an untested connection is not
+red: only a button ever tests it, so it is no fault, and the next step is
+the first row that is.
 
 **Forms.** Every form that goes through answers with a redirect and one
 message, shown once at the top of the next page. The message is held in the
@@ -1165,9 +1181,15 @@ not translated, as above. Every destructive action asks first.
 
 **The start code.** `setup` makes a random code at start, writes the address
 with the code to stderr and opens the browser with it. Without a valid code
-every page shows one field, *Code eingeben*. After the first valid request
-the session cookie carries the sign-in, and a redirect takes the code out of
-the URL. After five wrong codes the server waits before answering the next.
+every page shows one field, *Code eingeben*, and the static files are the
+one thing served without it, since that page needs them too. After the
+first valid request the session cookie carries the sign-in, and a redirect
+takes the code out of the URL. The field is a form like any other, behind
+the `Origin` and CSRF checks. After five wrong codes every further try
+waits two seconds first, and tries are taken one at a time, so the wait
+cannot be run around in parallel. A right code starts the count over. The
+code is 16 random bytes, so the wait is not what protects it: it keeps a
+stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the
 container's log, where the operator reads anyway. The code closes the pages
 to other processes and users of the same machine, which the host and origin
@@ -1176,6 +1198,20 @@ it travels in the clear over HTTP, and the warning at the start stays. A
 password was weighed and dropped: it needs a stored hash, a way to reset it
 and a first run that creates it, for a page that runs for minutes and ends.
 A code has no secret that outlives its process.
+
+**Beenden ends it from the page**, added 2026-10-08 beside the start code.
+The interface is meant to run for minutes and nothing stops it, so the way
+out sits in the sidebar of every page, with a question first, rather than
+only in a terminal that may be behind other windows. It is a form behind
+every guard a form has, the start code included, so a stranger can end
+nothing. The answer goes out first and the server stops a second later,
+long enough for the browser to fetch the stylesheet, from a thread of its
+own, since `shutdown` waits for the serving loop the request is part of.
+That thread waits for a running action to finish, because the request
+threads are daemons and a save cut off halfway would be the one harm, and
+a form arriving meanwhile is answered with a 503. In a container the
+process ends and the `setup` service, which has no restart policy, stays
+stopped.
 
 **Rules for every page, the four and any later one.** A page is one template
 under `pages/` and one entry in the sidebar. A route reads the form, calls
@@ -1193,9 +1229,10 @@ files, their formats, the search of section 7 and the pinning below. The
 URLs of the pages and the posts, with `/settings` as a page, `/code` and
 `/static/` added. The guards above: loopback, the `Host` check, `Origin`
 with the port, the CSRF token, `no-store`, and `SO_REUSEADDR` off on
-Windows. The `setup` service of both Compose files. The server, `settings/`,
-`policy.py` and the transport are not touched. The image grows by Jinja2 and
-MarkupSafe, about 1.5 MB.
+Windows. The `setup` service of both Compose files, whose comments now say
+where the code is. The server, `settings/`, `policy.py` and the transport
+are not touched. The image grows by Jinja2 and MarkupSafe, 1.2 MB with their
+bytecode, measured on 2026-10-08 in an installed environment.
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in
@@ -2162,8 +2199,11 @@ ends the same way. `cli.main` catches it around the whole run, writes
 `Stopped by an interrupt` and exits with 130, which is 128 plus SIGINT, for
 every transport. SIGTERM, which `docker stop` and systemd send, is not
 affected, since Python turns only SIGINT into an exception: the server shuts
-down without the extra line and without a traceback. `setup` has always
-caught Ctrl+C itself and ends with `Beendet.`
+down without the extra line and without a traceback. `setup` catches Ctrl+C
+itself and ends with the same line, or with `Stopped from the page` after
+*Beenden*. Its lines were German `print` calls until 2026-10-08 and go
+through the catalogue since, so they carry the time and the level like
+every other.
 
 **The catalogue**, by module. The logger name a line carries is in brackets
 where it differs.
@@ -2181,8 +2221,9 @@ where it differs.
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name |
 | | `DEBUG` | a download that reused an identical file, by size |
-| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted |
-| | `WARNING` | the policy with writing tools on and which, a key the account refused, a request a guard refused, a file that could not be written, unreadable profiles |
+| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
+| | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
+| | `ERROR` | a port `setup` could not open, before it ends |
 
 **Where a tool's line comes from.** Not from the tools, which stay thin.
 `register_tool` puts `logged()` around every tool, outside the policy guard,
@@ -2683,10 +2724,12 @@ Built, tested offline and exercised against a live test account:
   `notifications/tools/list_changed` sent when the set of enabled tools
   differs, which Claude Desktop acts on without a restart — measured
   2026-08-22, see section 9.2
-- **a configuration interface in the browser**, `setup`, three pages: which
-  files are in effect and where every value came from, the API key checked
-  before it is written, and one checkbox per tool with what it costs the
-  model in context, permission profiles and the policy file as a download.
+- **a configuration interface in the browser**, `setup`, four pages: where
+  the installation stands and which files are in effect, the API key checked
+  before it is written, one checkbox per tool with what it costs the model
+  in context, permission profiles and the policy file as a download, and
+  every setting with where its value came from. Reworked 2026-10-08 with
+  templates, a content security policy and Post/Redirect/Get.
   Never part of the server process, loopback only, see section 7.1
 - **a container image and two Compose folders**, two stages, non-root, 168 MB.
   The server on a loopback-published port and the configuration interface

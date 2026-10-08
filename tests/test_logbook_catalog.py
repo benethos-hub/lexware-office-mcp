@@ -41,8 +41,9 @@ CATALOGUE: list[ModuleType] = [
 VOCABULARY: dict[str, tuple[str, Any]] = {
     "attempt": ("which attempt at a request", 2),
     "calls": ("how many API calls a tool call made", 2),
-    "check": ("which guard refused a request: host, origin, token, size", "host"),
+    "check": ("which guard refused a request: host, origin, token, size, code", "host"),
     "checked": ("whether a key was checked against the account", True),
+    "code": ("the start code of setup, on the one line that hands it over", "c0de"),
     "count": ("how often something happened", 3),
     "delay": ("seconds waited, or to be waited", 1.5),
     "enabled": ("a count of tools", 3),
@@ -50,6 +51,7 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "error": ("an exception, read through describe() only", OSError(2, "gone")),
     "generated": ("whether a token was generated rather than typed", True),
     "kept": ("how many downloads the directory keeps", 100),
+    "kind": ("which file setup edits: settings, policy, profiles", "policy"),
     "fields": ("the names of arguments the schema refused", ("items.0.unit",)),
     "file": ("the name of a settings file", ".env"),
     "finalized": ("whether a write finalized its record", True),

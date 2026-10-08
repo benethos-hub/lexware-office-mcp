@@ -49,6 +49,10 @@ dependencies = [
     # better known binding and is AGPL-3.0 or a commercial licence, which this
     # MIT project cannot take. See src/.../rendering.py.
     "pypdfium2>=5.0",
+    # The templates of the configuration interface, `setup`, and nothing in
+    # the server. Imported in configui/templates.py alone. 3.1.6 is the
+    # first without the sandbox escapes of 2024 and 2025.
+    "jinja2>=3.1.6",
 ]
 
 [project.urls]

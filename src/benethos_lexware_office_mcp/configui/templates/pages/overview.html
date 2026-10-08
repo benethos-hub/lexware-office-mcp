@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui with context %}
+{% block actions %}
+{% if step %}<a class="btn primary" href="{{ step[0] }}">{{ step[1] }}</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% call ui.card("Stand") %}
+<ul class="lines">
+{% for row in rows %}
+  <li>
+    <span class="what">{{ row.label }}</span>
+    {{ ui.tag(row.tag.text, row.tag.kind) }}
+    <span class="grow">
+    {% if row.name == "key" %}
+      {% if row.badge %}Wird nie angezeigt und geht in keinen Export mit. {{ ui.badge(row.badge) }}{% else %}Ohne Schlüssel erreicht der Server die API nicht.{% endif %}
+    {% elif row.name == "policy" %}
+      {{ row.count }}
+      {% if row.state == "missing" %}
+      Es gibt noch keine Rechtedatei, also bietet der Server <strong>kein
+      einziges Tool</strong> an. Das ist der richtige Zustand, solange niemand
+      entschieden hat.
+      {% elif row.state == "none" %}
+      Die Rechtedatei ist da, schaltet aber <strong>kein einziges Tool</strong>
+      frei. Der Assistent sieht damit nichts von diesem Konto.
+      {% else %}
+      Sie kosten den Assistenten {{ row.spend }} in jedem einzelnen Gespräch.
+      {% if row.state == "writers" %}
+      <br><strong>Echte Buchhaltungsdaten verändern dürfen:</strong>
+      {% for name in row.writers %}<code>{{ name }}</code>{{ ", " if not loop.last else "." }}{% endfor %}
+      {% endif %}
+      {% endif %}
+    {% else %}
+      {% if row.account %}<strong>{{ row.account }}</strong>{% for fact in row.facts %} · {{ fact }}{% endfor %}{% else %}Seit dem Start dieser Oberfläche noch nicht getestet. Nur ein Knopf ruft die API auf, nie das Öffnen einer Seite.{% endif %}
+    {% endif %}
+    </span>
+    {% if row.link %}<a href="{{ row.link[0] }}">{{ row.link[1] }}</a>{% endif %}
+  </li>
+{% endfor %}
+</ul>
+{% endcall %}
+
+{% call ui.card("Client", "was in die Konfiguration des Clients gehört") %}
+<p>Diese Oberfläche läuft in einem eigenen Prozess und sieht nicht, mit
+   welchen Argumenten dein Client den MCP-Server startet. Damit er dieselben
+   Dateien benutzt, gehört das in seine Konfiguration:</p>
+<p><code class="block">"args": {{ args }}</code></p>
+{% if outranked %}
+{% call ui.notice("warn") %}<strong>Ein Server ohne <code>--env-file</code>
+liest eine andere Datei:</strong> <code>{{ outranked }}</code>. Es gilt immer
+genau eine, die Werte der übrigen kommen nicht dazu. Was hier gespeichert
+wird, erreicht diesen Server also nur, wenn er mit den Argumenten oben
+gestartet wird.{% endcall %}
+{% endif %}
+<p class="hint">Oder umgekehrt: <code>setup</code> mit denselben
+   <code>--env-file</code> und <code>--tools-file</code> starten. Beide
+   Prozesse legen ihre Dateien beim Start fest und wechseln sie nicht mehr.</p>
+{% endcall %}
+
+{% call ui.card("Dateien") %}
+<ul class="lines">
+{% for file in files %}
+  <li>
+    <span class="what">{{ file.label }}</span>
+    <code>{{ file.name }}</code>
+    {{ ui.tag("vorhanden", "ok") if file.exists else ui.tag("noch nicht angelegt") }}
+    {% if file.badge %}{{ ui.badge(file.badge) }}{% endif %}
+    <details class="path">
+      <summary>Pfad</summary>
+      <code>{{ file.path }}</code>
+    </details>
+  </li>
+{% endfor %}
+</ul>
+{% endcall %}
+{% endblock %}

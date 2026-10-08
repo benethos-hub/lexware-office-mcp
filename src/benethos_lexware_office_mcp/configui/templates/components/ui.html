@@ -1,0 +1,77 @@
+{# The parts every page is built from. A page has no markup of its own for
+   a card, a field, a source badge, a tag, a notice, the CSRF field or an
+   action with a question before it. Imported "with context", so the CSRF
+   field finds the session's token. #}
+
+{# A card with a heading. ``meta``: the small line beside it. #}
+{% macro card(title=None, meta=None, id=None) %}
+<section class="card"{% if id %} id="{{ id }}"{% endif %}>
+  {% if title %}
+  <header><h2>{{ title }}</h2>{% if meta %}<span class="meta">{{ meta }}</span>{% endif %}</header>
+  {% endif %}
+  <div class="body">{{ caller() }}</div>
+</section>
+{% endmacro %}
+
+{# A card folded behind its heading, open when ``open`` says so. #}
+{% macro fold(title, meta=None, open=False, id=None) %}
+<details class="card"{% if id %} id="{{ id }}"{% endif %}{% if open %} open{% endif %}>
+  <summary class="card-summary"><h2>{{ title }}</h2>{% if meta %} <span class="meta">{{ meta }}</span>{% endif %}</summary>
+  <div class="body">{{ caller() }}</div>
+</details>
+{% endmacro %}
+
+{# A remark in a box: ``ok``, ``warn`` or ``err``. #}
+{% macro notice(kind="warn") %}
+<div class="notice {{ kind }}">{{ caller() }}</div>
+{% endmacro %}
+
+{# A small mark: ``accent``, ``ok``, ``warn``, ``err``, or plain. #}
+{% macro tag(text, kind="", title=None) %}<span class="tag{% if kind %} {{ kind }}{% endif %}"{% if title %} title="{{ title }}"{% endif %}>{{ text }}</span>{% endmacro %}
+
+{# Where a value came from, marked when the file lost. #}
+{% macro badge(badge) %}{{ tag("aus: " ~ badge.source, "warn" if badge.loud else "", badge.detail or None) }}{% endmacro %}
+
+{# The hidden field every form that changes something carries. #}
+{% macro csrf_field() %}<input type="hidden" name="_csrf" value="{{ csrf }}">{% endmacro %}
+
+{# A labelled input. ``code``: the variable's name beside the label,
+   ``source``: where its value came from. #}
+{% macro field(name, label, value="", type="text", placeholder="", hint=None, code=None, source=None, autocomplete=None, maxlength=None) %}
+<div class="field">
+  <label for="f-{{ name }}">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</label>
+  <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}>
+  {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{# A choice of fixed values. ``options``: (value, text) pairs. #}
+{% macro choice(name, label, options, value="", code=None, source=None) %}
+<div class="field">
+  <label for="f-{{ name }}">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</label>
+  <select id="f-{{ name }}" name="{{ name }}">
+  {% for option, text in options %}
+    <option value="{{ option }}"{% if option == value %} selected{% endif %}>{{ text }}</option>
+  {% endfor %}
+  </select>
+</div>
+{% endmacro %}
+
+{# A value set where no form here reaches it, shown rather than offered. #}
+{% macro held(label, value, code=None, source=None, hint=None) %}
+<div class="field">
+  <span class="label">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</span>
+  <span class="held">{{ value }}</span>
+  {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{# A form that is only a button, with a question before it when
+   ``confirm`` says one. #}
+{% macro action(url, label, confirm=None, cls="", fields={}) %}
+<form class="inline" method="post" action="{{ url }}"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  {{ csrf_field() }}
+  {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <button{% if cls %} class="{{ cls }}"{% endif %} type="submit">{{ label }}</button>
+</form>
+{% endmacro %}

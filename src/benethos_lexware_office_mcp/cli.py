@@ -54,9 +54,10 @@ the configuration interface:
 
   benethos-lexware-office-mcp setup
 
-  Serves three pages on 127.0.0.1 and opens a browser: which files are in
-  effect and where each setting comes from, the API key, and one checkbox
-  per tool with what it costs the model in context. It writes the same files
+  Serves four pages on 127.0.0.1 and opens a browser: where the
+  installation stands, the API key and the connection test, one checkbox
+  per tool with what it costs the model in context, and the settings with
+  where each comes from. It writes the same files
   this command line does, so the two can be used interchangeably.
 
   Binds 127.0.0.1. The pages have no login, so they answer only when a

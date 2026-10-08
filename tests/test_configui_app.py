@@ -45,8 +45,21 @@ def fake_check(settings: Settings, *, keep: bool = True) -> tuple[probe.Account,
     return ACCOUNT, "Verbindung steht."
 
 
+class Stay(urllib.request.HTTPRedirectHandler):
+    """Answers a redirect with the redirect itself, rather than following it."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
 class Browser:
-    """Just enough of one: a cookie jar, forms, and the CSRF token."""
+    """Just enough of one: a cookie jar, forms, and the CSRF token.
+
+    It follows a redirect as a browser does, unless ``follow`` says not to.
+    """
+
+    # The server it talks to, for a test about the start code.
+    server: ConfigServer
 
     def __init__(self, base: str) -> None:
         self.base = base
@@ -54,13 +67,16 @@ class Browser:
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar)
         )
+        self.staying = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar), Stay()
+        )
 
     def get(self, path: str) -> tuple[int, str, dict[str, str]]:
         return self._open(urllib.request.Request(self.base + path))
 
     def token(self) -> str:
-        """Any page carries it: it is the session cookie, echoed back."""
-        _, body, _ = self.get("/")
+        """Any page with a form carries it: it is the session cookie, echoed back."""
+        _, body, _ = self.get("/credentials")
         found = re.search(r'name="_csrf" value="([^"]+)"', body)
         assert found, "the page carried no CSRF token"
         return found.group(1)
@@ -72,6 +88,7 @@ class Browser:
         *,
         origin: bool = True,
         csrf: str | None = "",
+        follow: bool = True,
     ) -> tuple[int, str, dict[str, str]]:
         pairs: list[tuple[str, str]] = []
         for key, value in fields.items():
@@ -88,11 +105,14 @@ class Browser:
         )
         if origin:
             request.add_header("Origin", self.base)
-        return self._open(request)
+        return self._open(request, follow=follow)
 
-    def _open(self, request: urllib.request.Request) -> tuple[int, str, dict[str, str]]:
+    def _open(
+        self, request: urllib.request.Request, *, follow: bool = True
+    ) -> tuple[int, str, dict[str, str]]:
+        opener = self.opener if follow else self.staying
         try:
-            with self.opener.open(request) as response:
+            with opener.open(request) as response:
                 return (
                     response.status,
                     response.read().decode("utf-8"),
@@ -129,7 +149,11 @@ def browser(installation: Installation) -> Iterator[Browser]:
     )
     thread.start()
     try:
-        yield Browser(f"http://127.0.0.1:{server.server_address[1]}")
+        browser = Browser(f"http://127.0.0.1:{server.server_address[1]}")
+        # Signed in the way the address the start prints signs one in.
+        browser.get(f"/?code={server.code}")
+        browser.server = server
+        yield browser
     finally:
         server.shutdown()
         server.server_close()
@@ -137,7 +161,7 @@ def browser(installation: Installation) -> Iterator[Browser]:
 
 
 def note(body: str) -> str:
-    found = re.search(r'<div class="note[^"]*">(.*?)</div>', body, re.S)
+    found = re.search(r'<div class="notice[^"]*" role="[^"]*">(.*?)</div>', body, re.S)
     return (
         re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", found.group(1))).strip()
         if found
@@ -148,7 +172,9 @@ def note(body: str) -> str:
 # -- routing ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", ["/", "/index.html", "/credentials", "/permissions"])
+@pytest.mark.parametrize(
+    "path", ["/", "/index.html", "/credentials", "/permissions", "/settings"]
+)
 def test_every_page_answers(browser: Browser, path: str) -> None:
     status, body, _ = browser.get(path)
 
@@ -182,11 +208,199 @@ def test_an_unknown_address_is_a_404(browser: Browser) -> None:
 
 
 def test_a_session_cookie_is_issued_once(browser: Browser) -> None:
-    _, _, headers = browser.get("/")
+    newcomer = Browser(browser.base)
+
+    _, _, headers = newcomer.get("/")
     assert "SameSite=Strict" in headers["Set-Cookie"]
     assert "HttpOnly" in headers["Set-Cookie"]
 
-    assert "Set-Cookie" not in browser.get("/")[2]
+    assert "Set-Cookie" not in newcomer.get("/")[2]
+
+
+# -- the start code ---------------------------------------------------------
+
+
+def test_without_the_code_every_page_asks_for_it(browser: Browser) -> None:
+    stranger = Browser(browser.base)
+
+    for path in ("/", "/credentials", "/permissions", "/settings", "/export"):
+        status, body, _ = stranger.get(path)
+        assert status == 403, path
+        assert "<h2>Code eingeben</h2>" in body, path
+        assert 'name="code"' in body, path
+    # What a page needs to look like one is not behind it.
+    assert stranger.get("/static/app.css")[0] == 200
+
+
+def test_the_code_in_the_address_signs_in_and_leaves_the_address(
+    browser: Browser,
+) -> None:
+    stranger = Browser(browser.base)
+
+    status, _, headers = stranger._open(
+        urllib.request.Request(
+            f"{browser.base}/permissions?code={browser.server.code}"
+        ),
+        follow=False,
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/permissions"
+    assert stranger.get("/permissions")[0] == 200
+
+
+def test_the_code_typed_into_the_field_signs_in(browser: Browser) -> None:
+    stranger = Browser(browser.base)
+
+    status, _, headers = stranger.post(
+        "/code", {"code": f" {browser.server.code} "}, follow=False
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/"
+    assert stranger.get("/settings")[0] == 200
+
+
+def test_a_wrong_code_is_refused_and_signs_nothing_in(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    stranger = Browser(browser.base)
+
+    status, body, _ = stranger.post("/code", {"code": "guessed"})
+
+    assert status == 403
+    assert "passt nicht" in note(body)
+    assert stranger.get("/")[0] == 403
+    assert "Request refused by the code check" in lines.text
+    assert browser.server.code not in lines.text
+
+
+def test_a_form_without_the_sign_in_writes_nothing(
+    browser: Browser, installation: Installation
+) -> None:
+    """Origin and token in order, the code missing: still nothing written."""
+    stranger = Browser(browser.base)
+
+    status, _, _ = stranger.post("/permissions", {"action": "save", "tool": []})
+
+    assert status == 403
+    assert not installation.policy_path.exists()
+
+
+def test_after_five_wrong_codes_each_waits(browser: Browser) -> None:
+    waited: list[float] = []
+    browser.server.pause = waited.append
+    stranger = Browser(browser.base)
+
+    for _ in range(5):
+        stranger.post("/code", {"code": "guessed"})
+    assert waited == []
+
+    stranger.post("/code", {"code": "guessed"})
+    stranger.get(f"/?code={browser.server.code}")
+    assert waited == [2.0, 2.0]
+
+    stranger.post("/code", {"code": "guessed"})
+    assert waited == [2.0, 2.0]  # a right code started the count over
+
+
+def test_a_sign_in_is_a_line_and_the_code_is_not(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    Browser(browser.base).get(f"/?code={browser.server.code}")
+
+    assert "A browser signed in with the start code" in lines.text
+    assert browser.server.code not in lines.text
+
+
+def test_the_start_prints_the_address_with_the_code(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    """The line a person copies, from a terminal or from a container's log.
+
+    At WARNING, so a log level set higher than INFO cannot hide it.
+    """
+    opened: list[str] = []
+    monkeypatch.setattr("webbrowser.open", opened.append)
+    monkeypatch.setattr(ConfigServer, "serve_forever", lambda self: None)
+
+    serve(installation, port=0, open_browser=True)
+
+    (record,) = [r for r in lines.records if "interface at" in r.getMessage()]
+    assert record.levelno == logging.WARNING
+    found = re.search(r"(http://127\.0\.0\.1:\d+/\?code=\S+)", record.getMessage())
+    assert found
+    assert opened == [found.group(1)]
+    for kind in ("settings", "policy", "profiles"):
+        assert f"Editing the {kind} file" in lines.text
+
+
+# -- Post/Redirect/Get ------------------------------------------------------
+
+
+def test_a_form_that_went_through_redirects_and_says_so_once(
+    browser: Browser,
+) -> None:
+    """A reload of the next page repeats nothing, and says nothing twice."""
+    status, body, headers = browser.post(
+        "/permissions", {"action": "save", "tool": ["get_profile"]}, follow=False
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/permissions"
+    assert body == ""
+    assert "1 von 25 Tools aktiv" in note(browser.get("/permissions")[1])
+    assert note(browser.get("/permissions")[1]) == ""
+
+
+def test_the_message_is_for_the_session_that_sent_the_form(
+    browser: Browser,
+) -> None:
+    browser.post("/permissions", {"action": "save", "tool": []}, follow=False)
+    stranger = Browser(browser.base)
+
+    assert note(stranger.get("/permissions")[1]) == ""
+    assert "0 von 25 Tools aktiv" in note(browser.get("/permissions")[1])
+
+
+def test_the_message_waits_for_the_next_page_whichever_it_is(
+    browser: Browser,
+) -> None:
+    """The ticks of a loaded profile belong to its page, the message not."""
+    browser.post("/permissions", {"action": "save", "tool": []}, follow=False)
+
+    assert "0 von 25 Tools aktiv" in note(browser.get("/credentials")[1])
+
+
+def test_a_refused_form_comes_back_at_once_with_what_was_typed(
+    browser: Browser, installation: Installation
+) -> None:
+    status, body, _ = browser.post(
+        "/settings",
+        {"LXO_MCP_PAGE_SIZE": "9999", "LXO_MCP_TIMEOUT": "20"},
+        follow=False,
+    )
+
+    assert status == 400
+    assert "würde das ablehnen" in note(body)
+    assert 'name="LXO_MCP_PAGE_SIZE" type="text" value="9999"' in body
+    assert 'name="LXO_MCP_TIMEOUT" type="text" value="20"' in body
+    assert "9999" not in installation.env_path.read_text(encoding="utf-8")
+
+
+def test_a_refused_key_is_not_shown_again(
+    browser: Browser, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        probe, "check", lambda settings, **_: (None, "Die API hat abgelehnt")
+    )
+
+    status, body, _ = browser.post("/credentials", {"api_key": "typed-but-wrong"})
+
+    assert status == 400
+    assert "typed-but-wrong" not in body
 
 
 # -- the guards -------------------------------------------------------------
@@ -935,7 +1149,7 @@ def test_a_delete_that_cannot_be_written_is_reported(
         "/permissions", {"action": "profile-delete", "profile": "Nur Lesen"}
     )
 
-    assert status == 200
+    assert status == 500
     assert "nicht schreiben: Permission denied" in note(body)
 
 
@@ -1049,7 +1263,7 @@ def test_a_second_interface_cannot_take_a_port_already_served() -> None:
 
 
 def test_a_taken_port_is_one_line_and_no_traceback(
-    installation: Installation, capsys: pytest.CaptureFixture[str]
+    installation: Installation, lines: pytest.LogCaptureFixture
 ) -> None:
     taken = socket.socket()
     taken.bind(("127.0.0.1", 0))
@@ -1061,9 +1275,10 @@ def test_a_taken_port_is_one_line_and_no_traceback(
         taken.close()
 
     assert ended.value.code == 1
-    err = capsys.readouterr().err
-    assert "--port" in err
-    assert "Traceback" not in err
+    (record,) = [r for r in lines.records if "Could not open" in r.getMessage()]
+    assert record.levelno == logging.ERROR
+    assert "--port" in record.getMessage()
+    assert "Traceback" not in lines.text
 
 
 @pytest.mark.parametrize(
@@ -1100,6 +1315,108 @@ def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
 
     status, body, _ = browser.post("/credentials", {"api_key": "a-new​key"})
 
-    assert status == 200
+    assert status == 400
     assert "Nicht gespeichert" in note(body)
     assert "a-new" not in installation.env_path.read_text(encoding="utf-8")
+
+
+def test_saved_settings_land_back_on_their_page(browser: Browser) -> None:
+    status, _, headers = browser.post(
+        "/settings", {"LXO_MCP_PAGE_SIZE": "80"}, follow=False
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/settings"
+
+
+def test_a_connection_test_lands_on_the_credentials_page(browser: Browser) -> None:
+    status, _, headers = browser.post("/check", {}, follow=False)
+
+    assert status == 303
+    assert headers["Location"] == "/credentials"
+
+
+# -- ending it from the page ------------------------------------------------
+
+
+def test_beenden_answers_and_then_ends_the_process(browser: Browser) -> None:
+    browser.server.linger = 0
+    stopped = threading.Event()
+    real = browser.server.stop_after_actions
+
+    def stop() -> None:
+        real()
+        stopped.set()
+
+    browser.server.stop_after_actions = stop  # type: ignore[method-assign]
+
+    status, body, _ = browser.post("/shutdown", {})
+
+    assert status == 200
+    assert "<h2>Beendet</h2>" in body
+    assert stopped.wait(5)
+
+
+def test_beenden_needs_the_start_code(browser: Browser) -> None:
+    stranger = Browser(browser.base)
+
+    status, _, _ = stranger.post("/shutdown", {})
+
+    assert status == 403
+    assert not browser.server.stopped_from_page
+    assert browser.get("/")[0] == 200
+
+
+def test_beenden_needs_the_token(browser: Browser) -> None:
+    assert browser.post("/shutdown", {}, csrf="nope")[0] == 403
+    assert not browser.server.stopped_from_page
+
+
+def test_while_ending_no_form_is_acted_on(
+    browser: Browser, installation: Installation
+) -> None:
+    """The second it lingers is for the stylesheet, not for another save."""
+    browser.server.linger = 60  # the timer is a daemon, the test ends first
+    browser.post("/shutdown", {})
+
+    status, _, _ = browser.post("/permissions", {"action": "save", "tool": []})
+
+    assert status == 503
+    assert not installation.policy_path.exists()
+
+
+def test_every_page_offers_beenden_with_a_question(browser: Browser) -> None:
+    for path in ("/", "/credentials", "/permissions", "/settings"):
+        body = browser.get(path)[1]
+        form = re.search(r'<form[^>]*action="/shutdown"[^>]*>', body)
+        assert form and "data-confirm=" in form.group(0), path
+
+
+def test_ended_from_the_page_is_said_on_stderr(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    def served_until_beenden(self: ConfigServer) -> None:
+        self.stopped_from_page = True
+
+    monkeypatch.setattr(ConfigServer, "serve_forever", served_until_beenden)
+
+    serve(installation, port=0, open_browser=False)
+
+    assert "Stopped from the page" in lines.text
+
+
+def test_ctrl_c_is_a_line_rather_than_a_traceback(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    def interrupted(self: ConfigServer) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(ConfigServer, "serve_forever", interrupted)
+
+    serve(installation, port=0, open_browser=False)
+
+    assert "Stopped by an interrupt" in lines.text

@@ -100,9 +100,9 @@ src/benethos_lexware_office_mcp/
     watch.py      # ending the process when its settings file changes
   configui/       # the local configuration interface, `setup` serves it:
                   # state, cost, probe, stamp, profiles, transfer, pages,
-                  # actions, app, and templates.py with templates/ and
-                  # static/ (render and assets until those exist, see
-                  # SPECS 7.1) - never part of the server process
+                  # actions, app, and templates, the one module importing
+                  # jinja2, with templates/ and static/ beside it - never
+                  # part of the server process
   tools/
     _base.py      # registration helper, tidies the docstring first
     <group>.py    # one module per resource group, thin tool definitions
@@ -258,8 +258,10 @@ measurement of what the whole list costs.
   uv run benethos-lexware-office-mcp setup --no-browser --port 8790       --env-file scratch/.env --tools-file scratch/tools.json
   ```
   Point it at scratch files rather than at your own configuration - it
-  writes what it is told to write. Its tests cover the pages and the routes,
-  so a rendering change that matters should fail one of them first.
+  writes what it is told to write. Every page asks for the start code, so
+  open the address it prints, code included, or fetch that address with a
+  cookie jar before the page you want. Its tests cover the pages and the
+  routes, so a rendering change that matters should fail one of them first.
 
 **The gates above do not cover the upstream API changing.** The suite mocks
 HTTP completely and stays green through any change in Lexware's field names or

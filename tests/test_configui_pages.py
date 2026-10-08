@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import json
+import dataclasses
+import re
 import subprocess
 import sys
 from html.parser import HTMLParser
@@ -11,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp.configui import pages, probe
-from benethos_lexware_office_mcp.configui.state import Installation
+from benethos_lexware_office_mcp.configui.state import EDITABLE_KEYS, Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import Settings, locations
 
@@ -36,15 +37,26 @@ def inst(tmp_path: Path) -> Installation:
     return Installation(settings=settings, env_path=env, cwd=tmp_path)
 
 
-def text(body: bytes) -> str:
-    return body.decode("utf-8")
+def text(page: pages.Page) -> str:
+    """The page as a browser reads it: a line break in a template is a space."""
+    return text_with(page, None)
+
+
+def text_with(page: pages.Page, message: pages.Message | None) -> str:
+    """The page with the message an action left on it."""
+    return re.sub(r"\s+", " ", page.html(message=message).decode("utf-8"))
 
 
 # -- the shell --------------------------------------------------------------
 
 
 def test_every_page_is_german_and_names_itself(inst: Installation) -> None:
-    for render in (pages.overview, pages.credentials, pages.permissions):
+    for render in (
+        pages.overview,
+        pages.credentials,
+        pages.permissions,
+        pages.settings,
+    ):
         body = text(render(inst))
         assert '<html lang="de">' in body
         assert "Lexware Office MCP</title>" in body
@@ -75,7 +87,7 @@ class Balance(HTMLParser):
 
 
 @pytest.mark.parametrize(
-    "render", [pages.overview, pages.credentials, pages.permissions]
+    "render", [pages.overview, pages.credentials, pages.permissions, pages.settings]
 )
 def test_the_markup_closes_what_it_opens(inst: Installation, render: object) -> None:
     """These pages are built by string concatenation, so this is worth a test.
@@ -111,9 +123,9 @@ inst = Installation(
     env_path=tmp / ".env",
     cwd=tmp,
 )
-assert b"get_profile" in pages.permissions(inst)
+assert b"get_profile" in pages.permissions(inst).html()
 # An empty registry renders as "0 von 0 Tools aktiv" rather than raising.
-assert b"von 0 Tools" not in pages.overview(inst)
+assert b"von 0 Tools" not in pages.overview(inst).html()
 """
     done = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, timeout=120
@@ -139,7 +151,7 @@ def test_the_overview_never_prints_the_key(inst: Installation) -> None:
     body = text(pages.overview(inst))
 
     assert "secret-value-do-not-print" not in body
-    assert "gesetzt" in body
+    assert ">hinterlegt</span>" in body
 
 
 def test_the_overview_says_when_a_server_would_read_a_different_env(
@@ -222,7 +234,7 @@ def test_a_file_that_enables_nothing_is_not_called_read_only(
 def test_a_read_only_installation_is_not_warned_about(inst: Installation) -> None:
     ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
 
-    assert "note good" in text(pages.overview(inst))
+    assert '<span class="tag ok">nur lesend</span>' in text(pages.overview(inst))
 
 
 def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
@@ -335,7 +347,54 @@ def test_an_environment_variable_outranking_a_file_is_marked(
 ) -> None:
     monkeypatch.setenv("LXO_MCP_PAGE_SIZE", "9")
 
-    assert "aus: Umgebung" in text(pages.overview(inst))
+    assert "aus: Umgebung" in text(pages.settings(inst))
+
+
+def _top_right(body: str) -> str:
+    return body.split('<div class="right">')[1].split("</header>")[0]
+
+
+def test_the_first_red_row_is_the_next_step(inst: Installation) -> None:
+    """No key comes first: without it nothing else can be tried."""
+    inst.settings = dataclasses.replace(inst.settings, api_key="")
+
+    assert "Schlüssel eintragen" in _top_right(text(pages.overview(inst)))
+
+    inst.settings = dataclasses.replace(inst.settings, api_key="k")
+    top = _top_right(text(pages.overview(inst)))
+    assert '<a class="btn primary" href="/permissions">Rechte festlegen</a>' in top
+
+
+def test_nothing_red_means_no_next_step(inst: Installation) -> None:
+    """An untested connection is no fault: only a button ever tests it."""
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+
+    body = text(pages.overview(inst))
+
+    assert "btn primary" not in _top_right(body)
+    assert '<span class="tag">nicht getestet</span>' in body
+
+
+def test_the_stand_names_the_account_once_it_is_known(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        probe, "_last", probe.Account(company="Test Inc.", tax_type="net")
+    )
+
+    body = text(pages.overview(inst))
+
+    assert '<span class="tag ok">verbunden</span>' in body
+    assert "<strong>Test Inc.</strong> · Steuerart: net" in body
+
+
+def test_every_file_path_is_folded(inst: Installation) -> None:
+    """The name is enough to read, the full path is there for who asks."""
+    body = text(pages.overview(inst))
+
+    for path in (inst.env_path, inst.policy_path, inst.profiles.path):
+        assert f"<summary>Pfad</summary> <code>{path}</code> </details>" in body
+    assert body.count("<code>tools.json</code>") == 1
 
 
 # -- credentials ------------------------------------------------------------
@@ -358,11 +417,62 @@ def test_a_shadowed_key_is_flagged_before_anybody_types(
 
 def test_the_policy_path_cannot_be_edited_here(inst: Installation) -> None:
     """Changing it would swap the subject of the page out from under it."""
-    body = text(pages.credentials(inst))
+    body = text(pages.settings(inst))
 
     assert 'name="LXO_MCP_PAGE_SIZE"' in body
     assert 'name="LXO_MCP_TOOL_POLICY"' not in body
     assert 'name="LXO_MCP_API_KEY"' not in body  # the key has its own field
+
+
+# -- settings ---------------------------------------------------------------
+
+
+def test_every_editable_setting_is_in_exactly_one_card() -> None:
+    """A setting added to the server cannot go missing from the page."""
+    placed = [key for _, _, keys in pages.SETTINGS_CARDS for key in keys]
+
+    assert sorted(placed) == sorted(EDITABLE_KEYS)
+    assert len(placed) == len(set(placed))
+
+
+def test_the_placeholder_is_the_default_and_the_value_the_file(
+    inst: Installation,
+) -> None:
+    """Empty means the default, so the placeholder shows that, not what applies."""
+    body = text(pages.settings(inst))
+
+    assert 'name="LXO_MCP_PAGE_SIZE" type="text" value="50" placeholder="25"' in body
+    assert 'name="LXO_MCP_TIMEOUT" type="text" value="" placeholder="30"' in body
+
+
+def test_a_value_an_environment_variable_holds_is_no_field(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Typing over it would change nothing, the variable outranks the file."""
+    monkeypatch.setenv("LXO_MCP_TIMEOUT", "45")
+    inst.reload()
+
+    body = text(pages.settings(inst))
+
+    assert 'name="LXO_MCP_TIMEOUT"' not in body
+    assert '<span class="held">45</span>' in body
+    assert "aus: Umgebung" in body
+
+
+def test_the_log_level_is_a_choice(inst: Installation) -> None:
+    body = text(pages.settings(inst))
+
+    assert '<select id="f-LXO_MCP_LOG_LEVEL" name="LXO_MCP_LOG_LEVEL">' in body
+    assert '<option value="" selected>Standard (INFO)</option>' in body
+    assert '<option value="DEBUG">DEBUG</option>' in body
+
+
+def test_the_save_button_is_at_the_top_right(inst: Installation) -> None:
+    body = text(pages.settings(inst))
+
+    top = body.split('<div class="right">')[1].split("</header>")[0]
+    assert 'form="settingsform"' in top
+    assert 'id="settingsform"' in body
 
 
 # -- permissions ------------------------------------------------------------
@@ -484,17 +594,36 @@ def test_a_loaded_profile_overrides_the_file_without_writing(
     assert 'value="get_profile" id="get_profile">' in body
 
 
-def test_both_side_blocks_start_folded(inst: Installation) -> None:
-    """The tool list is the point of the page. These two are not."""
+def test_the_side_blocks_start_folded_under_the_tools(inst: Installation) -> None:
+    """The tool list is the point of the page. The legend, the profiles and
+    the file are not, so they come after it, folded."""
     ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
     inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
 
     body = text(pages.permissions(inst))
 
-    assert body.count("<details") == 2
-    assert '<details class="grp" open>' not in body
-    assert "Profile <span" in body
-    assert "Rechtedatei: Import und Export" in body
+    assert body.count("<details") == 3
+    assert " open>" not in body
+    last_tool = body.rindex('name="tool"')
+    for title in (
+        "Was die Marken bedeuten",
+        "Profile",
+        "Rechtedatei: Import und Export",
+    ):
+        assert body.index(f"<h2>{title}</h2>") > last_tool, title
+
+
+def test_the_counter_and_the_save_are_at_the_top_right(inst: Installation) -> None:
+    """Counted on the server as well, so it is right before any script runs."""
+    ToolPolicy(inst.settings.policy_file()).save(
+        {"get_profile": True, "search_vouchers": True}
+    )
+
+    top = _top_right(text(pages.permissions(inst)))
+
+    assert '<span id="count">2</span> von 25' in top
+    assert 'form="permform" name="action" value="save"' in top
+    assert re.search(r'<span id="cost">[\d.]+</span>', top)
 
 
 def test_a_block_unfolds_when_its_own_action_answered(inst: Installation) -> None:
@@ -562,7 +691,12 @@ def test_nothing_but_the_policy_file_travels(inst: Installation) -> None:
     describing one machine, and an import writing it would have pointed the
     target at a policy file that does not exist there.
     """
-    for render in (pages.overview, pages.credentials, pages.permissions):
+    for render in (
+        pages.overview,
+        pages.credentials,
+        pages.permissions,
+        pages.settings,
+    ):
         body = text(render(inst))
         assert "Sichern und Übertragen" not in body
         assert "/transfer" not in body
@@ -577,16 +711,26 @@ def test_the_account_appears_on_every_page_once_it_is_known(
     """Which records these permissions apply to has to stay in view."""
     monkeypatch.setattr(probe, "_last", probe.Account(company="Test Inc."))
 
-    for render in (pages.overview, pages.credentials, pages.permissions):
+    for render in (
+        pages.overview,
+        pages.credentials,
+        pages.permissions,
+        pages.settings,
+    ):
         assert "Konto: Test Inc." in text(render(inst))
 
 
-def test_an_account_summary_reads_as_a_sentence() -> None:
+def test_an_account_summary_reads_as_a_sentence(inst: Installation) -> None:
     account = probe.Account(company="Test Inc.", tax_type="net", small_business=False)
 
-    assert pages.account_summary(account) == (
-        "<strong>Test Inc.</strong> · Steuerart: net · kein Kleinunternehmer"
+    body = text_with(
+        pages.overview(inst), pages.Message.found("Verbindung steht.", account)
     )
+
+    assert (
+        "Verbindung steht. <strong>Test Inc.</strong> · Steuerart: net · "
+        "kein Kleinunternehmer</div>"
+    ) in body
 
 
 def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
@@ -598,16 +742,98 @@ def test_a_profile_name_is_escaped_not_executed(inst: Installation) -> None:
     assert "<script>böse" not in body
 
 
-def test_the_permissions_script_gets_its_data_as_one_json_object(
+def test_each_box_carries_what_the_tally_needs(inst: Installation) -> None:
+    """The policy allows no inline script, so the data is on the boxes."""
+    body = text(pages.permissions(inst))
+
+    reading = re.search(
+        r'<input type="checkbox" name="tool" ([^>]*value="get_profile"[^>]*)>', body
+    )
+    removing = re.search(
+        r'<input type="checkbox" name="tool" ([^>]*value="delete_article"[^>]*)>', body
+    )
+    assert reading and removing
+    cost = re.search(r'data-cost="(\d+)"', reading.group(1))
+    assert cost and int(cost.group(1)) > 0
+    assert " data-read" in reading.group(1)
+    assert " data-destructive" not in reading.group(1)
+    assert " data-destructive" in removing.group(1)
+    assert 'data-per-token="3.5"' in body
+
+
+# -- questions before what cannot be taken back ------------------------------
+
+
+def test_every_destructive_button_asks_first(inst: Installation) -> None:
+    """Deleting or replacing a profile, and a token that locks out clients."""
+    inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
+    permissions = text(pages.permissions(inst))
+    credentials = text(pages.credentials(inst))
+
+    for value in ("profile-delete", "profile-overwrite"):
+        button = re.search(rf'<button[^>]*value="{value}"[^>]*>', permissions)
+        assert button and "data-confirm=" in button.group(0), value
+    generate = re.search(r'<button[^>]*value="generate"[^>]*>', credentials)
+    assert generate and "data-confirm=" in generate.group(0)
+
+
+# -- the credentials page, card by card -----------------------------------
+
+
+def test_the_token_is_folded_while_the_server_speaks_stdio(
     inst: Installation,
 ) -> None:
-    """The script is a plain string, so what it needs arrives in front of it."""
-    body = pages.permissions(inst).decode("utf-8")
+    """It is for the HTTP transport, and there only."""
+    folded = text(pages.credentials(inst))
+    over_http = dataclasses.replace(inst.settings, transport="streamable-http")
+    inst.settings = over_http
+    unfolded = text(pages.credentials(inst))
 
-    start = body.index("var PERMISSIONS = ") + len("var PERMISSIONS = ")
-    data = json.loads(body[start : body.index(";", start)])
+    assert "<h2>HTTP-Token</h2>" in folded
+    assert " open>" not in folded
+    assert re.search(
+        r"<details class=\"card\" open>\s*<summary[^>]*><h2>HTTP-Token", unfolded
+    )
 
-    assert set(data) == {"cost", "read", "destructive", "perToken"}
-    assert "get_profile" in data["read"]
-    assert data["cost"]["get_profile"] > 0
-    assert "delete_article" in data["destructive"]
+
+def test_a_refused_token_unfolds_its_card(inst: Installation) -> None:
+    """Folded, the reason at the top would be about a field nobody sees."""
+    body = text(pages.credentials(inst, typed={"LXO_MCP_BEARER_TOKEN": "x y"}))
+
+    assert re.search(
+        r"<details class=\"card\" open>\s*<summary[^>]*><h2>HTTP-Token", body
+    )
+    assert 'value="x y"' in body
+
+
+def test_the_connection_card_says_what_the_last_test_found(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert "noch nicht getestet" in text(pages.credentials(inst))
+
+    monkeypatch.setattr(
+        probe, "_last", probe.Account(company="Test Inc.", small_business=True)
+    )
+    body = text(pages.credentials(inst))
+
+    assert (
+        "Zuletzt verbunden mit <strong>Test Inc.</strong> · Kleinunternehmer." in body
+    )
+
+
+def test_the_key_is_saved_from_the_top_right(inst: Installation) -> None:
+    body = text(pages.credentials(inst))
+
+    top = body.split('<div class="right">')[1].split("</header>")[0]
+    assert 'form="keyform"' in top and "Schlüssel speichern" in top
+    assert 'id="keyform"' in body
+
+
+def test_every_group_offers_the_four_choices_of_the_bar(inst: Installation) -> None:
+    """The bar above acts on every tool, the same four act on one group."""
+    body = text(pages.permissions(inst))
+
+    for act in ("all-on", "all-off", "all-read", "all-reversible"):
+        assert body.count(f'data-act="{act}"') == 1, act
+        scoped = act.replace("all-", "grp-")
+        assert body.count(f'data-act="{scoped}"') == len(pages.GROUP_LABELS), scoped

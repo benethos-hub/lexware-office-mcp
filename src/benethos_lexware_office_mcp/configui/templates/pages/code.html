@@ -1,0 +1,13 @@
+{% extends "bare.html" %}
+{% import "components/ui.html" as ui with context %}
+{% block content %}
+{% call ui.card(title) %}
+<p>{{ subtitle }} Er steht in der Zeile „Configuration interface at“: im
+   Terminal, in dem setup läuft, und in einem Container im Log des Dienstes,
+   <code>docker compose logs setup</code>.</p>
+<form method="post" action="/code">{{ ui.csrf_field() }}
+  {{ ui.field("code", "Code", autocomplete="off") }}
+  <div class="form-actions"><button class="primary" type="submit">Öffnen</button></div>
+</form>
+{% endcall %}
+{% endblock %}
