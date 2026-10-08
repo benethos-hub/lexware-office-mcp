@@ -24,7 +24,8 @@ from ..api.client import ClientProvider
 from ..errors import ValidationError
 from ..policy import classify
 from ..records import formatting
-from ..records.payloads import ArticleType, LeadingPrice, article_body
+from ..records.payloads import article_body
+from ..records.types import ArticleType, LeadingPrice
 from ..settings import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Settings
 from ._base import PageNumber, VersionField, register_tool, require_version
 
