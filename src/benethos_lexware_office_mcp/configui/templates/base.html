@@ -18,7 +18,7 @@
 <header class="topbar">
   <div>
     <h1>{{ title }}</h1>
-    {% block subheading %}{% endblock %}
+    {% if subtitle %}<p class="sub">{{ subtitle }}</p>{% endif %}
   </div>
   <div class="right">{% block actions %}{% endblock %}</div>
 </header>

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui with context %}
+{% block actions %}
+<button class="primary" type="submit" form="settingsform">Einstellungen speichern</button>
+{% endblock %}
+{% block content %}
+<form method="post" action="/settings" id="settingsform" class="stack">{{ ui.csrf_field() }}
+{% for card in cards %}
+{% call ui.card(card.title, card.meta) %}
+<div class="form-grid">
+{% for f in card.fields %}
+  {% if f.held %}
+  {{ ui.held(f.label, f.effective, code=f.key, source=f.badge,
+             hint="Eine Umgebungsvariable setzt das und schlägt jede Datei, hier eingetragen änderte sich nichts.") }}
+  {% elif f.choices %}
+  {{ ui.choice(f.key, f.label, f.choices, value=f.value, code=f.key, source=f.badge) }}
+  {% else %}
+  {{ ui.field(f.key, f.label, value=f.value, code=f.key, source=f.badge, placeholder=f.placeholder) }}
+  {% endif %}
+{% endfor %}
+</div>
+{% endcall %}
+{% endfor %}
+</form>
+<p class="hint">Geschrieben wird nach <code>{{ env_path }}</code>.
+   <code>LXO_MCP_TOOL_POLICY</code> steht nicht hier — welche Rechtedatei diese
+   Oberfläche bearbeitet, steht beim Start fest und ist auf der Übersicht zu
+   sehen. Ein Wert, den man hier ändern kann, ohne dass sich auf dieser Seite
+   etwas ändert, wäre eine Falle.</p>
+{% endblock %}

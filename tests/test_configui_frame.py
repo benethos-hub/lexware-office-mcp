@@ -22,7 +22,7 @@ from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.settings import Settings
 
-PAGES = ("/", "/credentials", "/permissions")
+PAGES = ("/", "/credentials", "/permissions", "/settings")
 
 
 @pytest.fixture

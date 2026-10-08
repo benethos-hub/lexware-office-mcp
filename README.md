@@ -353,7 +353,7 @@ for permissions: change those later and the running client is told, see
 uvx benethos-lexware-office-mcp setup
 ```
 
-Three pages on `http://127.0.0.1:8771/`, closed with Ctrl+C - one port above
+Four pages on `http://127.0.0.1:8771/`, closed with Ctrl+C - one port above
 the HTTP transport's `8770`, so both can run at once. `--port` picks another.
 They write the same files the
 command line does, so you can use either or both. The screens are in German,
@@ -366,10 +366,9 @@ whether each file exists yet, how many tools are on and what they cost. A
 connection test on the button, never on page load.
 
 **Credentials** (`Zugangsdaten`) — the API key, checked against the API before
-it is saved unless you say otherwise, and the settings that are not secret. The
-key is never shown back to you, never logged and never exported. If an
-environment variable is setting it, the page says so, because that would
-override whatever you save.
+it is saved unless you say otherwise. The key is never shown back to you, never
+logged and never exported. If an environment variable is setting it, the page
+says so, because that would override whatever you save.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
 as buttons. On a fresh installation with no policy file yet, the reading tools
@@ -398,6 +397,12 @@ without this interface, and a `tools.json` written by `--tools` reads here.
 Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
+
+**Settings** (`Einstellungen`) — the eleven settings that are not secret, in
+three cards: the connection, the output, the files. An empty field means the
+built-in default, which the placeholder shows. A setting a real environment
+variable holds is shown rather than offered, since saving over it would change
+nothing.
 
 Two things worth knowing. It **binds `127.0.0.1`** — the pages have no
 password, which is only defensible while they cannot be reached from another

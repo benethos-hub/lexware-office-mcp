@@ -121,6 +121,12 @@ housekeeping are out of scope here — design decisions live in
   form comes back at once with what was typed, the key excepted, and the
   reason at the top, as a 400. Deleting or overwriting a profile and
   making a new HTTP token ask first.
+- **The settings of `setup` have a page of their own**, `Einstellungen` at
+  `/settings`, in three cards: the connection, the output, the files. The
+  placeholder of an empty field is the built-in default rather than the
+  value in effect, the log level is a choice rather than free text, and a
+  setting an environment variable holds is shown as such and offered as no
+  field. The credentials page keeps the key and the HTTP token.
 
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named

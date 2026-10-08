@@ -33,6 +33,7 @@ __all__ = [
     "SEARCH_SOURCE",
     "SETTING_KEYS",
     "Installation",
+    "defaults",
     "downloads_dir",
     "resolved",
 ]
@@ -221,15 +222,16 @@ def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
 class Shown:
     """One setting as the pages show it.
 
-    The key, the label a person reads beside it, and what the value in
-    effect is for this installation - not what a file says, but what the
-    process resolved. A setting added to the server is added here once, and
-    the table, the labels and the placeholders follow.
+    The key, the label a person reads beside it, and how a value in effect
+    reads - not what a file says, but what the process resolved. A setting
+    added to the server is added here once, and the table, the labels and
+    the placeholders follow. ``show`` is ``None`` for the policy file, which
+    the installation pinned at start rather than the settings naming it.
     """
 
     key: str
     label: str
-    show: Callable[[Installation], str]
+    show: Callable[[Settings], str] | None
 
 
 def _state(value: object) -> str:
@@ -244,46 +246,46 @@ def _state(value: object) -> str:
 # Every setting a person may see, in the order the settings sample introduces
 # them. The key is first because it is the one that has to be there.
 SHOWN: tuple[Shown, ...] = (
-    Shown(API_KEY, "API-Schlüssel", lambda i: _state(i.settings.api_key)),
-    Shown("LXO_MCP_BASE_URL", "API-Adresse", lambda i: i.settings.base_url),
+    Shown(API_KEY, "API-Schlüssel", lambda s: _state(s.api_key)),
+    Shown("LXO_MCP_BASE_URL", "API-Adresse", lambda s: s.base_url),
     Shown(
         "LXO_MCP_APP_BASE_URL",
         "Web-App für Deeplinks",
-        lambda i: i.settings.app_base_url,
+        lambda s: s.app_base_url,
     ),
-    Shown(POLICY_KEY, "Rechtedatei", lambda i: str(i.policy_path)),
-    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda i: downloads_dir(i.settings)),
+    Shown(POLICY_KEY, "Rechtedatei", None),
+    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda s: downloads_dir(s)),
     Shown(
         "LXO_MCP_KEPT_DOWNLOADS",
         "Downloads im Cache (die neuesten)",
-        lambda i: str(i.settings.downloads_kept() or "alle"),
+        lambda s: str(s.downloads_kept() or "alle"),
     ),
     Shown(
         "LXO_MCP_UPLOAD_DIR",
         "Uploads nur aus",
-        lambda i: str(i.settings.upload_path) if i.settings.upload_path else "überall",
+        lambda s: str(s.upload_path) if s.upload_path else "überall",
     ),
     Shown(
         "LXO_MCP_TIMEOUT",
         "Zeitlimit je Anfrage (s)",
-        lambda i: f"{i.settings.timeout:g}",
+        lambda s: f"{s.timeout:g}",
     ),
-    Shown("LXO_MCP_RATE", "Anfragen pro Sekunde", lambda i: f"{i.settings.rate:g}"),
-    Shown("LXO_MCP_BURST", "Burst", lambda i: str(i.settings.burst)),
-    Shown("LXO_MCP_PAGE_SIZE", "Zeilen je Seite", lambda i: str(i.settings.page_size)),
+    Shown("LXO_MCP_RATE", "Anfragen pro Sekunde", lambda s: f"{s.rate:g}"),
+    Shown("LXO_MCP_BURST", "Burst", lambda s: str(s.burst)),
+    Shown("LXO_MCP_PAGE_SIZE", "Zeilen je Seite", lambda s: str(s.page_size)),
     Shown(
         "LXO_MCP_PDF_PAGES",
         "PDF-Seiten je Ansicht",
-        lambda i: str(i.settings.pdf_pages),
+        lambda s: str(s.pdf_pages),
     ),
-    Shown("LXO_MCP_LOG_LEVEL", "Protokollstufe", lambda i: i.settings.log_level),
-    Shown(BEARER_KEY, "HTTP-Token", lambda i: _state(i.settings.bearer_token)),
+    Shown("LXO_MCP_LOG_LEVEL", "Protokollstufe", lambda s: s.log_level),
+    Shown(BEARER_KEY, "HTTP-Token", lambda s: _state(s.bearer_token)),
 )
 
 SETTING_KEYS: tuple[str, ...] = tuple(shown.key for shown in SHOWN)
 LABELS: dict[str, str] = {shown.key: shown.label for shown in SHOWN}
 
-# Editable on the credentials page. `LXO_MCP_TOOL_POLICY` is deliberately not:
+# Editable on the settings page. `LXO_MCP_TOOL_POLICY` is deliberately not:
 # it decides which policy file this interface is editing, and changing that
 # from inside would swap the page's own subject out under it. The command line
 # says which one to work on, and the overview shows which one won.
@@ -299,4 +301,22 @@ EDITABLE_KEYS: tuple[str, ...] = tuple(
 
 def resolved(inst: Installation) -> dict[str, str]:
     """What each setting actually is in this process, not what a file says."""
-    return {shown.key: shown.show(inst) for shown in SHOWN}
+    return {
+        shown.key: str(inst.policy_path)
+        if shown.show is None
+        else shown.show(inst.settings)
+        for shown in SHOWN
+    }
+
+
+def defaults() -> dict[str, str]:
+    """What each editable setting is when nothing sets it, read the same way.
+
+    The placeholder of an empty field, which is what leaving it empty means.
+    """
+    settings = Settings()
+    return {
+        shown.key: shown.show(settings)
+        for shown in SHOWN
+        if shown.key in EDITABLE_KEYS and shown.show is not None
+    }

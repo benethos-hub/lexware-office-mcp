@@ -61,7 +61,7 @@ LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 # Where each form sends the browser once it went through.
 _CREDENTIALS = "/credentials"
 _PERMISSIONS = "/permissions"
-_SETTINGS = "/credentials"
+_SETTINGS = "/settings"
 _CHECKED = "/"
 
 
@@ -104,7 +104,7 @@ def save_key(inst: Installation, form: Form) -> Reply:
     try:
         credential(key, name=API_KEY)
     except ConfigError as exc:
-        return _refused_by_server(inst, exc)
+        return _refused_by_server(pages.credentials(inst), exc)
 
     verified: probe.Account | None = None
     if not skip_check:
@@ -160,7 +160,7 @@ def save_bearer(inst: Installation, form: Form) -> Reply:
         try:
             credential(token, name=BEARER_KEY)
         except ConfigError as exc:
-            return _refused_by_server(inst, exc, typed)
+            return _refused_by_server(pages.credentials(inst, typed=typed), exc)
         done = "Token gespeichert."
 
     failed = _write_env(inst, {BEARER_KEY: token})
@@ -199,7 +199,7 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     level = submitted.get(LOG_LEVEL_KEY, "")
     if level and level.upper() not in LOG_LEVELS:
         return _refused(
-            pages.credentials(inst, typed=typed),
+            pages.settings(inst, typed=typed),
             f"Nicht gespeichert: {LOG_LEVEL_KEY} kennt nur "
             f"{', '.join(LOG_LEVELS)}, nicht {level}.",
         )
@@ -209,8 +209,8 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     try:
         load_settings(env=proposed)
     except ConfigError as exc:
-        return _refused_by_server(inst, exc, typed)
-    failed = _write_env(inst, submitted, typed)
+        return _refused_by_server(pages.settings(inst, typed=typed), exc)
+    failed = _write_env(inst, submitted, pages.settings(inst, typed=typed))
     if failed is not None:
         return failed
     logbook.configui.settings_saved(inst.env_path.name, list(submitted))
@@ -435,29 +435,27 @@ def _not_written(page: Page, text: str) -> Reply:
     return Reply(page=page, message=Message(text, "err"), status=500)
 
 
-def _refused_by_server(
-    inst: Installation, exc: ConfigError, typed: dict[str, str] | None = None
-) -> Reply:
+def _refused_by_server(page: Page, exc: ConfigError) -> Reply:
     """A value the server would refuse, in the server's own words.
 
     Quoted rather than translated: a German paraphrase here would be a second
     copy of a rule that lives in settings/, and the two would part company on
     the first change.
     """
-    return _refused(
-        pages.credentials(inst, typed=typed),
-        f"Nicht gespeichert, der Server würde das ablehnen: {exc}",
-    )
+    return _refused(page, f"Nicht gespeichert, der Server würde das ablehnen: {exc}")
 
 
 def _write_env(
-    inst: Installation, updates: dict[str, str], typed: dict[str, str] | None = None
+    inst: Installation, updates: dict[str, str], page: Page | None = None
 ) -> Reply | None:
-    """Write ``updates`` into the ``.env``: ``None``, or the page saying why not."""
+    """Write ``updates`` into the ``.env``: ``None``, or ``page`` saying why not.
+
+    ``page`` is the one the form came from, the credentials page if not said.
+    """
     try:
         update_env_file(inst.env_path, updates)
     except (OSError, ValueError) as exc:
-        page = pages.credentials(inst, typed=typed)
+        page = page or pages.credentials(inst)
         text = _write_failed(inst.env_path, exc)
         # A value the file format cannot hold is the form's fault, a
         # directory nobody may write to is not.

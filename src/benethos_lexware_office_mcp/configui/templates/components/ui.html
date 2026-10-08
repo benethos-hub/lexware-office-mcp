@@ -45,6 +45,27 @@
 </div>
 {% endmacro %}
 
+{# A choice of fixed values. ``options``: (value, text) pairs. #}
+{% macro choice(name, label, options, value="", code=None, source=None) %}
+<div class="field">
+  <label for="f-{{ name }}">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</label>
+  <select id="f-{{ name }}" name="{{ name }}">
+  {% for option, text in options %}
+    <option value="{{ option }}"{% if option == value %} selected{% endif %}>{{ text }}</option>
+  {% endfor %}
+  </select>
+</div>
+{% endmacro %}
+
+{# A value set where no form here reaches it, shown rather than offered. #}
+{% macro held(label, value, code=None, source=None, hint=None) %}
+<div class="field">
+  <span class="label">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</span>
+  <span class="held">{{ value }}</span>
+  {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+</div>
+{% endmacro %}
+
 {# A form that is only a button, with a question before it when
    ``confirm`` says one. #}
 {% macro action(url, label, confirm=None, cls="", fields={}) %}

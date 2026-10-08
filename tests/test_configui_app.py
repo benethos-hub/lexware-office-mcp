@@ -165,7 +165,9 @@ def note(body: str) -> str:
 # -- routing ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", ["/", "/index.html", "/credentials", "/permissions"])
+@pytest.mark.parametrize(
+    "path", ["/", "/index.html", "/credentials", "/permissions", "/settings"]
+)
 def test_every_page_answers(browser: Browser, path: str) -> None:
     status, body, _ = browser.get(path)
 
@@ -1186,3 +1188,12 @@ def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
     assert status == 400
     assert "Nicht gespeichert" in note(body)
     assert "a-new" not in installation.env_path.read_text(encoding="utf-8")
+
+
+def test_saved_settings_land_back_on_their_page(browser: Browser) -> None:
+    status, _, headers = browser.post(
+        "/settings", {"LXO_MCP_PAGE_SIZE": "80"}, follow=False
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/settings"

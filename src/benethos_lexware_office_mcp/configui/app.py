@@ -67,6 +67,7 @@ PAGES: dict[str, Callable[..., Page]] = {
     "/index.html": pages.overview,
     "/credentials": pages.credentials,
     "/permissions": pages.permissions,
+    "/settings": pages.settings,
 }
 
 

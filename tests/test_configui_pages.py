@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from benethos_lexware_office_mcp.configui import pages, probe
-from benethos_lexware_office_mcp.configui.state import Installation
+from benethos_lexware_office_mcp.configui.state import EDITABLE_KEYS, Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import Settings, locations
 
@@ -50,7 +50,12 @@ def text_with(page: pages.Page, message: pages.Message | None) -> str:
 
 
 def test_every_page_is_german_and_names_itself(inst: Installation) -> None:
-    for render in (pages.overview, pages.credentials, pages.permissions):
+    for render in (
+        pages.overview,
+        pages.credentials,
+        pages.permissions,
+        pages.settings,
+    ):
         body = text(render(inst))
         assert '<html lang="de">' in body
         assert "Lexware Office MCP</title>" in body
@@ -81,7 +86,7 @@ class Balance(HTMLParser):
 
 
 @pytest.mark.parametrize(
-    "render", [pages.overview, pages.credentials, pages.permissions]
+    "render", [pages.overview, pages.credentials, pages.permissions, pages.settings]
 )
 def test_the_markup_closes_what_it_opens(inst: Installation, render: object) -> None:
     """These pages are built by string concatenation, so this is worth a test.
@@ -364,11 +369,62 @@ def test_a_shadowed_key_is_flagged_before_anybody_types(
 
 def test_the_policy_path_cannot_be_edited_here(inst: Installation) -> None:
     """Changing it would swap the subject of the page out from under it."""
-    body = text(pages.credentials(inst))
+    body = text(pages.settings(inst))
 
     assert 'name="LXO_MCP_PAGE_SIZE"' in body
     assert 'name="LXO_MCP_TOOL_POLICY"' not in body
     assert 'name="LXO_MCP_API_KEY"' not in body  # the key has its own field
+
+
+# -- settings ---------------------------------------------------------------
+
+
+def test_every_editable_setting_is_in_exactly_one_card() -> None:
+    """A setting added to the server cannot go missing from the page."""
+    placed = [key for _, _, keys in pages.SETTINGS_CARDS for key in keys]
+
+    assert sorted(placed) == sorted(EDITABLE_KEYS)
+    assert len(placed) == len(set(placed))
+
+
+def test_the_placeholder_is_the_default_and_the_value_the_file(
+    inst: Installation,
+) -> None:
+    """Empty means the default, so the placeholder shows that, not what applies."""
+    body = text(pages.settings(inst))
+
+    assert 'name="LXO_MCP_PAGE_SIZE" type="text" value="50" placeholder="25"' in body
+    assert 'name="LXO_MCP_TIMEOUT" type="text" value="" placeholder="30"' in body
+
+
+def test_a_value_an_environment_variable_holds_is_no_field(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Typing over it would change nothing, the variable outranks the file."""
+    monkeypatch.setenv("LXO_MCP_TIMEOUT", "45")
+    inst.reload()
+
+    body = text(pages.settings(inst))
+
+    assert 'name="LXO_MCP_TIMEOUT"' not in body
+    assert '<span class="held">45</span>' in body
+    assert "aus: Umgebung" in body
+
+
+def test_the_log_level_is_a_choice(inst: Installation) -> None:
+    body = text(pages.settings(inst))
+
+    assert '<select id="f-LXO_MCP_LOG_LEVEL" name="LXO_MCP_LOG_LEVEL">' in body
+    assert '<option value="" selected>Standard (INFO)</option>' in body
+    assert '<option value="DEBUG">DEBUG</option>' in body
+
+
+def test_the_save_button_is_at_the_top_right(inst: Installation) -> None:
+    body = text(pages.settings(inst))
+
+    top = body.split('<div class="right">')[1].split("</header>")[0]
+    assert 'form="settingsform"' in top
+    assert 'id="settingsform"' in body
 
 
 # -- permissions ------------------------------------------------------------
@@ -568,7 +624,12 @@ def test_nothing_but_the_policy_file_travels(inst: Installation) -> None:
     describing one machine, and an import writing it would have pointed the
     target at a policy file that does not exist there.
     """
-    for render in (pages.overview, pages.credentials, pages.permissions):
+    for render in (
+        pages.overview,
+        pages.credentials,
+        pages.permissions,
+        pages.settings,
+    ):
         body = text(render(inst))
         assert "Sichern und Übertragen" not in body
         assert "/transfer" not in body
@@ -583,7 +644,12 @@ def test_the_account_appears_on_every_page_once_it_is_known(
     """Which records these permissions apply to has to stay in view."""
     monkeypatch.setattr(probe, "_last", probe.Account(company="Test Inc."))
 
-    for render in (pages.overview, pages.credentials, pages.permissions):
+    for render in (
+        pages.overview,
+        pages.credentials,
+        pages.permissions,
+        pages.settings,
+    ):
         assert "Konto: Test Inc." in text(render(inst))
 
 

@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..policy import ToolMeta, grouped_tools, known_tools, preset, writing
-from ..settings import DEFAULT_APP_BASE_URL, DEFAULT_BASE_URL, Settings
+from ..settings import LOG_LEVELS
 from . import templates
 from .cost import CHARS_PER_TOKEN, estimate_tokens, tool_costs
 from .probe import Account, last_account
@@ -33,12 +33,11 @@ from .state import (
     API_KEY,
     BEARER_KEY,
     CLI_SOURCE,
-    EDITABLE_KEYS,
     ENV_SOURCE,
     LABELS,
     SETTING_KEYS,
     Installation,
-    downloads_dir,
+    defaults,
     resolved,
 )
 
@@ -52,6 +51,7 @@ __all__ = [
     "error",
     "overview",
     "permissions",
+    "settings",
 ]
 
 # The sidebar, in reading order: (address, label).
@@ -59,7 +59,37 @@ NAVIGATION: tuple[tuple[str, str], ...] = (
     ("/", "Übersicht"),
     ("/credentials", "Zugangsdaten"),
     ("/permissions", "Rechte"),
+    ("/settings", "Einstellungen"),
 )
+
+# The settings page, card by card: a heading, the line beside it, and the
+# settings in it. Every editable setting is in exactly one, which a test
+# holds, so a setting added to the server cannot go missing from the page.
+SETTINGS_CARDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "Verbindung",
+        "Wohin die Anfragen gehen, wie lange eine dauern darf, wie viele je Sekunde.",
+        (
+            "LXO_MCP_BASE_URL",
+            "LXO_MCP_APP_BASE_URL",
+            "LXO_MCP_TIMEOUT",
+            "LXO_MCP_RATE",
+            "LXO_MCP_BURST",
+        ),
+    ),
+    (
+        "Ausgabe",
+        "Wie viel eine Antwort an den Assistenten enthält, und was auf stderr steht.",
+        ("LXO_MCP_PAGE_SIZE", "LXO_MCP_PDF_PAGES", "LXO_MCP_LOG_LEVEL"),
+    ),
+    (
+        "Dateien",
+        "Wo Downloads landen, wie viele bleiben, woher Uploads kommen dürfen.",
+        ("LXO_MCP_DOWNLOAD_DIR", "LXO_MCP_KEPT_DOWNLOADS", "LXO_MCP_UPLOAD_DIR"),
+    ),
+)
+
+LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
 
 # A domain is an identifier in the code and a heading on the screen, and the
 # two want different words. An unmapped domain shows its own name rather than
@@ -141,12 +171,15 @@ class Page:
     title: str
     here: str = ""
     context: dict[str, Any] = field(default_factory=dict)
+    # The one line under the heading that says what the page is for.
+    subtitle: str = ""
 
     def html(self, *, csrf: str = "", message: Message | None = None) -> bytes:
         """The page in its frame, with the session's token and one message."""
         return templates.render(
             self.template,
             title=self.title,
+            subtitle=self.subtitle,
             here=self.here,
             navigation=NAVIGATION,
             account=last_account(),
@@ -285,25 +318,14 @@ def _outranked(inst: Installation) -> str:
 
 
 def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
-    """Where the key is entered, and the settings that are not secret.
+    """Where the key is entered, and the HTTP token.
 
     ``typed`` is what a refused form held, shown again in place of the file's
-    values so nothing has to be typed twice. Never the API key, which no
-    page shows.
+    value so nothing has to be typed twice. Never the API key, which no page
+    shows.
     """
     env = inst.file_env()
     shown = {**env, **(typed or {})}
-    values = resolved(inst)
-    fields = [
-        {
-            "key": key,
-            "label": LABELS[key],
-            "badge": _badge(inst, key, env),
-            "value": shown.get(key, ""),
-            "placeholder": _placeholder(key, values),
-        }
-        for key in EDITABLE_KEYS
-    ]
     return Page(
         "pages/credentials.html",
         "Zugangsdaten",
@@ -316,21 +338,58 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
             "bearer_key": BEARER_KEY,
             "bearer": shown.get(BEARER_KEY, ""),
             "bearer_badge": _badge(inst, BEARER_KEY, env),
-            "fields": fields,
         },
     )
 
 
-def _placeholder(key: str, values: dict[str, str]) -> str:
-    """What an empty field means: the built-in default, or what applies now."""
-    defaults = {
-        "LXO_MCP_BASE_URL": DEFAULT_BASE_URL,
-        "LXO_MCP_APP_BASE_URL": DEFAULT_APP_BASE_URL,
-        "LXO_MCP_DOWNLOAD_DIR": downloads_dir(Settings(), unresolved=""),
-    }
-    if key in defaults:
-        return defaults[key]
-    return values.get(key, "")
+# --- settings --------------------------------------------------------------
+
+
+def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
+    """The settings that are no secret, in three cards.
+
+    The placeholder is the built-in default, read the way the value in effect
+    is read, because empty means exactly that. A value a real environment
+    variable holds is shown and offered as no field: typing over it would
+    change nothing, since the variable outranks every file.
+    """
+    env = inst.file_env()
+    shown = {**env, **(typed or {})}
+    values = resolved(inst)
+    default = defaults()
+
+    def one(key: str) -> dict[str, Any]:
+        value = shown.get(key, "")
+        choices = None
+        if key == LOG_LEVEL_KEY:
+            value = value.upper()
+            choices = [("", f"Standard ({default[key]})")] + [
+                (level, level) for level in LOG_LEVELS
+            ]
+        return {
+            "key": key,
+            "label": LABELS[key],
+            "badge": _badge(inst, key, env),
+            "held": inst.shadowed(key),
+            "effective": values[key],
+            "value": value,
+            "placeholder": default[key],
+            "choices": choices,
+        }
+
+    return Page(
+        "pages/settings.html",
+        "Einstellungen",
+        "/settings",
+        {
+            "cards": [
+                {"title": title, "meta": meta, "fields": [one(key) for key in keys]}
+                for title, meta, keys in SETTINGS_CARDS
+            ],
+            "env_path": str(inst.env_path),
+        },
+        "Leer bedeutet: der eingebaute Standard gilt, der Platzhalter zeigt ihn.",
+    )
 
 
 # --- permissions -----------------------------------------------------------
