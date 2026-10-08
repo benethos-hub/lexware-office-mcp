@@ -6,8 +6,9 @@ this folder is enough.
 
 | File | What it is |
 |---|---|
-| `compose.yaml` | the server, and the configuration interface behind the profile `setup` |
-| `.env.example` | template of `.env`: the version of the image, the ports |
+| `compose.yaml` | the server, the configuration interface behind the profile `setup`, and Caddy behind the profile `https` |
+| `.env.example` | template of `.env`: the version of the image, the ports, HTTPS |
+| `Caddyfile` | HTTPS for clients on the local network |
 | `README.md` | this |
 
 ## Get the folder
@@ -16,7 +17,7 @@ Into an empty folder, from the repository at `main`:
 
 ```sh
 mkdir lexware-office-mcp && cd lexware-office-mcp
-for file in compose.yaml .env.example README.md; do
+for file in compose.yaml .env.example Caddyfile README.md; do
   curl -fsSL -o "$file" "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/containers/production/$file"
 done
 cp .env.example .env
@@ -62,6 +63,10 @@ server's own:
 | `LXO_VERSION` | none, required | the image's tag: an exact release, or the minor line, which follows its patch releases |
 | `LXO_PORT` | `8770` | the server's port on the host, on `127.0.0.1` |
 | `LXO_SETUP_PORT` | `8771` | the configuration interface's port on the host, on `127.0.0.1` |
+| `COMPOSE_PROFILES` | empty | `https` starts Caddy with a plain `up` |
+| `LXO_DOMAIN` | none, required with `https` | the name clients use, e.g. `lexware.lan` |
+| `LXO_TLS` | `internal` | where the certificate comes from: `internal`, `files` or `acme` |
+| `LXO_HTTPS_PORT` | `443` | Caddy's port on the host, on every address |
 
 The server's settings - the API key, the token, the limits - and the
 tools it offers live in the volume `config`, and the configuration
@@ -69,6 +74,58 @@ interface writes them. The transport, the bind address, the port inside
 the container and the allowed hosts are pinned in `compose.yaml`
 instead, as real environment variables, so the volume cannot change
 them.
+
+## HTTPS for the local network
+
+For a client on another machine, Caddy goes in front of the server, on
+port 443 of every address of this host. Set in `.env`:
+
+```sh
+COMPOSE_PROFILES=https
+LXO_DOMAIN=lexware.lan
+```
+
+and make the name resolve to this host on the clients, through the local
+DNS or a line in their hosts file. Then `docker compose up -d`.
+
+Caddy passes `/mcp` on and nothing else: the configuration interface
+stays on the loopback, every other path is a 404, and a request without
+an `Authorization` header gets its 401 from Caddy before it reaches the
+server. The server still checks the token itself.
+
+**The certificate comes from Caddy's own CA**, `LXO_TLS=internal`, so each
+client trusts that CA's root once. It is in the volume `caddy-data` and
+stays across restarts:
+
+```sh
+docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > lexware-root.crt
+```
+
+Then on each client, with the file copied over:
+
+```sh
+certutil -addstore -f Root lexware-root.crt                       # Windows, as administrator
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain lexware-root.crt          # macOS
+sudo cp lexware-root.crt /usr/local/share/ca-certificates/ \
+  && sudo update-ca-certificates                                  # Debian, Ubuntu
+```
+
+A client built on Node.js, Claude Code among them, does not read the
+system's store but `NODE_EXTRA_CA_CERTS`, set to the path of that file in
+the environment the client starts in. Then:
+
+```sh
+claude mcp add --transport http lexware https://lexware.lan/mcp \
+  --header "Authorization: Bearer <bearer token>"
+```
+
+`LXO_TLS=files` takes a certificate of your own instead, a company CA's
+for instance, as `secrets/tls/cert.pem` with its chain and
+`secrets/tls/key.pem` in this folder. `acme` asks a public CA and needs
+this host reachable from the internet, **which this server is not built
+for**: one bearer token is all it knows of who is asking, and behind it
+are tools that write to real books.
 
 ## Operation
 

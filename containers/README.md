@@ -9,8 +9,9 @@ containers/
       Dockerfile          # the image, built with the repository root as context
   production/             # in operation, the published image:
     compose.yaml          #   the server, the configuration interface behind
-                          #   the profile setup
-    .env.example          #   template of .env: the version, the ports
+                          #   the profile setup, Caddy behind the profile https
+    .env.example          #   template of .env: the version, the ports, HTTPS
+    Caddyfile             #   HTTPS for clients on the local network
     README.md             #   how to get the folder, set it up and update it
   development/            # for development, built from this checkout
     compose.yaml          #   the same two services, a project, ports and

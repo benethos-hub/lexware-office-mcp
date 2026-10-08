@@ -15,6 +15,17 @@ housekeeping are out of scope here — design decisions live in
 
 ### Added
 
+- **HTTPS for clients on the local network**: `containers/production/`
+  has Caddy behind the profile `https`, with a `Caddyfile` beside
+  `compose.yaml`. `COMPOSE_PROFILES=https` and a name in `LXO_DOMAIN`, and
+  clients reach `https://<name>/mcp` on port 443, `LXO_HTTPS_PORT` if that
+  is taken. The certificate comes from Caddy's own CA unless `LXO_TLS`
+  says `files` or `acme`, and the folder's README shows how a client trusts
+  its root. Caddy passes on the MCP path alone and refuses a request
+  without a token itself, the configuration interface stays on the
+  loopback, and the server's log names the machine behind a request. It is
+  not meant for a public address. Downloading the folder now takes the
+  `Caddyfile` as well.
 - **`setup --public-port N`** names the port the address it prints and
   opens should carry, where a container is published under another port
   than the one it binds. Both Compose folders pass `LXO_SETUP_PORT` in, so

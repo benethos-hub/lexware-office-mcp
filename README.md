@@ -656,7 +656,7 @@ folder:
 
 ```bash
 mkdir lexware-office-mcp && cd lexware-office-mcp
-for file in compose.yaml .env.example README.md; do
+for file in compose.yaml .env.example Caddyfile README.md; do
   curl -fsSL -o "$file" "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/containers/production/$file"
 done
 cp .env.example .env                      # names the image's version
@@ -672,8 +672,18 @@ and keeps the stopped container around for next time.
 
 To update, set `LXO_VERSION` in `.env` to the new version, then
 `docker compose pull && docker compose up -d`. The `.env` beside
-`compose.yaml` holds only that and the two ports on the host. The server's
-own settings live in its config volume.
+`compose.yaml` holds only that, the ports on the host and HTTPS. The
+server's own settings live in its config volume.
+
+**HTTPS for the local network** is Caddy in front of the server, behind the
+profile `https`: `COMPOSE_PROFILES=https` and a name in `LXO_DOMAIN`, and
+clients on other machines reach `https://<name>/mcp` on port 443. The
+certificate comes from Caddy's own CA, whose root each client trusts once,
+and Caddy passes on the MCP path alone, never the configuration interface.
+The folder's
+[README](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers/production#https-for-the-local-network)
+has the steps. A public address is not what it is for: one bearer token is
+all this server knows of who is asking.
 
 **The Compose file used to sit in the repository root** and build from the
 checkout. `containers/production/` keeps its project name, so its volumes

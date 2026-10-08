@@ -1,0 +1,61 @@
+# HTTPS in front of the server, for clients on the local network. Started
+# only with the profile https of compose.yaml, which hands Caddy two values
+# from .env:
+#   LXO_DOMAIN  the name clients use, e.g. lexware.lan
+#   LXO_TLS     where the certificate comes from, one of the three snippets
+#               below, internal unless .env says otherwise
+{
+	# Caddy would put its own CA into the container's trust store, which is
+	# read-only and trusted by nobody. The clients need it, see README.md.
+	skip_install_trust
+	# Port 80 is not published, so nothing would hear a redirect from it.
+	auto_https disable_redirects
+}
+
+# Caddy's own CA, for a name on the local network. Every client trusts its
+# root once: the caddy-data volume keeps it under
+# caddy/pki/authorities/local/root.crt.
+(tls-internal) {
+	tls internal
+}
+
+# A certificate from a public CA, Let's Encrypt or ZeroSSL, requested over
+# port 443. The name has to resolve to this host in public DNS and the port
+# has to be reachable from the internet, which this server is not built for:
+# one bearer token is its whole idea of who is asking, and behind it are
+# tools that write to real books.
+(tls-acme) {
+}
+
+# A certificate of your own, a company CA's for instance: secrets/tls/cert.pem,
+# with its chain, and secrets/tls/key.pem beside compose.yaml.
+(tls-files) {
+	tls /secrets/tls/cert.pem /secrets/tls/key.pem
+}
+
+{$LXO_DOMAIN} {
+	import tls-{$LXO_TLS:internal}
+
+	@mcp path /mcp /mcp/*
+	handle @mcp {
+		# The server checks the bearer token itself. A request without any
+		# Authorization header cannot pass that check and stops here.
+		@unauthenticated not header Authorization *
+		header @unauthenticated WWW-Authenticate Bearer
+		respond @unauthenticated 401
+
+		reverse_proxy benethos-lexware-office-mcp:8770 {
+			# The server accepts the names it was told, and the domain is
+			# not one of them, at whatever port a client reaches it on.
+			# Caddy answers for the domain alone, so the check has been
+			# made by the time a request gets here.
+			header_up Host {upstream_hostport}
+		}
+	}
+
+	# Nothing else is served: not the configuration interface, which never
+	# leaves the loopback, and no other path.
+	handle {
+		respond 404
+	}
+}
