@@ -345,6 +345,21 @@ def test_a_code_in_an_address_typed_or_opened_by_setup_is_tried(
     assert stranger.get("/")[0] == 200
 
 
+def test_an_old_code_in_the_address_of_a_signed_in_browser_is_not_tried(
+    browser: Browser,
+) -> None:
+    """The address of an earlier start, from the history or a bookmark: the
+    code page showed with a wrong code counted, to a browser already in."""
+    status, _, headers = browser._open(
+        urllib.request.Request(f"{browser.base}/permissions?code=from-before"),
+        follow=False,
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/permissions"
+    assert browser.server._wrong == 0
+
+
 def test_the_code_typed_into_the_field_signs_in(browser: Browser) -> None:
     stranger = Browser(browser.base)
 

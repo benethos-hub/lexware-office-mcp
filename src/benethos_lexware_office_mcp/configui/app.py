@@ -407,6 +407,11 @@ class Handler(BaseHTTPRequestHandler):
             logbook.configui.request_refused("origin")
             self._page(403, pages.code())
             return
+        if typed is not None and self.config_server.signed_in(self._session):
+            # The address of an earlier start, from the history or a
+            # bookmark. Signed in already, the code is not this one's to try.
+            self._redirect(_page_address(address.path))
+            return
         if typed is not None:
             self._sign_in(typed[0], then=address.path)
             return
