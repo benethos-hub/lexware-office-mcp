@@ -839,6 +839,17 @@ def test_a_refused_token_unfolds_its_card(inst: Installation) -> None:
     assert 'value="x y"' in body
 
 
+def test_the_key_card_says_what_the_overview_says(inst: Installation) -> None:
+    """One word per state on every page: hinterlegt, or fehlt."""
+    with_key = text(pages.credentials(inst))
+    inst.settings = dataclasses.replace(inst.settings, api_key=None)
+    without = text(pages.credentials(inst))
+
+    assert '<h2>API-Schlüssel</h2><span class="meta">hinterlegt</span>' in with_key
+    assert '<h2>API-Schlüssel</h2><span class="meta">fehlt</span>' in without
+    assert '<span class="tag err">fehlt</span>' in text(pages.overview(inst))
+
+
 def test_a_token_the_environment_holds_is_shown_as_held(
     inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
