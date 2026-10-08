@@ -13,6 +13,7 @@ import logging
 import re
 import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
@@ -27,7 +28,7 @@ from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serv
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
-from benethos_lexware_office_mcp.settings import DEFAULT_PAGE_SIZE, Settings
+from benethos_lexware_office_mcp.settings import DEFAULT_PAGE_SIZE, Settings, envfile
 from benethos_lexware_office_mcp.settings.envfile import read_env_file
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
@@ -627,6 +628,38 @@ def test_an_unknown_log_level_is_refused_rather_than_stored(
 
     browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "debug"})
     assert installation.settings.log_level == "DEBUG"
+
+
+def test_two_saves_at_once_both_arrive(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every request has a thread. Each save reads the file, changes it and
+    writes it back, so two at once each wrote what they had read."""
+    real_read = envfile._existing_lines
+
+    def slow_read(path: Path) -> list[str]:
+        seen = real_read(path)
+        time.sleep(0.2)  # long enough for the other save to read the same
+        return seen
+
+    monkeypatch.setattr(envfile, "_existing_lines", slow_read)
+    token = browser.token()
+    saves = [
+        threading.Thread(
+            target=browser.post,
+            args=("/settings", {key: value}),
+            kwargs={"csrf": token},
+        )
+        for key, value in (("LXO_MCP_PAGE_SIZE", "80"), ("LXO_MCP_TIMEOUT", "20"))
+    ]
+    for save in saves:
+        save.start()
+    for save in saves:
+        save.join(timeout=10)
+
+    written = read_env_file(installation.env_path)
+    assert written["LXO_MCP_PAGE_SIZE"] == "80"
+    assert written["LXO_MCP_TIMEOUT"] == "20"
 
 
 def test_a_blank_field_the_file_does_not_carry_is_not_written(

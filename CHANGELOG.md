@@ -77,6 +77,9 @@ housekeeping are out of scope here — design decisions live in
 - **A profile name over 60 characters, edited into the file by hand, is
   kept.** Names were cut to 60 on reading, so two that began alike became
   one, and the next save in `setup` kept only the last of them.
+- **Two tabs of `setup` saving at once no longer lose one save.** Each
+  request reads a file, changes it and writes it back, and two at the same
+  time each wrote what they had read. Saves now run one after the other.
 
 ### Changed
 

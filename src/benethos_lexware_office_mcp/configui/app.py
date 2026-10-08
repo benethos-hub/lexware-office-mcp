@@ -77,6 +77,11 @@ class ConfigServer(ThreadingHTTPServer):
         super().__init__(*args, **kwargs)
         self.sessions: set[str] = set()
         self._sessions_lock = threading.Lock()
+        # One action at a time. Each reads a file, changes it and writes it
+        # back - the .env, the policy, the profiles - and every request has
+        # a thread of its own, so two tabs saving at once each wrote what
+        # they had read, and the first save was lost.
+        self.acting = threading.Lock()
 
     def issue_session(self) -> str:
         token = secrets.token_urlsafe(32)
@@ -310,7 +315,9 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         try:
-            self._reply(action(self.installation, form, self._session))
+            with self.config_server.acting:
+                reply = action(self.installation, form, self._session)
+            self._reply(reply)
         except ConfigError as exc:
             self._unreadable(exc)
 
