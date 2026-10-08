@@ -811,13 +811,30 @@ arriving.
   the process for nothing - a race that needs a loaded machine, which a
   developer's is not.
 
-  **Over SSE, an open stream holds the end back (known, not fixed).** The
-  watch asks uvicorn to shut down, and uvicorn waits for every connection to
-  close. Streamable HTTP, the image's transport, ends within seconds with a
-  session's stream open. An SSE client's stream stays open until the client
-  lets go, so the process keeps running on the old settings until then.
-  Measured 2026-09-30 with sse-starlette 3.4.11 and 3.5.0 alike: still
-  running 75 seconds after the change.
+  **An open stream holds the end back for five seconds at most**, since
+  2026-10-08. The watch asks uvicorn to shut down, and uvicorn waits for
+  every connection to close, for as long as it takes unless it is given a
+  bound. `SHUTDOWN_GRACE_SECONDS` is that bound, after which uvicorn cancels
+  what is still running, says so in an error line and logs the traceback of
+  each request it cancelled. The same bound applies when Ctrl+C or `docker
+  stop` ends the process, and the latter sends SIGKILL after ten seconds.
+
+  Measured 2026-09-30 over SSE: still running 75 seconds after the change,
+  with sse-starlette 3.4.11 and 3.5.0 alike. **Not reproduced on
+  2026-10-08**: sse-starlette closes its streams itself once uvicorn's
+  `should_exit` is set, and over SSE and streamable HTTP alike, a bare
+  stream or an initialized session, on Windows and in the image, with mcp
+  2.2.0 and 2.3.0, the process ended 3.8 to 4.3 seconds after the change.
+  What differed on 2026-09-30 is not known. The bound was measured with
+  that drain switched off, which keeps a stream open the way it was then:
+  without it the process still ran 40 seconds after the change, with it
+  the process ended after 8.8, the poll and the grace period.
+
+  **Every SSE stream that ends this way leaves a traceback** in the log,
+  `RuntimeError: Expected ASGI message 'http.response.body', but got
+  'http.response.start'`, raised by Starlette when the SDK's SSE endpoint
+  answers once more after its stream. It is the SDK's and changes nothing
+  for the client, which reconnects either way.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr through the one
   handler `logbook.configure` installs, uvicorn's included.

@@ -545,6 +545,23 @@ def test_a_token_this_process_wrote_is_not_a_change_to_it(
     assert since == watch.snapshot(env)
 
 
+def test_a_shutdown_waits_for_open_streams_for_a_bounded_time() -> None:
+    """A client's stream need not end because the server would like it to.
+
+    Measured 2026-10-08 over SSE with the stream library's own drain switched
+    off, which is how the stream behaved on 2026-09-30: without the bound the
+    process still ran 40 seconds after its .env changed, with it the process
+    ended 8.8 seconds after, the poll and the grace period.
+    """
+    config = transport.uvicorn_config(
+        lambda *_: None,  # type: ignore[arg-type]
+        Settings(transport="sse", bearer_token=TOKEN),
+    )
+
+    assert config.timeout_graceful_shutdown == transport.SHUTDOWN_GRACE_SECONDS
+    assert 0 < transport.SHUTDOWN_GRACE_SECONDS <= 10
+
+
 def test_ending_on_a_change_is_off_unless_asked_for() -> None:
     """Outside a container nothing would start it again, so it must not end."""
     assert load_settings({}).exit_on_config_change is False

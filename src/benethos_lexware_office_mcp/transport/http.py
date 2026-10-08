@@ -55,6 +55,11 @@ __all__ = [
 LOOPBACK_HOSTS = ("127.0.0.1:*", "localhost:*", "[::1]:*")
 LOOPBACK_ORIGINS = ("http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*")
 
+# How long a shutdown waits for open connections before it closes them. A
+# client's stream does not end because the server would like it to, and
+# without a bound the process waited for as long as the client stayed.
+SHUTDOWN_GRACE_SECONDS = 5
+
 
 def bearer_middleware(app: ASGIApp, token: str) -> ASGIApp:
     """Wrap an ASGI app so every HTTP request must carry the bearer token.
@@ -195,6 +200,7 @@ def uvicorn_config(app: ASGIApp, settings: Settings) -> Any:
         host=settings.http_host,
         port=settings.http_port,
         log_config=None,
+        timeout_graceful_shutdown=SHUTDOWN_GRACE_SECONDS,
     )
 
 

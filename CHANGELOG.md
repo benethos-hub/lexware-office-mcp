@@ -22,6 +22,11 @@ housekeeping are out of scope here — design decisions live in
   coming up - was taken as the starting state and never ended the process,
   which kept running without it. The watch now compares with the file as
   the settings were read from it.
+- **An open stream no longer keeps an HTTP server running indefinitely**
+  once it was asked to end, by a changed `.env`, Ctrl+C or `docker stop`.
+  It waits five seconds for open connections, then closes them, and a
+  client reconnects to the new process. Over `sse` a client holding its
+  stream open had kept the old process, and the old settings, alive.
 
 ### Changed
 
