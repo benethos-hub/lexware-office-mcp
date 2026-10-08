@@ -24,7 +24,12 @@ from urllib.parse import urlencode
 import pytest
 
 from benethos_lexware_office_mcp.configui import probe, transfer
-from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serve
+from benethos_lexware_office_mcp.configui.app import (
+    CONTENT_SECURITY_POLICY,
+    ConfigServer,
+    Handler,
+    serve,
+)
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
@@ -566,6 +571,40 @@ def test_no_page_can_be_framed_or_sniffed(browser: Browser) -> None:
     assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
     assert headers["X-Content-Type-Options"] == "nosniff"
     assert headers["Referrer-Policy"] == "same-origin"
+
+
+@pytest.mark.parametrize(
+    ("method", "padding"), [("HEAD", 0), ("OPTIONS", 0), ("GET", 120)]
+)
+def test_the_standard_librarys_own_refusals_carry_the_headers_too(
+    browser: Browser, method: str, padding: int
+) -> None:
+    """A method no page has, or more headers than it reads, is answered by
+    the HTTP server itself, which knew none of the headers above.
+
+    Not a request line it cannot read: that one it answers as HTTP/0.9,
+    with no headers at all, and a browser never sends one.
+    """
+    host, port = browser.base.removeprefix("http://").split(":")
+    extra = "".join(f"X-{n}: y\r\n" for n in range(padding))
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(
+            f"{method} / HTTP/1.1\r\nHost: {host}:{port}\r\n{extra}\r\n".encode()
+        )
+        received = b""
+        while chunk := sock.recv(4096):
+            received += chunk
+    head = received.decode("latin-1").split("\r\n\r\n")[0]
+
+    assert re.match(r"HTTP/1\.[01] (431|501) ", head), head
+    for header in (
+        "Cache-Control: no-store",
+        "X-Frame-Options: DENY",
+        f"Content-Security-Policy: {CONTENT_SECURITY_POLICY}",
+        "X-Content-Type-Options: nosniff",
+        "Referrer-Policy: same-origin",
+    ):
+        assert header in head.split("\r\n"), header
 
 
 @pytest.mark.parametrize("length", ["999999999999", "-5", "many"])

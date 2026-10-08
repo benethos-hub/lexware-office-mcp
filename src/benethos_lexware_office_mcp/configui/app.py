@@ -247,8 +247,10 @@ class Handler(BaseHTTPRequestHandler):
                 "SameSite=Strict; HttpOnly",
             )
 
-    def _common_headers(self, body: bytes) -> None:
-        self.send_header("Content-Length", str(len(body)))
+    def end_headers(self) -> None:
+        """Every answer's headers end here, the standard library's own
+        refusals included: a method no page has, a request line it cannot
+        read. So these go on every one of them."""
         # The pages show the bearer token and name the files and the company.
         # None of that belongs in a browser cache.
         self.send_header("Cache-Control", "no-store")
@@ -258,6 +260,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
+        super().end_headers()
+
+    def _common_headers(self, body: bytes) -> None:
+        self.send_header("Content-Length", str(len(body)))
         self._cookie_header()
         self.end_headers()
 

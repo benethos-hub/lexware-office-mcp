@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Security
+
+- **Every answer of `setup` carries its security headers**, the HTTP
+  server's own refusals included: a `HEAD` or `OPTIONS`, which no page
+  has, and a request with more headers than it reads. Those came without
+  `Content-Security-Policy`, `X-Frame-Options`, `nosniff` and `no-store`.
+
 ### Fixed
 
 - **`read_download` no longer suggests that null renders every page.** Its
