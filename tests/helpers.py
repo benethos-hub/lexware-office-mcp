@@ -71,13 +71,25 @@ def fast_bucket() -> TokenBucket:
     return TokenBucket(1000.0, 100, sleep=no_sleep)
 
 
-def fast_client(handler: Handler, **settings: Any) -> LexwareClient:
-    """A client against ``handler``, with the API key set and no real time."""
+def fast_client(
+    handler: Handler,
+    *,
+    settings: Settings | None = None,
+    bucket: TokenBucket | None = None,
+    sleep: Any = no_sleep,
+    **fields: Any,
+) -> LexwareClient:
+    """A client against ``handler``, with the API key set and no real time.
+
+    ``fields`` go into the :class:`Settings` beside the key, ``settings``
+    replaces the whole object. ``bucket`` and ``sleep`` are for a test about
+    waiting, which records the waits rather than skipping them.
+    """
     return LexwareClient(
-        Settings(api_key=API_KEY, **settings),
+        settings or Settings(api_key=API_KEY, **fields),
         transport=httpx.MockTransport(handler),
-        bucket=fast_bucket(),
-        sleep=no_sleep,
+        bucket=bucket or fast_bucket(),
+        sleep=sleep,
     )
 
 

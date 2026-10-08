@@ -22,7 +22,7 @@ from benethos_lexware_office_mcp.errors import (
     register_secret,
 )
 from benethos_lexware_office_mcp.settings import Settings
-from helpers import API_KEY, Scripted, fast_client, no_sleep
+from helpers import API_KEY, Scripted, fast_client
 
 
 def make_client(*responses: httpx.Response | Exception, **kw: Any) -> LexwareClient:
@@ -44,9 +44,7 @@ async def test_a_successful_call_sends_the_bearer_token() -> None:
 
 
 async def test_a_missing_key_is_refused_before_any_request() -> None:
-    client = LexwareClient(
-        Settings(), transport=httpx.MockTransport(Scripted()), bucket=TokenBucket(99, 9)
-    )
+    client = fast_client(Scripted(), settings=Settings())
     with pytest.raises(ConfigError):
         await client.request("GET", "/v1/profile")
     await client.aclose()
@@ -517,11 +515,8 @@ async def test_retry_after_is_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = Scripted(
         httpx.Response(429, headers={"Retry-After": "7"}), httpx.Response(200)
     )
-    client = LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=record),
-        sleep=record,
+    client = fast_client(
+        handler, bucket=TokenBucket(1000.0, 100, sleep=record), sleep=record
     )
     await client.request("GET", "/v1/profile")
     await client.aclose()
@@ -540,11 +535,8 @@ async def test_a_retry_after_beyond_the_cap_is_not_slept_through(seconds: str) -
     handler = Scripted(
         httpx.Response(429, headers={"Retry-After": seconds}), httpx.Response(200)
     )
-    client = LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=TokenBucket(1000.0, 100, sleep=record),
-        sleep=record,
+    client = fast_client(
+        handler, bucket=TokenBucket(1000.0, 100, sleep=record), sleep=record
     )
     with pytest.raises(RateLimitError, match="longer than this call waits") as info:
         await client.request("GET", "/v1/profile")
@@ -573,12 +565,7 @@ async def test_every_request_passes_the_bucket() -> None:
             acquired.append(tokens)
 
     handler = Scripted(httpx.Response(500), httpx.Response(500), httpx.Response(200))
-    client = LexwareClient(
-        Settings(api_key=API_KEY),
-        transport=httpx.MockTransport(handler),
-        bucket=CountingBucket(1000.0, 100),
-        sleep=no_sleep,
-    )
+    client = fast_client(handler, bucket=CountingBucket(1000.0, 100))
     await client.request("GET", "/v1/profile")
     await client.aclose()
 
