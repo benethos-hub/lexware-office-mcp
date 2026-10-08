@@ -148,8 +148,10 @@ is the only way to switch it on. An article is also the only thing this API
 lets you delete, which is the other half of the point:
 
 `--tools write` is not the same as undoable. Nothing that preset enables
-deletes a record, but two of its tools create one that cannot be removed
-afterwards.
+deletes a record, but five of its tools create one this API cannot remove
+afterwards: `create_contact`, whose contact only the web app deletes, and
+`create_voucher`, `create_sales_document`, `upload_file` and
+`attach_file_to_voucher`, which leave a bookkeeping record.
 
 **A bookkeeping voucher cannot be deleted through the API.** There is no
 endpoint for it, so a wrong `create_voucher` has to be corrected in the
@@ -166,8 +168,9 @@ client and the server share that machine, and a **resource URI**, which the
 client can read to get the bytes wherever the server is. The file itself
 never travels inside the tool result, because base64 costs roughly 1.37
 times the file size in context and no model can read a PDF anyway. An
-existing file is never replaced: a second download is saved beside the
-first with a counter in its name.
+existing file is never replaced: a download identical to one already there
+reuses it, and one that differs is saved beside it with a counter in its
+name.
 
 The download directory is a cache of the last 100 documents. Older downloads
 are deleted when the server starts and after each download, since every
@@ -177,9 +180,10 @@ with `LXO_MCP_DOWNLOAD_DIR` is left alone unless you set it there too, and
 even then only files named the way a download is named are deleted: a
 space, an umlaut or an extension such as `.docx` keeps a file out of it. The
 resource list is read from the directory each time a client asks, names the
-same newest downloads, and survives a restart. What the server cannot do is announce a *new* download: the MCP SDK gives it no way to
-send a list-changed notification, so a client that lists once at startup will
-not see anything fetched later in the session.
+same newest downloads, and survives a restart. What the server does not do
+is announce a *new* download. It tells a client when the tool list changes,
+but sends no list-changed notification for resources, so a client that lists
+once at startup will not see anything fetched later in the session.
 
 Between that and Claude Desktop not following resource links at all,
 `read_download` is the route that always works. It takes the same URI and puts
@@ -551,11 +555,11 @@ search — except under `setup`, which exists partly to create one.
 | Variable | Meaning | Default |
 |---|---|---|
 | `LXO_MCP_API_KEY` | Your Lexware Office API key. Required. | — |
-| `LXO_MCP_TOOL_POLICY` | Per-tool on/off file, see below | `tools.json` in the config directory |
+| `LXO_MCP_TOOL_POLICY` | Per-tool on/off file, see below | `tools.json`, searched for the way the `.env` is |
 | `LXO_MCP_BASE_URL` | API base URL | `https://api.lexware.io` |
 | `LXO_MCP_APP_BASE_URL` | Web app base for deeplinks | `https://app.lexware.de` |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
-| `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all | `100` |
+| `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all | unset: `100` in the default directory, all in one you name |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |

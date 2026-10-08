@@ -29,12 +29,13 @@ is cleaned to the same number, which is the cache directory by default, the
 list is the directory. Where it is not, an older file is only unlisted - its
 link still reads, and so does ``read_download``.
 
-**What this still cannot do** is tell a client that the list has changed.
-The SDK derives ``resources.listChanged`` from notification options that
-``MCPServer`` does not expose, so it is advertised as ``false`` and no
-``notifications/resources/list_changed`` is ever sent. A client that lists
-once at startup — Claude Desktop does — sees what was on disk when it
-started and nothing downloaded since. That is what ``read_download`` is for.
+**What this does not do** is tell a client that the list has changed.
+``PolicyServer`` binds the notification options itself and announces
+``tools.listChanged`` with them, but not ``resources.listChanged``, and no
+``notifications/resources/list_changed`` is sent after a download. A client
+that lists once at startup — Claude Desktop does — sees what was on disk
+when it started and nothing downloaded since. That is what
+``read_download`` is for.
 """
 
 from __future__ import annotations
