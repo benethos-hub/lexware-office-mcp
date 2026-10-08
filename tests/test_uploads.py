@@ -91,6 +91,28 @@ async def test_an_upload_outside_the_upload_directory_is_refused(
     await provider.aclose()
 
 
+async def test_outside_the_upload_directory_nothing_is_said_about_existence(
+    tmp_path: Path,
+) -> None:
+    """A path outside answered "no file" or "outside" depending on whether
+    it existed, which told the model what is on the disk there."""
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    (tmp_path / "there.pdf").write_bytes(PDF)
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = upload_server(handler, tmp_path, inbox)
+
+    answers = []
+    for name in ("there.pdf", "not-there.pdf"):
+        with pytest.raises(ToolError) as excinfo:
+            await server.call_tool("upload_file", {"path": str(tmp_path / name)})
+        answers.append(str(excinfo.value).replace(name, "<name>"))
+
+    assert answers[0] == answers[1]
+    assert "outside" in answers[0]
+    await provider.aclose()
+
+
 async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> None:
     inbox = tmp_path / "inbox"
     (inbox / "2026").mkdir(parents=True)

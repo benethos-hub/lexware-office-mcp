@@ -295,16 +295,23 @@ def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     where one is set, the file has to resolve inside it - links followed
     first, so one placed in the directory cannot point out of it. What the
     operating system refuses is left to the caller to turn into an answer.
+
+    **The directory is checked before the file is looked for.** The other
+    way round, a path outside it was answered "no file" or "outside the
+    directory" depending on whether it existed - which tells the model what
+    is on the disk where it may not upload from.
     """
-    path = Path(raw_path).expanduser()
-    if not path.is_file():
+    try:
+        path = Path(raw_path).expanduser()
+    except RuntimeError:
+        # `~` with no home directory to expand it to.
         raise ValidationError(
             f"No file at {raw_path}. Give the path to an existing receipt."
-        )
+        ) from None
     if allowed is not None:
         try:
             path.resolve().relative_to(allowed.expanduser().resolve())
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             # Without the directory: it describes this machine, and the
             # person who can change it knows where it is.
             raise ValidationError(
@@ -312,6 +319,10 @@ def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
                 "from. Move the file there, or ask the account owner about "
                 "LXO_MCP_UPLOAD_DIR."
             ) from None
+    if not path.is_file():
+        raise ValidationError(
+            f"No file at {raw_path}. Give the path to an existing receipt."
+        )
 
     size = path.stat().st_size
     if size > MAX_UPLOAD:

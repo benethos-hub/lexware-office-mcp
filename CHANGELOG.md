@@ -15,6 +15,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **An upload outside `LXO_MCP_UPLOAD_DIR` is refused the same way
+  whether the file exists or not.** The file was looked for first, so the
+  answer told the model what is on the disk where it may not upload from.
 - **An update or a delete that runs out of retries says its outcome is
   unknown.** After three attempts ending in a timeout, a lost connection or
   a 5xx, any of them may have been carried out, but the error read like a
