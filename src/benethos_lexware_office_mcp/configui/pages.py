@@ -47,9 +47,12 @@ __all__ = [
     "Badge",
     "Message",
     "Page",
+    "Stand",
+    "Tag",
     "account_facts",
     "code",
     "credentials",
+    "elsewhere",
     "error",
     "overview",
     "permissions",
@@ -166,6 +169,36 @@ class Badge:
         return self.source in (ENV_SOURCE, CLI_SOURCE)
 
 
+@dataclass(frozen=True, slots=True)
+class Tag:
+    """A small mark: its text and its colour, ``accent``, ``ok``, ``warn``,
+    ``err``, or plain."""
+
+    text: str
+    kind: str = ""
+
+
+@dataclass(frozen=True)
+class Stand:
+    """One row of the card *Stand*: what, its tag, what to read, where to go.
+
+    Every row has every field, so the template asks what a row says rather
+    than whether it says it.
+    """
+
+    name: str
+    label: str
+    tag: Tag
+    link: tuple[str, str] | None = None
+    badge: Badge | None = None
+    state: str = ""
+    count: str = ""
+    spend: str = ""
+    writers: list[str] = field(default_factory=list)
+    account: str = ""
+    facts: list[str] = field(default_factory=list)
+
+
 @dataclass(frozen=True)
 class Page:
     """A template, the heading it shows, and what it needs to fill it."""
@@ -275,7 +308,7 @@ def overview(inst: Installation) -> Page:
         _policy_row(inst, costs),
         _connection_row(),
     ]
-    step = next((row["link"] for row in rows if row["tag"]["kind"] == "err"), None)
+    step = next((row.link for row in rows if row.tag.kind == "err"), None)
     return Page(
         "pages/overview.html",
         "Übersicht",
@@ -292,51 +325,23 @@ def overview(inst: Installation) -> Page:
     )
 
 
-def _stand(
-    name: str,
-    label: str,
-    tag: str,
-    kind: str,
-    *,
-    link: tuple[str, str] | None = None,
-    **say: Any,
-) -> dict[str, Any]:
-    """One row of the card *Stand*: what, its tag, what to read, where to go.
-
-    Every row has every key, so the template asks what a row says rather
-    than whether it says it.
-    """
-    return {
-        "name": name,
-        "label": label,
-        "tag": {"text": tag, "kind": kind},
-        "link": link,
-        "badge": None,
-        "state": "",
-        "count": "",
-        "spend": "",
-        "writers": [],
-        "account": "",
-        "facts": [],
-        **say,
-    }
-
-
-def _key_row(inst: Installation, env: dict[str, str]) -> dict[str, Any]:
+def _key_row(inst: Installation, env: dict[str, str]) -> Stand:
     if inst.has_api_key():
-        return _stand(
-            "key", "API-Schlüssel", "hinterlegt", "ok", badge=_badge(inst, API_KEY, env)
+        return Stand(
+            "key",
+            "API-Schlüssel",
+            Tag("hinterlegt", "ok"),
+            badge=_badge(inst, API_KEY, env),
         )
-    return _stand(
+    return Stand(
         "key",
         "API-Schlüssel",
-        "fehlt",
-        "err",
+        Tag("fehlt", "err"),
         link=("/credentials", "Schlüssel eintragen"),
     )
 
 
-def _policy_row(inst: Installation, costs: dict[str, int]) -> dict[str, Any]:
+def _policy_row(inst: Installation, costs: dict[str, int]) -> Stand:
     """The permissions: how many are on, what they cost, and who may write."""
     policy = inst.policy
     flags = policy.as_map()
@@ -346,51 +351,57 @@ def _policy_row(inst: Installation, costs: dict[str, int]) -> dict[str, Any]:
     spend = _cost_note(sum(costs.get(name, 0) for name in on))
     link = ("/permissions", "Rechte festlegen")
     if not policy.exists():
-        return _stand(
+        return Stand(
             "policy",
             "Rechte",
-            "keine Datei",
-            "err",
+            Tag("keine Datei", "err"),
             link=link,
             state="missing",
             count=count,
         )
     if not on:
-        return _stand(
-            "policy", "Rechte", "kein Tool", "err", link=link, state="none", count=count
-        )
-    if writers:
-        return _stand(
+        return Stand(
             "policy",
             "Rechte",
-            f"{len(writers)} schreibend",
-            "warn",
+            Tag("kein Tool", "err"),
+            link=link,
+            state="none",
+            count=count,
+        )
+    if writers:
+        return Stand(
+            "policy",
+            "Rechte",
+            Tag(f"{len(writers)} schreibend", "warn"),
             state="writers",
             count=count,
             spend=spend,
             writers=writers,
         )
-    return _stand(
-        "policy", "Rechte", "nur lesend", "ok", state="read", count=count, spend=spend
+    return Stand(
+        "policy",
+        "Rechte",
+        Tag("nur lesend", "ok"),
+        state="read",
+        count=count,
+        spend=spend,
     )
 
 
-def _connection_row() -> dict[str, Any]:
+def _connection_row() -> Stand:
     """The last connection test, which only a button runs."""
     account = last_account()
     if account is None:
-        return _stand(
+        return Stand(
             "connection",
             "Verbindung",
-            "nicht getestet",
-            "",
+            Tag("nicht getestet"),
             link=("/credentials", "Verbindung testen"),
         )
-    return _stand(
+    return Stand(
         "connection",
         "Verbindung",
-        "verbunden",
-        "ok",
+        Tag("verbunden", "ok"),
         account=account.label,
         facts=account_facts(account),
     )
@@ -644,12 +655,9 @@ def _tool_row(
 ) -> dict[str, Any]:
     """One tool as its row shows it: the box, the marks and the cost."""
     if info.access == "read":
-        tag = {"text": "lesend", "kind": "accent"}
+        tag = Tag("lesend", "accent")
     else:
-        tag = {
-            "text": f"schreibend · {info.effect}",
-            "kind": "err" if info.irreversible else "warn",
-        }
+        tag = Tag(f"schreibend · {info.effect}", "err" if info.irreversible else "warn")
     return {
         "name": name,
         "checked": bool(state.get(name)),
