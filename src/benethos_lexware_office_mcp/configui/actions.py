@@ -229,31 +229,44 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class _Ticks:
+    """The boxes a permissions form was sent with, as names and as flags."""
+
+    inst: Installation
+    chosen: list[str]
+    flags: dict[str, bool]
+
+    def page(self, opened: str = "") -> Page:
+        """The page again as it was sent, for a refusal, and only then:
+        measuring what the tools cost builds a server."""
+        return pages.permissions(self.inst, flags=self.flags, opened=opened)
+
+
 def permissions(inst: Installation, form: Form) -> Reply | None:
     """One form, seven buttons: the button's value says which."""
     chosen = [name for name in form.get("tool", []) if name in known_tools()]
+    ticks = _Ticks(inst, chosen, {name: name in chosen for name in known_tools()})
     actions: dict[str, Callable[[], Reply]] = {
-        "save": lambda: _save_policy(inst, chosen),
-        "load": lambda: _load_profile(inst, form, chosen),
-        "profile-save": lambda: _save_profile(inst, form, chosen),
-        "profile-overwrite": lambda: _overwrite_profile(inst, form, chosen),
-        "profile-delete": lambda: _delete_profile(inst, form, chosen),
+        "save": lambda: _save_policy(inst, ticks),
+        "load": lambda: _load_profile(inst, form, ticks),
+        "profile-save": lambda: _save_profile(inst, form, ticks),
+        "profile-overwrite": lambda: _overwrite_profile(inst, form, ticks),
+        "profile-delete": lambda: _delete_profile(inst, form, ticks),
         "policy-export": lambda: export(inst),
-        "policy-import": lambda: _import_policy(inst, form, chosen),
+        "policy-import": lambda: _import_policy(inst, form, ticks),
     }
     action = actions.get(field(form, "action"))
     return None if action is None else action()
 
 
-def _save_policy(inst: Installation, chosen: list[str]) -> Reply:
+def _save_policy(inst: Installation, ticks: _Ticks) -> Reply:
     """Write the file. The one action here that changes what a server does."""
-    flags = _flags(chosen)
+    chosen, flags = ticks.chosen, ticks.flags
     try:
         inst.policy.save(flags)
     except (OSError, ValueError) as exc:
-        return _failed_write(
-            pages.permissions(inst, flags=flags), inst.policy_path, exc
-        )
+        return _failed_write(ticks.page(), inst.policy_path, exc)
     writers = sorted(writing(chosen))
     logbook.configui.policy_saved(inst.policy_path, len(chosen), len(flags), writers)
     text = f"{len(chosen)} von {len(flags)} Tools aktiv."
@@ -266,14 +279,11 @@ def _save_policy(inst: Installation, chosen: list[str]) -> Reply:
     return _done(_PERMISSIONS, text, "warn" if writers else "ok")
 
 
-def _load_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
+def _load_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
     name = field(form, "profile")
     profile = inst.profiles.get(name)
     if profile is None:
-        return _back(
-            pages.permissions(inst, flags=_flags(chosen), opened="profiles"),
-            f"Kein Profil namens {name}.",
-        )
+        return _back(ticks.page("profiles"), f"Kein Profil namens {name}.")
     known = list(known_tools())
     newer = profile.newer_tools(known)
     unknown = profile.unknown(known)
@@ -291,7 +301,7 @@ def _load_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     return _done(_PERMISSIONS, text, "warn", flags=profile.flags(known))
 
 
-def _save_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
+def _save_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
     """Create a profile under a new name, and only under a new one.
 
     A name that is already taken is refused rather than silently replacing
@@ -301,64 +311,61 @@ def _save_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     own.
     """
     name = field(form, "profile_name")
-    here = pages.permissions(inst, flags=_flags(chosen), opened="profiles")
     clash = inst.profiles.find(name)
     if clash is not None:
         return _back(
-            here,
+            ticks.page("profiles"),
             f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
             "auswählen und überschreiben, oder einen anderen Namen nehmen.",
         )
     try:
-        profile = inst.profiles.save(name, chosen, known_tools())
+        profile = inst.profiles.save(name, ticks.chosen, known_tools())
     except ProfileError as exc:
-        return _back(here, str(exc))
+        return _back(ticks.page("profiles"), str(exc))
     except OSError as exc:
-        return _failed_write(here, inst.profiles.path, exc)
+        return _failed_write(ticks.page("profiles"), inst.profiles.path, exc)
     logbook.configui.profile_saved(profile.name, len(profile.tools), False)
     return _done(
         _PERMISSIONS,
         f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
         "Die Rechtedatei selbst ist unverändert.",
-        flags=_flags(chosen),
+        flags=ticks.flags,
         opened="profiles",
     )
 
 
-def _overwrite_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
+def _overwrite_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
     """Replace the selected profile with what is ticked right now."""
     name = field(form, "profile")
-    here = pages.permissions(inst, flags=_flags(chosen), opened="profiles")
     if inst.profiles.get(name) is None:
-        return _back(here, f"Kein Profil namens {name}.")
+        return _back(ticks.page("profiles"), f"Kein Profil namens {name}.")
     try:
-        profile = inst.profiles.save(name, chosen, known_tools())
+        profile = inst.profiles.save(name, ticks.chosen, known_tools())
     except OSError as exc:
-        return _failed_write(here, inst.profiles.path, exc)
+        return _failed_write(ticks.page("profiles"), inst.profiles.path, exc)
     logbook.configui.profile_saved(profile.name, len(profile.tools), True)
     return _done(
         _PERMISSIONS,
         f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
         "Die Rechtedatei selbst ist unverändert.",
-        flags=_flags(chosen),
+        flags=ticks.flags,
         opened="profiles",
     )
 
 
-def _delete_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
+def _delete_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
     name = field(form, "profile")
-    here = pages.permissions(inst, flags=_flags(chosen), opened="profiles")
     try:
         gone = inst.profiles.delete(name)
     except OSError as exc:
-        return _failed_write(here, inst.profiles.path, exc)
+        return _failed_write(ticks.page("profiles"), inst.profiles.path, exc)
     if not gone:
-        return _back(here, f"Kein Profil namens {name}.")
+        return _back(ticks.page("profiles"), f"Kein Profil namens {name}.")
     logbook.configui.profile_deleted(name)
     return _done(
         _PERMISSIONS,
         f"Profil {name} gelöscht.",
-        flags=_flags(chosen),
+        flags=ticks.flags,
         opened="profiles",
     )
 
@@ -379,7 +386,7 @@ def export(inst: Installation) -> Reply:
     )
 
 
-def _import_policy(inst: Installation, form: Form, chosen: list[str]) -> Reply:
+def _import_policy(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
     """Read a policy file into the form. Saving is still a separate act.
 
     The rule is the one `--tools sync` follows: a tool the file does not name
@@ -392,9 +399,7 @@ def _import_policy(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     try:
         arriving = transfer.parse(text)
     except transfer.TransferError as exc:
-        return _back(
-            pages.permissions(inst, flags=_flags(chosen), opened="policy"), str(exc)
-        )
+        return _back(ticks.page("policy"), str(exc))
 
     known = known_tools()
     # Read as a profile that knew exactly the tools the file names: what is
@@ -504,7 +509,3 @@ def _failed_write(page: Page, path: Path, exc: OSError | ValueError) -> Reply:
     if isinstance(exc, ValueError):
         return _back(page, f"Nicht gespeichert: {exc}")
     return _back(page, f"Konnte {path} nicht schreiben: {exc.strerror or exc}", 500)
-
-
-def _flags(chosen: list[str]) -> dict[str, bool]:
-    return {name: name in chosen for name in known_tools()}
