@@ -546,7 +546,6 @@ def sales_document_body(
     tax_type: TaxType = "net",
     currency: str = "EUR",
     shipping_date: str | None = None,
-    shipping_type: str | None = None,
     expiration_date: str | None = None,
     title: str | None = None,
     introduction: str | None = None,
@@ -571,7 +570,9 @@ def sales_document_body(
     if shipping_date is not None:
         body["shippingConditions"] = {
             "shippingDate": _at_midnight(shipping_date),
-            "shippingType": shipping_type or "delivery",
+            # The one shipping type a document with a shipping date needs,
+            # and the only one the tool offers.
+            "shippingType": "delivery",
         }
     if expiration_date is not None:
         body["expirationDate"] = _at_midnight(expiration_date)
