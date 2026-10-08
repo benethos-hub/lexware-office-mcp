@@ -810,7 +810,7 @@ arriving.
   code never `print()` to stdout, all logging goes to stderr through the one
   handler `logbook.configure` installs, uvicorn's included.
 - **What Docker keeps of a container's output is capped**, since 2026-09-29:
-  `compose.yaml` gives both services the `json-file` driver with five files
+  both Compose files give both services the `json-file` driver with five files
   of 10 MB. Over HTTP uvicorn writes an access line of about 60 bytes, on
   stderr beside this server's own lines, for every refused request and at
   `DEBUG` for every request - measured on the 0.3.0 image, when it still
@@ -819,6 +819,51 @@ arriving.
   the watch above, is the same container. The health check connects to the
   port without a request and adds nothing. A `docker run` sets the same cap
   with `--log-opt`, which the README shows.
+- **The container files live in `containers/`**, since 2026-10-08:
+  `images/lexware-office-mcp/Dockerfile`, and two Compose folders. Until
+  then one `compose.yaml` in the root built from the checkout, and running
+  the published image instead meant commenting two lines and uncommenting
+  two others in each service, by hand, in a file that a pull would change
+  again.
+
+  `production/` runs the published image at the version `LXO_VERSION` in
+  an `.env` beside it names, required rather than defaulted, so an update is
+  one changed line and a `pull`. The folder needs nothing else from the
+  repository. It keeps the project name the root file had,
+  `benethos-lexware-office-mcp`, so its volumes carry over: measured
+  2026-10-08, an `up` there replaced the container the root file had made
+  and kept the generated token and a marker file in `/config`.
+
+  `development/` builds from the checkout under a project of its own,
+  `benethos-lexware-office-mcp-dev`, on 8780 and 8781 with volumes of its
+  own. The two run side by side, and a trial never reaches the key, the
+  token or the tools of an installation in operation. The settings the two
+  pin are the same, which `tests/test_packaging.py` holds them to, so a
+  trial tries what runs.
+
+  **The variables Compose reads are named `LXO_`, not `LXO_MCP_`.** They
+  sit in an `.env` like the server's own and are no setting of it: the
+  version and the ports on the host. A distinct prefix keeps one from being
+  read as the other, by a person or by the server's search, which takes an
+  `.env` in the working directory and ignores names it does not know.
+
+  **Both run the container hardened**: a read-only root file system,
+  `/tmp` as a `tmpfs`, every Linux capability dropped and
+  `no-new-privileges`. Every file this server writes goes through one atomic
+  write into the directory of its target, so the `.env`, the policy file and
+  the profiles land in `/config`, and downloads in `/downloads`. Measured
+  2026-10-08 against the test account with the image built from the
+  checkout: the token generated, a policy written, a restart on a changed
+  `.env`, `get_profile`, an invoice downloaded and rendered into a page
+  image, the configuration interface served - no traceback, no refused
+  write. `tests/test_packaging.py` holds every service of both files to it.
+
+  Two things were left out on purpose. **No TLS proxy**: the server speaks
+  for one account and is published on the loopback, and putting it on a
+  network is a decision for a proxy that authenticates, not for a file
+  shipped here. **No setup script**: the first start needs no key material
+  made outside the container. The server makes its token itself, and the
+  configuration interface behind the `setup` profile takes the key.
 - **CLI flags:** `--version`, `--log-level`, `--tools`, `--tools-file` and
   `--env-file` today, plus the transport flags when HTTP arrives. `--mode` and
   `--download-dir` were planned here and never built: the mode is gone with
@@ -2192,7 +2237,7 @@ every test in this repository. Section 14.3 says how to look.
     there unless the bound is set as well. `0` deletes nothing anywhere. The
     image names `/downloads` and sets the bound to 100 beside it, because that
     directory is the container's own. Being an image variable it beats
-    `/config/.env`, so in a container the number is changed in `compose.yaml`
+    `/config/.env`, so in a container the number is changed in the Compose file
     or with `docker run -e`, not in the configuration interface.
   - **What goes.** Plain files only, oldest by modification time first, which
     a reused download renews. A subdirectory or a symbolic link was put there
@@ -2452,11 +2497,13 @@ Built, tested offline and exercised against a live test account:
   before it is written, and one checkbox per tool with what it costs the
   model in context, permission profiles and the policy file as a download.
   Never part of the server process, loopback only, see section 7.1
-- **a container image and a Compose file**, two stages, non-root, 168 MB. The
-  server on a loopback-published port and the configuration interface behind a
-  `setup` profile on the same volume. A bearer token made on first start
-  rather than baked in, and a process that ends when its settings file changes
-  so the new ones take effect, see section 6
+- **a container image and two Compose folders**, two stages, non-root, 168 MB.
+  The server on a loopback-published port and the configuration interface
+  behind a `setup` profile on the same volume. A bearer token made on first
+  start rather than baked in, and a process that ends when its settings file
+  changes so the new ones take effect. `containers/production/` runs the
+  published image at a version named in `.env`, `containers/development/`
+  builds from the checkout beside it, see section 6
 - one shared token bucket per process, retries decided per method and failure
   mode, upstream statuses mapped onto `ToolError` subclasses
 - paging and filtering in the client, one page per call, never a walk over

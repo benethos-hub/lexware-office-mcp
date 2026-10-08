@@ -516,7 +516,7 @@ setting carries a badge naming its source, and one that an environment
 variable is holding is marked as such. When something you saved seems to be
 ignored, that badge is the answer.
 
-**In a container this is not an edge case.** `compose.yaml` pins the
+**In a container this is not an edge case.** The Compose files pin the
 transport, the bind address, the port and the allowed hosts as real
 environment variables, because those belong to the container rather than to
 the installation inside it. Everything else — the API key, the HTTP token,
@@ -616,7 +616,16 @@ all.
 
 ### With Compose
 
+[`containers/production/`](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers/production)
+runs the published image, and that folder is all it needs. Into an empty
+folder:
+
 ```bash
+mkdir lexware-office-mcp && cd lexware-office-mcp
+for file in compose.yaml .env.example README.md; do
+  curl -fsSL -o "$file" "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/containers/production/$file"
+done
+cp .env.example .env                      # names the image's version
 docker compose up -d                      # the server, on 127.0.0.1:8770
 docker compose --profile setup up -d      # add the configuration interface
 docker compose rm -f -s setup             # take the interface away again
@@ -627,9 +636,18 @@ takes the server down with it. `rm -f -s setup` stops and removes the one
 service and leaves the server running. `docker compose stop setup` also works
 and keeps the stopped container around for next time.
 
-As shipped, `compose.yaml` builds from this checkout. Two commented lines in
-each of its two services switch it to the published image, and that file is
-then the only thing you need from here.
+To update, set `LXO_VERSION` in `.env` to the new version, then
+`docker compose pull && docker compose up -d`. The `.env` beside
+`compose.yaml` holds only that and the two ports on the host. The server's
+own settings live in its config volume.
+
+**The Compose file used to sit in the repository root** and build from the
+checkout. `containers/production/` keeps its project name, so its volumes
+carry over with the key, the token and the tools: `docker compose up -d`
+there replaces the container and keeps them. Building from a checkout is
+[`containers/development/`](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers#for-development),
+which runs beside an installation in operation under a project of its own,
+on ports 8780 and 8781, and never touches its volumes.
 
 Docker keeps at most five log files of 10 MB for each service, the oldest
 dropped first. The server writes a line for every request it refuses, and at
@@ -642,6 +660,7 @@ grow the log for as long as the container exists.
 docker run -d --name lexware-office-mcp \
   --restart unless-stopped \
   --log-opt max-size=10m --log-opt max-file=5 \
+  --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:8770:8770 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
   ghcr.io/benethos-hub/lexware-office-mcp:latest
@@ -663,6 +682,7 @@ at the same volume:
 
 ```bash
 docker run --rm -d --name lexware-office-mcp-setup \
+  --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:8771:8771 \
   -v lxo-config:/config -v lxo-downloads:/downloads \
   ghcr.io/benethos-hub/lexware-office-mcp:latest \
@@ -679,6 +699,11 @@ docker stop lexware-office-mcp-setup
 **`--restart unless-stopped` is not decoration here.** The container ends its
 process when the settings file changes, which is what carries a saved setting
 into a running server. With no restart policy it ends and stays ended.
+
+**The rest of the second line is hardening, and the Compose files do the
+same.** The server writes nothing but its two volumes and `/tmp`, so the
+image itself can stay read-only, and a process of an ordinary user on a port
+above 1024 needs no Linux capability at all.
 
 ### Turn the interface off when you are done
 

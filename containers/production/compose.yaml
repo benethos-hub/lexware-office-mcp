@@ -1,5 +1,7 @@
-# Hosting this server over the streamable-HTTP transport, and configuring it
-# in a browser without a terminal.
+# In operation: the published image from the GitHub container registry,
+# nothing built. This folder is all it needs - this file and an .env beside
+# it, made from .env.example, which names the version. README.md beside it
+# says how to get the folder and run it.
 #
 #   docker compose up -d                     start the server
 #   docker compose --profile setup up -d     add the configuration interface
@@ -17,6 +19,8 @@
 # be the only stronger statement. **Nothing stops it for you** - no restart
 # policy brings it back, and no command removes it unless you run one.
 
+# The name the Compose file in the repository root had, so the volumes it
+# made - the key, the token, the tools - are this project's as well.
 name: benethos-lexware-office-mcp
 
 # What Docker keeps of a container's output, at most: five files of 10 MB,
@@ -34,26 +38,16 @@ x-logging: &logging
 
 services:
   benethos-lexware-office-mcp:
-    # As shipped: BUILD from this checkout. To run the published image
-    # instead, comment the two lines below and uncomment the two after them -
-    # and do the same for the `setup` service, which is the same image. Both
-    # switched, you need nothing from this repository except this file.
-    build: .
-    image: benethos-lexware-office-mcp:latest
-    # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
-    # pull_policy: always
-    #
-    # Pin a tag for anything you depend on: `:0.4.1` names one release,
-    # `:0.4` follows its patch releases. `pull_policy` decides when compose
-    # asks the registry - `always` on every `up`, `missing` only when the
-    # image is absent locally.
+    # The version is the one LXO_VERSION in .env names. To update, change it
+    # there, then `docker compose pull && docker compose up -d`.
+    image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?set LXO_VERSION in .env, see .env.example}
     container_name: benethos-lexware-office-mcp
     ports:
       # bind:host:container. Published on the loopback interface of the host,
       # because a bearer token is a guard against other processes on this
       # machine and not a reason to put an accounting API on a network. Drop
       # the 127.0.0.1 prefix only behind a proxy that authenticates for you.
-      - "127.0.0.1:8770:8770"
+      - "127.0.0.1:${LXO_PORT:-8770}:8770"
     restart: unless-stopped
     logging: *logging
     environment:
@@ -69,8 +63,8 @@ services:
       LXO_MCP_TRANSPORT: streamable-http
       LXO_MCP_HTTP_HOST: "0.0.0.0"
       LXO_MCP_HTTP_PORT: "8770"
-      # The container's own name, so a second container on this network can
-      # talk to it. The loopback names stay allowed either way.
+      # The service's own name, so a second container on this network can
+      # talk to it. The loopback names stay allowed either way, on any port.
       LXO_MCP_ALLOWED_HOSTS: "benethos-lexware-office-mcp:8770"
       # Settings are read once, at startup. This ends the process when
       # /config/.env changes, and `restart: unless-stopped` brings it back with
@@ -79,15 +73,24 @@ services:
       # Nothing else belongs here. A variable set in this block is a real
       # environment variable and therefore beats the config volume, so a
       # setting pinned by habit rather than by need is one the configuration
-      # interface can no longer change. The log level was here and is not any
-      # more: INFO is the default anyway, and now `LXO_MCP_LOG_LEVEL` in
-      # /config/.env does what it says.
+      # interface can no longer change.
     volumes:
       # The .env, the policy file and the saved permission profiles.
       - config:/config
       # Documents fetched from the API, the newest 100 of them: the image sets
       # LXO_MCP_KEPT_DOWNLOADS. Set it under `environment` to change that.
       - downloads:/downloads
+    # Nothing is written but the two volumes and /tmp, which lives in memory:
+    # the image, the code in it included, stays as it was pulled. No Linux
+    # capability is kept, since a process of uid 10001 on a port above 1024
+    # needs none, and nothing can gain one later through a setuid binary.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   # Started by name, never by a plain `up`:
   #   docker compose --profile setup up -d
@@ -97,16 +100,9 @@ services:
   #   docker compose rm -f -s setup
   setup:
     profiles: ["setup"]
-    # The same image as above, serving its other command. Switch it the same
-    # way: comment the two lines below, uncomment the two after them.
-    build: .
-    image: benethos-lexware-office-mcp:latest
-    # image: ghcr.io/benethos-hub/lexware-office-mcp:latest
-    # pull_policy: always
-    #
-    # Pin the same tag as the server above: `:0.4.1` names one release, `:0.4`
-    # follows its patch releases. Two versions of one image against one volume
-    # is not a state anything here expects.
+    # The same image as above, serving its other command. Two versions of one
+    # image against one volume is not a state anything here expects.
+    image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?set LXO_VERSION in .env, see .env.example}
     container_name: benethos-lexware-office-mcp-setup
     command:
       - setup
@@ -123,7 +119,7 @@ services:
       - --tools-file
       - /config/tools.json
     ports:
-      - "127.0.0.1:8771:8771"
+      - "127.0.0.1:${LXO_SETUP_PORT:-8771}:8771"
     # The image checks the transport port, which this one does not serve. A
     # page a person is looking at reports its own health well enough.
     healthcheck:
@@ -135,6 +131,13 @@ services:
     volumes:
       - config:/config
       - downloads:/downloads
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   config:

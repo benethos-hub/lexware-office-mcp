@@ -51,7 +51,7 @@ updates:
   # people pull and run. With the digest pinned, this is the only way a
   # patch to them arrives.
   - package-ecosystem: "docker"
-    directory: "/"
+    directory: "/containers/images/lexware-office-mcp"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

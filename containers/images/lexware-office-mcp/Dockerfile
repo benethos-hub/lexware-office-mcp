@@ -1,3 +1,8 @@
+# The image of this server, built from the repository root, which is the
+# build context:
+#
+#   docker build -f containers/images/lexware-office-mcp/Dockerfile .
+#
 # Two stages, after one that only holds the uv binary. The first installs
 # the locked dependencies and this package into a virtual environment, the
 # second copies that environment into an image that carries no build tools,

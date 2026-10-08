@@ -22,6 +22,9 @@ htmlcov/
 config/.env
 downloads/
 
+# The template of the production folder, which holds no secret.
+!containers/production/.env.example
+
 # What this machine is allowed to do is not a property of the code, and
 # neither are the profiles saved beside it.
 tools.json

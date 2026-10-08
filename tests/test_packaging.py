@@ -20,6 +20,7 @@ import benethos_lexware_office_mcp
 PACKAGE_DIR = Path(benethos_lexware_office_mcp.__file__).resolve().parent
 REPO = PACKAGE_DIR.parents[1]
 MARKER = PACKAGE_DIR / "py.typed"
+DOCKERFILE = REPO / "containers" / "images" / "lexware-office-mcp" / "Dockerfile"
 
 
 def test_the_typing_marker_sits_beside_the_code() -> None:
@@ -46,7 +47,8 @@ VERSION_EXAMPLES = (
     # An exact image tag in backticks. The minor line beside it has only two
     # components, so it is not matched here - it is checked below instead.
     ("README.md", r"`:(\d+\.\d+\.\d+)`"),
-    ("compose.yaml", r"`:(\d+\.\d+\.\d+)`"),
+    # The version the production folder runs.
+    ("containers/production/.env.example", r"(?m)^LXO_VERSION=(\d+\.\d+\.\d+)$"),
     # The status line each document opens with.
     ("README.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
@@ -61,7 +63,7 @@ VERSION_EXAMPLES = (
 # resolving, it simply stops at the previous line and never sees this release.
 MINOR_LINE_EXAMPLES = (
     ("README.md", r"`:(\d+\.\d+)`"),
-    ("compose.yaml", r"`:(\d+\.\d+)`"),
+    ("containers/production/.env.example", r"`(\d+\.\d+)`"),
     # The release list names it as the one to move with a minor release.
     ("CLAUDE.md", r"`:(\d+\.\d+)`"),
 )
@@ -134,7 +136,12 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
 
 # -- what Docker keeps of the output ----------------------------------------
 
-COMPOSE = REPO / "compose.yaml"
+CONTAINERS = REPO / "containers"
+# Development first, production second, in every test that tells them apart.
+COMPOSE_FILES = (
+    CONTAINERS / "development" / "compose.yaml",
+    CONTAINERS / "production" / "compose.yaml",
+)
 
 
 def _tag_check(tag: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -210,7 +217,7 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
 
 def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
     """By tag for the reader and Dependabot, by digest for the content."""
-    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     pulled = re.findall(r"^(?:FROM|COPY --from=)\s*(\S+)", dockerfile, re.MULTILINE)
     # A stage of this file is named without a registry or a tag.
     external = [image for image in pulled if ":" in image or "/" in image]
@@ -221,7 +228,7 @@ def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
 
 def test_every_image_is_pulled_where_dependabot_reads() -> None:
     """By a FROM line. Dependabot does not see an image in `COPY --from=`."""
-    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     copied = re.findall(r"^COPY --from=(\S+)", dockerfile, re.MULTILINE)
 
     assert copied
@@ -229,20 +236,51 @@ def test_every_image_is_pulled_where_dependabot_reads() -> None:
 
 
 def test_no_frontend_is_pulled_by_a_moving_tag() -> None:
-    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
 
     assert not re.search(r"^#\s*syntax=", dockerfile, re.MULTILINE)
 
 
-def test_compose_caps_the_log_docker_keeps() -> None:
+def test_every_build_and_dependabot_name_the_dockerfile() -> None:
+    """It is not where Docker looks by itself, so each of them has to say so.
+
+    A build that forgets fails loudly. Dependabot pointed at a folder without
+    a Dockerfile does not: it proposes nothing, and the base image ages.
+    """
+    relative = DOCKERFILE.relative_to(REPO).as_posix()
+    folder = DOCKERFILE.parent.relative_to(REPO).as_posix()
+    github = REPO / ".github"
+    ci = (github / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    publish = (github / "workflows" / "publish.yml").read_text(encoding="utf-8")
+    dependabot = (github / "dependabot.yml").read_text(encoding="utf-8")
+
+    assert ci.count(f"-f {relative} ") == 1
+    assert ci.count(f"file: {relative}\n") == 1
+    assert publish.count(f"file: {relative}\n") == 1
+    assert f'directory: "/{folder}"' in dependabot
+
+
+def _services(compose: Path) -> dict[str, str]:
+    """Each service's block of a Compose file, by name, comments dropped.
+
+    Read as text rather than parsed: a YAML parser is not a dependency of this
+    project, and these files are written by hand in one shape.
+    """
+    text = compose.read_text(encoding="utf-8")
+    body = text.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    lines = [line for line in body.splitlines() if not line.strip().startswith("#")]
+    blocks = re.split(r"^  ([a-z][\w-]*):$", "\n".join(lines), flags=re.MULTILINE)
+    return dict(zip(blocks[1::2], blocks[2::2], strict=True))
+
+
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_compose_caps_the_log_docker_keeps(compose: Path) -> None:
     """Five files of 10 MB, the json-file driver's own rotation.
 
     Without it Docker keeps every access line for the life of the container,
-    and a restart is the same container. Read as text rather than parsed:
-    the check is that the block exists with these values, and a YAML parser
-    is not a dependency of this project.
+    and a restart is the same container.
     """
-    text = COMPOSE.read_text(encoding="utf-8")
+    text = compose.read_text(encoding="utf-8")
 
     block = re.search(r"^x-logging: &logging\n((?:  .*\n)+)", text, flags=re.MULTILINE)
     assert block is not None, "the shared logging block is gone"
@@ -251,14 +289,91 @@ def test_compose_caps_the_log_docker_keeps() -> None:
     assert 'max-file: "5"' in block.group(1)
 
 
-def test_every_compose_service_uses_the_log_cap() -> None:
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_every_compose_service_uses_the_log_cap(compose: Path) -> None:
     """A service added later without the reference would log without limit."""
-    text = COMPOSE.read_text(encoding="utf-8")
-    services = text.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
-    names = re.findall(r"^  ([a-z][\w-]*):\n", services, flags=re.MULTILINE)
+    services = _services(compose)
 
-    assert names == ["benethos-lexware-office-mcp", "setup"]
-    assert services.count("    logging: *logging\n") == len(names)
+    assert list(services) == ["benethos-lexware-office-mcp", "setup"]
+    assert all("\n    logging: *logging\n" in block for block in services.values())
+
+
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_every_compose_port_is_published_on_the_loopback(compose: Path) -> None:
+    """A bearer token guards against this machine's processes, not a network."""
+    text = compose.read_text(encoding="utf-8")
+    published = re.findall(r'^\s+- "([^"]*:\d+)"$', text, flags=re.MULTILINE)
+
+    assert len(published) == 2
+    assert all(port.startswith("127.0.0.1:") for port in published)
+
+
+def test_development_and_production_run_the_server_alike() -> None:
+    """The same settings pinned, so trying a change tries what runs.
+
+    The comments explaining them live in the production file only.
+    """
+    development, production = (_services(path) for path in COMPOSE_FILES)
+
+    for name in ("benethos-lexware-office-mcp", "setup"):
+        for section in ("environment", "command", "volumes"):
+            pattern = rf"^    {section}:\n((?:      .*\n)+)"
+            ours = re.search(pattern, development[name] + "\n", flags=re.MULTILINE)
+            theirs = re.search(pattern, production[name] + "\n", flags=re.MULTILINE)
+            assert (ours and ours.group(1)) == (theirs and theirs.group(1)), (
+                f"{name} differs in {section}"
+            )
+
+
+HARDENING = (
+    "\n    read_only: true\n",
+    "\n    tmpfs:\n      - /tmp\n",
+    "\n    cap_drop:\n      - ALL\n",
+    "\n    security_opt:\n      - no-new-privileges:true\n",
+)
+
+
+@pytest.mark.parametrize("compose", COMPOSE_FILES, ids=lambda path: path.parent.name)
+def test_every_compose_service_is_hardened(compose: Path) -> None:
+    """Nothing written but the volumes and /tmp, and no capability kept.
+
+    Measured 2026-10-08 against a test account: the token, the policy, a
+    restart on a changed .env, a download and its rendering all work so.
+    """
+    for name, block in _services(compose).items():
+        missing = [line.strip() for line in HARDENING if line not in block + "\n"]
+        assert not missing, f"{name} lacks {missing}"
+
+
+def test_production_runs_the_published_image_at_the_named_version() -> None:
+    services = _services(COMPOSE_FILES[1])
+    image = "image: ghcr.io/benethos-hub/lexware-office-mcp:${LXO_VERSION:?"
+
+    assert all(image in block for block in services.values())
+    assert all("build:" not in block for block in services.values())
+
+
+def test_development_builds_the_image_from_this_checkout() -> None:
+    services = _services(COMPOSE_FILES[0])
+    dockerfile = DOCKERFILE.relative_to(REPO).as_posix()
+
+    assert all(f"dockerfile: {dockerfile}\n" in block for block in services.values())
+    assert all("ghcr.io" not in block for block in services.values())
+
+
+def test_development_and_production_keep_apart() -> None:
+    """Two projects, so a trial never reaches the key, token or tools in use."""
+    names = [
+        re.search(r"^name: (\S+)$", path.read_text(encoding="utf-8"), re.MULTILINE)
+        for path in COMPOSE_FILES
+    ]
+
+    assert [match and match.group(1) for match in names] == [
+        "benethos-lexware-office-mcp-dev",
+        # What the Compose file in the repository root was called, so the
+        # volumes it made carry over.
+        "benethos-lexware-office-mcp",
+    ]
 
 
 def test_the_readme_run_example_caps_the_log_as_well() -> None:
