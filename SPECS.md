@@ -1033,12 +1033,13 @@ holds no key.
 
 ### 7.1 The configuration interface
 
-`benethos-lexware-office-mcp setup` serves three pages on `127.0.0.1:8771` and
-opens a browser. **The port is one above the HTTP transport's**, since
-2026-10-08: both used `8770`, so `setup` beside a server on its default port
-ended with "in use", and no document said why. The Compose files already
-published the two that way. It writes the same `.env` and `tools.json` the command line does,
-so the two are interchangeable and neither owns the files.
+`benethos-lexware-office-mcp setup` serves the configuration pages on
+`127.0.0.1:8771` and opens a browser. **The port is one above the HTTP
+transport's**, since 2026-10-08: both used `8770`, so `setup` beside a server
+on its default port ended with "in use", and no document said why. The
+Compose files already published the two that way. It writes the same `.env`
+and `tools.json` the command line does, so the two are interchangeable and
+neither owns the files.
 
 **It is never part of the MCP server.** That process speaks JSON-RPC over
 stdio and stdout belongs to the protocol. This is a separate command, started
@@ -1047,7 +1048,8 @@ modules and nothing else.
 
 **Loopback by default, and loopback names only.** The pages have no login,
 which is defensible exactly as long as they cannot be reached from another
-machine. `--host` can bind another address, because a container has to: a
+machine, and the start code below closes them to the rest of the machine as
+well. `--host` can bind another address, because a container has to: a
 process on the container's own loopback cannot be reached through a
 published port, and there the host-side publish on `127.0.0.1` is what keeps
 it local. Whatever is bound, **a request is answered only if its `Host` names
@@ -1057,7 +1059,7 @@ bearer token included, as its own origin - because a browser sends the name
 the page used. **It is not access control.** `Host` is a header the caller
 writes, and anything on the network that reaches a `0.0.0.0` bind can send
 `Host: localhost` and be answered. Outside a container a bind beyond
-loopback exposes pages without a login, and the start says so. Every
+loopback exposes the pages, and the start says so. Every
 response carries `Cache-Control: no-store` for the same token. Every
 state-changing request is guarded twice, because a page in another tab must
 not be able to rewrite credentials or permissions: the `Origin` or `Referer`
@@ -1088,11 +1090,112 @@ docstrings stay English, and so do the messages `settings/` raises: those are
 quoted into the page rather than translated, because a German paraphrase
 would be a second copy of a rule that lives in the code.
 
+**Reworked, decided 2026-10-08.** The three pages of August had grown out of
+one afternoon: the overview was a table of fourteen settings with their
+variable names and the same path six times over, the credentials page held
+the key, the HTTP token and every other setting in one form, the permissions
+page put the legend and the profiles before the boxes and the save button
+after twenty-five rows, and a reload after a save repeated the post. The
+rework gives the interface a template engine, a frame, four pages and a
+start code, in four steps. Each step is a branch of its own, green on its
+own, and the table says how far it is.
+
+| Step | What it brings | Status |
+|---|---|---|
+| 1 | This section, and the layout in the working guidelines | built 2026-10-08 |
+| 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | planned |
+| 3 | The four pages below, one pull request each, with Post/Redirect/Get and a question before every destructive action | planned |
+| 4 | The start code | planned |
+
+**The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
+with autoescaping on and `StrictUndefined`, so a typo in a template raises
+instead of rendering an empty cell. The filters live there as well: German
+numbers, shortened paths, the source badge. The templates are package data
+under `configui/templates/`. `base.html` holds the sidebar, the top bar with
+the heading, the line under it and the page's primary action, the message,
+the content and a footer with the version. `components/ui.html` holds the
+macros every page is built from: a card, a field, the source badge, a tag, a
+notice, the CSRF field, an action with a question before it. A page has no
+markup of its own for any of these. `pages/` has one file per page,
+`partials/` the pieces of one page, such as the sidebar, the message and a
+tool group. The server stays the standard library's threading HTTP server: a
+web framework would be a second one in the package, for four forms.
+`pages.py` builds the context of each page and nothing else, `actions.py`
+answers with a template and a context rather than bytes, and `render.py` and
+`assets.py` go. `state.py`, `probe.py`, `profiles.py`, `transfer.py`,
+`stamp.py` and `cost.py` do not change. The import table of
+`tests/test_layers.py` allows `jinja2` in that one module alone.
+
+**Static files and a content security policy.** The stylesheet and the one
+script are files under `configui/static/`, served under `/static/`, and
+every response carries `Content-Security-Policy: default-src 'self'`. No
+inline style, no inline script, no inline handler. The script carries the
+file picker of the import, the live counter of the permissions page and the
+question a form asks through `data-confirm`. Until step 2 the stylesheet and
+two scripts are strings sent inline with every page, which was the right
+size for a page opened for minutes and has no answer to a policy.
+
+**The look.** Colour tokens in a light, bluish palette, dark mode following
+the system setting, and three state colours, green, amber and red, each with
+a soft background for tags and notices. Every text colour keeps 4.5:1
+against every background it is used on, in both modes, and a test computes
+that from the stylesheet. The sidebar collapses to a top bar below 860 px.
+
+**Four pages.** Each has a heading, one line under it saying what the page is
+for, and its primary action at the top right.
+
 | Page | What it answers |
 |---|---|
-| Overview (`Übersicht`) | Which files are in effect, what every setting resolves to and **where it came from**, whether each file exists yet, how many tools are on and what they cost. A connection test on request, never on load. |
-| Credentials (`Zugangsdaten`) | The API key, checked against the API before it is written unless that is declined, and the settings that are not secret, validated by `load_settings` itself so the page cannot accept something the server would refuse. |
-| Permissions (`Rechte`) | One checkbox per tool, grouped by domain, with presets, the profiles, and what each tool costs in context. The policy file can be downloaded and read back from here. |
+| Overview (`Übersicht`) | A card *Stand* with three rows and their tags: the key stored or missing, the permissions as n of 25 on with what they cost or no file yet, the last connection test with the account or never run. The first red row is the next step and links to the page that does it. A card *Client* with the `"args"` entry to copy, and the warning that a server without `--env-file` reads another file only when that is true. A card *Dateien* with each file's name and state, the full path folded. |
+| Credentials (`Zugangsdaten`) | The key, checked against the API before it is written unless that is declined, and the connection test as a card beside it. The HTTP token as a folded card, open only when the transport is not stdio, *Neu erzeugen* with a question before it. |
+| Permissions (`Rechte`) | The counter and *Rechte speichern* at the top right, the presets as a bar, then one card per domain with its group switches and the tool rows with mark and cost. The legend, the profiles and import and export folded underneath, deleting a profile with a question before it. |
+| Settings (`Einstellungen`) | The twelve settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows the default, empty means the default, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
+
+Until step 3 the three pages of August stand: the overview with the settings
+table, the files and the client entry, the credentials page with the key,
+the token and the settings, and the permissions page with everything on it.
+
+**Forms.** Every form that goes through answers with a redirect and one
+message, shown once at the top of the next page. The message is held in the
+process beside the session cookie that already exists for CSRF, never in the
+URL, so a link cannot put words into the interface. A refused form comes
+back at once with what was typed and the reason at the top, with status 400,
+and the key is never shown again. A refusal raised in `settings/` is quoted,
+not translated, as above. Every destructive action asks first.
+
+**The start code.** `setup` makes a random code at start, writes the address
+with the code to stderr and opens the browser with it. Without a valid code
+every page shows one field, *Code eingeben*. After the first valid request
+the session cookie carries the sign-in, and a redirect takes the code out of
+the URL. After five wrong codes the server waits before answering the next.
+With `--no-browser` and in a container the line is on stderr and in the
+container's log, where the operator reads anyway. The code closes the pages
+to other processes and users of the same machine, which the host and origin
+checks above never did. It does not make a bind beyond loopback safe, since
+it travels in the clear over HTTP, and the warning at the start stays. A
+password was weighed and dropped: it needs a stored hash, a way to reset it
+and a first run that creates it, for a page that runs for minutes and ends.
+A code has no secret that outlives its process.
+
+**Rules for every page, the four and any later one.** A page is one template
+under `pages/` and one entry in the sidebar. A route reads the form, calls
+one function of `actions.py` and renders or redirects, and decides nothing
+itself. A template gets the context it needs and computes nothing `pages.py`
+can pass. Every page has a test that renders it and one per form, and every
+page still renders without a browser, which is how the working guidelines
+say to read one. Checklist for a new page: the template, the entry, the
+context function, the tests, a row in the table above, and a changelog entry
+only when a person notices.
+
+**What does not change.** The command and its flags, `--port`, `--host`,
+`--no-browser`, `--env-file` and `--tools-file`, and the port. The three
+files, their formats, the search of section 7 and the pinning below. The
+URLs of the pages and the posts, with `/settings` as a page, `/code` and
+`/static/` added. The guards above: loopback, the `Host` check, `Origin`
+with the port, the CSRF token, `no-store`, and `SO_REUSEADDR` off on
+Windows. The `setup` service of both Compose files. The server, `settings/`,
+`policy.py` and the transport are not touched. The image grows by Jinja2 and
+MarkupSafe, about 1.5 MB.
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in
@@ -1217,7 +1320,6 @@ actually runs on.
 
 No format carried the API key, and this one has nowhere to put a setting at
 all.
-
 ## 8. Tools
 
 Tool count is kept deliberately low. Descriptions and schemas are sent on
