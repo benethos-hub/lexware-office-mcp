@@ -135,6 +135,10 @@ housekeeping are out of scope here — design decisions live in
   cost, the last connection test, each with a tag in a state colour, and
   the first red one as the next step at the top right. The client entry and
   the three files follow, each file by its name, with the full path folded.
+- **The permissions page of `setup` saves from the top right**, beside the
+  count and what the ticked tools cost, which used to sit at the end of
+  twenty-five rows. The presets come first, then the groups, and the
+  legend, the profiles and the policy file follow folded.
 
 - **The `version` parameter reads the same in all three update tools.**
   One said "it has changed", two "the record has changed", and each named

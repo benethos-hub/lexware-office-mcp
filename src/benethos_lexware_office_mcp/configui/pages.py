@@ -1,4 +1,4 @@
-"""The three screens, each a function from state to a template and its context.
+"""The four screens, each a function from state to a template and its context.
 
 Rendering is kept apart from serving on purpose: nothing here reads a request,
 writes a file or reaches the network, so every page can be rendered in a test
@@ -8,13 +8,14 @@ A page function computes what its template shows and nothing else. The
 template lays it out and decides nothing a function here could pass, and
 :meth:`Page.html` puts it into the frame every page shares.
 
-The reading order is the order of the navigation, and the three are named
+The reading order is the order of the navigation, and the four are named
 here as the routes name them, not as the screen labels them: **overview**
-(`Übersicht`) answers what this installation is and which files it uses,
-**credentials** (`Zugangsdaten`) is where the key and the settings are
-entered, and **permissions** (`Rechte`) is the point of the whole thing —
+(`Übersicht`) answers where this installation stands and which files it
+uses, **credentials** (`Zugangsdaten`) is where the key is entered and
+tested, **permissions** (`Rechte`) is the point of the whole thing —
 including the saved profiles and the policy file itself, which can be
-downloaded and read back from there.
+downloaded and read back from there - and **settings** (`Einstellungen`)
+holds every setting that is no secret.
 """
 
 from __future__ import annotations
@@ -542,6 +543,9 @@ def permissions(
         for domain, names in grouped_tools().items()
     ]
     saved = inst.profiles.all()
+    # The tally as the page opens, so it is right before the script runs,
+    # and without it.
+    spend = sum(costs.get(name, 0) for name, on in state.items() if on and name in meta)
     return Page(
         "pages/permissions.html",
         "Rechte",
@@ -555,6 +559,9 @@ def permissions(
             "policy_exists": not fresh,
             "groups": groups,
             "total": len(meta),
+            "on": sum(1 for name, on in state.items() if on and name in meta),
+            "cost": spend,
+            "tokens": estimate_tokens(spend),
             "per_token": CHARS_PER_TOKEN,
             "profiles": [
                 {
@@ -573,6 +580,8 @@ def permissions(
                 for kind, (text, title) in PERMANENCE_LABELS.items()
             },
         },
+        "Welche Tools der Assistent sieht und aufrufen darf. Nur sie, und nur "
+        "das, was die Datei nennt.",
     )
 
 

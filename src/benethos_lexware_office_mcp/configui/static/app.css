@@ -327,14 +327,9 @@ form.stack { display: flex; flex-direction: column; gap: var(--gap); }
 .tool + .tool { border-top: 1px solid var(--border); }
 .tool .cost { margin-left: auto; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
-.bar {
-  position: sticky; bottom: 0; z-index: 10;
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap);
-  padding: 12px var(--pad);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
+/* The counter beside the save button in the top bar. */
+.tally { display: flex; flex-direction: column; align-items: flex-end; font-size: 14px; }
+.tally .hint { font-size: 12px; }
 
 /* --- narrow windows -------------------------------------------------------- */
 

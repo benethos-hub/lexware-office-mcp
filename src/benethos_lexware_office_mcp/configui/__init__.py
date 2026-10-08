@@ -1,4 +1,4 @@
-"""The local configuration interface: three pages in a browser.
+"""The local configuration interface: four pages in a browser.
 
 Started with ``benethos-lexware-office-mcp setup`` and stopped with Ctrl+C. It
 edits the same three files the server reads — the ``.env``, ``tools.json`` and
@@ -20,7 +20,7 @@ The modules, in the order they depend on each other:
 - ``state`` — which files apply and where each value came from
 - ``probe`` — the one API call this interface makes, on request
 - ``transfer`` — a policy file written out, and read back in
-- ``pages`` — the three screens, each a template and its context
+- ``pages`` — the four screens, each a template and its context
 - ``actions`` — what each form does, as plain functions without HTTP
 - ``app`` — the HTTP server, the routing, and the two CSRF guards
 """

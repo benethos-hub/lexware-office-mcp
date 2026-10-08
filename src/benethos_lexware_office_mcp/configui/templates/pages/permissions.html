@@ -1,23 +1,65 @@
 {% extends "base.html" %}
 {% import "components/ui.html" as ui with context %}
+{% block actions %}
+<span class="tally"><strong><span id="count">{{ on }}</span> von {{ total }}</strong> aktiv
+  <span class="hint"><span id="cost">{{ cost | de }}</span> Zeichen Kontext,
+  rund <span id="tokens">{{ tokens | de }}</span> Token je Anfrage</span></span>
+<button class="primary" type="submit" form="permform" name="action" value="save">Rechte speichern</button>
+{% endblock %}
 {% block content %}
 {% if fresh %}
 {% call ui.notice("warn") %}Es gibt noch keine Rechtedatei, <strong>aktiv ist
 also nichts</strong>.{% if suggested %} Vorgeschlagen und angehakt sind die
 lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endcall %}
 {% endif %}
-<p>Nur aktivierte Tools sieht der Assistent überhaupt, und nur sie kann er
-   aufrufen. Ein Tool, das die Datei nicht nennt, ist aus. Änderungen wirken
-   sofort, der Client muss die Liste allerdings neu abfragen — Claude Desktop
-   dafür über das Taskleistensymbol beenden und neu starten.</p>
-<p class="hint">Geschrieben wird nach <code>{{ policy_path }}</code>.</p>
 
-<form method="post" action="/permissions" id="permform" data-per-token="{{ per_token }}">{{ ui.csrf_field() }}
+<form method="post" action="/permissions" id="permform" class="stack" data-per-token="{{ per_token }}">{{ ui.csrf_field() }}
+<div class="toolbar">
+  <span class="hint">Auswahl:</span>
+  <button type="button" data-act="all-on">alles an</button>
+  <button type="button" data-act="all-off">alles aus</button>
+  <button type="button" data-act="all-read">nur lesend</button>
+  <button type="button" data-act="all-reversible">schreibend ohne löschen</button>
+</div>
+
+{% for group in groups %}
+{% include "partials/tool_group.html" %}
+{% endfor %}
+
+<p class="hint">Ein Tool, das die Datei nicht nennt, ist aus. Änderungen wirken
+   sofort, der Client muss die Liste allerdings neu abfragen — Claude Desktop
+   dafür über das Taskleistensymbol beenden und neu starten. Geschrieben wird
+   nach <code>{{ policy_path }}</code>.</p>
+
+{% call ui.fold("Was die Marken bedeuten") %}
+  <p class="hint">
+    {{ ui.tag("lesend", "accent") }} fragt nur ab.
+    {{ ui.tag("schreibend · create", "warn") }} legt an oder ändert.
+    {{ ui.tag("schreibend · delete", "err") }} entfernt einen Datensatz —
+    das kann genau ein Tool, <code>delete_article</code>, und ein Artikel
+    lässt sich danach neu anlegen.
+  </p>
+  <p class="hint">
+    {{ ui.tag(permanence.app.text, "", permanence.app.title) }} die API nimmt
+    das nicht zurück, Lexware Office selbst löscht es ohne Weiteres. Betrifft
+    nur Kontakte.
+  </p>
+  <p class="hint">
+    {{ ui.tag(permanence.books.text, "", permanence.books.title) }} geht in die
+    Buchhaltung. <strong>Beim Anlegen ist nichts festgeschrieben</strong> — ein
+    Beleg bleibt änderbar, ein Verkaufsbeleg entsteht als Entwurf, solange die
+    Anfrage nicht <code>finalize</code> setzt. Gelöscht wird in der Web-App,
+    solange nichts ihn bindet: nicht festgeschrieben, keine Zahlung zugeordnet,
+    keine Folgedokumente, nicht exportiert. Erst ab dem Festschreiben bleibt er
+    stehen, § 146 AO, und korrigiert wird mit einer Storno-Buchung.
+  </p>
+{% endcall %}
+
 {% call ui.fold("Profile", profiles_meta, open=open_profiles) %}
   <p class="hint">Ein Profil ist eine benannte Auswahl, keine zweite
      Rechtedatei. Laden füllt nur die Haken — geschrieben wird erst mit
-     „Rechte speichern". Ein vorhandenes Profil wird oben überschrieben,
-     nicht durch einen zweiten Eintrag mit demselben Namen.</p>
+     „Rechte speichern". Ein vorhandenes Profil wird überschrieben, nicht durch
+     einen zweiten Eintrag mit demselben Namen.</p>
   <div class="toolbar">
   {% if profiles %}
     <div class="field grow">
@@ -32,7 +74,7 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
     <button type="submit" name="action" value="profile-overwrite" data-confirm="Das ausgewählte Profil mit der aktuellen Auswahl überschreiben?">Mit aktueller Auswahl überschreiben</button>
     <button class="danger" type="submit" name="action" value="profile-delete" data-confirm="Das ausgewählte Profil löschen? Die Rechtedatei bleibt, wie sie ist.">Löschen</button>
   {% else %}
-    <p class="hint grow">Noch keine Profile gespeichert. Die Auswahl unten
+    <p class="hint grow">Noch keine Profile gespeichert. Die Auswahl oben
        benennen und sichern, dann steht sie hier zur Auswahl.</p>
   {% endif %}
   </div>
@@ -60,45 +102,5 @@ lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endc
      bleiben aus — wie <code>--tools sync</code> auf der Kommandozeile.
      Geschrieben wird erst mit „Rechte speichern".</span></p>
 {% endcall %}
-
-{% call ui.card("Was die Marken bedeuten") %}
-  <p class="hint">
-    {{ ui.tag("lesend", "accent") }} fragt nur ab.
-    {{ ui.tag("schreibend · create", "warn") }} legt an oder ändert.
-    {{ ui.tag("schreibend · delete", "err") }} entfernt einen Datensatz —
-    das kann genau ein Tool, <code>delete_article</code>, und ein Artikel
-    lässt sich danach neu anlegen.
-  </p>
-  <p class="hint">
-    {{ ui.tag(permanence.app.text, "", permanence.app.title) }} die API nimmt
-    das nicht zurück, Lexware Office selbst löscht es ohne Weiteres. Betrifft
-    nur Kontakte.
-  </p>
-  <p class="hint">
-    {{ ui.tag(permanence.books.text, "", permanence.books.title) }} geht in die
-    Buchhaltung. <strong>Beim Anlegen ist nichts festgeschrieben</strong> — ein
-    Beleg bleibt änderbar, ein Verkaufsbeleg entsteht als Entwurf, solange die
-    Anfrage nicht <code>finalize</code> setzt. Gelöscht wird in der Web-App,
-    solange nichts ihn bindet: nicht festgeschrieben, keine Zahlung zugeordnet,
-    keine Folgedokumente, nicht exportiert. Erst ab dem Festschreiben bleibt er
-    stehen, § 146 AO, und korrigiert wird mit einer Storno-Buchung.
-  </p>
-{% endcall %}
-
-<div class="toolbar">
-  <button type="button" data-act="all-on">alles an</button>
-  <button type="button" data-act="all-off">alles aus</button>
-  <button type="button" data-act="all-read">nur lesend</button>
-  <button type="button" data-act="all-reversible">schreibend ohne löschen</button>
-</div>
-{% for group in groups %}
-{% include "partials/tool_group.html" %}
-{% endfor %}
-<div class="bar">
-  <button class="primary" type="submit" name="action" value="save">Rechte speichern</button>
-  <span><strong><span id="count">–</span> von {{ total }}</strong> aktiv</span>
-  <span class="hint"><span id="cost">–</span> Zeichen Kontext,
-    rund <span id="tokens">–</span> Token je Anfrage</span>
-</div>
 </form>
 {% endblock %}

@@ -1,4 +1,4 @@
-"""The local web server that puts the three pages in a browser.
+"""The local web server that puts the four pages in a browser.
 
 **Never part of the MCP server.** That one speaks JSON-RPC over stdio and must
 keep stdout to itself. This is a separate command, started by a person, that
@@ -140,7 +140,7 @@ class ConfigServer(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    """Three pages, a handful of actions, and two guards in front of each."""
+    """Four pages, a handful of actions, and two guards in front of each."""
 
     server_version = f"lexware-office-mcp-config/{__version__}"
 

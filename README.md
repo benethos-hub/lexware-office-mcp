@@ -376,7 +376,7 @@ whatever you save. The token of the HTTP transport is folded underneath,
 open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
-as buttons. On a fresh installation with no policy file yet, the reading tools
+as buttons and the save button at the top right beside the count. On a fresh installation with no policy file yet, the reading tools
 come pre-ticked as a starting point — a proposal in a form, not a permission:
 there is still no file and therefore still no tool until you press save, and
 the page says so. Each row carries what that tool costs the assistant in

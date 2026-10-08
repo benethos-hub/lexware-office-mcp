@@ -1105,7 +1105,7 @@ the table says how far it is.
 |---|---|---|
 | 1 | This section, and the layout in the working guidelines | built 2026-10-08 |
 | 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | built 2026-10-08 |
-| 3 | The four pages below, one pull request each, with Post/Redirect/Get and a question before every destructive action | planned |
+| 3 | The four pages below, a commit each, with Post/Redirect/Get and a question before every destructive action | built 2026-10-08 |
 | 4 | The start code | planned |
 
 **The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
@@ -1158,9 +1158,12 @@ for, and its primary action at the top right.
 | Permissions (`Rechte`) | The counter and *Rechte speichern* at the top right, the presets as a bar, then one card per domain with its group switches and the tool rows with mark and cost. The legend, the profiles and import and export folded underneath, deleting a profile with a question before it. |
 | Settings (`Einstellungen`) | The eleven settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows the default, empty means the default, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
 
-Until step 3 the three pages of August stand: the overview with the settings
-table, the files and the client entry, the credentials page with the key,
-the token and the settings, and the permissions page with everything on it.
+The settings page reads a value in effect and a default the same way, so
+the placeholder of an empty field is what empty means rather than what
+applies right now, and the log level is a choice of the levels the server
+knows rather than free text. On the overview an untested connection is not
+red: only a button ever tests it, so it is no fault, and the next step is
+the first row that is.
 
 **Forms.** Every form that goes through answers with a redirect and one
 message, shown once at the top of the next page. The message is held in the
@@ -2690,10 +2693,12 @@ Built, tested offline and exercised against a live test account:
   `notifications/tools/list_changed` sent when the set of enabled tools
   differs, which Claude Desktop acts on without a restart — measured
   2026-08-22, see section 9.2
-- **a configuration interface in the browser**, `setup`, three pages: which
-  files are in effect and where every value came from, the API key checked
-  before it is written, and one checkbox per tool with what it costs the
-  model in context, permission profiles and the policy file as a download.
+- **a configuration interface in the browser**, `setup`, four pages: where
+  the installation stands and which files are in effect, the API key checked
+  before it is written, one checkbox per tool with what it costs the model
+  in context, permission profiles and the policy file as a download, and
+  every setting with where its value came from. Reworked 2026-10-08 with
+  templates, a content security policy and Post/Redirect/Get.
   Never part of the server process, loopback only, see section 7.1
 - **a container image and two Compose folders**, two stages, non-root, 168 MB.
   The server on a loopback-published port and the configuration interface

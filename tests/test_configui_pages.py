@@ -594,17 +594,36 @@ def test_a_loaded_profile_overrides_the_file_without_writing(
     assert 'value="get_profile" id="get_profile">' in body
 
 
-def test_both_side_blocks_start_folded(inst: Installation) -> None:
-    """The tool list is the point of the page. These two are not."""
+def test_the_side_blocks_start_folded_under_the_tools(inst: Installation) -> None:
+    """The tool list is the point of the page. The legend, the profiles and
+    the file are not, so they come after it, folded."""
     ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
     inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
 
     body = text(pages.permissions(inst))
 
-    assert body.count("<details") == 2
+    assert body.count("<details") == 3
     assert " open>" not in body
-    assert "<h2>Profile</h2>" in body
-    assert "Rechtedatei: Import und Export" in body
+    last_tool = body.rindex('name="tool"')
+    for title in (
+        "Was die Marken bedeuten",
+        "Profile",
+        "Rechtedatei: Import und Export",
+    ):
+        assert body.index(f"<h2>{title}</h2>") > last_tool, title
+
+
+def test_the_counter_and_the_save_are_at_the_top_right(inst: Installation) -> None:
+    """Counted on the server as well, so it is right before any script runs."""
+    ToolPolicy(inst.settings.policy_file()).save(
+        {"get_profile": True, "search_vouchers": True}
+    )
+
+    top = _top_right(text(pages.permissions(inst)))
+
+    assert '<span id="count">2</span> von 25' in top
+    assert 'form="permform" name="action" value="save"' in top
+    assert re.search(r'<span id="cost">[\d.]+</span>', top)
 
 
 def test_a_block_unfolds_when_its_own_action_answered(inst: Installation) -> None:

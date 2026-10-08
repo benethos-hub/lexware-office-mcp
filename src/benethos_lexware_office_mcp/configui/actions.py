@@ -271,7 +271,7 @@ def _load_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     unknown = profile.unknown(known)
     text = (
         f"Profil {profile.name} geladen, {len(profile.tools)} Tools. "
-        "Noch nichts geschrieben — dafür unten auf „Rechte speichern“."
+        "Noch nichts geschrieben — dafür oben rechts auf „Rechte speichern“."
     )
     if newer:
         text += (
@@ -405,7 +405,7 @@ def _import_policy(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     on = sum(flags.values())
     text_out = (
         f"Rechtedatei eingelesen, {on} von {len(known)} Tools angehakt. "
-        "Geschrieben ist noch nichts — dafür unten auf „Rechte speichern“."
+        "Geschrieben ist noch nichts — dafür oben rechts auf „Rechte speichern“."
     )
     if newer:
         text_out += (
