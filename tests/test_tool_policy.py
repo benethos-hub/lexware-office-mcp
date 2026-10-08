@@ -54,6 +54,20 @@ async def test_a_tool_the_file_does_not_mention_is_off(tmp_path: Path) -> None:
     assert names == {"get_contact"}
 
 
+async def test_a_byte_order_mark_does_not_switch_everything_off(
+    tmp_path: Path,
+) -> None:
+    """A Windows editor saving the file puts one in front. Read as plain
+    UTF-8, the file was broken JSON and no tool was on."""
+    policy = tmp_path / "tools.json"
+    policy.write_bytes(b'\xef\xbb\xbf{"get_contact": true}\n')
+    settings = Settings(api_key=API_KEY, tool_policy_path=policy)
+
+    names = {t.name for t in await build_server(settings).list_tools()}
+
+    assert names == {"get_contact"}
+
+
 async def test_a_disabled_tool_is_not_listed(tmp_path: Path) -> None:
     policy = write(
         tmp_path / "tools.json", {"download_file": False, "download_document": True}

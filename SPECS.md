@@ -1010,7 +1010,10 @@ encoding, Windows-1252 from an older editor for instance, is refused with a
 line on stderr, and on the page of the configuration interface, which
 cannot write it either. Decoding it with replacement characters instead
 would turn a `ü` in a directory into a path that does not exist, and an
-update would write the replacement back over the original bytes.
+update would write the replacement back over the original bytes. The
+policy file and its profiles are read with a byte order mark allowed as
+well, since 2026-10-08: read as plain UTF-8, a `tools.json` saved by a
+Windows editor was broken JSON, and every tool was off.
 
 No secret is ever read from a versioned file. `config/.env` is gitignored and
 The settings sample, which is committed and ships inside the package, holds

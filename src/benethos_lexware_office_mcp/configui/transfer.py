@@ -49,7 +49,9 @@ def parse(text: str) -> dict[str, bool]:
     whatever ``bool()`` would have made of them.
     """
     try:
-        data = json.loads(text)
+        # A file saved by a Windows editor starts with a byte order mark,
+        # which the form hands over as a character of its own.
+        data = json.loads(text.removeprefix("\ufeff"))
     # RecursionError: the decoder recurses per level, and a form field of a
     # megabyte holds far more nested brackets than the stack does.
     except (ValueError, RecursionError):

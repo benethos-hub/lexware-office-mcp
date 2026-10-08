@@ -203,7 +203,10 @@ class ToolPolicy:
             return {}
         assert self._path is not None
         try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
+            # utf-8-sig, as for the .env: a Windows editor puts a byte order
+            # mark in front, and read as plain UTF-8 the file was no JSON -
+            # every tool off, and the profiles gone with it.
+            data = json.loads(self._path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError, RecursionError) as exc:
             # The file is edited by hand and by other programs, so a broken one
             # must not stop the server. It must not grant anything either: an

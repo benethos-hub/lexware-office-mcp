@@ -27,6 +27,10 @@ def test_the_download_is_the_file_itself(tmp_path) -> None:
     assert transfer.dumps(policy.as_map()) == policy.path.read_text(encoding="utf-8")
 
 
+def test_an_imported_file_may_start_with_a_byte_order_mark() -> None:
+    assert transfer.parse('﻿{"get_profile": true}') == {"get_profile": True}
+
+
 def test_flags_that_are_off_are_written_too() -> None:
     """A file listing only what is on would read as a file listing nothing."""
     text = transfer.dumps(FLAGS)

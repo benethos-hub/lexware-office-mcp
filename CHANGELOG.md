@@ -40,6 +40,11 @@ housekeeping are out of scope here — design decisions live in
   A base URL that cannot even be parsed, such as `https://[::1` or one
   with a port that is no number, and a directory starting with `~` in a
   process without a home directory.
+- **A `tools.json` saved with a byte order mark is read.** Windows editors
+  put one in front, and the policy file then read as broken JSON: every
+  tool off, and the saved profiles gone from `setup`. The `.env` was read
+  that way already. Importing such a file on the permissions page works
+  too.
 
 ### Changed
 

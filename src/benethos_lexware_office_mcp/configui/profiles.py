@@ -172,7 +172,8 @@ class ProfileStore:
 
     def _document(self) -> dict[str, Any]:
         try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
+            # utf-8-sig for the byte order mark a Windows editor writes.
+            data = json.loads(self._path.read_text(encoding="utf-8-sig"))
         except FileNotFoundError:
             return {}
         except (OSError, ValueError, RecursionError) as exc:
