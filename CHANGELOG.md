@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The documentation and `containers/production/` name the image
+  `ghcr.io/benethos-hub/benethos-lexware-office-mcp`**, which 0.4.2
+  introduced. It is the image `ghcr.io/benethos-hub/lexware-office-mcp`
+  carries as well, until 0.5.0. Downloading the production folder again
+  moves an installation over, and its volumes stay.
+
 ## [0.4.2] - 2026-10-08
 
 The container files move into `containers/`, where the production folder

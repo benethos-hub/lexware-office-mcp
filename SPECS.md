@@ -60,6 +60,8 @@ exception.
 | MCP server `name` | `benethos-lexware-office-mcp` |
 | MCP server `title` | `Unofficial Lexware Office MCP Server` |
 | GitHub repo | `benethos-hub/lexware-office-mcp` (plain, for discoverability) |
+| Container image | `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, since 0.4.2 |
+| Publishing environment | `pypi-benethos-lexware-office-mcp` |
 | Env var prefix | `LXO_MCP_` |
 | README H1 | `# Unofficial Lexware Office MCP Server` |
 
@@ -2663,9 +2665,9 @@ order:
    pushes under both names, the package's first, so a pull of `:0.4` or
    `:latest` under the old one keeps getting releases. The old name gets
    the 0.4 patch releases and stops with 0.5.0, which the changelog
-   announces. The documentation and the
-   Compose files move to the new name once a release has created the
-   package, since until then nothing can be pulled under it.
+   announces. The documentation and the Compose files moved to the new
+   name once 0.4.2 had created the package, since until then nothing
+   could be pulled under it.
 6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after
    a review, reversing the major tags of 2026-08-23:
    `actions/checkout@3d3c42e… # v7.0.1`. A tag is a pointer its publisher
