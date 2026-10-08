@@ -610,7 +610,8 @@ def permissions(
     saved = inst.profiles.all()
     # The tally as the page opens, so it is right before the script runs,
     # and without it.
-    spend = sum(costs.get(name, 0) for name, on in state.items() if on and name in meta)
+    on = [name for name, flag in state.items() if flag and name in meta]
+    spend = sum(costs.get(name, 0) for name in on)
     return Page(
         "pages/permissions.html",
         "Rechte",
@@ -621,10 +622,9 @@ def permissions(
             "fresh": fresh,
             "suggested": fresh and flags is None,
             "policy_path": str(inst.policy_path),
-            "policy_exists": not fresh,
             "groups": groups,
             "total": len(meta),
-            "on": sum(1 for name, on in state.items() if on and name in meta),
+            "on": len(on),
             "cost": spend,
             "tokens": estimate_tokens(spend),
             "per_token": CHARS_PER_TOKEN,
