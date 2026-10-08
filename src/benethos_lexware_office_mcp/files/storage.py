@@ -12,6 +12,7 @@ read under the one rule that bounds it, ``LXO_MCP_UPLOAD_DIR``.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -20,7 +21,7 @@ from urllib.parse import unquote
 import httpx
 
 from .. import logbook
-from ..errors import ConfigError, ValidationError
+from ..errors import ConfigError, LocalFileError, ValidationError
 from ..settings import Settings
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "content_type_for",
     "directory_for",
     "newest",
+    "on_disk",
     "read_upload",
     "resolve",
     "save",
@@ -54,6 +56,20 @@ _DEVICES = frozenset(
     | {f"COM{n}" for n in range(10)}
     | {f"LPT{n}" for n in range(10)}
 )
+
+
+@contextlib.contextmanager
+def on_disk(action: str) -> Iterator[None]:
+    """Turn a failure of this machine's filesystem into an answer.
+
+    A full disk, a directory somebody else owns, a file locked by another
+    program: none of them is the caller's mistake, and none of them should
+    reach the model as a bare "Error executing tool".
+    """
+    try:
+        yield
+    except OSError as exc:
+        raise LocalFileError(action, exc) from None
 
 
 def directory_for(settings: Settings) -> Path:
@@ -328,6 +344,12 @@ MAX_UPLOAD = 5 * 1024 * 1024
 
 
 def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
+    """Read a local file for upload, the file system's refusals turned into answers."""
+    with on_disk("read the file to upload"):
+        return _read_upload(raw_path, allowed)
+
+
+def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
     """Read a local file for upload, refusing what the API would refuse.
 
     ``allowed`` is ``LXO_MCP_UPLOAD_DIR``. The path comes from the model, so

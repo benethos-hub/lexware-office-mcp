@@ -9,19 +9,15 @@ wants, and as a **resource link**, which is what everyone else needs. See
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import inspect
-from collections.abc import Iterator
-from pathlib import Path
 from typing import Annotated, Any
 
-import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult
 from pydantic import Field
 
 from ..api.client import ClientProvider
-from ..errors import LocalFileError, NotFoundError, ValidationError
+from ..errors import ValidationError
 from ..files import delivery, resources, storage
 from ..policy import classify
 from ..records import formatting
@@ -31,11 +27,6 @@ from ._base import DocumentIdField, DocumentTypeField, UploadPath, register_tool
 
 __all__ = ["register"]
 
-
-# Base64 costs roughly 1.37 times the file size in the answer, so this is a
-# ceiling on damage rather than a working size. It is the same 5 MiB the API
-# accepts for an upload, so there is one number to remember.
-MAX_INLINE = 5 * 1024 * 1024
 
 MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
 
@@ -114,7 +105,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         rather than stored.
         """
         response = await provider.get().file(file_id, MIME[file_format])
-        return await _deliver(
+        return await delivery.deliver(
             response,
             settings,
             fallback=f"{file_id}.{file_format}",
@@ -139,7 +130,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         response = await provider.get().document_file(
             RESOURCES[document_type], document_id, MIME[file_format]
         )
-        return await _deliver(
+        return await delivery.deliver(
             response,
             settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
@@ -185,7 +176,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         # Reading and rendering run in a worker thread. Rendering a long PDF
         # takes seconds of CPU, and on the event loop every other call this
         # server is answering would wait for it.
-        return await asyncio.to_thread(_load_inline, uri, settings, pages)
+        return await asyncio.to_thread(delivery.load_inline, uri, settings, pages)
 
     # The page default is configurable, so both the schema and the description
     # have to state the value this process actually uses rather than a number
@@ -225,7 +216,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         it in, and its `finalize` books it.
         """
         content, name, content_type = await asyncio.to_thread(
-            _read_upload, path, settings.upload_path
+            storage.read_upload, path, settings.upload_path
         )
         return formatting.compact_object(
             await provider.get().upload_file(content, name, content_type)
@@ -259,7 +250,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         id, which `download_file` reads back.
         """
         content, name, content_type = await asyncio.to_thread(
-            _read_upload, path, settings.upload_path
+            storage.read_upload, path, settings.upload_path
         )
         return formatting.compact_object(
             await provider.get().attach_file(voucher_id, content, name, content_type)
@@ -270,75 +261,3 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
     register_tool(server, read_download)
     register_tool(server, upload_file)
     register_tool(server, attach_file_to_voucher)
-
-
-def _load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult:
-    """Find a download, read it and build the answer. Blocking, run in a thread."""
-    with _on_disk("read the download"):
-        found = storage.resolve(
-            uri[len(resources.SCHEME) :], storage.directory_for(settings)
-        )
-        if found is None:
-            raise NotFoundError(
-                "download", uri, hint=resources.gone(settings.downloads_kept())
-            )
-        payload = found.read_bytes()
-    mime = storage.content_type_for(found)
-    if len(payload) > MAX_INLINE:
-        raise ValidationError(
-            f"{uri} is {len(payload) / 1024 / 1024:.1f} MiB, too much to "
-            "put in an answer. It is on disk already, so use the path the "
-            "download reported."
-        )
-    return delivery.inline(uri, payload, mime, max_pages)
-
-
-async def _deliver(
-    response: httpx.Response,
-    settings: Settings,
-    *,
-    fallback: str,
-) -> CallToolResult:
-    """Save a download and hand it to the client both ways."""
-    name = storage.suggested_name(response, fallback)
-    with _on_disk("save the download"):
-        written = await asyncio.to_thread(_save, response.content, name, settings)
-        mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
-        link = resources.link(written, mime)
-    return delivery.saved(written, link, len(response.content))
-
-
-def _save(content: bytes, name: str, settings: Settings) -> Path:
-    """Write a download to disk, then keep the directory at its bound.
-
-    Blocking, run in a thread. The file just written is the newest, so the
-    clean-up that follows never takes it.
-    """
-    written = storage.save(content, name, storage.directory_for(settings))
-    storage.prune_for(settings)
-    return written
-
-
-@contextlib.contextmanager
-def _on_disk(action: str) -> Iterator[None]:
-    """Turn a failure of this machine's filesystem into an answer.
-
-    A full disk, a directory somebody else owns, a file locked by another
-    program: none of them is the caller's mistake, and none of them should
-    reach the model as a bare "Error executing tool".
-    """
-    try:
-        yield
-    except OSError as exc:
-        raise LocalFileError(action, exc) from None
-
-
-def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
-    """Read a local file for upload, refusing what the API would refuse.
-
-    ``allowed`` is ``LXO_MCP_UPLOAD_DIR``. The path comes from the model, so
-    where one is set, the file has to resolve inside it - links followed
-    first, so one placed in the directory cannot point out of it.
-    """
-    with _on_disk("read the file to upload"):
-        return storage.read_upload(raw_path, allowed)
