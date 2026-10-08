@@ -480,21 +480,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._session = self._session_token()
 
-        routes: dict[str, actions.Action | None] = {
+        routes: dict[str, Callable[[Form], None]] = {
             # Answered here rather than by an action: the first decides the
             # sign-in, the second ends the process the actions run in.
-            "/code": None,
-            "/shutdown": None,
-            "/check": actions.check,
-            "/credentials": actions.save_key,
-            "/bearer": actions.save_bearer,
-            "/settings": actions.save_settings,
-            "/permissions": actions.permissions,
+            "/code": lambda form: self._sign_in(field(form, "code"), then="/"),
+            "/shutdown": lambda form: self._stop(),
+            "/check": self._acting(actions.check),
+            "/credentials": self._acting(actions.save_key),
+            "/bearer": self._acting(actions.save_bearer),
+            "/settings": self._acting(actions.save_settings),
+            "/permissions": self._acting(actions.permissions),
         }
-        if path not in routes:
+        answer = routes.get(path)
+        if answer is None:
             self._not_found()
             return
-        action = routes[path]
         if not self._origin_ok():
             logbook.configui.request_refused("origin")
             self._deny(
@@ -510,26 +510,30 @@ class Handler(BaseHTTPRequestHandler):
                 "Seite neu laden und noch einmal absenden."
             )
             return
-        if path == "/code":
-            self._sign_in(field(form, "code"), then="/")
-            return
-        if not self.config_server.signed_in(self._session):
-            logbook.configui.request_refused("code")
-            self._page(403, pages.code())
-            return
-        if self.config_server.stopped_from_page:
-            # Ending: nothing more is written, "Beenden" included again.
-            self._page(503, pages.stopped())
-            return
-        if action is None:
-            self._stop()
-            return
-        try:
-            with self.config_server.acting:
-                reply = action(self.installation, form)
-            self._reply(reply)
-        except ConfigError as exc:
-            self._unreadable(exc)
+        # The one form a session may send before it has given the code.
+        if path != "/code":
+            if not self.config_server.signed_in(self._session):
+                logbook.configui.request_refused("code")
+                self._page(403, pages.code())
+                return
+            if self.config_server.stopped_from_page:
+                # Ending: nothing more is written, "Beenden" included again.
+                self._page(503, pages.stopped())
+                return
+        answer(form)
+
+    def _acting(self, action: actions.Action) -> Callable[[Form], None]:
+        """``action`` run on this installation, one at a time, and answered."""
+
+        def act(form: Form) -> None:
+            try:
+                with self.config_server.acting:
+                    reply = action(self.installation, form)
+                self._reply(reply)
+            except ConfigError as exc:
+                self._unreadable(exc)
+
+        return act
 
     def _stop(self) -> None:
         """End the process from the page, as Ctrl+C ends it from the terminal.
