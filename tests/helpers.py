@@ -13,7 +13,8 @@ sleep returns at once, and so does the client's.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -30,6 +31,7 @@ __all__ = [
     "OPEN_PROVIDERS",
     "PDF",
     "UPLOADED",
+    "write_policy",
     "downloaded",
     "make_pdf",
     "recorder",
@@ -113,6 +115,18 @@ def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientPr
     settings = Settings(api_key=API_KEY, **fields)
     provider = fast_provider(handler, settings=settings)
     return build_server(settings, provider), provider
+
+
+def write_policy(path: Path, flags: Mapping[str, bool]) -> Path:
+    """A policy file holding exactly ``flags``, as a person might write one.
+
+    Raw JSON rather than ``ToolPolicy.save``, which completes and normalizes
+    what it is given: a test about reading the file wants the file it names.
+    Every test has a file with every tool on already, from conftest.py, so
+    this is for a test that needs some other answer.
+    """
+    path.write_text(json.dumps(dict(flags)), encoding="utf-8")
+    return path
 
 
 class Scripted:

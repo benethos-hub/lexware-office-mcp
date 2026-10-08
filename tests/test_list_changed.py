@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +11,7 @@ from benethos_lexware_office_mcp import server as server_module
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
+from helpers import write_policy
 
 pytestmark = pytest.mark.anyio
 
@@ -50,10 +50,6 @@ def policy(tmp_path: Path) -> Path:
     path = tmp_path / "tools.json"
     ToolPolicy(path).save(preset("read-only"))
     return path
-
-
-def rewrite(path: Path, flags: dict[str, bool]) -> None:
-    path.write_text(json.dumps(flags), encoding="utf-8")
 
 
 async def settle(times: int = 8) -> None:
@@ -96,7 +92,7 @@ async def test_a_changed_list_is_announced(policy: Path) -> None:
     session = Session()
     await server._handle_list_tools(Ctx(session), None)
     try:
-        rewrite(policy, dict.fromkeys(known_tools(), True))
+        write_policy(policy, dict.fromkeys(known_tools(), True))
         await settle()
 
         assert session.told == 1
@@ -130,7 +126,7 @@ async def test_every_session_is_told(policy: Path) -> None:
     await server._handle_list_tools(Ctx(first), None)
     await server._handle_list_tools(Ctx(second), None)
     try:
-        rewrite(policy, dict.fromkeys(known_tools(), True))
+        write_policy(policy, dict.fromkeys(known_tools(), True))
         await settle()
 
         assert (first.told, second.told) == (1, 1)
@@ -144,7 +140,7 @@ async def test_a_session_that_is_gone_is_dropped(policy: Path) -> None:
     await server._handle_list_tools(Ctx(dead), None)
     await server._handle_list_tools(Ctx(alive), None)
     try:
-        rewrite(policy, dict.fromkeys(known_tools(), True))
+        write_policy(policy, dict.fromkeys(known_tools(), True))
         await settle()
 
         assert dead not in server._sessions
@@ -198,7 +194,7 @@ async def test_enforcement_never_waits_for_the_notification(policy: Path) -> Non
     session = Session()
     await server._handle_list_tools(Ctx(session), None)
     try:
-        rewrite(policy, {"get_profile": True})
+        write_policy(policy, {"get_profile": True})
 
         names = {tool.name for tool in await server.list_tools()}
 

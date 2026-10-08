@@ -13,13 +13,11 @@ Fragment links are fine. PyPI rewrites them to ``#user-content-<anchor>``.
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 
@@ -97,16 +95,15 @@ def _documented_tools(markdown: str) -> set[str]:
     return set(re.findall(r"^\| `([a-z_]+)`", markdown[start:end], re.M))
 
 
-def test_the_readme_lists_exactly_the_tools_that_exist(tmp_path: Path) -> None:
+def test_the_readme_lists_exactly_the_tools_that_exist() -> None:
     """Adding a tool and forgetting its row is the realistic mistake.
 
     The tool works, every test passes, and the only symptom is that nobody
     reading the documentation knows it is there. The reverse sends a reader
     after something that was renamed or removed.
     """
-    policy = tmp_path / "tools.json"
-    policy.write_text(json.dumps(dict.fromkeys(known_tools(), True)), encoding="utf-8")
-    server = build_server(Settings(tool_policy_path=policy))
+    # conftest.py's policy file has every tool on.
+    server = build_server(Settings())
     registered = {tool.name for tool in asyncio.run(server.list_tools())}
     documented = _documented_tools(README.read_text(encoding="utf-8"))
 

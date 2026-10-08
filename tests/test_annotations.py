@@ -10,8 +10,6 @@ are two chances to be wrong.
 from __future__ import annotations
 
 import asyncio
-import json
-from pathlib import Path
 
 import pytest
 from mcp.types import Tool
@@ -23,11 +21,9 @@ from benethos_lexware_office_mcp.tools._base import _CLOSED_WORLD
 
 
 @pytest.fixture
-def listed(tmp_path: Path) -> dict[str, Tool]:
-    """Every tool there is, listed, with the policy file allowing all of them."""
-    target = tmp_path / "tools.json"
-    target.write_text(json.dumps(dict.fromkeys(known_tools(), True)), encoding="utf-8")
-    server = build_server(Settings(tool_policy_path=target))
+def listed() -> dict[str, Tool]:
+    """Every tool there is, listed: conftest.py's policy file allows them all."""
+    server = build_server(Settings())
 
     return {tool.name: tool for tool in asyncio.run(server.list_tools())}
 
