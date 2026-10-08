@@ -116,7 +116,11 @@ def transport_security(allowed_hosts: tuple[str, ...]) -> Any:
     """The DNS-rebinding policy: the loopback defaults plus what was named."""
     from mcp.server.transport_security import TransportSecuritySettings
 
-    origins = tuple(f"http://{host}" for host in allowed_hosts)
+    # Both schemes: a browser behind a proxy that ends TLS sends an https
+    # Origin for the same Host, and was refused with http alone.
+    origins = tuple(
+        f"{scheme}://{host}" for host in allowed_hosts for scheme in ("http", "https")
+    )
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=[*LOOPBACK_HOSTS, *allowed_hosts],

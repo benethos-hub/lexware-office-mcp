@@ -114,14 +114,31 @@ def test_the_working_directory_outranks_the_checkout(
 def test_a_real_environment_variable_outranks_the_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """What the stdio test relies on to keep a real key out of a subprocess."""
+    env = make_checkout(tmp_path, "LXO_MCP_PAGE_SIZE=11\n")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: env.parent)
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(C.os, "environ", {"LXO_MCP_PAGE_SIZE": "33"})
+
+    assert C._env_lookup(cwd=tmp_path)["LXO_MCP_PAGE_SIZE"] == "33"
+
+
+def test_an_empty_variable_cannot_hide_the_checkout_s_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty variable is not set, so it keeps nothing out.
+
+    The stdio test once relied on it to keep a real key out of a subprocess.
+    It names an empty file instead, which replaces the search.
+    """
     env = make_checkout(tmp_path, "LXO_MCP_API_KEY=would-be-the-real-key\n")
     monkeypatch.setattr(L, "_project_config_dir", lambda: env.parent)
     monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
     monkeypatch.setattr(C.os, "environ", {"LXO_MCP_API_KEY": ""})
 
-    assert C._env_lookup(cwd=tmp_path)["LXO_MCP_API_KEY"] == ""
-    assert C.load_settings(C._env_lookup(cwd=tmp_path)).api_key is None
+    assert C._env_lookup(cwd=tmp_path)["LXO_MCP_API_KEY"] == "would-be-the-real-key"
+    empty = tmp_path / "empty.env"
+    empty.write_text("", encoding="utf-8")
+    assert "LXO_MCP_API_KEY" not in C._env_lookup(cwd=tmp_path, env_file=empty)
 
 
 # -- one order, every configuration file ----------------------------------

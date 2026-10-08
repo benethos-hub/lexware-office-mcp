@@ -31,7 +31,7 @@ from .settings.locations import (
     resolve_config_file,
     settings_sample,
 )
-from .settings.parse import csv_tuple
+from .settings.parse import csv_tuple, user_path
 from .transport.http import bearer_ready, run_http
 from .transport.stdio import run_stdio
 from .transport.watch import Snapshot, snapshot
@@ -246,7 +246,7 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         metavar="LIST",
         help=(
             "comma-separated Host values to accept besides loopback, for a "
-            "container or a proxy, for example lexware-office-mcp:8770"
+            "container or a proxy, for example benethos-lexware-office-mcp:8770"
         ),
     )
     parser.add_argument(
@@ -343,7 +343,11 @@ def _named_env_file(argv: list[str] | None, *, must_exist: bool = True) -> Path 
     known, _ = pre.parse_known_args(argv)
     if not known.env_file:
         return None
-    named = Path(known.env_file).expanduser()
+    try:
+        named = _absolute(known.env_file, name="--env-file")
+    except ConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from None
     if not named.is_file() and must_exist:
         # Falling back to the search here would be the worst of both: the
         # server would start, read something else, and behave in a way the
@@ -351,6 +355,19 @@ def _named_env_file(argv: list[str] | None, *, must_exist: bool = True) -> Path 
         print(f"No .env file at {named}", file=sys.stderr)
         raise SystemExit(2)
     return named
+
+
+def _absolute(raw: str, *, name: str) -> Path:
+    """A file named on the command line, made absolute here and now.
+
+    Relative, it would be read against whatever directory is current when
+    it is used. The configuration interface compares it with the files the
+    search finds, which are absolute, and hands it on in the arguments for a
+    client - which starts the server from a working directory of its own.
+    """
+    path = user_path(raw, name=name)
+    assert path is not None, "only called with a value"
+    return path.absolute()
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -403,7 +420,7 @@ def _run(
     # Left unset it stays None, so the search decides - and no absolute path
     # from this machine has to appear in --help to explain that.
     if args.tools_file:
-        named = Path(args.tools_file).expanduser()
+        named = _absolute(args.tools_file, name="--tools-file")
         if named.exists() and not named.is_file():
             print(f"Not a file: {named}", file=sys.stderr)
             raise SystemExit(2)

@@ -154,6 +154,25 @@ def test_every_page_answers(browser: Browser, path: str) -> None:
     assert "<html" in body
 
 
+def test_an_env_file_in_another_encoding_is_said_on_the_page(
+    browser: Browser, installation: Installation
+) -> None:
+    """Every page reads the .env. A request thread ending in a traceback
+    left the browser with nothing, on the interface meant to repair it."""
+    token = browser.token()  # while a page still renders
+    original = "LXO_MCP_DOWNLOAD_DIR=C:/Jürgen\n".encode("cp1252")
+    installation.env_path.write_bytes(original)
+
+    status, body, _ = browser.get("/")
+    assert status == 500
+    assert "not UTF-8" in body
+    assert "not UTF-8" in browser.get("/credentials")[1]
+
+    status, body, _ = browser.post("/settings", {"LXO_MCP_PAGE_SIZE": "20"}, csrf=token)
+    assert "not UTF-8" in body
+    assert installation.env_path.read_bytes() == original
+
+
 def test_an_unknown_address_is_a_404(browser: Browser) -> None:
     assert browser.get("/nope")[0] == 404
     # Checked before the guards are, so no token is needed to be told this.

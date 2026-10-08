@@ -49,6 +49,24 @@ def test_setup_does_not_insist_the_env_file_already_exists(
     assert started[0]["env_path"] == absent
 
 
+def test_relative_files_are_made_absolute_at_start(
+    started: list[dict[str, Any]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page compares them with the absolute paths of the search, and
+    hands them to a client that starts in a directory of its own."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "rel.env").write_text("", encoding="utf-8")
+
+    cli.main(
+        ["setup", "--env-file", "rel.env", "--tools-file", "t.json", "--no-browser"]
+    )
+
+    assert started[0]["env_path"] == tmp_path / "rel.env"
+    assert started[0]["env_path"].is_absolute()
+    assert started[0]["settings"].policy_file() == tmp_path / "t.json"
+    assert started[0]["settings"].policy_file().is_absolute()
+
+
 def test_every_other_command_still_insists(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as exit_code:
         cli.main(["--tools", "show", "--env-file", str(tmp_path / "absent.env")])

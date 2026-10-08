@@ -36,6 +36,15 @@ def test_no_file_means_no_profiles(store: ProfileStore) -> None:
     assert store.get("egal") is None
 
 
+def test_a_byte_order_mark_does_not_lose_the_profiles(store: ProfileStore) -> None:
+    """A Windows editor saving the file puts one in front."""
+    store.save("Nur Lesen", ["get_profile"], KNOWN)
+    path = store._path
+    path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+
+    assert store.get("Nur Lesen") is not None
+
+
 def test_a_saved_profile_comes_back(store: ProfileStore) -> None:
     store.save("Nur Lesen", ["get_profile", "search_vouchers"], KNOWN)
 

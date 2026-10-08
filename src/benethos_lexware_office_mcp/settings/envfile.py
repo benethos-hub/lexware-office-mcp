@@ -19,6 +19,8 @@ import stat
 import tempfile
 from pathlib import Path
 
+from ..errors import ConfigError
+
 __all__ = ["read_env_file", "update_env_file", "write_atomically"]
 
 
@@ -32,13 +34,12 @@ def read_env_file(path: Path) -> dict[str, str]:
     Read as ``utf-8-sig``: Windows editors put a byte order mark in front of
     the first line, and read as plain UTF-8 it became part of the first key,
     so ``LXO_MCP_API_KEY`` on line one was simply not there.
+
+    A file in another encoding is refused with a :class:`ConfigError`, see
+    :func:`_read_text`.
     """
     values: dict[str, str] = {}
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except OSError:
-        return values
-    for raw in text.splitlines():
+    for raw in _read_text(path).splitlines():
         key, value = _split(raw)
         if key:
             values[key] = value
@@ -82,7 +83,10 @@ def update_env_file(path: Path, updates: dict[str, str]) -> None:
     for raw in _existing_lines(path):
         key, _ = _split(raw)
         if key and key in updates:
-            lines.append(f"{key}={updates[key]}")
+            # The reader takes `export KEY=`, so a file may be sourced by a
+            # shell as well. Dropping the word would quietly end that.
+            export = "export " if raw.strip().startswith("export ") else ""
+            lines.append(f"{export}{key}={updates[key]}")
             written.add(key)
         else:
             lines.append(raw)
@@ -135,10 +139,27 @@ def write_atomically(path: Path, content: bytes) -> None:
 
 
 def _existing_lines(path: Path) -> list[str]:
+    return _read_text(path).splitlines()
+
+
+def _read_text(path: Path) -> str:
+    """The file's text, or nothing when there is no file to read.
+
+    **A file that is not UTF-8 is refused, not guessed at.** One saved as
+    Windows-1252 by an editor ended the server, ``--version`` and ``setup``
+    alike in a traceback. Decoding it with replacement characters instead
+    would turn a ``ü`` in a directory into a path that does not exist, and
+    an update would write the replacement back over the original bytes.
+    """
     try:
-        return path.read_text(encoding="utf-8-sig").splitlines()
+        return path.read_text(encoding="utf-8-sig")
     except OSError:
-        return []
+        return ""
+    except UnicodeDecodeError as exc:
+        raise ConfigError(
+            f"{path} is not UTF-8 text (byte {exc.start}). Save it as UTF-8, "
+            "which every editor offers, and start again."
+        ) from None
 
 
 def _split(raw: str) -> tuple[str, str]:

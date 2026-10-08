@@ -92,11 +92,27 @@ def test_trailing_slash_is_stripped_from_urls() -> None:
         {"LXO_MCP_BASE_URL": "http://api.lexware.io"},
         {"LXO_MCP_BASE_URL": "api.lexware.io"},
         {"LXO_MCP_APP_BASE_URL": "http://app.lexware.de"},
+        # urlsplit raises on this rather than answering.
+        {"LXO_MCP_BASE_URL": "https://[::1"},
+        {"LXO_MCP_APP_BASE_URL": "https://[::1]:x"},
     ],
 )
 def test_invalid_values_are_rejected(env: dict[str, str]) -> None:
     with pytest.raises(ConfigError):
         load_settings(env)
+
+
+@pytest.mark.parametrize(
+    "key", ["LXO_MCP_DOWNLOAD_DIR", "LXO_MCP_UPLOAD_DIR", "LXO_MCP_TOOL_POLICY"]
+)
+def test_a_tilde_without_a_home_names_the_setting(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    """Path.expanduser raises RuntimeError when no home resolves."""
+    monkeypatch.setattr(C.os.path, "expanduser", lambda path: path)
+
+    with pytest.raises(ConfigError, match=key):
+        load_settings({key: "~/lexware"})
 
 
 def test_unknown_log_level_falls_back_rather_than_failing() -> None:
@@ -256,6 +272,26 @@ def test_a_real_environment_variable_still_wins(
     settings = C.load_settings(cwd=tmp_path, env_file=named)
 
     assert settings.page_size == 33
+
+
+@pytest.mark.parametrize("empty", ["", "  "])
+def test_an_empty_environment_variable_does_not_outrank_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, empty: str
+) -> None:
+    """Compose writes `${FOO}` as an empty string when FOO is undefined.
+
+    Counted as set, it replaced the file's value with the default, while the
+    configuration interface named the file as the source.
+    """
+    named = tmp_path / "named.env"
+    named.write_text("LXO_MCP_PAGE_SIZE=22\n", encoding="utf-8")
+    monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")
+    monkeypatch.setattr(L, "_project_config_dir", lambda: None)
+    monkeypatch.setattr(C.os, "environ", {"LXO_MCP_PAGE_SIZE": empty})
+
+    settings = C.load_settings(cwd=tmp_path, env_file=named)
+
+    assert settings.page_size == 22
 
 
 def test_a_named_env_file_replaces_the_search_rather_than_joining_it(

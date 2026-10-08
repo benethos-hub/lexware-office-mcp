@@ -289,6 +289,27 @@ def test_a_named_env_file_that_is_not_there_stops_the_server(
     assert "typo.env" in captured.err
 
 
+@pytest.mark.parametrize("argv", [[], ["--version"]], ids=["start", "version"])
+def test_an_env_file_in_another_encoding_is_one_line_not_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], argv: list[str]
+) -> None:
+    """Saved as Windows-1252 by an editor, it ended even `--version`."""
+    env_file = tmp_path / "cp1252.env"
+    env_file.write_bytes("LXO_MCP_DOWNLOAD_DIR=C:/Jürgen\n".encode("cp1252"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--env-file", str(env_file), *argv])
+
+    captured = capsys.readouterr()
+    if argv:
+        assert excinfo.value.code == 0, "--version needs no settings"
+        return
+    assert excinfo.value.code == 2
+    assert captured.out == "", "stdout carries the JSON-RPC stream"
+    assert "not UTF-8" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_a_named_env_file_configures_the_server(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

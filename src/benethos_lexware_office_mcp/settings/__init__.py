@@ -15,7 +15,15 @@ from pathlib import Path
 from ..errors import ConfigError, register_secret
 from . import locations
 from .envfile import read_env_file
-from .parse import as_float, as_int, credential, csv_tuple, flag, https_url
+from .parse import (
+    as_float,
+    as_int,
+    credential,
+    csv_tuple,
+    flag,
+    https_url,
+    user_path,
+)
 
 __all__ = [
     "DEFAULT_APP_BASE_URL",
@@ -106,12 +114,18 @@ def _env_lookup(
     The environment is a different layer and does merge over the top. A
     container passes its transport settings that way while the key lives in
     the mounted file, so the two have to be readable together.
+
+    **An empty variable is not set.** Compose writes ``${FOO}`` as an empty
+    string when ``FOO`` is undefined, and an empty value winning over the
+    file would put the default in place of what the file says, while the
+    configuration interface - which asks the same question - names the file
+    as the source.
     """
     merged: dict[str, str] = {}
     applies = locations.env_file_in_effect(cwd, env_file)
     if applies is not None:
         merged.update(read_env_file(applies))
-    merged.update(os.environ)
+    merged.update((key, value) for key, value in os.environ.items() if value.strip())
     return merged
 
 
@@ -209,8 +223,6 @@ def load_settings(
     if log_level not in LOG_LEVELS:
         log_level = DEFAULT_LOG_LEVEL
 
-    raw_download = get("DOWNLOAD_DIR")
-
     transport = (get("TRANSPORT") or DEFAULT_TRANSPORT).lower()
     if transport not in TRANSPORTS:
         transport = DEFAULT_TRANSPORT
@@ -232,10 +244,8 @@ def load_settings(
         app_base_url=https_url(
             get("APP_BASE_URL"), DEFAULT_APP_BASE_URL, name="LXO_MCP_APP_BASE_URL"
         ),
-        download_path=Path(raw_download).expanduser() if raw_download else None,
-        upload_path=(
-            Path(upload_raw).expanduser() if (upload_raw := get("UPLOAD_DIR")) else None
-        ),
+        download_path=user_path(get("DOWNLOAD_DIR"), name="LXO_MCP_DOWNLOAD_DIR"),
+        upload_path=user_path(get("UPLOAD_DIR"), name="LXO_MCP_UPLOAD_DIR"),
         timeout=as_float(get("TIMEOUT"), DEFAULT_TIMEOUT, name="LXO_MCP_TIMEOUT"),
         rate=as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),
         burst=as_int(get("BURST"), DEFAULT_BURST, name="LXO_MCP_BURST"),
@@ -256,11 +266,7 @@ def load_settings(
             if (kept_raw := get("KEPT_DOWNLOADS"))
             else None
         ),
-        tool_policy_path=(
-            Path(policy_raw).expanduser()
-            if (policy_raw := get("TOOL_POLICY"))
-            else None
-        ),
+        tool_policy_path=user_path(get("TOOL_POLICY"), name="LXO_MCP_TOOL_POLICY"),
         log_level=log_level,
         transport=transport,
         http_host=get("HTTP_HOST") or DEFAULT_HTTP_HOST,

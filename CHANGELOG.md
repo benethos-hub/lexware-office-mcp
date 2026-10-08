@@ -27,6 +27,37 @@ housekeeping are out of scope here — design decisions live in
 - **The log names the 429 behind every rate limit.** The breaker and a
   `Retry-After` too long to wait raised their error without a status, so
   their log line said less than the one for retries running out.
+- **An empty environment variable no longer outranks the `.env`.** A
+  Compose file passing `${LXO_MCP_PAGE_SIZE}` with nothing defined set it to
+  an empty string, which replaced the file's value with the default while
+  `setup` showed the file as the source. An empty variable now counts as
+  not set.
+- **A `.env` that is not UTF-8 is refused in one line.** One saved as
+  Windows-1252 ended the server, `--version` and `setup` in a traceback,
+  and the page of `setup` stayed empty. The server now names the file and
+  asks for UTF-8, and `setup` shows the same sentence on its page.
+- **Two more settings that cannot work end in one line, not a traceback.**
+  A base URL that cannot even be parsed, such as `https://[::1` or one
+  with a port that is no number, and a directory starting with `~` in a
+  process without a home directory.
+- **A `tools.json` saved with a byte order mark is read.** Windows editors
+  put one in front, and the policy file then read as broken JSON: every
+  tool off, and the saved profiles gone from `setup`. The `.env` was read
+  that way already. Importing such a file on the permissions page works
+  too.
+- **`setup` keeps `export` in front of a setting it rewrites.** A `.env`
+  that a shell sources as well, with `export LXO_MCP_PAGE_SIZE=25`, lost the
+  word on the first save, although the server reads that form.
+- **A relative `--env-file` or `--tools-file` is made absolute at start.**
+  `setup` compared it with the absolute paths of the search and warned
+  about "another file" that was the same one, and the client arguments it
+  shows carried the relative path, which a client resolves against its own
+  working directory.
+- **A host named in `--allowed-hosts` is allowed behind TLS as well.** Its
+  origin was derived as `http://` only, so a browser behind a proxy ending
+  TLS, whose `Origin` is `https://`, was refused by the DNS-rebinding guard.
+- **`--help` names the Compose service as it is called now**,
+  `benethos-lexware-office-mcp:8770`, in its example for `--allowed-hosts`.
 
 ### Changed
 

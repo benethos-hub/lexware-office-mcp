@@ -771,8 +771,10 @@ arriving.
   no user to authorize, so an OAuth flow would be machinery for a case that
   does not exist. The SDK's DNS-rebinding `Host`/`Origin` guard sits on top of
   it, with the loopback names always kept and `--allowed-hosts` adding a
-  container or proxy name to them. There is no `--allowed-origins`: an origin
-  is derived from each allowed host, which is the only shape that has come up.
+  container or proxy name to them. There is no `--allowed-origins`: two
+  origins are derived from each allowed host, `http://` and `https://`, which
+  is the only shape that has come up. Until 2026-10-08 only the first, so a
+  browser behind a proxy ending TLS was refused.
 
   Neither guard makes the port safe on a network. They make it survivable on a
   machine shared with other processes, which is what a container published on
@@ -903,7 +905,11 @@ arriving.
 - **One `.env` applies, and the environment beats it.** A setting resolves as
   that one file, then the real environment, which has the last word - the
   order Docker and uvicorn use, and what lets a client override one value
-  without rewriting a file. **The files themselves do not combine**, since
+  without rewriting a file. **An empty variable counts as unset**, since
+  2026-10-08: Compose passes `${FOO}` as an empty string when `FOO` is
+  undefined, and that used to replace the file's value with the default
+  while the configuration interface named the file as the source.
+  **The files themselves do not combine**, since
   2026-08-23: they used to merge key by key, so a value could arrive from a
   file nobody had named and no page could sensibly report where it came from.
 
@@ -999,6 +1005,17 @@ asks for `LXO_MCP_DOWNLOAD_DIR` or `HOME`, the server starts without
 publishing any, and the configuration interface shows the message in place
 of a path. A process ending on this does so in one line on stderr, not a
 traceback.
+
+**A `.env` is UTF-8, with or without a byte order mark.** A file in another
+encoding, Windows-1252 from an older editor for instance, is refused with a
+`ConfigError` naming the file and the first byte that is not UTF-8: in one
+line on stderr, and on the page of the configuration interface, which
+cannot write it either. Decoding it with replacement characters instead
+would turn a `ü` in a directory into a path that does not exist, and an
+update would write the replacement back over the original bytes. The
+policy file and its profiles are read with a byte order mark allowed as
+well, since 2026-10-08: read as plain UTF-8, a `tools.json` saved by a
+Windows editor was broken JSON, and every tool was off.
 
 No secret is ever read from a versioned file. `config/.env` is gitignored and
 The settings sample, which is committed and ships inside the package, holds

@@ -504,7 +504,8 @@ same thing: this file, and nothing else.
 Two things sit outside that file, one below and one above:
 
 - the **built-in default**, for a setting no file mentions
-- **a real environment variable**, which beats whatever the file says
+- **a real environment variable**, which beats whatever the file says,
+  unless it is empty: an empty one counts as not set
 
 The last one is the one that surprises people. A setting exported in your
 shell, put in a client's `env` block, or pinned in a Compose file **cannot be
