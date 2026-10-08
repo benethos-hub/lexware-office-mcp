@@ -27,8 +27,8 @@ downloads
 # Not needed at build time.
 tests
 scratch
+containers
 compose.yaml
-Dockerfile
 SPECS.md
 CLAUDE.md
 CHANGELOG.md

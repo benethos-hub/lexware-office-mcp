@@ -20,6 +20,7 @@ import benethos_lexware_office_mcp
 PACKAGE_DIR = Path(benethos_lexware_office_mcp.__file__).resolve().parent
 REPO = PACKAGE_DIR.parents[1]
 MARKER = PACKAGE_DIR / "py.typed"
+DOCKERFILE = REPO / "containers" / "images" / "lexware-office-mcp" / "Dockerfile"
 
 
 def test_the_typing_marker_sits_beside_the_code() -> None:
@@ -210,7 +211,7 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
 
 def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
     """By tag for the reader and Dependabot, by digest for the content."""
-    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     pulled = re.findall(r"^(?:FROM|COPY --from=)\s*(\S+)", dockerfile, re.MULTILINE)
     # A stage of this file is named without a registry or a tag.
     external = [image for image in pulled if ":" in image or "/" in image]
@@ -221,7 +222,7 @@ def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
 
 def test_every_image_is_pulled_where_dependabot_reads() -> None:
     """By a FROM line. Dependabot does not see an image in `COPY --from=`."""
-    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     copied = re.findall(r"^COPY --from=(\S+)", dockerfile, re.MULTILINE)
 
     assert copied
@@ -229,9 +230,28 @@ def test_every_image_is_pulled_where_dependabot_reads() -> None:
 
 
 def test_no_frontend_is_pulled_by_a_moving_tag() -> None:
-    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
 
     assert not re.search(r"^#\s*syntax=", dockerfile, re.MULTILINE)
+
+
+def test_every_build_and_dependabot_name_the_dockerfile() -> None:
+    """It is not where Docker looks by itself, so each of them has to say so.
+
+    A build that forgets fails loudly. Dependabot pointed at a folder without
+    a Dockerfile does not: it proposes nothing, and the base image ages.
+    """
+    relative = DOCKERFILE.relative_to(REPO).as_posix()
+    folder = DOCKERFILE.parent.relative_to(REPO).as_posix()
+    github = REPO / ".github"
+    ci = (github / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    publish = (github / "workflows" / "publish.yml").read_text(encoding="utf-8")
+    dependabot = (github / "dependabot.yml").read_text(encoding="utf-8")
+
+    assert ci.count(f"-f {relative} ") == 1
+    assert ci.count(f"file: {relative}\n") == 1
+    assert publish.count(f"file: {relative}\n") == 1
+    assert f'directory: "/{folder}"' in dependabot
 
 
 def test_compose_caps_the_log_docker_keeps() -> None:

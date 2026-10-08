@@ -179,7 +179,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build the image
-        run: docker build -t benethos-lexware-office-mcp:ci .
+        run: docker build -f containers/images/lexware-office-mcp/Dockerfile -t benethos-lexware-office-mcp:ci .
 
       # A release publishes linux/amd64 and linux/arm64, and only amd64 is
       # built above, so an arm64-only break would first show itself during a
@@ -196,6 +196,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          file: containers/images/lexware-office-mcp/Dockerfile
           platforms: linux/arm64
           push: false
           cache-from: type=gha

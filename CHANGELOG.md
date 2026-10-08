@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The Dockerfile moved to `containers/images/lexware-office-mcp/`.** A
+  build of your own names it, still from the repository root:
+  `docker build -f containers/images/lexware-office-mcp/Dockerfile .`
+  The image it builds is the same.
+
 ## [0.4.1] - 2026-10-05
 
 A patch release for the container image, which is built from the
