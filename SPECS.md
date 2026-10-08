@@ -1110,8 +1110,9 @@ the table says how far it is.
 
 **The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
 with autoescaping on and `StrictUndefined`, so a typo in a template raises
-instead of rendering an empty cell. The filters live there as well: German
-numbers, shortened paths, the source badge. The templates are package data
+instead of rendering an empty cell. The one filter lives there as well,
+German numbers, and the source badge is a macro. A path is not shortened but
+folded, behind its file's name. The templates are package data
 under `configui/templates/`. `base.html` holds the sidebar, the top bar with
 the heading, the line under it and the page's primary action, the message,
 the content and a footer with the version. `components/ui.html` holds the
@@ -1122,10 +1123,15 @@ markup of its own for any of these. `pages/` has one file per page,
 tool group. The server stays the standard library's threading HTTP server: a
 web framework would be a second one in the package, for four forms.
 `pages.py` builds the context of each page and nothing else, `actions.py`
-answers with a template and a context rather than bytes, and the page shell
-and the inline assets of August are gone. `state.py`, `probe.py`, `profiles.py`, `transfer.py`,
-`stamp.py` and `cost.py` do not change. The import table of
-`tests/test_layers.py` allows `jinja2` in that one module alone.
+answers with a redirect, a page and its message, or a download rather than
+bytes, and the page shell and the inline assets of August are gone.
+`state.py` changed in two places: the names of a value's source moved in
+from the page shell, and a setting's display reads a `Settings`, so the
+settings page reads its defaults the same way. `probe.py`, `profiles.py`,
+`transfer.py`, `stamp.py` and `cost.py` did not change. `tests/test_layers.py`
+confines `jinja2` to that one module, and checks that the server starts
+without loading it: the console script imports `configui` for every start,
+so `configui.start` imports the pages only when it runs.
 
 **Static files and a content security policy.** The stylesheet and the one
 script are files under `configui/static/`, served under `/static/`, and
@@ -1209,9 +1215,10 @@ files, their formats, the search of section 7 and the pinning below. The
 URLs of the pages and the posts, with `/settings` as a page, `/code` and
 `/static/` added. The guards above: loopback, the `Host` check, `Origin`
 with the port, the CSRF token, `no-store`, and `SO_REUSEADDR` off on
-Windows. The `setup` service of both Compose files. The server, `settings/`,
-`policy.py` and the transport are not touched. The image grows by Jinja2 and
-MarkupSafe, about 1.5 MB.
+Windows. The `setup` service of both Compose files, whose comments now say
+where the code is. The server, `settings/`, `policy.py` and the transport
+are not touched. The image grows by Jinja2 and MarkupSafe, 1.2 MB with their
+bytecode, measured on 2026-10-08 in an installed environment.
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in
