@@ -1559,8 +1559,9 @@ already fetched stays until the client asks again, and most ask once.
 | Field | Values |
 |---|---|
 | `access` | `read` or `write` |
-| `domain` | diagnostics, contacts, vouchers, files, and the groups still to be built |
+| `domain` | the group it belongs to, one per module in `tools/`: diagnostics, contacts, articles, vouchers, sales_documents, files, master_data |
 | `effect` | write tools only: `create`, `update`, `delete` |
+| `permanence` | what the API cannot take back of what the tool writes: empty when a call here removes it again, `app` when only the web app deletes it, `books` when it is a bookkeeping record that a Festschreibung can later bind, see section 5 |
 
 `ToolMeta.irreversible` is true for `delete` alone, which in this product is
 not a figure of speech: what is deleted is gone, and what is created mostly
