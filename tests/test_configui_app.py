@@ -267,7 +267,7 @@ def test_sessions_that_never_signed_in_are_not_kept_forever(browser: Browser) ->
 def test_without_the_code_every_page_asks_for_it(browser: Browser) -> None:
     stranger = Browser(browser.base)
 
-    for path in ("/", "/credentials", "/permissions", "/settings", "/export"):
+    for path in ("/", "/credentials", "/permissions", "/settings"):
         status, body, _ = stranger.get(path)
         assert status == 403, path
         assert "<h2>Code eingeben</h2>" in body, path
@@ -617,7 +617,8 @@ def test_any_loopback_name_and_port_is_answered(browser: Browser, host: str) -> 
 def test_no_page_is_cached(browser: Browser) -> None:
     """They show the bearer token and name the company."""
     assert browser.get("/credentials")[2]["Cache-Control"] == "no-store"
-    assert browser.get("/export")[2]["Cache-Control"] == "no-store"
+    download = browser.post("/permissions", {"action": "policy-export"})
+    assert download[2]["Cache-Control"] == "no-store"
 
 
 def test_no_page_can_be_framed_or_sniffed(browser: Browser) -> None:
@@ -1164,7 +1165,7 @@ def test_the_export_is_the_policy_file_itself(
     installation.env_path.write_text("LXO_MCP_API_KEY=secret-value", encoding="utf-8")
     ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
 
-    status, body, headers = browser.get("/export")
+    status, body, headers = browser.post("/permissions", {"action": "policy-export"})
 
     assert status == 200
     assert "attachment" in headers["Content-Disposition"]
@@ -1172,16 +1173,10 @@ def test_the_export_is_the_policy_file_itself(
     assert json.loads(body) == flags(installation)
 
 
-def test_the_export_button_downloads_the_same(
-    browser: Browser, installation: Installation
-) -> None:
-    ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
-
-    status, body, headers = browser.post("/permissions", {"action": "policy-export"})
-
-    assert status == 200
-    assert "attachment" in headers["Content-Disposition"]
-    assert json.loads(body)["get_profile"] is True
+def test_the_export_is_a_button_and_no_address(browser: Browser) -> None:
+    """Linked from nowhere, and without a policy file it answered one with
+    every tool off, which reads like a file somebody wrote."""
+    assert browser.get("/export")[0] == 404
 
 
 def test_importing_fills_the_form_and_writes_nothing(

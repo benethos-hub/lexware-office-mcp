@@ -216,6 +216,13 @@ housekeeping are out of scope here — design decisions live in
   0.4.1 and their minor lines were copied over with the same digest, so a
   pinned tag can move to the new name without pulling different bytes.
 
+### Removed
+
+- **The address `/export` of `setup` is gone.** No page linked it, and
+  without a policy file it answered a download with every tool off, which
+  reads like a file somebody wrote. *Rechtedatei herunterladen* on the
+  permissions page is the download.
+
 ## [0.4.2] - 2026-10-08
 
 The container files move into `containers/`, where the production folder

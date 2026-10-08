@@ -454,8 +454,6 @@ class Handler(BaseHTTPRequestHandler):
             )
             view = once.view if once is not None and once.address == path else {}
             self._page(200, page(inst, **view), once.message if once else None)
-        elif path == "/export":
-            self._reply(actions.export(inst))
         else:
             self._not_found()
 
