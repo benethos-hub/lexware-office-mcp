@@ -543,3 +543,18 @@ async def test_the_finalize_parameter_repeats_the_rule_where_it_is_set() -> None
 
     assert "asked for that" in schema["properties"]["finalize"]["description"]
     await provider.aclose()
+
+
+async def test_the_voucher_list_spelling_of_a_type_is_taken_too() -> None:
+    """The description says to copy `voucherType`, which spells four of the
+    seven types without hyphens. Copying it was refused by the schema."""
+    handler = Scripted((200, INVOICE))
+    server, provider = server_with(handler)
+
+    await server.call_tool(
+        "get_sales_document",
+        {"document_type": "orderconfirmation", "document_id": "PLACEHOLDER-DOC-1"},
+    )
+
+    assert handler.path == "/v1/order-confirmations/PLACEHOLDER-DOC-1"
+    await provider.aclose()

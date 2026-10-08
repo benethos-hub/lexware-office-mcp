@@ -86,6 +86,13 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **`get_sales_document` and `download_document` take a document type as
+  `search_vouchers` spells it.** Their description says to copy the
+  `voucherType`, which is `creditnote`, `orderconfirmation`,
+  `deliverynote` or `downpaymentinvoice` for four of the seven types, and
+  the schema took only `credit-note` and the like, so four of seven were
+  refused. Both spellings are accepted now, which adds four values to each
+  schema.
 - **`setup` listens on port `8771` by default**, one above the HTTP
   transport's `8770`, as the Compose files already publish the two. Both
   used `8770`, so `setup` beside a server on its default port ended with
