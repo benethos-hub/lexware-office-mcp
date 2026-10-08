@@ -61,6 +61,10 @@ housekeeping are out of scope here — design decisions live in
 - **A setting can be emptied in `setup` again.** The page says an empty
   field means the default, but the empty field was dropped before it was
   saved: the old value stayed, and the page reported success.
+- **The account shown in `setup` changes only once a new key is saved.**
+  It was taken from the check that runs before saving, so a key that could
+  not be written still put its account on every page, beside permissions
+  that belong to the old one.
 
 ### Changed
 

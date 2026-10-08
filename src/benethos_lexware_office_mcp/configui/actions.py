@@ -96,7 +96,7 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
     verified: probe.Account | None = None
     if not skip_check:
         probe_settings = dataclasses.replace(inst.settings, api_key=key)
-        verified, message = probe.check(probe_settings)
+        verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
             return _page_with(
@@ -117,6 +117,8 @@ def save_key(inst: Installation, form: Form, csrf: str) -> Reply:
             _write_failed(inst.env_path, exc),
             kind="bad",
         )
+    if verified is not None:
+        probe.remember(verified)
     logbook.configui.key_saved(inst.env_path.name, verified is not None)
     refused = _reloaded(inst)
     suffix = (

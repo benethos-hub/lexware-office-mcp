@@ -33,13 +33,14 @@ from benethos_lexware_office_mcp.settings.envfile import read_env_file
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
 
 
-def fake_check(settings: Settings) -> tuple[probe.Account, str]:
+def fake_check(settings: Settings, *, keep: bool = True) -> tuple[probe.Account, str]:
     """Stands in for the one function here that would reach the API.
 
     It remembers the account the way the real one does, because the chip on
     every page is drawn from that memory.
     """
-    probe._last = ACCOUNT
+    if keep:
+        probe.remember(ACCOUNT)
     return ACCOUNT, "Verbindung steht."
 
 
@@ -528,11 +529,26 @@ def test_a_key_is_verified_before_it_is_written(
     )
 
 
+def test_a_key_that_could_not_be_written_does_not_name_its_account(
+    browser: Browser, installation: Installation
+) -> None:
+    """The chip says whose records the permissions are about. A key that
+    was checked and then not saved is not this installation's key."""
+    installation.env_path.unlink()
+    installation.env_path.mkdir()
+
+    _, body, _ = browser.post("/credentials", {"api_key": "a-new-key"})
+
+    assert "nicht schreiben" in note(body)
+    assert probe.last_account() is None
+    assert "Test Inc." not in browser.get("/permissions")[1]
+
+
 def test_a_key_the_api_rejects_is_not_written(
     browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        probe, "check", lambda settings: (None, "Die API hat abgelehnt")
+        probe, "check", lambda settings, **_: (None, "Die API hat abgelehnt")
     )
 
     _, body, _ = browser.post("/credentials", {"api_key": "wrong"})
@@ -546,7 +562,7 @@ def test_the_check_can_be_skipped(
 ) -> None:
     """Otherwise a machine that is offline could never be configured."""
     monkeypatch.setattr(
-        probe, "check", lambda settings: pytest.fail("must not ask the API")
+        probe, "check", lambda settings, **_: pytest.fail("must not ask the API")
     )
 
     _, body, _ = browser.post("/credentials", {"api_key": "offline", "unchecked": "1"})
@@ -567,7 +583,9 @@ def test_the_connection_test_reports_the_account(browser: Browser) -> None:
 def test_a_failed_connection_test_says_why(
     browser: Browser, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(probe, "check", lambda settings: (None, "Kein API-Schlüssel"))
+    monkeypatch.setattr(
+        probe, "check", lambda settings, **_: (None, "Kein API-Schlüssel")
+    )
 
     _, body, _ = browser.post("/check", {})
 
@@ -896,7 +914,7 @@ def test_a_saved_key_is_a_line_and_the_key_is_not(
 def test_a_key_the_account_refused_is_a_warning(
     browser: Browser, lines: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(probe, "check", lambda settings: (None, "abgelehnt"))
+    monkeypatch.setattr(probe, "check", lambda settings, **_: (None, "abgelehnt"))
 
     browser.post("/credentials", {"api_key": "wrong-key-0123456789"})
 
@@ -1037,7 +1055,7 @@ def test_a_key_no_header_can_carry_is_refused_before_it_is_tried(
 ) -> None:
     """A zero-width space pasted along: encoding it failed inside the check."""
     monkeypatch.setattr(
-        probe, "check", lambda settings: pytest.fail("must not ask the API")
+        probe, "check", lambda settings, **_: pytest.fail("must not ask the API")
     )
 
     status, body, _ = browser.post("/credentials", {"api_key": "a-new​key"})

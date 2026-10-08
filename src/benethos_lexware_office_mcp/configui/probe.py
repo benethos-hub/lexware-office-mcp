@@ -22,7 +22,7 @@ from ..api.client import ClientProvider
 from ..errors import AuthError, ToolError, redact, register_secret
 from ..settings import Settings
 
-__all__ = ["Account", "check", "last_account"]
+__all__ = ["Account", "check", "last_account", "remember"]
 
 _lock = threading.Lock()
 _last: Account | None = None
@@ -47,10 +47,24 @@ def last_account() -> Account | None:
         return _last
 
 
+def remember(account: Account) -> None:
+    """Show ``account`` on every page from now on."""
+    global _last
+    with _lock:
+        _last = account
+
+
 def check(
-    settings: Settings, provider: ClientProvider | None = None
+    settings: Settings,
+    provider: ClientProvider | None = None,
+    *,
+    keep: bool = True,
 ) -> tuple[Account | None, str]:
     """One ``GET /v1/profile``. Returns the account, or why there is none.
+
+    ``keep`` false leaves the account on the pages as it was. A key checked
+    before it is saved is not this installation's key until the write has
+    worked, so the caller remembers it then, with :func:`remember`.
 
     The message is German and complete on its own, because it is shown as the
     whole answer. Secrets are redacted from it the same way they are in a tool
@@ -81,9 +95,8 @@ def check(
             bool(payload["smallBusiness"]) if "smallBusiness" in payload else None
         ),
     )
-    global _last
-    with _lock:
-        _last = account
+    if keep:
+        remember(account)
     return account, "Verbindung steht."
 
 
