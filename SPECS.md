@@ -2102,11 +2102,14 @@ its name.
 |---|---|---|
 | 400, 406 | `ValidationError` | the API `errorCode` and `message`, plus the offending field path when the response names one |
 | 401 | `AuthError` | "API key rejected", with a pointer to the add-on page, never the key |
-| 404 | `NotFoundError` | resource type and the ID that was asked for |
-| 409 | `ConflictError` | version mismatch or locked state, naming the current version so the caller can re-read and retry |
-| 429 | `RateLimitError` | after retries are exhausted, with the wait hint |
+| 403 | `AuthError` | the method and path the key may not use, and to check the permissions it was created with |
+| 404 | `NotFoundError` | the path that answered nothing - a 404 does not say which part of it was wrong. A tool that looked a record up itself names the resource and the ID or number instead |
+| 406 naming `version`, 409 | `ConflictError` | a stale version (406) says to read the record again. A 409 says the record's current state refused the request, without naming a version. The one message that names both versions is the local check before an update, which compares the version read with the version passed |
+| 429 | `RateLimitError` | after retries are exhausted, to try again shortly. When the breaker trips it says how long it pauses, and when `Retry-After` asks for longer than a call waits it says that wait |
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
+| — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
+| — (settings) | `ConfigError` | no API key, said with the command that sets one and never with a path. At startup the same class ends the process in one line |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query
@@ -2141,8 +2144,9 @@ what the model sent - a path, a number that did not match - and that is
 exactly what section 11.2 keeps out of a line. So a `ToolError` also carries
 `status` and `code`: the HTTP status the API answered with, and the API's
 own codes for what it refused, which `from_response` sets and the client
-sets for a 5xx or a 429. A line names the class and those two, as in
-`update_voucher refused: ConflictError 406 version: invalid_value`.
+sets for a 5xx or a 429. A line names the class and those two, then what
+the call cost, as in
+`update_voucher refused: ConflictError 406 version: invalid_value, after 1 API call, 230 ms`.
 
 **What a crash sends depends on the SDK version, and the floor stays at
 2.0.0.** A traceback never travels on either, but on 2.0.0 an unanticipated
@@ -2162,9 +2166,12 @@ only `Error executing tool <name>`. So the hierarchy above derives from
 `mcp.server.mcpserver.exceptions.ToolError`, and without that inheritance
 every sentence in the table would be written and none of them delivered.
 
-The `ValueError` raised for an unknown preset or a rate of zero sits on the
-other side of that line deliberately. It is a mistake in how the process was
-configured, not an answer for the model, and withholding its text is right.
+The `ValueError` raised for an unknown preset sits on the other side of
+that line deliberately. It is a mistake in how the process was invoked, not
+an answer for the model, and withholding its text is right. A rate of zero
+used to be the second example and is not any more: the settings refuse it
+with a `ConfigError` before a bucket is built, and the process ends in one
+line.
 
 Measured 2026-09-02 over real stdio against mcp 2.1.1, upgrading from 2.0.0.
 The same denial arrived as:

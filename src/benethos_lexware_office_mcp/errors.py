@@ -72,9 +72,10 @@ class ToolError(AnticipatedFailure):
     An exception of any other type is read as a crash, and the model is told
     only which tool failed - so a hierarchy of plain :class:`Exception`
     subclasses would write these sentences and never deliver one. The
-    :class:`ValueError` raised for a bad preset or a bad rate is on the other
-    side of that line on purpose: it is a mistake in the configuration of the
-    process, not an answer for the model.
+    :class:`ValueError` raised for an unknown preset is on the other side of
+    that line on purpose: it is a mistake in how the process was invoked,
+    not an answer for the model. A bad rate is a :class:`ConfigError` when
+    the settings are read.
 
     ``status`` and ``code`` are what a log line may say about the failure
     besides its class: the HTTP status the API answered with, and the API's
