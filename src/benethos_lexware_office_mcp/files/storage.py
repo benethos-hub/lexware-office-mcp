@@ -25,8 +25,7 @@ from ..errors import ConfigError, LocalFileError, ValidationError
 from ..settings import Settings
 
 __all__ = [
-    "MAX_UPLOAD",
-    "UPLOAD_TYPES",
+    "CONTENT_TYPES",
     "content_type_for",
     "directory_for",
     "newest",

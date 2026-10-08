@@ -35,7 +35,7 @@ from ..errors import NotFoundError, ValidationError
 from ..settings import Settings
 from . import rendering, resources, storage
 
-__all__ = ["MAX_INLINE", "TEXT_TYPES", "deliver", "inline", "load_inline", "saved"]
+__all__ = ["deliver", "inline", "load_inline", "saved"]
 
 # Base64 costs roughly 1.37 times the file size in the answer, so this is a
 # ceiling on damage rather than a working size. It is the same 5 MiB the API

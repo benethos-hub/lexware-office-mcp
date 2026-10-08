@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .. import logbook
 
-__all__ = ["CONFIG_POLL_SECONDS", "Snapshot", "snapshot", "watch_for_change"]
+__all__ = ["Snapshot", "snapshot", "watch_for_change"]
 
 # How often the settings file is looked at. Slow enough to cost nothing, fast
 # enough that a person who just saved the key does not wait for it.

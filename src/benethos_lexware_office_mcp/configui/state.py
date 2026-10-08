@@ -34,9 +34,7 @@ __all__ = [
     "EDITABLE_KEYS",
     "LABELS",
     "SETTING_KEYS",
-    "SHOWN",
     "Installation",
-    "Shown",
     "downloads_dir",
     "resolved",
 ]

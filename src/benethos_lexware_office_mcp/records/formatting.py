@@ -16,7 +16,6 @@ from collections.abc import Callable
 from typing import Any
 
 __all__ = [
-    "PAGE_KEYS",
     "article",
     "article_row",
     "articles_page",

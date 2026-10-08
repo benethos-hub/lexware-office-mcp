@@ -48,7 +48,7 @@ from mcp.types import Resource, ResourceLink
 
 from . import storage
 
-__all__ = ["GATING_TOOLS", "SCHEME", "gone", "link", "listed", "read", "uri_for"]
+__all__ = ["GATING_TOOLS", "SCHEME", "gone", "link", "listed", "read"]
 
 SCHEME = "lexware://download/"
 
