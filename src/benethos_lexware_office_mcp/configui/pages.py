@@ -48,6 +48,7 @@ __all__ = [
     "Message",
     "Page",
     "account_facts",
+    "code",
     "credentials",
     "error",
     "overview",
@@ -188,6 +189,16 @@ class Page:
             message=message,
             **self.context,
         )
+
+
+def code() -> Page:
+    """The one field every page shows until the session gave the start code."""
+    return Page(
+        "pages/code.html",
+        "Code eingeben",
+        subtitle="Diese Seiten öffnen sich mit dem Code, den setup beim Start "
+        "ausgegeben hat.",
+    )
 
 
 def error(title: str, text: str) -> Page:

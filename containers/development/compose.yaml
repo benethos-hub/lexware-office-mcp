@@ -49,6 +49,8 @@ services:
   # Started by name, never by a plain `up`, and put away by hand:
   #   docker compose --profile setup up -d
   #   docker compose rm -f -s setup
+  # The address with the start code is in `docker compose logs setup`, with
+  # the port inside the container: 8771 there is 8781 here.
   setup:
     profiles: ["setup"]
     # The same image as the server, so a build names it twice and the second

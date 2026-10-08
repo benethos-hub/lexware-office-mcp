@@ -1106,7 +1106,7 @@ the table says how far it is.
 | 1 | This section, and the layout in the working guidelines | built 2026-10-08 |
 | 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | built 2026-10-08 |
 | 3 | The four pages below, a commit each, with Post/Redirect/Get and a question before every destructive action | built 2026-10-08 |
-| 4 | The start code | planned |
+| 4 | The start code | built 2026-10-08 |
 
 **The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
 with autoescaping on and `StrictUndefined`, so a typo in a template raises
@@ -1175,9 +1175,15 @@ not translated, as above. Every destructive action asks first.
 
 **The start code.** `setup` makes a random code at start, writes the address
 with the code to stderr and opens the browser with it. Without a valid code
-every page shows one field, *Code eingeben*. After the first valid request
-the session cookie carries the sign-in, and a redirect takes the code out of
-the URL. After five wrong codes the server waits before answering the next.
+every page shows one field, *Code eingeben*, and the static files are the
+one thing served without it, since that page needs them too. After the
+first valid request the session cookie carries the sign-in, and a redirect
+takes the code out of the URL. The field is a form like any other, behind
+the `Origin` and CSRF checks. After five wrong codes every further try
+waits two seconds first, and tries are taken one at a time, so the wait
+cannot be run around in parallel. A right code starts the count over. The
+code is 16 random bytes, so the wait is not what protects it: it keeps a
+stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the
 container's log, where the operator reads anyway. The code closes the pages
 to other processes and users of the same machine, which the host and origin
@@ -2191,8 +2197,8 @@ where it differs.
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name |
 | | `DEBUG` | a download that reused an identical file, by size |
-| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted |
-| | `WARNING` | the policy with writing tools on and which, a key the account refused, a request a guard refused, a file that could not be written, unreadable profiles |
+| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code |
+| | `WARNING` | the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
 
 **Where a tool's line comes from.** Not from the tools, which stay thin.
 `register_tool` puts `logged()` around every tool, outside the policy guard,

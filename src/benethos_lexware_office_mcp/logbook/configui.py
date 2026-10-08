@@ -29,6 +29,7 @@ __all__ = [
     "profiles_unreadable",
     "request_refused",
     "settings_saved",
+    "signed_in",
     "token_saved",
     "write_failed",
 ]
@@ -105,5 +106,11 @@ def write_failed(path: Path, error: BaseException) -> None:
 
 
 def request_refused(check: str) -> None:
-    """A request turned away by one of the guards: host, origin, token, size."""
+    """A request turned away by one of the guards: host, origin, token, size,
+    or the start code."""
     _log.warning("Request refused by the %s check", check)
+
+
+def signed_in() -> None:
+    """A browser gave the start code. Never the code itself."""
+    _log.info("A browser signed in with the start code")

@@ -41,7 +41,7 @@ CATALOGUE: list[ModuleType] = [
 VOCABULARY: dict[str, tuple[str, Any]] = {
     "attempt": ("which attempt at a request", 2),
     "calls": ("how many API calls a tool call made", 2),
-    "check": ("which guard refused a request: host, origin, token, size", "host"),
+    "check": ("which guard refused a request: host, origin, token, size, code", "host"),
     "checked": ("whether a key was checked against the account", True),
     "count": ("how often something happened", 3),
     "delay": ("seconds waited, or to be waited", 1.5),

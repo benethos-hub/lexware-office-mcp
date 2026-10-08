@@ -135,6 +135,12 @@ housekeeping are out of scope here — design decisions live in
   cost, the last connection test, each with a tag in a state colour, and
   the first red one as the next step at the top right. The client entry and
   the three files follow, each file by its name, with the full path folded.
+- **`setup` asks for a start code.** Every start makes one, and the
+  address it prints and opens carries it, so the browser it opens is
+  signed in at once. Without it every page shows one field, so another
+  program or user on the same machine cannot open the pages through the
+  loopback port. After five wrong codes each further try waits. In a
+  container the address is in the log, `docker compose logs setup`.
 - **The permissions page of `setup` saves from the top right**, beside the
   count and what the ticked tools cost, which used to sit at the end of
   twenty-five rows. The presets come first, then the groups, and the

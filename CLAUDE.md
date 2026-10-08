@@ -258,8 +258,10 @@ measurement of what the whole list costs.
   uv run benethos-lexware-office-mcp setup --no-browser --port 8790       --env-file scratch/.env --tools-file scratch/tools.json
   ```
   Point it at scratch files rather than at your own configuration - it
-  writes what it is told to write. Its tests cover the pages and the routes,
-  so a rendering change that matters should fail one of them first.
+  writes what it is told to write. Every page asks for the start code, so
+  open the address it prints, code included, or fetch that address with a
+  cookie jar before the page you want. Its tests cover the pages and the
+  routes, so a rendering change that matters should fail one of them first.
 
 **The gates above do not cover the upstream API changing.** The suite mocks
 HTTP completely and stays green through any change in Lexware's field names or

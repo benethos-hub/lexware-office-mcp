@@ -331,6 +331,17 @@ form.stack { display: flex; flex-direction: column; gap: var(--gap); }
 .tally { display: flex; flex-direction: column; align-items: flex-end; font-size: 14px; }
 .tally .hint { font-size: 12px; }
 
+/* --- the start code -------------------------------------------------------- */
+
+.signin {
+  min-height: 100vh;
+  display: flex; flex-direction: column; gap: var(--gap);
+  align-items: center; justify-content: center;
+  padding: var(--pad);
+}
+.signin > * { width: min(460px, 100%); }
+.signin > footer { border-top: 0; text-align: center; }
+
 /* --- narrow windows -------------------------------------------------------- */
 
 @media (max-width: 860px) {

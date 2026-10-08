@@ -19,6 +19,13 @@ the ``Origin`` or ``Referer`` has to be this very page, loopback host and port
 both, and a random token from a ``SameSite=Strict`` cookie has to come back in
 the form - a token this process issued, not merely one the cookie carries.
 
+**And every page asks for the start code** the process made when it started
+and wrote to stderr, with the address, before it shows anything but the
+field to type it into. The ``Host`` and ``Origin`` checks keep other sites
+out, the code keeps out the other processes and users of the same machine,
+which can reach a loopback port as well as the browser can. Once a session
+has given it, the cookie carries the sign-in.
+
 What a request that passes both then does is :mod:`.actions`. This module is
 the HTTP around it: sessions, headers, the guards and the routing.
 """
@@ -28,6 +35,7 @@ from __future__ import annotations
 import secrets
 import sys
 import threading
+import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -55,6 +63,11 @@ _SESSION_COOKIE = "lxo_config"
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 )
+
+# Wrong start codes answered at once. Each one after these waits first, one
+# at a time, so the waits cannot be run around in parallel either.
+FREE_TRIES = 5
+WAIT_SECONDS = 2.0
 
 # The largest form this interface accepts. An imported policy file is the
 # biggest thing any of them carries, and that is a few kilobytes.
@@ -108,6 +121,14 @@ class ConfigServer(ThreadingHTTPServer):
         self.sessions: set[str] = set()
         self._sessions_lock = threading.Lock()
         self._once: dict[str, Once] = {}
+        # The start code, made once, written to stderr, and asked for by
+        # every page until a session has given it.
+        self.code = secrets.token_urlsafe(16)
+        self._signed_in: set[str] = set()
+        self._wrong = 0
+        self._trying = threading.Lock()
+        # How a wrong code waits. A test replaces it, so it waits for nothing.
+        self.pause: Callable[[float], None] = time.sleep
         # One action at a time. Each reads a file, changes it and writes it
         # back - the .env, the policy, the profiles - and every request has
         # a thread of its own, so two tabs saving at once each wrote what
@@ -123,6 +144,29 @@ class ConfigServer(ThreadingHTTPServer):
     def knows_session(self, token: str) -> bool:
         with self._sessions_lock:
             return token in self.sessions
+
+    def signed_in(self, session: str) -> bool:
+        """Whether this session has given the start code."""
+        with self._sessions_lock:
+            return session in self._signed_in
+
+    def try_code(self, session: str, typed: str) -> bool:
+        """Sign ``session`` in if ``typed`` is the start code.
+
+        After :data:`FREE_TRIES` wrong codes every attempt waits first, and
+        attempts are taken one at a time. A right code starts the count over.
+        """
+        with self._trying:
+            if self._wrong >= FREE_TRIES:
+                self.pause(WAIT_SECONDS)
+            # As bytes, for the reason _csrf_ok gives.
+            if typed and secrets.compare_digest(typed.encode(), self.code.encode()):
+                self._wrong = 0
+                with self._sessions_lock:
+                    self._signed_in.add(session)
+                return True
+            self._wrong += 1
+            return False
 
     def leave(self, session: str, once: Once) -> None:
         """Keep ``once`` for the next page this session opens.
@@ -293,10 +337,44 @@ class Handler(BaseHTTPRequestHandler):
             self._wrong_host()
             return
         self._session = self._session_token()
+        address = urlparse(self.path)
+        if address.path.startswith("/static/"):
+            # The stylesheet and the script, which the code page needs too.
+            self._static(address.path.removeprefix("/static/"))
+            return
+        typed = parse_qs(address.query).get("code")
+        if typed is not None:
+            self._sign_in(typed[0], then=address.path)
+            return
+        if not self.config_server.signed_in(self._session):
+            self._page(403, pages.code())
+            return
         try:
-            self._route_get(urlparse(self.path).path)
+            self._route_get(address.path)
         except ConfigError as exc:
             self._unreadable(exc)
+
+    def _sign_in(self, typed: str, *, then: str) -> None:
+        """The start code, from the address or from the field.
+
+        Right, and the session is signed in and sent on to ``then`` - which
+        for the address the start printed takes the code out of the URL.
+        Wrong, and the field comes back with the reason.
+        """
+        if self.config_server.try_code(self._session, typed.strip()):
+            logbook.configui.signed_in()
+            self._redirect(then)
+            return
+        logbook.configui.request_refused("code")
+        self._page(
+            403,
+            pages.code(),
+            Message(
+                "Dieser Code passt nicht. Er steht in der Zeile, die setup "
+                "beim Start ausgegeben hat.",
+                "err",
+            ),
+        )
 
     def _route_get(self, path: str) -> None:
         inst = self.installation
@@ -309,8 +387,6 @@ class Handler(BaseHTTPRequestHandler):
             self._page(200, page(inst, **view), once.message if once else None)
         elif path == "/export":
             self._reply(actions.export(inst))
-        elif path.startswith("/static/"):
-            self._static(path.removeprefix("/static/"))
         else:
             self._not_found()
 
@@ -349,17 +425,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._session = self._session_token()
 
-        routes: dict[str, actions.Action] = {
+        routes: dict[str, actions.Action | None] = {
+            # Answered here rather than by an action: it decides the sign-in.
+            "/code": None,
             "/check": actions.check,
             "/credentials": actions.save_key,
             "/bearer": actions.save_bearer,
             "/settings": actions.save_settings,
             "/permissions": actions.permissions,
         }
-        action = routes.get(path)
-        if action is None:
+        if path not in routes:
             self._not_found()
             return
+        action = routes[path]
         if not self._origin_ok():
             logbook.configui.request_refused("origin")
             self._deny(
@@ -373,6 +451,13 @@ class Handler(BaseHTTPRequestHandler):
                 "Abgelehnt: das Sicherheitstoken fehlt oder passt nicht. "
                 "Seite neu laden und noch einmal absenden."
             )
+            return
+        if action is None:
+            self._sign_in(field(form, "code"), then="/")
+            return
+        if not self.config_server.signed_in(self._session):
+            logbook.configui.request_refused("code")
+            self._page(403, pages.code())
             return
         try:
             with self.config_server.acting:
@@ -442,14 +527,17 @@ def serve(
     # The address a person opens, which is not always the one that was bound:
     # 0.0.0.0 is a bind, not a destination.
     reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
-    url = f"http://{reachable}:{port}/"
+    # The code goes with the address, so the browser this opens is signed
+    # in at once and the line is all a person copies from a container's log.
+    url = f"http://{reachable}:{port}/?code={server.code}"
     print(f"Konfiguration im Browser: {url}", file=sys.stderr)
     if host not in LOOPBACK_NAMES:
         print(
             f"Achtung: gebunden an {host}, also nicht nur von diesem Rechner "
-            "aus erreichbar. Die Seiten haben keine Anmeldung: wer diesen Port "
-            "im Netz erreicht, kann sie aufrufen und den Schlüssel ändern. "
-            "Außerhalb eines Containers nur mit --host 127.0.0.1 starten.",
+            "aus erreichbar. Der Code geht unverschlüsselt über HTTP: wer "
+            "diesen Port im Netz erreicht und mitliest, kann die Seiten "
+            "aufrufen und den Schlüssel ändern. Außerhalb eines Containers "
+            "nur mit --host 127.0.0.1 starten.",
             file=sys.stderr,
         )
     print(f".env:    {installation.env_path}", file=sys.stderr)

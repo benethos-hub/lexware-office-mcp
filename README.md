@@ -409,13 +409,19 @@ built-in default, which the placeholder shows. A setting a real environment
 variable holds is shown rather than offered, since saving over it would change
 nothing.
 
-Two things worth knowing. It **binds `127.0.0.1`** — the pages have no
-password, which is only defensible while they cannot be reached from another
-machine. `--host` exists for a container, where the host-side publish keeps
-the port local, see [In a container](#in-a-container). Anywhere else a bind
-beyond loopback leaves the pages open to whoever reaches the port, and the
-start says so. And it is a **separate command**: the MCP server never serves
-HTTP, and a client such as Claude Desktop starts that one, not this.
+Three things worth knowing. Every start makes a **start code**, and the
+address it prints and opens carries it: `http://127.0.0.1:8771/?code=…`.
+Without it every page shows one field, *Code eingeben*, so another program
+or another user on the same machine cannot open the pages through the
+loopback port. The code lives as long as the process, and after five wrong
+ones each further try waits. It **binds `127.0.0.1`**, because the code
+travels in the clear and keeps nobody out who can read the traffic.
+`--host` exists for a container, where the host-side publish keeps the port
+local, see [In a container](#in-a-container). Anywhere else a bind beyond
+loopback leaves the pages open to whoever reaches the port and reads the
+code, and the start says so. And it is a **separate command**: the MCP
+server never serves HTTP, and a client such as Claude Desktop starts that
+one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address, and `--env-file`
 and `--tools-file` say which files it edits. Unlike everywhere else those
@@ -715,6 +721,12 @@ docker run --rm -d --name lexware-office-mcp-setup \
         --env-file /config/.env --tools-file /config/tools.json
 ```
 
+Its log has the address with the start code, which is the line to open:
+
+```bash
+docker logs lexware-office-mcp-setup 2>&1 | grep "im Browser"
+```
+
 It was started with `--rm`, so stopping it is also the end of it:
 
 ```bash
@@ -732,9 +744,13 @@ above 1024 needs no Linux capability at all.
 
 ### Turn the interface off when you are done
 
-Open <http://127.0.0.1:8771/>, enter the key, tick the tools — and then stop
-it. **Nothing stops it for you.** It has no login, it accepts an API key, and
-it will happily keep serving that page for as long as the machine is up.
+Open the address from its log, `docker compose logs setup` with Compose,
+enter the key, tick the tools — and then stop it. The address names the
+port inside the container, so with a publish on another port, as the
+development folder's `8781`, change the port and keep the code. **Nothing
+stops it for you.** It accepts an API key behind a code that travels in the
+clear, and it will happily keep serving that page for as long as the
+machine is up.
 
 ```bash
 docker compose rm -f -s setup             # Compose

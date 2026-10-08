@@ -58,6 +58,9 @@ class Browser:
     It follows a redirect as a browser does, unless ``follow`` says not to.
     """
 
+    # The server it talks to, for a test about the start code.
+    server: ConfigServer
+
     def __init__(self, base: str) -> None:
         self.base = base
         self.jar = http.cookiejar.CookieJar()
@@ -146,7 +149,11 @@ def browser(installation: Installation) -> Iterator[Browser]:
     )
     thread.start()
     try:
-        yield Browser(f"http://127.0.0.1:{server.server_address[1]}")
+        browser = Browser(f"http://127.0.0.1:{server.server_address[1]}")
+        # Signed in the way the address the start prints signs one in.
+        browser.get(f"/?code={server.code}")
+        browser.server = server
+        yield browser
     finally:
         server.shutdown()
         server.server_close()
@@ -201,11 +208,129 @@ def test_an_unknown_address_is_a_404(browser: Browser) -> None:
 
 
 def test_a_session_cookie_is_issued_once(browser: Browser) -> None:
-    _, _, headers = browser.get("/")
+    newcomer = Browser(browser.base)
+
+    _, _, headers = newcomer.get("/")
     assert "SameSite=Strict" in headers["Set-Cookie"]
     assert "HttpOnly" in headers["Set-Cookie"]
 
-    assert "Set-Cookie" not in browser.get("/")[2]
+    assert "Set-Cookie" not in newcomer.get("/")[2]
+
+
+# -- the start code ---------------------------------------------------------
+
+
+def test_without_the_code_every_page_asks_for_it(browser: Browser) -> None:
+    stranger = Browser(browser.base)
+
+    for path in ("/", "/credentials", "/permissions", "/settings", "/export"):
+        status, body, _ = stranger.get(path)
+        assert status == 403, path
+        assert "<h2>Code eingeben</h2>" in body, path
+        assert 'name="code"' in body, path
+    # What a page needs to look like one is not behind it.
+    assert stranger.get("/static/app.css")[0] == 200
+
+
+def test_the_code_in_the_address_signs_in_and_leaves_the_address(
+    browser: Browser,
+) -> None:
+    stranger = Browser(browser.base)
+
+    status, _, headers = stranger._open(
+        urllib.request.Request(
+            f"{browser.base}/permissions?code={browser.server.code}"
+        ),
+        follow=False,
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/permissions"
+    assert stranger.get("/permissions")[0] == 200
+
+
+def test_the_code_typed_into_the_field_signs_in(browser: Browser) -> None:
+    stranger = Browser(browser.base)
+
+    status, _, headers = stranger.post(
+        "/code", {"code": f" {browser.server.code} "}, follow=False
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/"
+    assert stranger.get("/settings")[0] == 200
+
+
+def test_a_wrong_code_is_refused_and_signs_nothing_in(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    stranger = Browser(browser.base)
+
+    status, body, _ = stranger.post("/code", {"code": "guessed"})
+
+    assert status == 403
+    assert "passt nicht" in note(body)
+    assert stranger.get("/")[0] == 403
+    assert "Request refused by the code check" in lines.text
+    assert browser.server.code not in lines.text
+
+
+def test_a_form_without_the_sign_in_writes_nothing(
+    browser: Browser, installation: Installation
+) -> None:
+    """Origin and token in order, the code missing: still nothing written."""
+    stranger = Browser(browser.base)
+
+    status, _, _ = stranger.post("/permissions", {"action": "save", "tool": []})
+
+    assert status == 403
+    assert not installation.policy_path.exists()
+
+
+def test_after_five_wrong_codes_each_waits(browser: Browser) -> None:
+    waited: list[float] = []
+    browser.server.pause = waited.append
+    stranger = Browser(browser.base)
+
+    for _ in range(5):
+        stranger.post("/code", {"code": "guessed"})
+    assert waited == []
+
+    stranger.post("/code", {"code": "guessed"})
+    stranger.get(f"/?code={browser.server.code}")
+    assert waited == [2.0, 2.0]
+
+    stranger.post("/code", {"code": "guessed"})
+    assert waited == [2.0, 2.0]  # a right code started the count over
+
+
+def test_a_sign_in_is_a_line_and_the_code_is_not(
+    browser: Browser, lines: pytest.LogCaptureFixture
+) -> None:
+    Browser(browser.base).get(f"/?code={browser.server.code}")
+
+    assert "A browser signed in with the start code" in lines.text
+    assert browser.server.code not in lines.text
+
+
+def test_the_start_prints_the_address_with_the_code(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The line a person copies, from a terminal or from a container's log."""
+    opened: list[str] = []
+    monkeypatch.setattr("webbrowser.open", opened.append)
+    monkeypatch.setattr(ConfigServer, "serve_forever", lambda self: None)
+
+    serve(installation, port=0, open_browser=True)
+
+    err = capsys.readouterr().err
+    found = re.search(
+        r"Konfiguration im Browser: (http://127\.0\.0\.1:\d+/\?code=\S+)", err
+    )
+    assert found
+    assert opened == [found.group(1)]
 
 
 # -- Post/Redirect/Get ------------------------------------------------------

@@ -7,6 +7,7 @@ the palette's contrast in both modes, and the rules the templates keep.
 
 from __future__ import annotations
 
+import http.cookiejar
 import re
 import threading
 import urllib.error
@@ -25,12 +26,35 @@ from benethos_lexware_office_mcp.settings import Settings
 PAGES = ("/", "/credentials", "/permissions", "/settings")
 
 
+class Site:
+    """A browser signed in with the start code, as the address of the start
+    signs one in."""
+
+    def __init__(self, base: str, code: str) -> None:
+        self.base = base
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        self.get(f"/?code={code}")
+
+    def get(self, path: str) -> tuple[int, str, dict[str, str]]:
+        try:
+            with self.opener.open(self.base + path) as response:
+                return (
+                    response.status,
+                    response.read().decode("utf-8"),
+                    dict(response.headers),
+                )
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
+
+
 @pytest.fixture
-def base(
+def site(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     no_configuration_from_this_machine: None,
-) -> Iterator[str]:
+) -> Iterator[Site]:
     monkeypatch.setattr(probe, "_last", None)
     env = tmp_path / ".env"
     env.write_text("", encoding="utf-8")
@@ -45,23 +69,11 @@ def base(
     )
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
+        yield Site(f"http://127.0.0.1:{server.server_address[1]}", server.code)
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-
-
-def fetch(url: str) -> tuple[int, str, dict[str, str]]:
-    try:
-        with urllib.request.urlopen(url) as response:
-            return (
-                response.status,
-                response.read().decode("utf-8"),
-                dict(response.headers),
-            )
-    except urllib.error.HTTPError as exc:
-        return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
 
 
 # -- static files and the policy --------------------------------------------
@@ -70,8 +82,8 @@ def fetch(url: str) -> tuple[int, str, dict[str, str]]:
 @pytest.mark.parametrize(
     ("name", "kind"), [("app.css", "text/css"), ("app.js", "text/javascript")]
 )
-def test_the_static_files_are_served(base: str, name: str, kind: str) -> None:
-    status, body, headers = fetch(f"{base}/static/{name}")
+def test_the_static_files_are_served(site: Site, name: str, kind: str) -> None:
+    status, body, headers = site.get(f"/static/{name}")
 
     assert status == 200
     assert headers["Content-Type"].startswith(kind)
@@ -88,14 +100,14 @@ def test_the_static_files_are_served(base: str, name: str, kind: str) -> None:
         "/static/app.css/x",
     ],
 )
-def test_nothing_else_is_served_from_there(base: str, path: str) -> None:
+def test_nothing_else_is_served_from_there(site: Site, path: str) -> None:
     """A fixed list, so no path a browser sends reaches the filesystem."""
-    assert fetch(base + path)[0] == 404
+    assert site.get(path)[0] == 404
 
 
 @pytest.mark.parametrize("path", [*PAGES, "/static/app.css", "/nope"])
-def test_every_response_carries_the_policy(base: str, path: str) -> None:
-    policy = fetch(base + path)[2]["Content-Security-Policy"]
+def test_every_response_carries_the_policy(site: Site, path: str) -> None:
+    policy = site.get(path)[2]["Content-Security-Policy"]
 
     assert "default-src 'self'" in policy
     assert "frame-ancestors 'none'" in policy
@@ -103,9 +115,9 @@ def test_every_response_carries_the_policy(base: str, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_no_page_has_inline_script_or_style(base: str, path: str) -> None:
+def test_no_page_has_inline_script_or_style(site: Site, path: str) -> None:
     """The policy would block them, so one would be a page that breaks."""
-    body = fetch(base + path)[1]
+    body = site.get(path)[1]
 
     assert re.findall(r"<script(?![^>]*\ssrc=)[^>]*>", body) == []
     assert "<style" not in body
@@ -114,8 +126,8 @@ def test_no_page_has_inline_script_or_style(base: str, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_a_page_names_its_static_files(base: str, path: str) -> None:
-    body = fetch(base + path)[1]
+def test_a_page_names_its_static_files(site: Site, path: str) -> None:
+    body = site.get(path)[1]
 
     assert '<link rel="stylesheet" href="/static/app.css">' in body
     assert '<script src="/static/app.js" defer></script>' in body
@@ -125,21 +137,21 @@ def test_a_page_names_its_static_files(base: str, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_the_sidebar_marks_the_page_it_is_on(base: str, path: str) -> None:
-    body = fetch(base + path)[1]
+def test_the_sidebar_marks_the_page_it_is_on(site: Site, path: str) -> None:
+    body = site.get(path)[1]
 
     assert f'<a href="{path}" class="active" aria-current="page">' in body
     assert body.count('aria-current="page"') == 1
 
 
-def test_the_footer_names_the_version(base: str) -> None:
+def test_the_footer_names_the_version(site: Site) -> None:
     from benethos_lexware_office_mcp import __version__
 
-    assert f"benethos-lexware-office-mcp {__version__}</footer>" in fetch(base)[1]
+    assert f"benethos-lexware-office-mcp {__version__}</footer>" in site.get("/")[1]
 
 
-def test_an_unknown_address_is_a_page_in_the_frame(base: str) -> None:
-    status, body, headers = fetch(base + "/nope")
+def test_an_unknown_address_is_a_page_in_the_frame(site: Site) -> None:
+    status, body, headers = site.get("/nope")
 
     assert status == 404
     assert headers["Content-Type"].startswith("text/html")
