@@ -468,7 +468,12 @@ def _delete_profile(inst: Installation, csrf: str, form: Form) -> Reply:
 
 
 def export(inst: Installation) -> Reply:
-    """The policy file as a download, byte for byte what is on disk."""
+    """The policy in effect as a download, written the way a save writes it.
+
+    Not the bytes on disk: a file edited by hand may leave tools out, carry
+    names that are no tool, or say ``1`` for ``true``. The download says
+    what the server makes of it, one flag for every tool it knows.
+    """
     return Reply(
         transfer.dumps(inst.policy.as_map()).encode("utf-8"), download=_EXPORT_NAME
     )

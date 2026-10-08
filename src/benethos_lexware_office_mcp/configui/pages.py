@@ -571,9 +571,10 @@ def _policy_transfer(inst: Installation, opened: bool = False) -> str:
     export = (
         '<p><button type="submit" name="action" value="policy-export">'
         "Rechtedatei herunterladen</button> "
-        '<span class="hint">Genau die Datei, die dieser Server liest — '
-        "auf einer anderen Installation nutzbar, mit oder ohne diese "
-        "Oberfläche.</span></p>"
+        '<span class="hint">Die Rechte, nach denen dieser Server sich '
+        "richtet, als vollständige Datei: jedes Tool mit true oder false, "
+        "was er nicht kennt, weggelassen. Auf einer anderen Installation "
+        "nutzbar, mit oder ohne diese Oberfläche.</span></p>"
         if inst.policy.exists()
         else '<p class="hint">Es gibt noch keine Rechtedatei zum Herunterladen. '
         "Einmal speichern legt sie an.</p>"

@@ -71,6 +71,9 @@ housekeeping are out of scope here — design decisions live in
 - **`setup` refuses a log level the server does not know.** `verbose` was
   saved, shown as `INFO` and never took effect, since the server falls back
   to the default rather than refusing to start over a log level.
+- **The policy download says what it is.** The page called it exactly the
+  file the server reads. It is what the server makes of that file, one flag
+  for every tool it knows, which differs from a file edited by hand.
 
 ### Changed
 

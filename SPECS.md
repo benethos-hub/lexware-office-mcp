@@ -1174,8 +1174,11 @@ is running. Six digits of clock beats six digits of clock and three of
 padding, because somebody eventually relies on the difference.
 
 **One policy file can be carried to another installation, and nothing else
-can.** The download is the file itself, in the shape `tools.json` already
-has: one flag per tool, no wrapper, no format version. So it can be dropped
+can.** The download is a policy file in the shape `tools.json` already
+has: one flag per tool, no wrapper, no format version. It is written the way
+a save writes the file, from what the server makes of it, so a file edited
+by hand comes out complete - every known tool named, a name that is no tool
+dropped, only `true` read as on. So it can be dropped
 into another installation's config directory or named with `--tools-file`,
 and a file written by `--tools` reads here — one format for one thing, rather
 than a second one wrapping it.
