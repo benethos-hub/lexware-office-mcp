@@ -131,73 +131,42 @@ class Connection:
         headers = {"Authorization": f"Bearer {self.settings.require_api_key()}"}
         if accept is not None:
             headers["Accept"] = accept
-        last_attempt = MAX_ATTEMPTS - 1
         # Whether an earlier attempt may have been carried out: it timed out,
         # lost its connection or got a 5xx. A 429 is certain not to have been.
         maybe_done = False
 
         for attempt in range(MAX_ATTEMPTS):
-            number = attempt + 1
-            queued_at = time.perf_counter()
-            await self._bucket.acquire()
-            logbook.tally.api_call()
-            sent_at = time.perf_counter()
-            queued = (sent_at - queued_at) * 1000
+            more = attempt < MAX_ATTEMPTS - 1
+            # RequestError rather than TransportError: an answer whose body
+            # cannot be decoded, or a redirect loop, is not a transport error
+            # and escaped as a crash - on a POST without saying the outcome
+            # is unknown. A timeout is one of them.
             try:
-                response = await self._http.request(
+                response = await self._send(
                     method,
                     path,
+                    attempt,
+                    headers=headers,
                     params=params,
                     json=json,
                     files=files,
                     data=data,
-                    headers=headers,
                 )
-            except httpx.TimeoutException as exc:
-                logbook.api.unanswered(method, path, exc, _since(sent_at), number)
+            except httpx.RequestError as exc:
                 # Not a 429, so the streak the breaker counts is over. Left
                 # standing, two 429s either side of a timeout would trip it.
                 self._consecutive_429 = 0
-                if retryable and attempt < last_attempt:
+                if retryable and more:
                     maybe_done = True
                     await self._retry(method, path, attempt, error=exc)
                     continue
-                raise UpstreamError(
-                    f"{method} {path} timed out.", outcome_unknown=writes
-                ) from exc
-            # RequestError rather than TransportError: an answer whose body
-            # cannot be decoded, or a redirect loop, is not a transport error
-            # and escaped as a crash - on a POST without saying the outcome
-            # is unknown.
-            except httpx.RequestError as exc:
-                logbook.api.unanswered(method, path, exc, _since(sent_at), number)
-                self._consecutive_429 = 0
-                if retryable and attempt < last_attempt:
-                    maybe_done = True
-                    await self._retry(method, path, attempt, error=exc)
-                    continue
-                raise UpstreamError(
-                    f"{method} {path} could not be completed: {exc}.",
-                    outcome_unknown=writes,
-                ) from exc
+                raise _unanswered(method, path, exc, writes) from exc
 
             status = response.status_code
-            logbook.api.answered(method, path, status, _since(sent_at), number, queued)
-
             if status == 429:
                 # Safe to repeat for any method: the call was not performed.
-                self._consecutive_429 += 1
-                if self._consecutive_429 >= BREAKER_THRESHOLD:
-                    self._bucket.drain(BREAKER_COOLDOWN)
-                    logbook.api.breaker_tripped(self._consecutive_429, BREAKER_COOLDOWN)
-                    self._consecutive_429 = 0
-                    raise RateLimitError(
-                        "Rate limited repeatedly. Pausing for "
-                        f"{BREAKER_COOLDOWN:.0f} seconds. The Lexware limit of "
-                        "2 requests per second covers your whole account, so "
-                        "another client may be spending it too."
-                    )
-                if attempt < last_attempt:
+                self._count_429()
+                if more:
                     await self._retry(
                         method,
                         path,
@@ -213,7 +182,7 @@ class Connection:
             self._consecutive_429 = 0
 
             if status >= 500:
-                if retryable and attempt < last_attempt:
+                if retryable and more:
                     maybe_done = True
                     await self._retry(method, path, attempt, status=status)
                     continue
@@ -224,25 +193,7 @@ class Connection:
                 failed.status = status
                 raise failed
 
-            if status == 404 and method == "DELETE" and maybe_done:
-                # The retry of a delete finding nothing is the delete having
-                # worked: the attempt whose answer was lost removed it.
-                # Reporting 404 would tell the caller the record never
-                # existed, right after this call destroyed it.
-                return response
-
-            if status == 401:
-                logbook.api.key_rejected()
-            if status >= 400:
-                refused = from_response(response, method, path)
-                # Only a write can have moved the record. A read that is
-                # refused after a lost answer - a draft's file, say - is
-                # refused for its own reasons.
-                if maybe_done and writes and isinstance(refused, ConflictError):
-                    raise _own_change(refused, method, path)
-                raise refused
-
-            return response
+            return _answered(response, method, path, maybe_done=maybe_done)
 
         raise UpstreamError(f"{method} {path} failed after {MAX_ATTEMPTS} attempts.")
 
@@ -290,6 +241,53 @@ class Connection:
 
     # -- internals --------------------------------------------------------
 
+    async def _send(
+        self,
+        method: str,
+        path: str,
+        attempt: int,
+        *,
+        headers: dict[str, str],
+        **content: Any,
+    ) -> httpx.Response:
+        """One attempt: through the bucket, onto the wire, into the log.
+
+        An attempt that gets no answer is logged here and raised to the loop,
+        which decides whether another follows.
+        """
+        number = attempt + 1
+        queued_at = time.perf_counter()
+        await self._bucket.acquire()
+        logbook.tally.api_call()
+        sent_at = time.perf_counter()
+        queued = (sent_at - queued_at) * 1000
+        try:
+            response = await self._http.request(
+                method, path, headers=headers, **content
+            )
+        except httpx.RequestError as exc:
+            logbook.api.unanswered(method, path, exc, _since(sent_at), number)
+            raise
+        logbook.api.answered(
+            method, path, response.status_code, _since(sent_at), number, queued
+        )
+        return response
+
+    def _count_429(self) -> None:
+        """Count one more 429 in a row, and trip the breaker at the threshold."""
+        self._consecutive_429 += 1
+        if self._consecutive_429 < BREAKER_THRESHOLD:
+            return
+        self._bucket.drain(BREAKER_COOLDOWN)
+        logbook.api.breaker_tripped(self._consecutive_429, BREAKER_COOLDOWN)
+        self._consecutive_429 = 0
+        raise RateLimitError(
+            "Rate limited repeatedly. Pausing for "
+            f"{BREAKER_COOLDOWN:.0f} seconds. The Lexware limit of "
+            "2 requests per second covers your whole account, so "
+            "another client may be spending it too."
+        )
+
     async def _retry(
         self,
         method: str,
@@ -307,6 +305,40 @@ class Connection:
         else:
             logbook.api.retrying_status(method, path, status, wait, attempt + 2)
         await self._sleep(wait)
+
+
+def _unanswered(
+    method: str, path: str, exc: httpx.RequestError, writes: bool
+) -> UpstreamError:
+    """The last attempt got no answer, and none follows."""
+    if isinstance(exc, httpx.TimeoutException):
+        what = "timed out"
+    else:
+        what = f"could not be completed: {exc}"
+    return UpstreamError(f"{method} {path} {what}.", outcome_unknown=writes)
+
+
+def _answered(
+    response: httpx.Response, method: str, path: str, *, maybe_done: bool
+) -> httpx.Response:
+    """A final answer below 500 and not a 429: returned, or mapped to an error."""
+    status = response.status_code
+    if status == 404 and method == "DELETE" and maybe_done:
+        # The retry of a delete finding nothing is the delete having
+        # worked: the attempt whose answer was lost removed it.
+        # Reporting 404 would tell the caller the record never
+        # existed, right after this call destroyed it.
+        return response
+    if status == 401:
+        logbook.api.key_rejected()
+    if status < 400:
+        return response
+    refused = from_response(response, method, path)
+    # Only a write can have moved the record. A read that is refused after
+    # a lost answer - a draft's file, say - is refused for its own reasons.
+    if maybe_done and method not in READ_METHODS and isinstance(refused, ConflictError):
+        raise _own_change(refused, method, path)
+    raise refused
 
 
 def _own_change(refused: ConflictError, method: str, path: str) -> ConflictError:
