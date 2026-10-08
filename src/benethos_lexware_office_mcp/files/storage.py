@@ -329,12 +329,12 @@ def content_type_for(path: Path) -> str:
 # The type is guessed from the extension rather than sniffed. The API
 # validates the content anyway and rejects a mislabelled or damaged file, so a
 # second opinion here would only be a second way to be wrong.
+#
+# A subset of CONTENT_TYPES, taken from it rather than spelled again: an
+# extension has one content type here, whether it arrives or leaves.
 UPLOAD_TYPES: dict[str, str] = {
-    ".pdf": "application/pdf",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".xml": "application/xml",
+    extension: CONTENT_TYPES[extension]
+    for extension in (".pdf", ".png", ".jpg", ".jpeg", ".xml")
 }
 
 # Verified 2026-08-20: 5 MiB exactly is still accepted, one byte more is

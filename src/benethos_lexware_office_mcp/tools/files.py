@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import Annotated, Any
+from typing import Annotated, Any, get_args
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult
@@ -28,7 +28,11 @@ from ._base import DocumentIdField, DocumentTypeField, UploadPath, register_tool
 __all__ = ["register"]
 
 
-MIME: dict[str, str] = {"pdf": "application/pdf", "xml": "application/xml"}
+# What to ask the API for, per format a download offers. Taken from the
+# table that names a saved file's type, so a format and its file agree.
+MIME: dict[str, str] = {
+    name: storage.CONTENT_TYPES[f".{name}"] for name in get_args(Format)
+}
 
 
 def max_pages_field(default: int) -> Any:
