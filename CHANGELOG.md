@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-08
+
+The container files move into `containers/`, where the production folder
+runs the published image without a clone of the repository, and the
+restart on a changed `.env` that the image relies on loses nothing any
+more. No change to any tool, parameter or answer. **If you run the
+Compose file from the repository root**, it is gone: see the Compose
+entry below, the volumes carry over.
+
 ### Fixed
 
 - **A setting saved in the first seconds after a start reaches the
@@ -33,9 +42,8 @@ housekeeping are out of scope here — design decisions live in
 - **The image is published under the package's name as well**:
   `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, beside
   `ghcr.io/benethos-hub/lexware-office-mcp`. Both carry the same image.
-  The old name gets every release until 0.6.0 and none after it, so move
-  to the new one at your next update.
-
+  The old name gets the 0.4 patch releases and none from 0.5.0 on, its
+  `:latest` included, so move to the new one at your next update.
 - **The Dockerfile moved to `containers/images/lexware-office-mcp/`.** A
   build of your own names it, still from the repository root:
   `docker build -f containers/images/lexware-office-mcp/Dockerfile .`
@@ -1051,7 +1059,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.2.4...v0.3.0

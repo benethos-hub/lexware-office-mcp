@@ -169,7 +169,7 @@ jobs:
           set -euo pipefail
           /tmp/lowest/bin/python -m pytest -q -p no:cacheprovider
 
-  # The image and the Compose file are the only part of this repository that no
+  # The image and the Compose files are the only part of this repository that no
   # test touches: the suite is offline Python, and a Dockerfile is neither.
   # Everything asserted here was verified by hand once, which is exactly the
   # kind of proof that stops being true without anyone noticing.
