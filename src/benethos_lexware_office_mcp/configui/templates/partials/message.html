@@ -1,7 +1,8 @@
 {# The answer to the last action, once, at the top of the page. #}
+{% import "components/ui.html" as ui %}
 {% if message %}
 <div class="notice {{ message.kind }}" role="{{ 'alert' if message.kind == 'err' else 'status' }}">
   {{- message.text -}}
-  {% if message.account %} <strong>{{ message.account }}</strong>{% for fact in message.facts %} · {{ fact }}{% endfor %}{% endif -%}
+  {% if message.account %} {{ ui.account(message.account, message.facts) }}{% endif -%}
 </div>
 {% endif %}

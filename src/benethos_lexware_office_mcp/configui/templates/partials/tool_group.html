@@ -3,19 +3,17 @@
    script needs to count and to tick by group: the cost, whether the tool
    only reads, and whether it removes a record. #}
 {% import "components/ui.html" as ui with context %}
-<section class="card" data-group="{{ group.domain }}">
-  <header>
-    <h2>{{ group.label }}</h2>
-    {# The four choices of the bar above the groups, for this group alone,
-       beside its heading where the eye already is. #}
-    <span class="choices">
-      <button type="button" class="small" data-act="grp-on">alles an</button>
-      <button type="button" class="small" data-act="grp-off">alles aus</button>
-      <button type="button" class="small" data-act="grp-read">nur lesend</button>
-      <button type="button" class="small" data-act="grp-reversible">schreibend ohne löschen</button>
-    </span>
-  </header>
-  <div class="body">
+{% call(part) ui.card(group.label, group=group.domain, actions=True) %}
+{% if part == "actions" %}
+  {# The four choices of the bar above the groups, for this group alone,
+     beside its heading where the eye already is. #}
+  <span class="choices">
+    <button type="button" class="small" data-act="grp-on">alles an</button>
+    <button type="button" class="small" data-act="grp-off">alles aus</button>
+    <button type="button" class="small" data-act="grp-read">nur lesend</button>
+    <button type="button" class="small" data-act="grp-reversible">schreibend ohne löschen</button>
+  </span>
+{% else %}
   {% for tool in group.tools %}
     <div class="tool">
       <input type="checkbox" name="tool" data-cost="{{ tool.cost }}"{% if tool.read %} data-read{% endif %}{% if tool.destructive %} data-destructive{% endif %} value="{{ tool.name }}" id="{{ tool.name }}"{% if tool.checked %} checked{% endif %}>
@@ -25,5 +23,5 @@
       <span class="cost">{{ tool.cost | de }} Z.</span>
     </div>
   {% endfor %}
-  </div>
-</section>
+{% endif %}
+{% endcall %}

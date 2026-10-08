@@ -3,13 +3,15 @@
    action with a question before it. Imported "with context", so the CSRF
    field finds the session's token. #}
 
-{# A card with a heading. ``meta``: the small line beside it. #}
-{% macro card(title=None, meta=None, id=None) %}
-<section class="card"{% if id %} id="{{ id }}"{% endif %}>
+{# A card with a heading. ``meta``: the small line beside it, ``group``:
+   the group the script ticks within, ``actions``: the caller is asked
+   twice, for "actions" beside the heading and for "body". #}
+{% macro card(title=None, meta=None, id=None, group=None, actions=False) %}
+<section class="card"{% if id %} id="{{ id }}"{% endif %}{% if group %} data-group="{{ group }}"{% endif %}>
   {% if title %}
-  <header><h2>{{ title }}</h2>{% if meta %}<span class="meta">{{ meta }}</span>{% endif %}</header>
+  <header><h2>{{ title }}</h2>{% if meta %}<span class="meta">{{ meta }}</span>{% endif %}{% if actions %}{{ caller("actions") }}{% endif %}</header>
   {% endif %}
-  <div class="body">{{ caller() }}</div>
+  <div class="body">{{ caller("body") if actions else caller() }}</div>
 </section>
 {% endmacro %}
 
@@ -32,6 +34,13 @@
 {# Where a value came from, marked when the file lost. #}
 {% macro badge(badge) %}{{ tag("aus: " ~ badge.source, "warn" if badge.loud else "", badge.detail or None) }}{% endmacro %}
 
+{# The account a connection test found, and what else it learned. #}
+{% macro account(label, facts=()) %}<strong>{{ label }}</strong>{% for fact in facts %} · {{ fact }}{% endfor %}{% endmacro %}
+
+{# What a field's label says: the label, the variable's name beside it as
+   ``code``, and where its value came from as ``source``. #}
+{% macro label_text(label, code=None, source=None) %}{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}{% endmacro %}
+
 {# The hidden field every form that changes something carries. #}
 {% macro csrf_field() %}<input type="hidden" name="_csrf" value="{{ csrf }}">{% endmacro %}
 
@@ -41,7 +50,7 @@
    first. #}
 {% macro field(name, label, value="", type="text", placeholder="", hint=None, code=None, source=None, autocomplete=None, maxlength=None, enter=None) %}
 <div class="field">
-  <label for="f-{{ name }}">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</label>
+  <label for="f-{{ name }}">{{ label_text(label, code, source) }}</label>
   <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if enter %} data-enter="{{ enter }}"{% endif %}>
   {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
 </div>
@@ -50,7 +59,7 @@
 {# A choice of fixed values. ``options``: (value, text) pairs. #}
 {% macro choice(name, label, options, value="", code=None, source=None) %}
 <div class="field">
-  <label for="f-{{ name }}">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</label>
+  <label for="f-{{ name }}">{{ label_text(label, code, source) }}</label>
   <select id="f-{{ name }}" name="{{ name }}">
   {% for option, text in options %}
     <option value="{{ option }}"{% if option == value %} selected{% endif %}>{{ text }}</option>
@@ -62,7 +71,7 @@
 {# A value set where no form here reaches it, shown rather than offered. #}
 {% macro held(label, value, code=None, source=None, hint=None) %}
 <div class="field">
-  <span class="label">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</span>
+  <span class="label">{{ label_text(label, code, source) }}</span>
   <span class="held">{{ value }}</span>
   {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
 </div>
