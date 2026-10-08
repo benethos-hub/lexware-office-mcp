@@ -8,6 +8,7 @@ import pytest
 from benethos_lexware_office_mcp.api.client import ClientProvider
 from benethos_lexware_office_mcp.configui import probe
 from benethos_lexware_office_mcp.settings import Settings
+from helpers import fast_provider
 
 PROFILE = {
     "organizationId": "11111111-2222-3333-4444-555555555555",
@@ -25,7 +26,7 @@ def forget_the_last_account(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def answering(response: httpx.Response) -> ClientProvider:
-    return ClientProvider(SETTINGS, transport=httpx.MockTransport(lambda _r: response))
+    return fast_provider(lambda _r: response, settings=SETTINGS)
 
 
 def test_without_a_key_nothing_is_asked() -> None:
@@ -75,11 +76,9 @@ def test_a_refusal_is_reported_rather_than_raised() -> None:
 def test_the_key_is_never_in_the_message() -> None:
     """The interface exists partly so the key need never be seen."""
     settings = Settings(api_key="the-secret-key-value")
-    provider = ClientProvider(
-        settings,
-        transport=httpx.MockTransport(
-            lambda _r: httpx.Response(400, text="bad key the-secret-key-value")
-        ),
+    provider = fast_provider(
+        lambda _r: httpx.Response(400, text="bad key the-secret-key-value"),
+        settings=settings,
     )
 
     _, message = probe.check(settings, provider)
@@ -100,7 +99,7 @@ def test_a_key_the_client_refuses_to_send_is_not_quoted_back() -> None:
         raise httpx.LocalProtocolError(f"Illegal header value {value!r}")
 
     settings = Settings(api_key=key)
-    provider = ClientProvider(settings, transport=httpx.MockTransport(refuse))
+    provider = fast_provider(refuse, settings=settings)
 
     _, message = probe.check(settings, provider)
 
@@ -111,7 +110,7 @@ def test_a_machine_with_no_network_is_told_so() -> None:
     def refuse(_request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("nothing listening")
 
-    provider = ClientProvider(SETTINGS, transport=httpx.MockTransport(refuse))
+    provider = fast_provider(refuse, settings=SETTINGS)
 
     account, message = probe.check(SETTINGS, provider)
 

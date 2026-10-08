@@ -191,7 +191,6 @@ async def test_every_kind_reaches_its_own_path(kind: str) -> None:
     await server.call_tool("get_master_data", {"kind": kind})
 
     assert handler.path == f"/v1/{kind}"
-    await provider.aclose()
 
 
 async def test_the_categories_come_back_with_their_ids() -> None:
@@ -207,7 +206,6 @@ async def test_the_categories_come_back_with_their_ids() -> None:
     entries = result.structured_content["entries"]
     assert entries[0]["id"] == "PLACEHOLDER-CATEGORY-1"
     assert entries[0]["type"] == "income"
-    await provider.aclose()
 
 
 async def test_the_default_answer_is_capped() -> None:
@@ -219,7 +217,6 @@ async def test_the_default_answer_is_capped() -> None:
     assert result.structured_content is not None
     assert result.structured_content["total"] == 600
     assert result.structured_content["shown"] == 25, "the default page size"
-    await provider.aclose()
 
 
 @pytest.mark.parametrize("limit", [0, 251])
@@ -231,7 +228,6 @@ async def test_a_limit_outside_the_bounds_never_reaches_the_api(limit: int) -> N
         await server.call_tool("get_master_data", {"kind": "countries", "limit": limit})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_an_unknown_kind_never_reaches_the_api() -> None:
@@ -242,7 +238,6 @@ async def test_an_unknown_kind_never_reaches_the_api() -> None:
         await server.call_tool("get_master_data", {"kind": "articles"})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_the_kinds_are_the_ones_the_client_is_offered() -> None:
@@ -253,7 +248,6 @@ async def test_the_kinds_are_the_ones_the_client_is_offered() -> None:
     offered = tools["get_master_data"].input_schema["properties"]["kind"]
 
     assert set(offered["enum"]) == set(KINDS)
-    await provider.aclose()
 
 
 async def test_the_description_says_what_it_costs_and_to_narrow_the_search() -> None:
@@ -266,4 +260,3 @@ async def test_the_description_says_what_it_costs_and_to_narrow_the_search() -> 
     assert "one api call" in description.lower()
     assert "search" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
-    await provider.aclose()

@@ -260,7 +260,6 @@ async def test_the_search_answers_in_the_shared_page_shape() -> None:
     assert result.structured_content["page"]["totalElements"] == 1
     assert result.structured_content["articles"][0]["articleNumber"] == "A-0001"
     assert handler.query["type"] == ["SERVICE"]
-    await provider.aclose()
 
 
 async def test_reading_one_returns_it_whole() -> None:
@@ -273,7 +272,6 @@ async def test_reading_one_returns_it_whole() -> None:
 
     assert result.structured_content is not None
     assert result.structured_content["unitName"] == "Stueck"
-    await provider.aclose()
 
 
 async def test_creating_one_sends_the_four_fields_the_api_insists_on() -> None:
@@ -299,7 +297,6 @@ async def test_creating_one_sends_the_four_fields_the_api_insists_on() -> None:
     assert body["type"] == "SERVICE"
     assert body["unitName"] == "Stunde"
     assert body["price"] == {"leadingPrice": "NET", "netPrice": 90.0, "taxRate": 19}
-    await provider.aclose()
 
 
 async def test_an_update_reads_first_and_then_replaces() -> None:
@@ -314,7 +311,6 @@ async def test_an_update_reads_first_and_then_replaces() -> None:
     assert handler.methods == ["GET", "PUT"]
     assert handler.body(1)["title"] == "Renamed"
     assert handler.body(1)["unitName"] == "Stueck", "the rest came along"
-    await provider.aclose()
 
 
 async def test_a_stale_version_is_refused_before_anything_is_sent() -> None:
@@ -329,7 +325,6 @@ async def test_a_stale_version_is_refused_before_anything_is_sent() -> None:
 
     assert "version 3" in str(excinfo.value)
     assert handler.methods == ["GET"], "no write went out"
-    await provider.aclose()
 
 
 async def test_a_delete_without_a_confirmation_never_reaches_the_api() -> None:
@@ -343,7 +338,6 @@ async def test_a_delete_without_a_confirmation_never_reaches_the_api() -> None:
 
     assert "confirm" in str(excinfo.value)
     assert handler.requests == [], "a request went out anyway"
-    await provider.aclose()
 
 
 async def test_a_confirmed_delete_goes_through_and_says_what_it_removed() -> None:
@@ -357,7 +351,6 @@ async def test_a_confirmed_delete_goes_through_and_says_what_it_removed() -> Non
 
     assert handler.methods == ["DELETE"]
     assert result.structured_content == {"deleted": "PLACEHOLDER-ARTICLE-1"}
-    await provider.aclose()
 
 
 async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> None:
@@ -372,7 +365,6 @@ async def test_a_page_smaller_than_the_api_allows_never_leaves_the_server() -> N
         await server.call_tool("search_articles", {"size": 5})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 @pytest.mark.parametrize(("page_size", "sent"), [(60, "60"), (10, "25")])
@@ -387,7 +379,6 @@ async def test_the_page_follows_the_setting_down_to_the_floor(
     await server.call_tool("search_articles", {})
 
     assert handler.query["size"] == [sent]
-    await provider.aclose()
 
 
 async def test_the_page_floor_is_in_the_schema_the_client_reads() -> None:
@@ -399,7 +390,6 @@ async def test_the_page_floor_is_in_the_schema_the_client_reads() -> None:
 
     assert size["minimum"] == 25
     assert size["maximum"] == 250
-    await provider.aclose()
 
 
 async def test_the_search_offers_no_parameter_that_looks_like_a_text_search() -> None:
@@ -412,7 +402,6 @@ async def test_the_search_offers_no_parameter_that_looks_like_a_text_search() ->
     offered = set(tools["search_articles"].input_schema["properties"])
 
     assert offered == {"article_number", "gtin", "article_type", "page", "size"}
-    await provider.aclose()
 
 
 async def test_the_deleting_tool_says_the_api_has_no_way_back() -> None:
@@ -428,4 +417,3 @@ async def test_the_deleting_tool_says_the_api_has_no_way_back() -> None:
     assert "no way back" in description.lower()
     assert "confirm" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
-    await provider.aclose()

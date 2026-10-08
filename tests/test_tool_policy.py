@@ -13,6 +13,7 @@ from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
+from helpers import write_policy
 
 pytestmark = pytest.mark.anyio
 
@@ -22,11 +23,6 @@ API_KEY = "test-key"
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
-
-
-def write(path: Path, flags: dict[str, bool]) -> Path:
-    path.write_text(json.dumps(flags), encoding="utf-8")
-    return path
 
 
 # -- silence is a refusal -------------------------------------------------
@@ -46,7 +42,7 @@ async def test_a_tool_the_file_does_not_mention_is_off(tmp_path: Path) -> None:
     later. This one lists what to allow, so a tool nobody has decided about
     stays out.
     """
-    policy = write(tmp_path / "tools.json", {"get_contact": True})
+    policy = write_policy(tmp_path / "tools.json", {"get_contact": True})
     settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
     names = {t.name for t in await build_server(settings).list_tools()}
@@ -69,7 +65,7 @@ async def test_a_byte_order_mark_does_not_switch_everything_off(
 
 
 async def test_a_disabled_tool_is_not_listed(tmp_path: Path) -> None:
-    policy = write(
+    policy = write_policy(
         tmp_path / "tools.json", {"download_file": False, "download_document": True}
     )
     settings = Settings(api_key=API_KEY, tool_policy_path=policy)
@@ -86,7 +82,7 @@ async def test_a_write_tool_is_offered_when_the_file_says_so(tmp_path: Path) -> 
     The tier used to refuse a write tool whatever the file said. That is gone
     on purpose: one place decides, and this is it.
     """
-    policy = write(tmp_path / "tools.json", {"upload_file": True})
+    policy = write_policy(tmp_path / "tools.json", {"upload_file": True})
     settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
     names = {t.name for t in await build_server(settings).list_tools()}
@@ -128,11 +124,11 @@ async def test_a_file_holding_something_other_than_an_object_is_ignored(
 
 async def test_the_file_is_re_read_rather_than_remembered(tmp_path: Path) -> None:
     """Edited while the server runs, it takes effect on the next question."""
-    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
     store = ToolPolicy(policy)
 
     assert store.enabled("get_profile") is True
-    write(policy, {"get_profile": False})
+    write_policy(policy, {"get_profile": False})
 
     assert store.enabled("get_profile") is False
 
@@ -140,7 +136,7 @@ async def test_the_file_is_re_read_rather_than_remembered(tmp_path: Path) -> Non
 def test_a_policy_knows_whether_it_has_a_file_at_all(tmp_path: Path) -> None:
     """Told apart from a file that exists and enables nothing."""
     assert ToolPolicy(tmp_path / "absent.json").exists() is False
-    assert ToolPolicy(write(tmp_path / "there.json", {})).exists() is True
+    assert ToolPolicy(write_policy(tmp_path / "there.json", {})).exists() is True
 
 
 # -- presets write files, they are not consulted --------------------------
@@ -326,11 +322,11 @@ async def test_switching_a_tool_off_takes_effect_without_a_restart(
     switched off is refused - even though it stays in a list the client
     already holds.
     """
-    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
     server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
 
     assert [t.name for t in await server.list_tools()] == ["get_profile"]
-    write(policy, {"get_profile": False})
+    write_policy(policy, {"get_profile": False})
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("get_profile", {})
@@ -346,11 +342,11 @@ async def test_switching_a_tool_on_takes_effect_too(tmp_path: Path) -> None:
     where the check sat, not a decision, and it made "the file takes effect on
     the next request" true in one direction only.
     """
-    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
     server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
 
     assert [t.name for t in await server.list_tools()] == ["get_profile"]
-    write(policy, {"get_profile": True, "search_contacts": True})
+    write_policy(policy, {"get_profile": True, "search_contacts": True})
 
     assert {t.name for t in await server.list_tools()} == {
         "get_profile",
@@ -360,11 +356,11 @@ async def test_switching_a_tool_on_takes_effect_too(tmp_path: Path) -> None:
 
 async def test_a_tool_enabled_while_running_can_be_called(tmp_path: Path) -> None:
     """Listing it and refusing it would be worse than either alone."""
-    policy = write(tmp_path / "tools.json", {})
+    policy = write_policy(tmp_path / "tools.json", {})
     server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
 
     assert await server.list_tools() == []
-    write(policy, {"get_deeplink": True})
+    write_policy(policy, {"get_deeplink": True})
 
     result = await server.call_tool(
         "get_deeplink", {"target": "voucher", "target_id": "PLACEHOLDER-1"}
@@ -380,7 +376,7 @@ async def test_a_listing_reads_the_file_once(tmp_path: Path) -> None:
     edited halfway through the loop would produce a list that never existed
     on disk in that combination.
     """
-    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
     server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
 
     reads = 0
@@ -405,7 +401,7 @@ async def test_a_listing_reads_the_file_once(tmp_path: Path) -> None:
 
 
 def test_sync_adds_what_is_missing_and_switches_nothing_on(tmp_path: Path) -> None:
-    policy = ToolPolicy(write(tmp_path / "tools.json", {"get_profile": True}))
+    policy = ToolPolicy(write_policy(tmp_path / "tools.json", {"get_profile": True}))
 
     added, stale = policy.sync()
     written = json.loads((tmp_path / "tools.json").read_text(encoding="utf-8"))
@@ -420,7 +416,9 @@ def test_sync_adds_what_is_missing_and_switches_nothing_on(tmp_path: Path) -> No
 def test_sync_keeps_a_false_a_false(tmp_path: Path) -> None:
     """Somebody switched it off on purpose. That is a decision, not a gap."""
     policy = ToolPolicy(
-        write(tmp_path / "tools.json", {"get_profile": False, "get_contact": True})
+        write_policy(
+            tmp_path / "tools.json", {"get_profile": False, "get_contact": True}
+        )
     )
 
     policy.sync()
@@ -435,7 +433,9 @@ def test_sync_reports_and_drops_a_name_that_is_not_a_tool(tmp_path: Path) -> Non
     so writing it back would only make the file harder to read - but going
     quiet about it would leave somebody looking for their setting."""
     policy = ToolPolicy(
-        write(tmp_path / "tools.json", {"get_profile": True, "book_voucher": True})
+        write_policy(
+            tmp_path / "tools.json", {"get_profile": True, "book_voucher": True}
+        )
     )
 
     _, stale = policy.sync()
@@ -459,7 +459,7 @@ def test_sync_without_a_file_writes_one_that_offers_nothing(tmp_path: Path) -> N
 
 
 def test_sync_twice_changes_nothing_the_second_time(tmp_path: Path) -> None:
-    policy = ToolPolicy(write(tmp_path / "tools.json", {"get_profile": True}))
+    policy = ToolPolicy(write_policy(tmp_path / "tools.json", {"get_profile": True}))
     policy.sync()
     first = (tmp_path / "tools.json").read_text(encoding="utf-8")
 
@@ -475,7 +475,7 @@ def test_sync_never_enables_whatever_the_file_said(tmp_path: Path) -> None:
     before = {name: False for name in known_tools()}
     before["get_profile"] = True
     del before["search_vouchers"]
-    policy = ToolPolicy(write(tmp_path / "tools.json", before))
+    policy = ToolPolicy(write_policy(tmp_path / "tools.json", before))
 
     policy.sync()
     after = json.loads((tmp_path / "tools.json").read_text(encoding="utf-8"))
@@ -488,7 +488,7 @@ def test_sync_never_enables_whatever_the_file_said(tmp_path: Path) -> None:
 def test_the_command_line_syncs_and_says_it_granted_nothing(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    policy = write(tmp_path / "tools.json", {"get_profile": True})
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
 
     main(["--tools", "sync", "--tools-file", str(policy)])
 
@@ -504,7 +504,7 @@ def test_the_command_line_sync_does_not_serve(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """As with the presets: it writes, reports, and returns."""
-    policy = write(tmp_path / "tools.json", {})
+    policy = write_policy(tmp_path / "tools.json", {})
 
     main(["--tools", "sync", "--tools-file", str(policy)])
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 from pathlib import Path
 from typing import Any
@@ -11,7 +10,6 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from benethos_lexware_office_mcp.logbook import configure
 from benethos_lexware_office_mcp.logbook.output import PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy
 from helpers import PDF, Scripted, always, recorder, server_with
@@ -20,14 +18,6 @@ CONTACT = "0b7a5c9e-3f2d-4e1a-9c8b-7d6e5f4a3b2c"
 FILE = "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a"
 VOUCHER = "9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d"
 NAME = "Mustermann GmbH"
-
-
-@pytest.fixture
-def lines(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
-    """The tool lines, with the server configured as it configures itself."""
-    configure("INFO", io.StringIO())
-    caplog.set_level(logging.INFO, logger=PACKAGE)
-    return caplog
 
 
 def _tools(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
@@ -40,11 +30,8 @@ def _only(caplog: pytest.LogCaptureFixture) -> str:
 
 
 async def _call(handler: Any, tool: str, arguments: dict[str, Any], **fields: Any):
-    server, provider = server_with(handler, **fields)
-    try:
-        return await server.call_tool(tool, arguments)
-    finally:
-        await provider.aclose()
+    server, _ = server_with(handler, **fields)
+    return await server.call_tool(tool, arguments)
 
 
 # -- reading ---------------------------------------------------------------
@@ -257,7 +244,6 @@ async def test_two_calls_at_once_each_count_their_own(
         server.call_tool("get_contact", {"contact_id": CONTACT}),
         server.call_tool("get_contact", {"contact_id": CONTACT}),
     )
-    await provider.aclose()
 
     messages = [record.getMessage() for record in _tools(lines)]
     assert len(messages) == 2

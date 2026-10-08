@@ -209,7 +209,6 @@ async def test_without_an_id_a_page_comes_back() -> None:
     assert result.structured_content is not None
     assert result.structured_content["page"]["totalElements"] == 1
     assert handler.path == "/v1/recurring-templates"
-    await provider.aclose()
 
 
 @pytest.mark.parametrize("page_size", [5, 60])
@@ -222,7 +221,6 @@ async def test_the_page_follows_the_page_size_setting(page_size: int) -> None:
     await server.call_tool("get_recurring_templates", {})
 
     assert handler.query["size"] == [str(page_size)]
-    await provider.aclose()
 
 
 async def test_with_an_id_that_one_template_comes_back() -> None:
@@ -236,7 +234,6 @@ async def test_with_an_id_that_one_template_comes_back() -> None:
     assert result.structured_content is not None
     assert result.structured_content["version"] == 1
     assert handler.path == "/v1/recurring-templates/PLACEHOLDER-TEMPLATE-1"
-    await provider.aclose()
 
 
 async def test_a_sort_the_api_refuses_never_leaves_the_server() -> None:
@@ -249,7 +246,6 @@ async def test_a_sort_the_api_refuses_never_leaves_the_server() -> None:
         await server.call_tool("get_recurring_templates", {"sort": "title,ASC"})
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_the_description_says_reading_is_all_there_is() -> None:
@@ -261,4 +257,3 @@ async def test_the_description_says_reading_is_all_there_is() -> None:
 
     assert "one api call" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
-    await provider.aclose()

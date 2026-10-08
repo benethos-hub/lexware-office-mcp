@@ -942,12 +942,6 @@ def test_a_delete_that_cannot_be_written_is_reported(
 # -- what reaches stderr ----------------------------------------------------
 
 
-@pytest.fixture
-def lines(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
-    caplog.set_level(logging.INFO, logger="benethos_lexware_office_mcp")
-    return caplog
-
-
 def test_a_saved_key_is_a_line_and_the_key_is_not(
     browser: Browser, lines: pytest.LogCaptureFixture
 ) -> None:

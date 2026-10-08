@@ -12,8 +12,11 @@ sleep returns at once, and so does the client's.
 
 from __future__ import annotations
 
+import io
 import json
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -21,14 +24,18 @@ import httpx
 
 from benethos_lexware_office_mcp.api.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
+from benethos_lexware_office_mcp.logbook import configure
+from benethos_lexware_office_mcp.logbook.output import PACKAGE
 from benethos_lexware_office_mcp.server import PolicyServer, build_server
 from benethos_lexware_office_mcp.settings import Settings
 
 __all__ = [
     "API_KEY",
     "FILE_ID",
+    "OPEN_PROVIDERS",
     "PDF",
     "UPLOADED",
+    "write_policy",
     "downloaded",
     "make_pdf",
     "recorder",
@@ -36,6 +43,7 @@ __all__ = [
     "Handler",
     "Scripted",
     "always",
+    "capture_lines",
     "fast_bucket",
     "fast_client",
     "fast_provider",
@@ -63,14 +71,33 @@ def fast_bucket() -> TokenBucket:
     return TokenBucket(1000.0, 100, sleep=no_sleep)
 
 
-def fast_client(handler: Handler, **settings: Any) -> LexwareClient:
-    """A client against ``handler``, with the API key set and no real time."""
+def fast_client(
+    handler: Handler,
+    *,
+    settings: Settings | None = None,
+    bucket: TokenBucket | None = None,
+    sleep: Any = no_sleep,
+    **fields: Any,
+) -> LexwareClient:
+    """A client against ``handler``, with the API key set and no real time.
+
+    ``fields`` go into the :class:`Settings` beside the key, ``settings``
+    replaces the whole object. ``bucket`` and ``sleep`` are for a test about
+    waiting, which records the waits rather than skipping them.
+    """
     return LexwareClient(
-        Settings(api_key=API_KEY, **settings),
+        settings or Settings(api_key=API_KEY, **fields),
         transport=httpx.MockTransport(handler),
-        bucket=fast_bucket(),
-        sleep=no_sleep,
+        bucket=bucket or fast_bucket(),
+        sleep=sleep,
     )
+
+
+# Every provider a test builds, closed by the `providers_closed` fixture in
+# conftest.py once the test is over, whether it passed or not. Closing it as
+# the test's last line was skipped by the first failing assert before it, and
+# left a client open behind every failure.
+OPEN_PROVIDERS: list[ClientProvider] = []
 
 
 def fast_provider(
@@ -85,23 +112,50 @@ def fast_provider(
     ``fields`` go into the :class:`Settings` beside the key. ``settings``
     replaces that whole object, for a test about the settings themselves.
     """
-    return ClientProvider(
+    provider = ClientProvider(
         settings or Settings(api_key=API_KEY, **fields),
         transport=httpx.MockTransport(handler),
         bucket=bucket or fast_bucket(),
         sleep=no_sleep,
     )
+    OPEN_PROVIDERS.append(provider)
+    return provider
 
 
 def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientProvider]:
     """A server whose every tool answers from ``handler``, and its provider.
 
-    The provider is returned too, so the test can close it. ``fields`` are
-    :class:`Settings` fields, ``page_size`` or ``download_path`` say.
+    The provider is returned too, for a test that looks at it. It is closed
+    after the test either way. ``fields`` are :class:`Settings` fields,
+    ``page_size`` or ``download_path`` say.
     """
     settings = Settings(api_key=API_KEY, **fields)
     provider = fast_provider(handler, settings=settings)
     return build_server(settings, provider), provider
+
+
+def capture_lines(caplog: Any, level: str) -> Any:
+    """``caplog`` catching this package's lines at ``level``.
+
+    Logging is configured first the way the server configures itself, so a
+    test reads the lines a person would see on stderr - into a buffer here,
+    since stderr belongs to pytest.
+    """
+    configure(level, io.StringIO())
+    caplog.set_level(getattr(logging, level), logger=PACKAGE)
+    return caplog
+
+
+def write_policy(path: Path, flags: Mapping[str, bool]) -> Path:
+    """A policy file holding exactly ``flags``, as a person might write one.
+
+    Raw JSON rather than ``ToolPolicy.save``, which completes and normalizes
+    what it is given: a test about reading the file wants the file it names.
+    Every test has a file with every tool on already, from conftest.py, so
+    this is for a test that needs some other answer.
+    """
+    path.write_text(json.dumps(dict(flags)), encoding="utf-8")
+    return path
 
 
 class Scripted:

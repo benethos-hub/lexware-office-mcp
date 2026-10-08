@@ -20,6 +20,8 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from helpers import write_policy
+
 
 def server_parameters(
     tmp_path: Path, policy: Path | None = None
@@ -51,11 +53,7 @@ def server_parameters(
 
 def enabling(tmp_path: Path, *names: str) -> Path:
     """A policy file switching exactly ``names`` on."""
-    target = tmp_path / "tools.json"
-    target.write_text(
-        "{" + ", ".join(f'"{name}": true' for name in names) + "}", encoding="utf-8"
-    )
-    return target
+    return write_policy(tmp_path / "tools.json", dict.fromkeys(names, True))
 
 
 async def test_a_client_can_connect_and_list_the_tools(tmp_path: Path) -> None:

@@ -152,7 +152,6 @@ async def test_reading_an_invoice_returns_it_whole() -> None:
     assert result.structured_content is not None
     assert result.structured_content["voucherNumber"] == "RE0001"
     assert result.structured_content["address"]["contactId"] == "PLACEHOLDER-CONTACT-1"
-    await provider.aclose()
 
 
 async def test_an_open_document_passes_its_files_block_through() -> None:
@@ -168,7 +167,6 @@ async def test_an_open_document_passes_its_files_block_through() -> None:
 
     assert result.structured_content is not None
     assert result.structured_content["files"]["documentFileId"] == "PLACEHOLDER-FILE-1"
-    await provider.aclose()
 
 
 async def test_the_description_names_the_status_not_the_deprecated_block() -> None:
@@ -182,7 +180,6 @@ async def test_the_description_names_the_status_not_the_deprecated_block() -> No
 
     assert "voucherStatus" in description
     assert "documentFileId" not in description
-    await provider.aclose()
 
 
 async def test_a_draft_reads_in_full_and_carries_no_document() -> None:
@@ -201,7 +198,6 @@ async def test_a_draft_reads_in_full_and_carries_no_document() -> None:
     assert result.structured_content["totalPrice"]["totalGrossAmount"] == 51.17
     assert "files" not in result.structured_content
     assert "dueDate" not in result.structured_content
-    await provider.aclose()
 
 
 @pytest.mark.parametrize(("document_type", "segment"), sorted(RESOURCES.items()))
@@ -217,7 +213,6 @@ async def test_every_type_reaches_its_own_path(
     )
 
     assert handler.path == f"/v1/{segment}/PLACEHOLDER-DOC-1"
-    await provider.aclose()
 
 
 async def test_an_unknown_type_never_reaches_the_api() -> None:
@@ -232,7 +227,6 @@ async def test_an_unknown_type_never_reaches_the_api() -> None:
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_the_document_types_are_the_ones_the_client_is_offered() -> None:
@@ -243,7 +237,6 @@ async def test_the_document_types_are_the_ones_the_client_is_offered() -> None:
     offered = tools["get_sales_document"].input_schema["properties"]["document_type"]
 
     assert set(offered["enum"]) == set(RESOURCES)
-    await provider.aclose()
 
 
 async def test_the_description_says_what_it_costs_and_what_a_draft_lacks() -> None:
@@ -256,7 +249,6 @@ async def test_the_description_says_what_it_costs_and_what_a_draft_lacks() -> No
     assert "one api call" in description.lower()
     assert "draft" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
-    await provider.aclose()
 
 
 # -- creating one ---------------------------------------------------------
@@ -308,7 +300,6 @@ async def test_a_draft_carries_the_lines_and_leaves_the_totals_to_the_api() -> N
     }
     assert result.structured_content is not None
     assert result.structured_content["id"] == "PLACEHOLDER-INVOICE-3"
-    await provider.aclose()
 
 
 async def test_a_plain_date_becomes_the_timestamp_the_api_insists_on() -> None:
@@ -322,7 +313,6 @@ async def test_a_plain_date_becomes_the_timestamp_the_api_insists_on() -> None:
     body = json.loads(handler.requests[0].content)
     assert body["voucherDate"] == "2026-08-21T00:00:00.000Z"
     assert body["shippingConditions"]["shippingDate"] == "2026-08-21T00:00:00.000Z"
-    await provider.aclose()
 
 
 async def test_a_full_timestamp_is_left_alone() -> None:
@@ -336,7 +326,6 @@ async def test_a_full_timestamp_is_left_alone() -> None:
 
     body = json.loads(handler.requests[0].content)
     assert body["voucherDate"] == "2026-08-21T09:30:00.000+02:00"
-    await provider.aclose()
 
 
 async def test_a_gross_document_puts_the_price_on_the_gross_side() -> None:
@@ -349,7 +338,6 @@ async def test_a_gross_document_puts_the_price_on_the_gross_side() -> None:
     assert body["taxConditions"] == {"taxType": "gross"}
     assert "grossAmount" in body["lineItems"][0]["unitPrice"]
     assert "netAmount" not in body["lineItems"][0]["unitPrice"]
-    await provider.aclose()
 
 
 async def test_a_line_may_quote_an_article_or_carry_no_price_at_all() -> None:
@@ -370,7 +358,6 @@ async def test_a_line_may_quote_an_article_or_carry_no_price_at_all() -> None:
     assert lines[0]["type"] == "service"
     assert lines[0]["id"] == "PLACEHOLDER-ARTICLE-1"
     assert lines[1] == {"type": "text", "name": "A note"}, "a text line has no price"
-    await provider.aclose()
 
 
 @pytest.mark.parametrize("item_type", ["custom", "text"])
@@ -397,7 +384,6 @@ async def test_an_article_id_on_a_line_that_cannot_carry_one_is_refused_here(
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_a_text_line_needs_nothing_but_its_text() -> None:
@@ -412,7 +398,6 @@ async def test_a_text_line_needs_nothing_but_its_text() -> None:
 
     lines = json.loads(handler.requests[0].content)["lineItems"]
     assert lines[1] == {"type": "text", "name": "A note"}
-    await provider.aclose()
 
 
 async def test_a_priced_line_without_its_price_never_reaches_the_api() -> None:
@@ -424,7 +409,6 @@ async def test_a_priced_line_without_its_price_never_reaches_the_api() -> None:
         await server.call_tool("create_sales_document", _create_args(items=[unpriced]))
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 @pytest.mark.parametrize(
@@ -451,7 +435,6 @@ async def test_what_each_kind_insists_on_is_refused_before_the_request(
 
     assert missing in str(excinfo.value)
     assert handler.requests == [], "a request went out anyway"
-    await provider.aclose()
 
 
 async def test_a_credit_note_needs_nothing_of_its_own() -> None:
@@ -463,7 +446,6 @@ async def test_a_credit_note_needs_nothing_of_its_own() -> None:
     await server.call_tool("create_sales_document", args)
 
     assert handler.path == "/v1/credit-notes"
-    await provider.aclose()
 
 
 async def test_finalizing_without_a_confirmation_never_reaches_the_api() -> None:
@@ -475,7 +457,6 @@ async def test_finalizing_without_a_confirmation_never_reaches_the_api() -> None
 
     assert "confirm" in str(excinfo.value)
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_a_confirmed_finalize_becomes_a_query_parameter() -> None:
@@ -487,7 +468,6 @@ async def test_a_confirmed_finalize_becomes_a_query_parameter() -> None:
     )
 
     assert handler.query["finalize"] == ["true"]
-    await provider.aclose()
 
 
 async def test_a_draft_sends_no_finalize_at_all() -> None:
@@ -497,7 +477,6 @@ async def test_a_draft_sends_no_finalize_at_all() -> None:
     await server.call_tool("create_sales_document", _create_args(confirm=True))
 
     assert handler.query == {}
-    await provider.aclose()
 
 
 async def test_pursuing_a_document_names_it_in_the_query() -> None:
@@ -510,7 +489,6 @@ async def test_pursuing_a_document_names_it_in_the_query() -> None:
     )
 
     assert handler.query["precedingSalesVoucherId"] == ["PLACEHOLDER-QUOTATION-1"]
-    await provider.aclose()
 
 
 async def test_a_creation_is_never_retried() -> None:
@@ -522,7 +500,6 @@ async def test_a_creation_is_never_retried() -> None:
         await server.call_tool("create_sales_document", _create_args())
 
     assert len(handler.requests) == 1
-    await provider.aclose()
 
 
 async def test_a_down_payment_invoice_cannot_be_created() -> None:
@@ -537,7 +514,6 @@ async def test_a_down_payment_invoice_cannot_be_created() -> None:
         )
 
     assert handler.requests == []
-    await provider.aclose()
 
 
 async def test_the_creating_description_says_finalize_is_the_users_call() -> None:
@@ -557,7 +533,6 @@ async def test_the_creating_description_says_finalize_is_the_users_call() -> Non
     assert "cannot take that back" in description.lower()
     assert "draft" in description.lower()
     assert len(description) < 700, "the description budget, see CLAUDE.md"
-    await provider.aclose()
 
 
 async def test_the_finalize_parameter_repeats_the_rule_where_it_is_set() -> None:
@@ -569,7 +544,6 @@ async def test_the_finalize_parameter_repeats_the_rule_where_it_is_set() -> None
     schema = tools["create_sales_document"].input_schema
 
     assert "asked for that" in schema["properties"]["finalize"]["description"]
-    await provider.aclose()
 
 
 async def test_the_voucher_list_spelling_of_a_type_is_taken_too() -> None:
@@ -584,4 +558,3 @@ async def test_the_voucher_list_spelling_of_a_type_is_taken_too() -> None:
     )
 
     assert handler.path == "/v1/order-confirmations/PLACEHOLDER-DOC-1"
-    await provider.aclose()
