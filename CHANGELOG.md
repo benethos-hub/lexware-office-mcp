@@ -58,6 +58,9 @@ housekeeping are out of scope here — design decisions live in
   TLS, whose `Origin` is `https://`, was refused by the DNS-rebinding guard.
 - **`--help` names the Compose service as it is called now**,
   `benethos-lexware-office-mcp:8770`, in its example for `--allowed-hosts`.
+- **A setting can be emptied in `setup` again.** The page says an empty
+  field means the default, but the empty field was dropped before it was
+  saved: the old value stayed, and the page reported success.
 
 ### Changed
 

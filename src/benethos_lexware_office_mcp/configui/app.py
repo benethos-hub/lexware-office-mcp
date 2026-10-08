@@ -275,7 +275,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send(413, page("Zu groß", "<p>Diese Anfrage ist zu groß.</p>"))
             return
         raw = self.rfile.read(length).decode("utf-8", errors="replace")
-        form = parse_qs(raw)
+        # Blank fields kept: an emptied setting is how a person asks for the
+        # default back, and dropped here it never reached the action, which
+        # left the old value in place and reported success.
+        form = parse_qs(raw, keep_blank_values=True)
         if not self._host_ok():
             self._wrong_host()
             return

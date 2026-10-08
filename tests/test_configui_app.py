@@ -27,7 +27,7 @@ from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serv
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
-from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings import DEFAULT_PAGE_SIZE, Settings
 from benethos_lexware_office_mcp.settings.envfile import read_env_file
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
@@ -584,6 +584,27 @@ def test_a_setting_is_written_and_takes_effect(
 
     assert "LXO_MCP_PAGE_SIZE=80" in installation.env_path.read_text(encoding="utf-8")
     assert installation.settings.page_size == 80
+
+
+def test_an_emptied_setting_falls_back_to_the_default(
+    browser: Browser, installation: Installation
+) -> None:
+    """The page says empty means the default. The empty field used to be
+    dropped before the action saw it, the old value stayed, and the page
+    reported success."""
+    browser.post("/settings", {"LXO_MCP_PAGE_SIZE": ""})
+
+    assert read_env_file(installation.env_path)["LXO_MCP_PAGE_SIZE"] == ""
+    assert installation.settings.page_size == DEFAULT_PAGE_SIZE
+
+
+def test_a_blank_field_the_file_does_not_carry_is_not_written(
+    browser: Browser, installation: Installation
+) -> None:
+    """The form sends every field. Nothing to clear means nothing to write."""
+    browser.post("/settings", {"LXO_MCP_PAGE_SIZE": "80", "LXO_MCP_TIMEOUT": ""})
+
+    assert "LXO_MCP_TIMEOUT" not in installation.env_path.read_text(encoding="utf-8")
 
 
 def test_a_setting_the_server_would_refuse_is_not_written(

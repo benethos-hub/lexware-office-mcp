@@ -203,10 +203,18 @@ def save_bearer(inst: Installation, form: Form, csrf: str) -> Reply:
 
 
 def save_settings(inst: Installation, form: Form, csrf: str) -> Reply:
-    submitted = {key: field(form, key) for key in EDITABLE_KEYS if key in form}
+    current = inst.file_env()
+    # The form sends every field, blank ones included. A blank one clears a
+    # value the file holds, and for a key the file does not carry there is
+    # nothing to clear - writing `KEY=` for it would only clutter the file.
+    submitted = {
+        key: value
+        for key in EDITABLE_KEYS
+        if key in form and ((value := field(form, key)) or key in current)
+    }
     # Validated by the same code the server uses, so a value accepted here
     # cannot be one that stops the server from starting later.
-    proposed = {**inst.file_env(), **submitted}
+    proposed = {**current, **submitted}
     try:
         load_settings(env=proposed)
     except ConfigError as exc:
