@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from benethos_lexware_office_mcp.configui import probe, transfer
+from benethos_lexware_office_mcp.configui import actions, probe, transfer
 from benethos_lexware_office_mcp.configui.app import (
     CONTENT_SECURITY_POLICY,
     MAX_WAITING_SESSIONS,
@@ -1018,6 +1018,31 @@ def test_a_setting_is_written_and_takes_effect(
 
     assert "LXO_MCP_PAGE_SIZE=80" in installation.env_path.read_text(encoding="utf-8")
     assert installation.settings.page_size == 80
+
+
+def test_a_save_that_changes_nothing_writes_nothing_and_says_so(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The form sends every field, so an unchanged one is no change."""
+    written: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        actions, "update_env_file", lambda path, updates: written.append(updates)
+    )
+
+    _, body, _ = browser.post(
+        "/settings", {"LXO_MCP_PAGE_SIZE": "50", "LXO_MCP_TIMEOUT": ""}
+    )
+
+    assert written == []
+    assert "Nichts geändert" in note(body)
+
+
+def test_one_changed_setting_is_one_einstellung(browser: Browser) -> None:
+    _, body, _ = browser.post(
+        "/settings", {"LXO_MCP_PAGE_SIZE": "50", "LXO_MCP_TIMEOUT": "20"}
+    )
+
+    assert "1 Einstellung nach" in note(body)
 
 
 def test_an_emptied_setting_falls_back_to_the_default(

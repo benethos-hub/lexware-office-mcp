@@ -137,6 +137,10 @@ housekeeping are out of scope here — design decisions live in
   the token from the `.env` under the badge "aus: Umgebung", the one a
   client would be refused with. It now shows the token in force and no
   field, as the settings page does for a value the environment holds.
+- **Saving the settings of `setup` writes only what changed.** The form
+  sends every field, and each was written back and counted, so a save
+  that changed nothing rewrote the `.env` and reported settings written.
+  It now says that nothing changed, and one setting is "1 Einstellung".
 
 ### Changed
 

@@ -187,11 +187,16 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     # The form sends every field, blank ones included. A blank one clears a
     # value the file holds, and for a key the file does not carry there is
     # nothing to clear - writing `KEY=` for it would only clutter the file.
+    # Nor is a field that says what the file says a change.
     submitted = {
         key: value
         for key in EDITABLE_KEYS
-        if key in form and ((value := field(form, key)) or key in current)
+        if key in form
+        and ((value := field(form, key)) or key in current)
+        and value != current.get(key, "").strip()
     }
+    if not submitted:
+        return _done(_SETTINGS, "Nichts geändert, also nichts geschrieben.")
     typed = {key: field(form, key) for key in EDITABLE_KEYS if key in form}
     # The one setting the server does not refuse: an unknown log level
     # falls back to the default rather than stopping a start. Written from
@@ -214,10 +219,12 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     if failed is not None:
         return failed
     logbook.configui.settings_saved(inst.env_path.name, list(submitted))
+    count = len(submitted)
     return _written(
         inst,
         _SETTINGS,
-        f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.",
+        f"{count} {'Einstellung' if count == 1 else 'Einstellungen'} "
+        f"nach {inst.env_path} geschrieben.",
     )
 
 
