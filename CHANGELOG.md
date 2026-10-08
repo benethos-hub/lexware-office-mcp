@@ -13,6 +13,22 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Security
+
+- **Every answer of `setup` carries its security headers**, the HTTP
+  server's own refusals included: a `HEAD` or `OPTIONS`, which no page
+  has, and a request with more headers than it reads. Those came without
+  `Content-Security-Policy`, `X-Frame-Options`, `nosniff` and `no-store`.
+- **`setup` keeps at most 100 sessions that never gave the start code.**
+  Every request without a known cookie made one, so a program sending
+  requests in a loop grew its memory for as long as it ran. The oldest go
+  first, a signed-in session stays.
+- **A link from another site no longer signs `setup` out.** The browser
+  withholds the session cookie from such a request, and the answer set a
+  new one in its place, so any page could end the session, and the forms
+  of an open tab were refused from then on. Such a request now gets a page
+  with a link to the same address and no new cookie.
+
 ### Fixed
 
 - **`read_download` no longer suggests that null renders every page.** Its
@@ -106,6 +122,12 @@ housekeeping are out of scope here — design decisions live in
 - **`setup` names `--tools-file` as the source of the policy file whenever
   it was given.** With `LXO_MCP_TOOL_POLICY` set as well, the badge said
   the environment beside the path the flag had named.
+- **Another program's cookie no longer locks `setup` out.** Cookies ignore
+  the port, so whatever else runs on `localhost` adds its own, and one with
+  a space in its value made `setup` drop the whole header: every request
+  got a new session, and every save was refused for a token that did not
+  match. The header is read by hand now, and a cookie of the same name
+  planted beside the real one no longer wins either.
 
 ### Changed
 
@@ -139,8 +161,9 @@ housekeeping are out of scope here — design decisions live in
   address it prints and opens carries it, so the browser it opens is
   signed in at once. Without it every page shows one field, so another
   program or user on the same machine cannot open the pages through the
-  loopback port. After five wrong codes each further try waits. In a
-  container the address is in the log, `docker compose logs setup`.
+  loopback port. After five wrong codes each further wrong one waits, and
+  a right one never waits behind them. In a container the address is in
+  the log, `docker compose logs setup`.
 - **`setup` writes its lines on stderr in the log format, in English**,
   with the time and the level like the server's: the address with the
   start code, the three files it edits, a bind beyond loopback, a port it

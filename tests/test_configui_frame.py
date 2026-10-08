@@ -150,13 +150,16 @@ def test_the_footer_names_the_version(site: Site) -> None:
     assert f"benethos-lexware-office-mcp {__version__}</footer>" in site.get("/")[1]
 
 
-def test_an_unknown_address_is_a_page_in_the_frame(site: Site) -> None:
+def test_an_unknown_address_is_a_page_without_the_navigation(site: Site) -> None:
+    """An error page is also what a request refused before the sign-in sees,
+    so it has the frame of the code page and a way back."""
     status, body, headers = site.get("/nope")
 
     assert status == 404
     assert headers["Content-Type"].startswith("text/html")
     assert "Diese Adresse gibt es nicht." in body
-    assert 'class="sidebar"' in body
+    assert 'class="sidebar"' not in body
+    assert '<a href="/">Zur Übersicht</a>' in body
 
 
 def test_a_typo_in_a_template_raises_rather_than_rendering_nothing() -> None:

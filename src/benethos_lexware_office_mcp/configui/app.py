@@ -41,7 +41,6 @@ import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
-from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -66,10 +65,17 @@ CONTENT_SECURITY_POLICY = (
     "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 )
 
-# Wrong start codes answered at once. Each one after these waits first, one
-# at a time, so the waits cannot be run around in parallel either.
+# Wrong start codes answered at once. Each wrong one after these waits before
+# it is answered, one at a time, so a loop cannot fill the log faster in
+# parallel either.
 FREE_TRIES = 5
 WAIT_SECONDS = 2.0
+
+# Sessions kept that have not given the start code. Every request without a
+# known cookie makes one, so whatever loops requests without keeping cookies
+# would grow them for as long as the process runs. The oldest goes first,
+# and a signed-in session never does.
+MAX_WAITING_SESSIONS = 100
 
 # How long the process stays after "Beenden" was answered: long enough for
 # the browser to fetch the stylesheet of the page that says so.
@@ -106,7 +112,8 @@ class Once:
 class ConfigServer(ThreadingHTTPServer):
     """A server that knows which installation its handlers are editing.
 
-    It also remembers every session token it has handed out. A cookie is
+    It also remembers the session tokens it has handed out, every signed-in
+    one and the newest of the rest, see :data:`MAX_WAITING_SESSIONS`. A cookie is
     accepted only if it is one of those: cookies are not scoped by port, so a
     page on any other loopback port can set ``lxo_config`` to a value of its
     choosing and put the same value in a form. A token only this process
@@ -124,7 +131,8 @@ class ConfigServer(ThreadingHTTPServer):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.sessions: set[str] = set()
+        # In the order they were issued, so the oldest can go first.
+        self.sessions: dict[str, None] = {}
         self._sessions_lock = threading.Lock()
         self._once: dict[str, Once] = {}
         # The start code, made once, written to stderr, and asked for by
@@ -148,7 +156,11 @@ class ConfigServer(ThreadingHTTPServer):
     def issue_session(self) -> str:
         token = secrets.token_urlsafe(32)
         with self._sessions_lock:
-            self.sessions.add(token)
+            self.sessions[token] = None
+            waiting = [s for s in self.sessions if s not in self._signed_in]
+            for old in waiting[: max(0, len(waiting) - MAX_WAITING_SESSIONS)]:
+                del self.sessions[old]
+                self._once.pop(old, None)
         return token
 
     def knows_session(self, token: str) -> bool:
@@ -173,20 +185,24 @@ class ConfigServer(ThreadingHTTPServer):
     def try_code(self, session: str, typed: str) -> bool:
         """Sign ``session`` in if ``typed`` is the start code.
 
-        After :data:`FREE_TRIES` wrong codes every attempt waits first, and
-        attempts are taken one at a time. A right code starts the count over.
+        After :data:`FREE_TRIES` wrong codes every wrong one waits before it
+        is answered, one at a time. A right code never waits behind them, or
+        whatever loops wrong codes would keep the person out, and it starts
+        the count over.
         """
-        with self._trying:
-            if self._wrong >= FREE_TRIES:
-                self.pause(WAIT_SECONDS)
-            # As bytes, for the reason _csrf_ok gives.
-            if typed and secrets.compare_digest(typed.encode(), self.code.encode()):
+        # As bytes, for the reason _csrf_ok gives.
+        if typed and secrets.compare_digest(typed.encode(), self.code.encode()):
+            with self._sessions_lock:
                 self._wrong = 0
-                with self._sessions_lock:
-                    self._signed_in.add(session)
-                return True
-            self._wrong += 1
-            return False
+                self._signed_in.add(session)
+            return True
+        with self._trying:
+            with self._sessions_lock:
+                self._wrong += 1
+                waits = self._wrong > FREE_TRIES
+            if waits:
+                self.pause(WAIT_SECONDS)
+        return False
 
     def leave(self, session: str, once: Once) -> None:
         """Keep ``once`` for the next page this session opens.
@@ -226,15 +242,16 @@ class Handler(BaseHTTPRequestHandler):
         """Silence. A request log of a single-user local page is noise."""
 
     def _session_token(self) -> str:
-        jar = SimpleCookie()
-        try:
-            jar.load(self.headers.get("Cookie", ""))
-        except Exception:  # noqa: BLE001 - a malformed cookie is not our problem
-            pass
-        morsel = jar.get(_SESSION_COOKIE)
-        if morsel and morsel.value and self.config_server.knows_session(morsel.value):
+        for value in _cookie_values(self.headers.get("Cookie", ""), _SESSION_COOKIE):
+            if self.config_server.knows_session(value):
+                self._fresh_cookie = None
+                return value
+        if self._opened_by_another_page():
+            # SameSite=Strict withheld the cookie, if there is one, and a new
+            # one in the answer would replace it: any page could sign the
+            # browser out with a link. No session, so no form goes through.
             self._fresh_cookie = None
-            return str(morsel.value)
+            return ""
         # No cookie, or one this process never issued - planted by another
         # page, or left over from an earlier run. Either way a new one.
         self._fresh_cookie = self.config_server.issue_session()
@@ -248,8 +265,10 @@ class Handler(BaseHTTPRequestHandler):
                 "SameSite=Strict; HttpOnly",
             )
 
-    def _common_headers(self, body: bytes) -> None:
-        self.send_header("Content-Length", str(len(body)))
+    def end_headers(self) -> None:
+        """Every answer's headers end here, the standard library's own
+        refusals included: a method no page has, a request line it cannot
+        read. So these go on every one of them."""
         # The pages show the bearer token and name the files and the company.
         # None of that belongs in a browser cache.
         self.send_header("Cache-Control", "no-store")
@@ -259,6 +278,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
+        super().end_headers()
+
+    def _common_headers(self, body: bytes) -> None:
+        self.send_header("Content-Length", str(len(body)))
         self._cookie_header()
         self.end_headers()
 
@@ -336,6 +359,20 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return origin == target
 
+    def _opened_by_another_page(self) -> bool:
+        """Whether a browser says another page made this request.
+
+        Such a request gets no new session cookie, see _session_token, and
+        no try of a start code in its address, which a GET carries and the
+        ``Origin`` check therefore never sees: a page elsewhere could load
+        it in a loop, and every wrong code would count and wait for the
+        person's right one too. ``same-site`` is another port on the same
+        loopback name. An address typed, pasted or handed over by ``setup``
+        is ``none``, and a client that sends no such header is no browser
+        a page could steer.
+        """
+        return self.headers.get("Sec-Fetch-Site", "") in ("cross-site", "same-site")
+
     def _csrf_ok(self, form: Form) -> bool:
         if self._fresh_cookie:
             return False  # no session cookie was presented at all
@@ -362,7 +399,14 @@ class Handler(BaseHTTPRequestHandler):
             # The stylesheet and the script, which the code page needs too.
             self._static(address.path.removeprefix("/static/"))
             return
+        if not self._session:
+            self._page(200, pages.elsewhere(_page_address(address.path)))
+            return
         typed = parse_qs(address.query).get("code")
+        if typed is not None and self._opened_by_another_page():
+            logbook.configui.request_refused("origin")
+            self._page(403, pages.code())
+            return
         if typed is not None:
             self._sign_in(typed[0], then=address.path)
             return
@@ -383,7 +427,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         if self.config_server.try_code(self._session, typed.strip()):
             logbook.configui.signed_in()
-            self._redirect(then)
+            self._redirect(_page_address(then))
             return
         logbook.configui.request_refused("code")
         self._page(
@@ -533,6 +577,31 @@ class Handler(BaseHTTPRequestHandler):
             self._download(reply.body, reply.download)
         elif reply.page is not None:
             self._page(reply.status, reply.page, reply.message)
+
+
+def _page_address(path: str) -> str:
+    """``path`` if it is a page's address, else the overview's.
+
+    For a link this interface builds from the address it was asked for: a
+    browser reads ``/\\`` as ``//``, the start of another host.
+    """
+    return path if path in PAGES else "/"
+
+
+def _cookie_values(header: str, name: str) -> list[str]:
+    """Every value a ``Cookie`` header carries under ``name``, in order.
+
+    Read by hand: cookies ignore the port, so other programs on the same
+    loopback name add theirs, and ``SimpleCookie`` drops the whole header
+    over one it finds illegal, a value with a space for instance. Every
+    value, because one of them may have been planted under the same name.
+    """
+    values = []
+    for pair in header.split(";"):
+        key, sep, value = pair.partition("=")
+        if sep and key.strip() == name and value.strip():
+            values.append(value.strip())
+    return values
 
 
 def _host_and_port(header: str) -> tuple[str, int] | None:

@@ -24,7 +24,13 @@ from urllib.parse import urlencode
 import pytest
 
 from benethos_lexware_office_mcp.configui import probe, transfer
-from benethos_lexware_office_mcp.configui.app import ConfigServer, Handler, serve
+from benethos_lexware_office_mcp.configui.app import (
+    CONTENT_SECURITY_POLICY,
+    MAX_WAITING_SESSIONS,
+    ConfigServer,
+    Handler,
+    serve,
+)
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
 from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
@@ -217,6 +223,44 @@ def test_a_session_cookie_is_issued_once(browser: Browser) -> None:
     assert "Set-Cookie" not in newcomer.get("/")[2]
 
 
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_a_link_from_another_site_does_not_sign_the_browser_out(
+    browser: Browser, method: str
+) -> None:
+    """SameSite=Strict keeps the cookie off a request another site started,
+    but a top-level navigation may still set one. A new session in the
+    answer replaced the signed-in cookie, so any page could sign one out.
+
+    An empty ``Cookie`` header is what the browser sends then, and keeps
+    the jar from adding its own.
+    """
+    request = urllib.request.Request(
+        browser.base + "/settings", data=b"" if method == "POST" else None
+    )
+    request.add_header("Sec-Fetch-Site", "cross-site")
+    request.add_header("Cookie", "")
+
+    _, body, headers = browser._open(request)
+
+    assert "Set-Cookie" not in headers
+    if method == "GET":
+        assert '<a href="/settings">' in body
+    assert browser.get("/settings")[0] == 200
+
+
+def test_sessions_that_never_signed_in_are_not_kept_forever(browser: Browser) -> None:
+    """Every request without a known cookie makes one, so a loop of them
+    grew the set for as long as the process ran."""
+    server = browser.server
+    first = server.issue_session()
+    issued = [server.issue_session() for _ in range(MAX_WAITING_SESSIONS + 50)]
+
+    assert not server.knows_session(first)
+    assert all(server.knows_session(token) for token in issued[-MAX_WAITING_SESSIONS:])
+    assert len(server.sessions) == MAX_WAITING_SESSIONS + 1
+    assert browser.get("/settings")[0] == 200  # the signed-in one stays
+
+
 # -- the start code ---------------------------------------------------------
 
 
@@ -247,6 +291,58 @@ def test_the_code_in_the_address_signs_in_and_leaves_the_address(
     assert status == 303
     assert headers["Location"] == "/permissions"
     assert stranger.get("/permissions")[0] == 200
+
+
+@pytest.mark.parametrize("path", ["/\\evil.example/", "/nope"])
+def test_the_code_in_an_address_leads_only_to_a_page(
+    browser: Browser, path: str
+) -> None:
+    """The redirect named the path as it came, and a browser reads ``/\\``
+    as ``//``, the start of another host."""
+    stranger = Browser(browser.base)
+
+    status, _, headers = stranger._open(
+        urllib.request.Request(f"{browser.base}{path}?code={browser.server.code}"),
+        follow=False,
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/"
+
+
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_a_code_in_an_address_another_page_opened_is_not_tried(
+    browser: Browser, site: str
+) -> None:
+    """A page elsewhere could load the address in a loop, unseen, and each
+    wrong code it sent counted, and waited, for the person's own too.
+
+    ``same-site`` is another port on the same loopback name, which gets the
+    cookie sent along, so the stranger here holds a session.
+    """
+    stranger = Browser(browser.base)
+    stranger.get("/")
+    request = urllib.request.Request(f"{browser.base}/?code={browser.server.code}")
+    request.add_header("Sec-Fetch-Site", site)
+
+    status, body, _ = stranger._open(request)
+
+    assert status == 403
+    assert "<h2>Code eingeben</h2>" in body
+    assert stranger.get("/")[0] == 403
+
+
+def test_a_code_in_an_address_typed_or_opened_by_setup_is_tried(
+    browser: Browser,
+) -> None:
+    """What a browser sends for an address typed, pasted or handed to it."""
+    stranger = Browser(browser.base)
+    request = urllib.request.Request(f"{browser.base}/?code={browser.server.code}")
+    request.add_header("Sec-Fetch-Site", "none")
+
+    stranger._open(request)
+
+    assert stranger.get("/")[0] == 200
 
 
 def test_the_code_typed_into_the_field_signs_in(browser: Browser) -> None:
@@ -298,10 +394,41 @@ def test_after_five_wrong_codes_each_waits(browser: Browser) -> None:
 
     stranger.post("/code", {"code": "guessed"})
     stranger.get(f"/?code={browser.server.code}")
-    assert waited == [2.0, 2.0]
+    assert waited == [2.0]  # the right one did not wait
 
     stranger.post("/code", {"code": "guessed"})
-    assert waited == [2.0, 2.0]  # a right code started the count over
+    assert waited == [2.0]  # and it started the count over
+
+
+def test_a_right_code_is_not_held_behind_a_waiting_wrong_one(
+    browser: Browser,
+) -> None:
+    """Whatever loops wrong codes must not keep the person out."""
+    server = browser.server
+    paused, release = threading.Event(), threading.Event()
+
+    def pause(seconds: float) -> None:
+        paused.set()
+        release.wait(10)
+
+    server.pause = pause
+    for _ in range(5):
+        server.try_code("loop", "guessed")
+    waiting = threading.Thread(target=server.try_code, args=("loop", "guessed"))
+    waiting.start()
+    assert paused.wait(5)
+    signed_in = threading.Event()
+
+    def person() -> None:
+        if server.try_code("person", server.code):
+            signed_in.set()
+
+    threading.Thread(target=person, daemon=True).start()
+    try:
+        assert signed_in.wait(2)
+    finally:
+        release.set()
+        waiting.join(timeout=5)
 
 
 def test_a_sign_in_is_a_line_and_the_code_is_not(
@@ -448,6 +575,21 @@ def test_a_page_addressed_by_another_name_is_refused(
     assert "127.0.0.1" in body
 
 
+def test_a_refusal_shows_nothing_of_the_interface(browser: Browser) -> None:
+    """A page refused for its name is answered before any sign-in, to a
+    rebinding page among others. The frame of the pages names the account
+    and offers Beenden."""
+    probe.remember(ACCOUNT)
+    request = urllib.request.Request(browser.base + "/credentials")
+    request.add_header("Host", "attacker.example:8771")
+
+    status, body, _ = browser._open(request)
+
+    assert status == 403
+    assert "Test Inc." not in body
+    assert "/shutdown" not in body
+
+
 @pytest.mark.parametrize("host", ["localhost", "127.0.0.1:9999", "[::1]:8771"])
 def test_any_loopback_name_and_port_is_answered(browser: Browser, host: str) -> None:
     """A container publishes under a port of its own choosing."""
@@ -470,6 +612,40 @@ def test_no_page_can_be_framed_or_sniffed(browser: Browser) -> None:
     assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
     assert headers["X-Content-Type-Options"] == "nosniff"
     assert headers["Referrer-Policy"] == "same-origin"
+
+
+@pytest.mark.parametrize(
+    ("method", "padding"), [("HEAD", 0), ("OPTIONS", 0), ("GET", 120)]
+)
+def test_the_standard_librarys_own_refusals_carry_the_headers_too(
+    browser: Browser, method: str, padding: int
+) -> None:
+    """A method no page has, or more headers than it reads, is answered by
+    the HTTP server itself, which knew none of the headers above.
+
+    Not a request line it cannot read: that one it answers as HTTP/0.9,
+    with no headers at all, and a browser never sends one.
+    """
+    host, port = browser.base.removeprefix("http://").split(":")
+    extra = "".join(f"X-{n}: y\r\n" for n in range(padding))
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(
+            f"{method} / HTTP/1.1\r\nHost: {host}:{port}\r\n{extra}\r\n".encode()
+        )
+        received = b""
+        while chunk := sock.recv(4096):
+            received += chunk
+    head = received.decode("latin-1").split("\r\n\r\n")[0]
+
+    assert re.match(r"HTTP/1\.[01] (431|501) ", head), head
+    for header in (
+        "Cache-Control: no-store",
+        "X-Frame-Options: DENY",
+        f"Content-Security-Policy: {CONTENT_SECURITY_POLICY}",
+        "X-Content-Type-Options: nosniff",
+        "Referrer-Policy: same-origin",
+    ):
+        assert header in head.split("\r\n"), header
 
 
 @pytest.mark.parametrize("length", ["999999999999", "-5", "many"])
@@ -527,6 +703,31 @@ def test_a_planted_cookie_is_not_a_session(browser: Browser) -> None:
 
     assert status == 403
     assert "Sicherheitstoken" in body
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "other=a b; lxo_config={session}",
+        'lxo_config={session}; other="unclosed',
+        "lxo_config=planted-by-another-page; lxo_config={session}",
+        "lxo_config={session}; lxo_config=planted-by-another-page",
+    ],
+)
+def test_another_programs_cookie_does_not_end_the_session(
+    browser: Browser, header: str
+) -> None:
+    """Cookies ignore the port, so other programs on the same loopback name
+    add theirs to this header. One the cookie parser found illegal made it
+    drop the whole header, and the session with it, for good."""
+    (cookie,) = [c for c in browser.jar if c.name == "lxo_config"]
+    request = urllib.request.Request(browser.base + "/settings")
+    request.add_header("Cookie", header.format(session=cookie.value))
+
+    status, _, headers = browser._open(request)
+
+    assert status == 200
+    assert "Set-Cookie" not in headers
 
 
 def test_a_missing_token_is_refused(browser: Browser) -> None:

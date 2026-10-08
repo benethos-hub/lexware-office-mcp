@@ -202,6 +202,18 @@ def code() -> Page:
     )
 
 
+def elsewhere(address: str) -> Page:
+    """What a link from another site gets: a link of this page's own, which
+    the browser follows with the session cookie it withheld."""
+    return Page(
+        "pages/elsewhere.html",
+        "Von einer anderen Seite geöffnet",
+        context={"address": address},
+        subtitle="Eine andere Seite hat diese Adresse geöffnet, und der Browser "
+        "hat die Anmeldung dieser Oberfläche dabei nicht mitgeschickt.",
+    )
+
+
 def stopped() -> Page:
     """What "Beenden" answers: the process is going, the tab can go too."""
     return Page(

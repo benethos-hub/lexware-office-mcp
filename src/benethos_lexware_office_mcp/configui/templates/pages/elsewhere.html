@@ -1,0 +1,8 @@
+{% extends "bare.html" %}
+{% import "components/ui.html" as ui with context %}
+{% block content %}
+{% call ui.card(title) %}
+<p>{{ subtitle }} Von hier aus geöffnet, schickt er sie mit.</p>
+<p><a href="{{ address }}">Seite öffnen</a></p>
+{% endcall %}
+{% endblock %}

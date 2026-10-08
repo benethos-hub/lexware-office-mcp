@@ -1046,7 +1046,7 @@ stdio and stdout belongs to the protocol. This is a separate command, started
 by a person, that stops when they are done. The two share their configuration
 modules and nothing else.
 
-**Loopback by default, and loopback names only.** The pages have no login,
+**Loopback by default, and loopback names only.** The pages have no password,
 which is defensible exactly as long as they cannot be reached from another
 machine, and the start code below closes them to the rest of the machine as
 well. `--host` can bind another address, because a container has to: a
@@ -1068,7 +1068,18 @@ token from a `SameSite=Strict` cookie has to come back in the form. The port
 matters because loopback alone admits any local program's page, and the token
 has to be one this process issued, because cookies are not scoped by port: a
 page on another local port can set the cookie to a value of its choosing and
-put the same value in its form.
+put the same value in its form. Every value under the cookie's name is tried,
+so one planted beside the real one does not win, and the header is read by
+hand, since the standard library's parser drops all of it over one foreign
+cookie it finds illegal. **A request another site started gets no new
+cookie.** `SameSite=Strict` keeps the cookie off it, but a top-level
+navigation may still set one, and a new session in the answer would replace
+the signed-in one, so any page could sign the browser out with a link. Such
+a request, `Sec-Fetch-Site` `cross-site` or `same-site` without a cookie
+this process knows, gets a page with a link to the same address, which the
+browser follows with the cookie. At most 100 sessions that never gave the
+start code are kept, the oldest goes first, since every request without a
+cookie makes one.
 
 **A port in use ends the start.** On Windows `SO_REUSEADDR`, which the
 standard library's HTTP server sets, lets a second process bind a port
@@ -1184,14 +1195,27 @@ with the code to stderr and opens the browser with it. Without a valid code
 every page shows one field, *Code eingeben*, and the static files are the
 one thing served without it, since that page needs them too. After the
 first valid request the session cookie carries the sign-in, and a redirect
-takes the code out of the URL. The field is a form like any other, behind
-the `Origin` and CSRF checks. After five wrong codes every further try
-waits two seconds first, and tries are taken one at a time, so the wait
-cannot be run around in parallel. A right code starts the count over. The
+takes the code out of the URL, to the page the address named or, for any
+other address, to the overview. A code in an address that a browser says
+another page opened, `Sec-Fetch-Site` `cross-site` or `same-site`, is not
+tried, since a GET never meets the `Origin` check and a page elsewhere could
+send codes in a loop. The field is a form like any other, behind
+the `Origin` and CSRF checks. After five wrong codes every further wrong
+one is answered two seconds later, and those answers go out one at a time,
+so a loop cannot fill the log faster in parallel either. A right code is
+checked first and never waits behind them, or a script looping wrong codes
+would keep the person out, and it starts the count over. The
 code is 16 random bytes, so the wait is not what protects it: it keeps a
 stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the
-container's log, where the operator reads anyway. The code closes the pages
+container's log, where the operator reads anyway. **The code passes through
+the command line of the browser** that `setup` opens: the address is handed
+over as an argument, so while that process starts, the code is in its
+arguments, which another user of the same machine may be able to list.
+That is the price of a start that signs its own browser in, and it is
+accepted rather than built around: the code is good for this one process,
+and whoever wants none of it starts with `--no-browser` and types the code
+into the page. The code closes the pages
 to other processes and users of the same machine, which the host and origin
 checks above never did. It does not make a bind beyond loopback safe, since
 it travels in the clear over HTTP, and the warning at the start stays. A
