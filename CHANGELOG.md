@@ -245,6 +245,9 @@ housekeeping are out of scope here — design decisions live in
   both protocol versions, and an argument the schema rejects now links
   pydantic's 2.14 documentation. typer, tomli and iniconfig moved in the
   development environment only.
+- **The container image is built on the current `python:3.14-slim`
+  base**, rebuilt upstream on 2026-10-06 with its system packages of that
+  day. Python stays at 3.14.8.
 
 ### Removed
 
