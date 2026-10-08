@@ -60,9 +60,11 @@ the configuration interface:
   where each comes from. It writes the same files
   this command line does, so the two can be used interchangeably.
 
-  Binds 127.0.0.1. The pages have no login, so they answer only when a
-  browser addresses them as 127.0.0.1 or localhost. --host exists for a
-  container, where the loopback of the host publishes the port.
+  Binds 127.0.0.1, answers only when a browser addresses it as 127.0.0.1 or
+  localhost, and asks for the start code it writes to stderr with the
+  address, so no other program or user of this machine opens the pages.
+  --host exists for a container, where the loopback of the host publishes
+  the port.
 
   --port and --no-browser belong to it. --env-file and --tools-file say which
   files it edits, and unlike everywhere else the .env does not have to exist
