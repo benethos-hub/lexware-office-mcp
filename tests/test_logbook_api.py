@@ -2,27 +2,23 @@
 
 from __future__ import annotations
 
-import io
 import logging
 
 import httpx
 import pytest
 
 from benethos_lexware_office_mcp.errors import AuthError, RateLimitError
-from benethos_lexware_office_mcp.logbook import configure
 from benethos_lexware_office_mcp.logbook.api import _shown
 from benethos_lexware_office_mcp.logbook.output import PACKAGE
-from helpers import Scripted, always, fast_client
+from helpers import Scripted, always, capture_lines, fast_client
 
 CONTACT = "0b7a5c9e-3f2d-4e1a-9c8b-7d6e5f4a3b2c"
 
 
 @pytest.fixture
 def lines(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
-    """What reaches stderr with the server configured as it configures itself."""
-    configure("DEBUG", io.StringIO())
-    caplog.set_level(logging.DEBUG, logger=PACKAGE)
-    return caplog
+    """conftest.py's, at DEBUG: every request is a DEBUG line."""
+    return capture_lines(caplog, "DEBUG")
 
 
 async def test_a_call_is_one_line_with_path_status_and_attempt(

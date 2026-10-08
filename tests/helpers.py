@@ -12,7 +12,9 @@ sleep returns at once, and so does the client's.
 
 from __future__ import annotations
 
+import io
 import json
+import logging
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,8 @@ import httpx
 
 from benethos_lexware_office_mcp.api.client import ClientProvider, LexwareClient
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
+from benethos_lexware_office_mcp.logbook import configure
+from benethos_lexware_office_mcp.logbook.output import PACKAGE
 from benethos_lexware_office_mcp.server import PolicyServer, build_server
 from benethos_lexware_office_mcp.settings import Settings
 
@@ -39,6 +43,7 @@ __all__ = [
     "Handler",
     "Scripted",
     "always",
+    "capture_lines",
     "fast_bucket",
     "fast_client",
     "fast_provider",
@@ -115,6 +120,18 @@ def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientPr
     settings = Settings(api_key=API_KEY, **fields)
     provider = fast_provider(handler, settings=settings)
     return build_server(settings, provider), provider
+
+
+def capture_lines(caplog: Any, level: str) -> Any:
+    """``caplog`` catching this package's lines at ``level``.
+
+    Logging is configured first the way the server configures itself, so a
+    test reads the lines a person would see on stderr - into a buffer here,
+    since stderr belongs to pytest.
+    """
+    configure(level, io.StringIO())
+    caplog.set_level(getattr(logging, level), logger=PACKAGE)
+    return caplog
 
 
 def write_policy(path: Path, flags: Mapping[str, bool]) -> Path:

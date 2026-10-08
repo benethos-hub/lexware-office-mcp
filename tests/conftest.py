@@ -20,7 +20,7 @@ from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER
 from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import locations
-from helpers import OPEN_PROVIDERS
+from helpers import OPEN_PROVIDERS, capture_lines
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +54,15 @@ async def providers_closed() -> AsyncIterator[None]:
     yield
     while OPEN_PROVIDERS:
         await OPEN_PROVIDERS.pop().aclose()
+
+
+@pytest.fixture
+def lines(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
+    """The INFO lines this package writes, as the server configures itself.
+
+    A suite that wants DEBUG as well overrides it, see test_logbook_api.py.
+    """
+    return capture_lines(caplog, "INFO")
 
 
 @pytest.fixture(autouse=True)
