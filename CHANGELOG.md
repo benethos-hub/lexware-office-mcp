@@ -237,6 +237,17 @@ housekeeping are out of scope here — design decisions live in
 - **Every release from 0.2.0 is under the new image name**: 0.2.0 to
   0.4.1 and their minor lines were copied over with the same digest, so a
   pinned tag can move to the new name without pulling different bytes.
+- **The container image is built on current dependencies**: pydantic
+  2.14.0 with pydantic-core 2.50.0, opentelemetry-api 1.45.1,
+  platformdirs 4.12.4 and pycparser 3.1 in the lockfile the image is built
+  from. An installation from the index resolved them already. The tool
+  list and a refused call reach a client byte for byte as before, over
+  both protocol versions, and an argument the schema rejects now links
+  pydantic's 2.14 documentation. typer, tomli and iniconfig moved in the
+  development environment only.
+- **The container image is built on the current `python:3.14-slim`
+  base**, rebuilt upstream on 2026-10-06 with its system packages of that
+  day. Python stays at 3.14.8.
 
 ### Removed
 
