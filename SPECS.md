@@ -1004,6 +1004,14 @@ publishing any, and the configuration interface shows the message in place
 of a path. A process ending on this does so in one line on stderr, not a
 traceback.
 
+**A `.env` is UTF-8, with or without a byte order mark.** A file in another
+encoding, Windows-1252 from an older editor for instance, is refused with a
+`ConfigError` naming the file and the first byte that is not UTF-8: in one
+line on stderr, and on the page of the configuration interface, which
+cannot write it either. Decoding it with replacement characters instead
+would turn a `ü` in a directory into a path that does not exist, and an
+update would write the replacement back over the original bytes.
+
 No secret is ever read from a versioned file. `config/.env` is gitignored and
 The settings sample, which is committed and ships inside the package, holds
 no key.

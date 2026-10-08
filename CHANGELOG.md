@@ -32,6 +32,10 @@ housekeeping are out of scope here — design decisions live in
   an empty string, which replaced the file's value with the default while
   `setup` showed the file as the source. An empty variable now counts as
   not set.
+- **A `.env` that is not UTF-8 is refused in one line.** One saved as
+  Windows-1252 ended the server, `--version` and `setup` in a traceback,
+  and the page of `setup` stayed empty. The server now names the file and
+  asks for UTF-8, and `setup` shows the same sentence on its page.
 
 ### Changed
 

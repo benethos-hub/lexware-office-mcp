@@ -35,6 +35,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .. import __version__, logbook
+from ..errors import ConfigError
 from ..settings import LOOPBACK_NAMES
 from . import actions, pages
 from .actions import Form, Reply, field
@@ -239,7 +240,12 @@ class Handler(BaseHTTPRequestHandler):
             self._wrong_host()
             return
         self._session = self._session_token()
-        path = urlparse(self.path).path
+        try:
+            self._route_get(urlparse(self.path).path)
+        except ConfigError as exc:
+            self._unreadable(exc)
+
+    def _route_get(self, path: str) -> None:
         inst = self.installation
         if path in ("/", "/index.html"):
             self._send(200, pages.overview(inst, csrf=self._session))
@@ -300,7 +306,25 @@ class Handler(BaseHTTPRequestHandler):
                 "Seite neu laden und noch einmal absenden."
             )
             return
-        self._reply(action(self.installation, form, self._session))
+        try:
+            self._reply(action(self.installation, form, self._session))
+        except ConfigError as exc:
+            self._unreadable(exc)
+
+    def _unreadable(self, exc: ConfigError) -> None:
+        """A configuration file this page cannot read, said on the page.
+
+        Every page reads the ``.env``. Left to the request thread, a file
+        in the wrong encoding ended it with a traceback and the browser got
+        an empty answer - on the very interface meant to repair the file.
+        """
+        self._send(
+            500,
+            page(
+                "Datei nicht lesbar",
+                f'<p class="err">{esc(str(exc))}</p>',
+            ),
+        )
 
     def _reply(self, reply: Reply | None) -> None:
         """Send what an action answered: a page, a download, or nothing there."""

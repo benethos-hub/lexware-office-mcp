@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from benethos_lexware_office_mcp.errors import ConfigError
 from benethos_lexware_office_mcp.settings import envfile
 from benethos_lexware_office_mcp.settings.envfile import read_env_file, update_env_file
 
@@ -53,6 +54,21 @@ def test_updating_a_file_with_a_byte_order_mark_rewrites_its_first_key(
     update_env_file(path, {"LXO_MCP_API_KEY": "new"})
 
     assert path.read_bytes() == b"LXO_MCP_API_KEY=new\n"
+
+
+def test_a_file_in_another_encoding_is_refused_and_left_alone(tmp_path: Path) -> None:
+    """Guessing would turn a `ü` into a path that does not exist, and an
+    update would write the guess back over the original bytes."""
+    env = tmp_path / ".env"
+    original = "LXO_MCP_DOWNLOAD_DIR=C:/Jürgen\n".encode("cp1252")
+    env.write_bytes(original)
+
+    with pytest.raises(ConfigError, match="not UTF-8"):
+        read_env_file(env)
+    with pytest.raises(ConfigError, match="not UTF-8"):
+        update_env_file(env, {"LXO_MCP_PAGE_SIZE": "20"})
+
+    assert env.read_bytes() == original
 
 
 def test_a_key_that_appears_twice_is_rewritten_both_times(tmp_path: Path) -> None:
