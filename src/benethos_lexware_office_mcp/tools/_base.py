@@ -241,16 +241,14 @@ def logged(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]
             try:
                 result = await func(*args, **kwargs)
             except ToolError as exc:
-                logbook.calls.ended(name, exc, tally.calls, _ms(started))
+                logbook.calls.ended(
+                    name, exc, tally.calls, logbook.tally.ms_since(started)
+                )
                 raise
-        _report(name, result, kwargs, tally.calls, _ms(started))
+        _report(name, result, kwargs, tally.calls, logbook.tally.ms_since(started))
         return result
 
     return wrapper
-
-
-def _ms(started: float) -> float:
-    return (time.perf_counter() - started) * 1000
 
 
 class _Outcome(NamedTuple):

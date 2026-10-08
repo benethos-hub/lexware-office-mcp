@@ -266,10 +266,17 @@ class Connection:
                 method, path, headers=headers, **content
             )
         except httpx.RequestError as exc:
-            logbook.api.unanswered(method, path, exc, _since(sent_at), number)
+            logbook.api.unanswered(
+                method, path, exc, logbook.tally.ms_since(sent_at), number
+            )
             raise
         logbook.api.answered(
-            method, path, response.status_code, _since(sent_at), number, queued
+            method,
+            path,
+            response.status_code,
+            logbook.tally.ms_since(sent_at),
+            number,
+            queued,
         )
         return response
 
@@ -358,11 +365,6 @@ def _own_change(refused: ConflictError, method: str, path: str) -> ConflictError
     )
     own.status, own.code = refused.status, refused.code
     return own
-
-
-def _since(started: float) -> float:
-    """Milliseconds since ``started``, a ``perf_counter`` reading."""
-    return (time.perf_counter() - started) * 1000
 
 
 def _backoff(attempt: int, retry_after: str | None = None) -> float:
