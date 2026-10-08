@@ -36,6 +36,10 @@ housekeeping are out of scope here — design decisions live in
   Windows-1252 ended the server, `--version` and `setup` in a traceback,
   and the page of `setup` stayed empty. The server now names the file and
   asks for UTF-8, and `setup` shows the same sentence on its page.
+- **Two more settings that cannot work end in one line, not a traceback.**
+  A base URL that cannot even be parsed, such as `https://[::1` or one
+  with a port that is no number, and a directory starting with `~` in a
+  process without a home directory.
 
 ### Changed
 

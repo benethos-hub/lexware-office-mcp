@@ -7,11 +7,20 @@ the setting, rather than falling back to a default nobody asked for.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from ..errors import ConfigError
 
-__all__ = ["as_float", "as_int", "credential", "csv_tuple", "flag", "https_url"]
+__all__ = [
+    "as_float",
+    "as_int",
+    "credential",
+    "csv_tuple",
+    "flag",
+    "https_url",
+    "user_path",
+]
 
 
 def csv_tuple(raw: str | None) -> tuple[str, ...]:
@@ -74,10 +83,38 @@ def https_url(raw: str | None, fallback: str, *, name: str) -> str:
     no URL at all would send it wherever the client makes of it.
     """
     value = (raw or fallback).rstrip("/")
-    parsed = urlsplit(value)
-    if parsed.scheme != "https" or not parsed.hostname:
-        raise ConfigError(f"{name} must be an https:// address, got {value!r}.")
+    refused = ConfigError(f"{name} must be an https:// address, got {value!r}.")
+    # urlsplit raises rather than answering for some text, an unclosed
+    # `[::1` among it, and that was a traceback rather than this sentence.
+    # The port is read for the same reason: one that is no number raises
+    # only when asked for, which would otherwise be the first request.
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        parsed.port  # noqa: B018 - read for the ValueError it may raise
+    except ValueError:
+        raise refused from None
+    if parsed.scheme != "https" or not host:
+        raise refused
     return value
+
+
+def user_path(raw: str | None, *, name: str) -> Path | None:
+    """A path a person wrote, ``~`` expanded, or ``None`` when unset.
+
+    Without a home directory there is nothing to expand ``~`` to, and
+    ``Path.expanduser`` raises ``RuntimeError`` - a traceback, where a
+    setting this process cannot use should be one line naming it.
+    """
+    if not raw:
+        return None
+    try:
+        return Path(raw).expanduser()
+    except RuntimeError:
+        raise ConfigError(
+            f"{name} starts with ~, but there is no home directory to expand "
+            "it to. Name the directory in full."
+        ) from None
 
 
 def as_int(
