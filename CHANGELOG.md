@@ -65,6 +65,9 @@ housekeeping are out of scope here — design decisions live in
   It was taken from the check that runs before saving, so a key that could
   not be written still put its account on every page, beside permissions
   that belong to the old one.
+- **The permissions page no longer says the reading tools are ticked
+  when a loaded profile or an imported file ticked others.** Without a
+  policy file, the note about the suggestion stood above every form.
 
 ### Changed
 

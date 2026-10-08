@@ -434,6 +434,14 @@ def test_without_a_file_the_boxes_open_on_read_only(inst: Installation) -> None:
     assert "angehakt sind die lesenden" in body
 
 
+def test_a_loaded_profile_is_not_called_the_suggestion(inst: Installation) -> None:
+    """Still no file, so still nothing on, but the ticks are the profile's."""
+    body = text(pages.permissions(inst, flags={"create_voucher": True}))
+
+    assert "aktiv ist also nichts" in body
+    assert "angehakt sind die lesenden" not in body
+
+
 def test_ticks_that_do_not_describe_the_file_are_labelled(
     inst: Installation,
 ) -> None:

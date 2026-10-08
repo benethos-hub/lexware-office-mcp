@@ -382,10 +382,17 @@ def permissions(
         state = inst.policy.as_map()
 
     if fresh:
+        # The suggestion is named only where it is what the boxes show. A
+        # loaded profile or an imported file ticks its own tools.
+        suggested = (
+            " Vorgeschlagen und angehakt sind die lesenden Tools."
+            if flags is None
+            else ""
+        )
         message += note(
             "Es gibt noch keine Rechtedatei, <strong>aktiv ist also "
-            "nichts</strong>. Vorgeschlagen und angehakt sind die lesenden "
-            "Tools. Erst „Rechte speichern“ legt die Datei an."
+            f"nichts</strong>.{suggested} Erst „Rechte speichern“ legt die "
+            "Datei an."
         )
 
     blocks = []
