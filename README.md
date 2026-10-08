@@ -41,7 +41,8 @@ them for you.
 > tool in the table below is built, and each was exercised against a live
 > account. It speaks stdio to a client that starts it, and streamable HTTP
 > behind a bearer token where something else has to reach it - as a published
-> container image, with a Compose file for the two of them. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
+> container image, with Compose files for running it and for building it from
+> a checkout. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
 > technical specification and the roadmap.
 
 ## Why this exists
