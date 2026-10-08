@@ -113,7 +113,7 @@ def save_key(inst: Installation, form: Form) -> Reply:
         verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
-            return _refused(here, f"Nicht gespeichert. {message}")
+            return _back(here, f"Nicht gespeichert. {message}")
 
     failed = _write_env(inst, {API_KEY: key}, here)
     if failed is not None:
@@ -153,7 +153,7 @@ def save_bearer(inst: Installation, form: Form) -> Reply:
     else:
         token = typed[BEARER_KEY]
         if not token:
-            return _refused(
+            return _back(
                 pages.credentials(inst, typed=typed),
                 "Nicht gespeichert: ein leeres Token wäre kein Token. "
                 "Der Server startet den HTTP-Transport dann nicht.",
@@ -164,7 +164,7 @@ def save_bearer(inst: Installation, form: Form) -> Reply:
             return _refused_by_server(pages.credentials(inst, typed=typed), exc)
         done = "Token gespeichert."
 
-    failed = _write_env(inst, {BEARER_KEY: token})
+    failed = _write_env(inst, {BEARER_KEY: token}, pages.credentials(inst, typed=typed))
     if failed is not None:
         return failed
     logbook.configui.token_saved(
@@ -204,7 +204,7 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     # here it would be stored, shown as that default, and never take effect.
     level = submitted.get(LOG_LEVEL_KEY, "")
     if level and level.upper() not in LOG_LEVELS:
-        return _refused(
+        return _back(
             pages.settings(inst, typed=typed),
             f"Nicht gespeichert: {LOG_LEVEL_KEY} kennt nur "
             f"{', '.join(LOG_LEVELS)}, nicht {level}.",
@@ -251,8 +251,8 @@ def _save_policy(inst: Installation, chosen: list[str]) -> Reply:
     try:
         inst.policy.save(flags)
     except (OSError, ValueError) as exc:
-        return _not_written(
-            pages.permissions(inst, flags=flags), _write_failed(inst.policy_path, exc)
+        return _failed_write(
+            pages.permissions(inst, flags=flags), inst.policy_path, exc
         )
     writers = sorted(writing(chosen))
     logbook.configui.policy_saved(inst.policy_path, len(chosen), len(flags), writers)
@@ -270,7 +270,7 @@ def _load_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     name = field(form, "profile")
     profile = inst.profiles.get(name)
     if profile is None:
-        return _refused(
+        return _back(
             pages.permissions(inst, flags=_flags(chosen), opened="profiles"),
             f"Kein Profil namens {name}.",
         )
@@ -304,7 +304,7 @@ def _save_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     here = pages.permissions(inst, flags=_flags(chosen), opened="profiles")
     clash = inst.profiles.find(name)
     if clash is not None:
-        return _refused(
+        return _back(
             here,
             f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
             "auswählen und überschreiben, oder einen anderen Namen nehmen.",
@@ -312,9 +312,9 @@ def _save_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     try:
         profile = inst.profiles.save(name, chosen, known_tools())
     except ProfileError as exc:
-        return _refused(here, str(exc))
+        return _back(here, str(exc))
     except OSError as exc:
-        return _not_written(here, _write_failed(inst.profiles.path, exc))
+        return _failed_write(here, inst.profiles.path, exc)
     logbook.configui.profile_saved(profile.name, len(profile.tools), False)
     return _done(
         _PERMISSIONS,
@@ -330,11 +330,11 @@ def _overwrite_profile(inst: Installation, form: Form, chosen: list[str]) -> Rep
     name = field(form, "profile")
     here = pages.permissions(inst, flags=_flags(chosen), opened="profiles")
     if inst.profiles.get(name) is None:
-        return _refused(here, f"Kein Profil namens {name}.")
+        return _back(here, f"Kein Profil namens {name}.")
     try:
         profile = inst.profiles.save(name, chosen, known_tools())
     except OSError as exc:
-        return _not_written(here, _write_failed(inst.profiles.path, exc))
+        return _failed_write(here, inst.profiles.path, exc)
     logbook.configui.profile_saved(profile.name, len(profile.tools), True)
     return _done(
         _PERMISSIONS,
@@ -351,9 +351,9 @@ def _delete_profile(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     try:
         gone = inst.profiles.delete(name)
     except OSError as exc:
-        return _not_written(here, _write_failed(inst.profiles.path, exc))
+        return _failed_write(here, inst.profiles.path, exc)
     if not gone:
-        return _refused(here, f"Kein Profil namens {name}.")
+        return _back(here, f"Kein Profil namens {name}.")
     logbook.configui.profile_deleted(name)
     return _done(
         _PERMISSIONS,
@@ -392,7 +392,7 @@ def _import_policy(inst: Installation, form: Form, chosen: list[str]) -> Reply:
     try:
         arriving = transfer.parse(text)
     except transfer.TransferError as exc:
-        return _refused(
+        return _back(
             pages.permissions(inst, flags=_flags(chosen), opened="policy"), str(exc)
         )
 
@@ -433,14 +433,13 @@ def _done(address: str, text: str, kind: str = "ok", **view: Any) -> Reply:
     return Reply(redirect=address, message=Message(text, kind), view=view)
 
 
-def _refused(page: Page, text: str) -> Reply:
-    """A form refused, shown again at once with the reason at the top."""
-    return Reply(page=page, message=Message(text, "err"), status=400)
+def _back(page: Page, text: str, status: int = 400) -> Reply:
+    """A form shown again at once, with the reason at the top.
 
-
-def _not_written(page: Page, text: str) -> Reply:
-    """A write the operating system refused: the same page, as a 500."""
-    return Reply(page=page, message=Message(text, "err"), status=500)
+    400 for what the form sent, 500 for a write the operating system
+    refused, which :func:`_failed_write` decides.
+    """
+    return Reply(page=page, message=Message(text, "err"), status=status)
 
 
 def _refused_by_server(page: Page, exc: ConfigError) -> Reply:
@@ -450,28 +449,15 @@ def _refused_by_server(page: Page, exc: ConfigError) -> Reply:
     copy of a rule that lives in settings/, and the two would part company on
     the first change.
     """
-    return _refused(page, f"Nicht gespeichert, der Server würde das ablehnen: {exc}")
+    return _back(page, f"Nicht gespeichert, der Server würde das ablehnen: {exc}")
 
 
-def _write_env(
-    inst: Installation, updates: dict[str, str], page: Page | None = None
-) -> Reply | None:
-    """Write ``updates`` into the ``.env``: ``None``, or ``page`` saying why not.
-
-    ``page`` is the one the form came from, the credentials page if not said.
-    """
+def _write_env(inst: Installation, updates: dict[str, str], page: Page) -> Reply | None:
+    """Write ``updates`` into the ``.env``: ``None``, or ``page`` saying why not."""
     try:
         update_env_file(inst.env_path, updates)
     except (OSError, ValueError) as exc:
-        page = page or pages.credentials(inst)
-        text = _write_failed(inst.env_path, exc)
-        # A value the file format cannot hold is the form's fault, a
-        # directory nobody may write to is not.
-        return (
-            _refused(page, text)
-            if isinstance(exc, ValueError)
-            else (_not_written(page, text))
-        )
+        return _failed_write(page, inst.env_path, exc)
     return None
 
 
@@ -502,20 +488,22 @@ def field(form: Form, name: str) -> str:
     return form.get(name, [""])[0].strip()
 
 
-def _write_failed(path: Path, exc: OSError | ValueError) -> str:
-    """Why a file was not written. A refused value is quoted, not translated.
+def _failed_write(page: Page, path: Path, exc: OSError | ValueError) -> Reply:
+    """A file not written, said on ``page``. A refused value is quoted.
 
     One sentence for the three files this interface writes. The path is
     shown: this page is read by the person sitting at the machine, who is the
-    one who can do something about a directory they do not own.
+    one who can do something about a directory they do not own. A value the
+    file format cannot hold is the form's fault, a 400, and a directory
+    nobody may write to is not, a 500.
 
     Called exactly where a write failed, so it is also where stderr hears of
     it.
     """
     logbook.configui.write_failed(path, exc)
     if isinstance(exc, ValueError):
-        return f"Nicht gespeichert: {exc}"
-    return f"Konnte {path} nicht schreiben: {exc.strerror or exc}"
+        return _back(page, f"Nicht gespeichert: {exc}")
+    return _back(page, f"Konnte {path} nicht schreiben: {exc.strerror or exc}", 500)
 
 
 def _flags(chosen: list[str]) -> dict[str, bool]:
