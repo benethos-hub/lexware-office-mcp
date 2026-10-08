@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-08
+
+A minor release, because an installation can trip over three of these:
+the image is no longer published under its old name, `setup` listens on
+port 8771 and asks for a start code, and its address `/export` is gone.
+The pages of `setup` are rebuilt, the production folder can put HTTPS in
+front of the server for clients on the local network, and two reviews'
+findings are fixed. No tool is added or removed.
+
 ### Added
 
 - **HTTPS for clients on the local network**: `containers/production/`
@@ -1307,7 +1316,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.3.0...v0.4.0
