@@ -48,6 +48,11 @@ housekeeping are out of scope here — design decisions live in
 - **`setup` keeps `export` in front of a setting it rewrites.** A `.env`
   that a shell sources as well, with `export LXO_MCP_PAGE_SIZE=25`, lost the
   word on the first save, although the server reads that form.
+- **A relative `--env-file` or `--tools-file` is made absolute at start.**
+  `setup` compared it with the absolute paths of the search and warned
+  about "another file" that was the same one, and the client arguments it
+  shows carried the relative path, which a client resolves against its own
+  working directory.
 
 ### Changed
 
