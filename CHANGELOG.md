@@ -15,6 +15,9 @@ housekeeping are out of scope here — design decisions live in
 
 ### Fixed
 
+- **`get_voucher` by a number that matches nothing says so plainly**: "No
+  voucher with the number RE-1." instead of "No voucher carrying the number
+  with ID RE-1.".
 - **An upload outside `LXO_MCP_UPLOAD_DIR` is refused the same way
   whether the file exists or not.** The file was looked for first, so the
   answer told the model what is on the disk where it may not upload from.

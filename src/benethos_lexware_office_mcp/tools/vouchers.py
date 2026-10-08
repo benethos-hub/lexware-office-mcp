@@ -220,7 +220,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         found = await client.vouchers_by_number(voucher_number or "")
         matches = found.get("content") or []
         if not matches:
-            raise NotFoundError("voucher carrying the number", voucher_number or "")
+            raise NotFoundError("voucher", voucher_number or "", by="the number")
         if len(matches) > 1:
             ids = ", ".join(str(match.get("id")) for match in matches)
             raise ValidationError(

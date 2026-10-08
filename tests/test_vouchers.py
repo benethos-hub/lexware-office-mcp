@@ -495,7 +495,7 @@ async def test_a_number_that_matches_nothing_is_a_not_found() -> None:
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("get_voucher", {"voucher_number": "NOPE"})
 
-    assert "NOPE" in str(excinfo.value)
+    assert str(excinfo.value).endswith(": No voucher with the number NOPE.")
     await provider.aclose()
 
 

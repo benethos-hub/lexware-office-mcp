@@ -119,15 +119,21 @@ class NotFoundError(ToolError):
     like "No resource with ID file" for ``/v1/invoices/{id}/file``.
 
     ``hint`` says what to do about it, where there is something to do.
+    ``by`` names what the value is when it is not an id, such as a number.
     """
 
     def __init__(
-        self, resource: str, resource_id: str | None = None, *, hint: str = ""
+        self,
+        resource: str,
+        resource_id: str | None = None,
+        *,
+        hint: str = "",
+        by: str = "ID",
     ) -> None:
         if resource_id is None:
             message = f"The API has nothing at {resource}."
         else:
-            message = f"No {resource} with ID {resource_id}."
+            message = f"No {resource} with {by} {resource_id}."
         super().__init__(f"{message} {hint}".strip())
 
 
