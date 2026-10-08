@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp.configui import pages, probe
+from benethos_lexware_office_mcp.configui import pages, probe, templates
 from benethos_lexware_office_mcp.configui.state import EDITABLE_KEYS, Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import Settings, locations
@@ -243,6 +243,8 @@ def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
     body = text(pages.overview(inst))
 
     assert "Zeichen, rund" in body and "Token" in body
+    # What the permissions page says: the list goes with every request.
+    assert "Token je Anfrage" in body
 
 
 def test_the_files_in_use_are_named_with_their_state(inst: Installation) -> None:
@@ -445,6 +447,21 @@ def test_the_placeholder_is_the_default_and_the_value_the_file(
     assert 'name="LXO_MCP_TIMEOUT" type="text" value="" placeholder="30"' in body
 
 
+def test_the_placeholder_says_what_empty_means_beside_the_other_settings(
+    inst: Installation, tmp_path: Path
+) -> None:
+    """A named download directory is cleaned only when the count says so as
+    well, so there an empty count keeps every download, not 100."""
+    kept = 'name="LXO_MCP_KEPT_DOWNLOADS" type="text" value="" placeholder="{}"'
+    assert kept.format("100") in text(pages.settings(inst))
+
+    named = tmp_path / "downloads"
+    inst.env_path.write_text(f"LXO_MCP_DOWNLOAD_DIR={named}\n", encoding="utf-8")
+    inst.reload()
+
+    assert kept.format("alle") in text(pages.settings(inst))
+
+
 def test_a_value_an_environment_variable_holds_is_no_field(
     inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -626,6 +643,22 @@ def test_the_counter_and_the_save_are_at_the_top_right(inst: Installation) -> No
     assert re.search(r'<span id="cost">[\d.]+</span>', top)
 
 
+def test_enter_in_the_profile_name_creates_the_profile(inst: Installation) -> None:
+    """A form submits with its first submit button on Enter, and that is
+    "Rechte speichern" at the top, which wrote the policy file instead.
+
+    The field names the button Enter stands for, and the script presses it.
+    """
+    body = text(pages.permissions(inst))
+
+    field = re.search(r'<input id="f-profile_name"[^>]*>', body)
+    assert field and 'data-enter="profile-save"' in field.group(0)
+    assert 'name="action" value="profile-save"' in body
+    script = (templates.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "dataset.enter" in script
+    assert "requestSubmit" in script
+
+
 def test_a_block_unfolds_when_its_own_action_answered(inst: Installation) -> None:
     """A refusal that hides the field it is about helps nobody."""
     inst.profiles.save("Nur Lesen", ["get_profile"], known_tools())
@@ -804,6 +837,35 @@ def test_a_refused_token_unfolds_its_card(inst: Installation) -> None:
         r"<details class=\"card\" open>\s*<summary[^>]*><h2>HTTP-Token", body
     )
     assert 'value="x y"' in body
+
+
+def test_the_key_card_says_what_the_overview_says(inst: Installation) -> None:
+    """One word per state on every page: hinterlegt, or fehlt."""
+    with_key = text(pages.credentials(inst))
+    inst.settings = dataclasses.replace(inst.settings, api_key=None)
+    without = text(pages.credentials(inst))
+
+    assert '<h2>API-Schlüssel</h2><span class="meta">hinterlegt</span>' in with_key
+    assert '<h2>API-Schlüssel</h2><span class="meta">fehlt</span>' in without
+    assert '<span class="tag err">fehlt</span>' in text(pages.overview(inst))
+
+
+def test_a_token_the_environment_holds_is_shown_as_held(
+    inst: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The file's token stood in the field under an "aus: Umgebung" badge,
+    the one a client would be refused with."""
+    inst.env_path.write_text("LXO_MCP_BEARER_TOKEN=from-the-file\n", encoding="utf-8")
+    monkeypatch.setenv("LXO_MCP_BEARER_TOKEN", "from-the-environment")
+    inst.settings = dataclasses.replace(
+        inst.settings, bearer_token="from-the-environment"
+    )
+
+    body = text(pages.credentials(inst))
+
+    assert '<span class="held">from-the-environment</span>' in body
+    assert "from-the-file" not in body
+    assert 'name="bearer"' not in body
 
 
 def test_the_connection_card_says_what_the_last_test_found(

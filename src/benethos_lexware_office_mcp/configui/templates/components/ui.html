@@ -36,11 +36,13 @@
 {% macro csrf_field() %}<input type="hidden" name="_csrf" value="{{ csrf }}">{% endmacro %}
 
 {# A labelled input. ``code``: the variable's name beside the label,
-   ``source``: where its value came from. #}
-{% macro field(name, label, value="", type="text", placeholder="", hint=None, code=None, source=None, autocomplete=None, maxlength=None) %}
+   ``source``: where its value came from, ``enter``: the value of the
+   action button Enter in this field presses, where it is not the form's
+   first. #}
+{% macro field(name, label, value="", type="text", placeholder="", hint=None, code=None, source=None, autocomplete=None, maxlength=None, enter=None) %}
 <div class="field">
   <label for="f-{{ name }}">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}{% if source %} {{ badge(source) }}{% endif %}</label>
-  <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}>
+  <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if enter %} data-enter="{{ enter }}"{% endif %}>
   {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
 </div>
 {% endmacro %}

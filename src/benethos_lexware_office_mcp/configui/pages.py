@@ -38,7 +38,7 @@ from .state import (
     LABELS,
     POLICY_KEY,
     Installation,
-    defaults,
+    if_emptied,
     resolved,
 )
 
@@ -448,20 +448,30 @@ def _outranked(inst: Installation) -> str:
 # --- credentials -----------------------------------------------------------
 
 
-def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
+def credentials(
+    inst: Installation,
+    *,
+    typed: dict[str, str] | None = None,
+    unchecked: bool = False,
+) -> Page:
     """The key, the connection test beside it, and the HTTP token.
 
     ``typed`` is what a refused form held, shown again in place of the file's
     value so nothing has to be typed twice. Never the API key, which no page
-    shows.
+    shows. ``unchecked``: the key's form was sent to be saved without the
+    check, which a refusal keeps ticked.
 
     The token is folded unless the server is set to an HTTP transport, the
     one case it is for - or a refused form is about it, which would
-    otherwise hide the field the reason is about.
+    otherwise hide the field the reason is about. A token a real
+    environment variable holds is shown as that one and offered as no
+    field, as on the settings page: the file's would be the wrong one to
+    copy, and saving it would change nothing.
     """
     env = inst.file_env()
     shown = {**env, **(typed or {})}
     account = last_account()
+    bearer_held = inst.shadowed(BEARER_KEY)
     return Page(
         "pages/credentials.html",
         "Zugangsdaten",
@@ -472,11 +482,15 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
             "key_shadowed": inst.shadowed(API_KEY),
             "env_path": str(inst.env_path),
             "bearer_key": BEARER_KEY,
-            "bearer": shown.get(BEARER_KEY, ""),
+            "bearer": (inst.settings.bearer_token or "")
+            if bearer_held
+            else shown.get(BEARER_KEY, ""),
+            "bearer_held": bearer_held,
             "bearer_badge": _badge(inst, BEARER_KEY, env),
             "bearer_open": inst.settings.transport != "stdio"
             or BEARER_KEY in (typed or {}),
             "facts": account_facts(account) if account else [],
+            "unchecked": unchecked,
         },
         "Der API-Schlüssel, die Verbindung zum Konto und das Token für den "
         "HTTP-Transport.",
@@ -489,15 +503,16 @@ def credentials(inst: Installation, *, typed: dict[str, str] | None = None) -> P
 def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
     """The settings that are no secret, in three cards.
 
-    The placeholder is the built-in default, read the way the value in effect
-    is read, because empty means exactly that. A value a real environment
+    The placeholder is what an empty field means, read the way the value
+    in effect is read: the built-in default, unless another setting changes
+    it, see :func:`.state.if_emptied`. A value a real environment
     variable holds is shown and offered as no field: typing over it would
     change nothing, since the variable outranks every file.
     """
     env = inst.file_env()
     shown = {**env, **(typed or {})}
     values = resolved(inst)
-    default = defaults()
+    default = if_emptied(inst)
 
     def one(key: str) -> dict[str, Any]:
         value = shown.get(key, "")
@@ -507,6 +522,12 @@ def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page
             choices = [("", f"Standard ({default[key]})")] + [
                 (level, level) for level in LOG_LEVELS
             ]
+            # One no choice offers, refused or edited into the file by
+            # hand: shown as it is, or the page would show the default
+            # and the next save would write it.
+            if value and value not in LOG_LEVELS:
+                value = shown.get(key, "")
+                choices.append((value, f"{value} (unbekannt)"))
         return {
             "key": key,
             "label": LABELS[key],

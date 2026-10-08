@@ -96,6 +96,7 @@ def check(inst: Installation, form: Form) -> Reply:
 def save_key(inst: Installation, form: Form) -> Reply:
     key = field(form, "api_key")
     skip_check = bool(form.get("unchecked"))
+    here = pages.credentials(inst, unchecked=skip_check)
     if not key:
         return _done(
             _CREDENTIALS, "Kein Schlüssel eingegeben, nichts geändert.", "warn"
@@ -104,7 +105,7 @@ def save_key(inst: Installation, form: Form) -> Reply:
     try:
         credential(key, name=API_KEY)
     except ConfigError as exc:
-        return _refused_by_server(pages.credentials(inst), exc)
+        return _refused_by_server(here, exc)
 
     verified: probe.Account | None = None
     if not skip_check:
@@ -112,9 +113,9 @@ def save_key(inst: Installation, form: Form) -> Reply:
         verified, message = probe.check(probe_settings, keep=False)
         if verified is None:
             logbook.configui.key_refused()
-            return _refused(pages.credentials(inst), f"Nicht gespeichert. {message}")
+            return _refused(here, f"Nicht gespeichert. {message}")
 
-    failed = _write_env(inst, {API_KEY: key})
+    failed = _write_env(inst, {API_KEY: key}, here)
     if failed is not None:
         return failed
     if verified is not None:
@@ -187,11 +188,16 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     # The form sends every field, blank ones included. A blank one clears a
     # value the file holds, and for a key the file does not carry there is
     # nothing to clear - writing `KEY=` for it would only clutter the file.
+    # Nor is a field that says what the file says a change.
     submitted = {
         key: value
         for key in EDITABLE_KEYS
-        if key in form and ((value := field(form, key)) or key in current)
+        if key in form
+        and ((value := field(form, key)) or key in current)
+        and value != current.get(key, "").strip()
     }
+    if not submitted:
+        return _done(_SETTINGS, "Nichts geändert, also nichts geschrieben.")
     typed = {key: field(form, key) for key in EDITABLE_KEYS if key in form}
     # The one setting the server does not refuse: an unknown log level
     # falls back to the default rather than stopping a start. Written from
@@ -214,10 +220,12 @@ def save_settings(inst: Installation, form: Form) -> Reply:
     if failed is not None:
         return failed
     logbook.configui.settings_saved(inst.env_path.name, list(submitted))
+    count = len(submitted)
     return _written(
         inst,
         _SETTINGS,
-        f"{len(submitted)} Einstellungen nach {inst.env_path} geschrieben.",
+        f"{count} {'Einstellung' if count == 1 else 'Einstellungen'} "
+        f"nach {inst.env_path} geschrieben.",
     )
 
 

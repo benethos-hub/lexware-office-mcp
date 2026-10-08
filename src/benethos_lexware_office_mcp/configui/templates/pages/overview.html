@@ -23,7 +23,7 @@
       Die Rechtedatei ist da, schaltet aber <strong>kein einziges Tool</strong>
       frei. Der Assistent sieht damit nichts von diesem Konto.
       {% else %}
-      Sie kosten den Assistenten {{ row.spend }} in jedem einzelnen Gespräch.
+      Sie kosten den Assistenten {{ row.spend }} je Anfrage.
       {% if row.state == "writers" %}
       <br><strong>Echte Buchhaltungsdaten verändern dürfen:</strong>
       {% for name in row.writers %}<code>{{ name }}</code>{{ ", " if not loop.last else "." }}{% endfor %}

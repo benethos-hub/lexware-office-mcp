@@ -50,7 +50,7 @@ services:
   #   docker compose --profile setup up -d
   #   docker compose rm -f -s setup
   # The address with the start code is in `docker compose logs setup`, with
-  # the port inside the container: 8771 there is 8781 here.
+  # the port it is published on here, which --public-port tells it.
   setup:
     profiles: ["setup"]
     # The same image as the server, so a build names it twice and the second
@@ -71,6 +71,8 @@ services:
       - /config/.env
       - --tools-file
       - /config/tools.json
+      - --public-port
+      - "${LXO_SETUP_PORT:-8781}"
     ports:
       - "127.0.0.1:${LXO_SETUP_PORT:-8781}:8771"
     healthcheck:

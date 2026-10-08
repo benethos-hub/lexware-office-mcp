@@ -34,6 +34,7 @@ __all__ = [
     "SETTING_KEYS",
     "Installation",
     "defaults",
+    "if_emptied",
     "downloads_dir",
     "resolved",
 ]
@@ -310,13 +311,40 @@ def resolved(inst: Installation) -> dict[str, str]:
 
 
 def defaults() -> dict[str, str]:
-    """What each editable setting is when nothing sets it, read the same way.
-
-    The placeholder of an empty field, which is what leaving it empty means.
-    """
+    """What each editable setting is when nothing sets it, read the same way."""
     settings = Settings()
     return {
         shown.key: shown.show(settings)
         for shown in SHOWN
         if shown.key in EDITABLE_KEYS and shown.show is not None
     }
+
+
+def if_emptied(inst: Installation) -> dict[str, str]:
+    """What each editable setting would be with its field left empty.
+
+    The placeholder of an empty field, which is what leaving it empty means:
+    the built-in default, unless another setting changes it. A download
+    directory a person named is cleaned only when the count says so too, so
+    there an empty count keeps every download. Read the way a save would
+    read it, the file as it is with this one field emptied, and the built-in
+    default where the rest is something the server refuses.
+    """
+    present = {
+        key: value
+        for key, value in os.environ.items()
+        if key.startswith("LXO_MCP_") and value.strip()
+    }
+    current = {**inst.file_env(), **present}
+    fallback = defaults()
+    found: dict[str, str] = {}
+    for shown in SHOWN:
+        if shown.key not in fallback or shown.show is None:
+            continue
+        try:
+            emptied = load_settings(env={**current, shown.key: ""})
+        except ConfigError:
+            found[shown.key] = fallback[shown.key]
+        else:
+            found[shown.key] = shown.show(emptied)
+    return found

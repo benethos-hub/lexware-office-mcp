@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from benethos_lexware_office_mcp.configui import probe, transfer
+from benethos_lexware_office_mcp.configui import actions, probe, transfer
 from benethos_lexware_office_mcp.configui.app import (
     CONTENT_SECURITY_POLICY,
     MAX_WAITING_SESSIONS,
@@ -267,7 +267,7 @@ def test_sessions_that_never_signed_in_are_not_kept_forever(browser: Browser) ->
 def test_without_the_code_every_page_asks_for_it(browser: Browser) -> None:
     stranger = Browser(browser.base)
 
-    for path in ("/", "/credentials", "/permissions", "/settings", "/export"):
+    for path in ("/", "/credentials", "/permissions", "/settings"):
         status, body, _ = stranger.get(path)
         assert status == 403, path
         assert "<h2>Code eingeben</h2>" in body, path
@@ -343,6 +343,21 @@ def test_a_code_in_an_address_typed_or_opened_by_setup_is_tried(
     stranger._open(request)
 
     assert stranger.get("/")[0] == 200
+
+
+def test_an_old_code_in_the_address_of_a_signed_in_browser_is_not_tried(
+    browser: Browser,
+) -> None:
+    """The address of an earlier start, from the history or a bookmark: the
+    code page showed with a wrong code counted, to a browser already in."""
+    status, _, headers = browser._open(
+        urllib.request.Request(f"{browser.base}/permissions?code=from-before"),
+        follow=False,
+    )
+
+    assert status == 303
+    assert headers["Location"] == "/permissions"
+    assert browser.server._wrong == 0
 
 
 def test_the_code_typed_into_the_field_signs_in(browser: Browser) -> None:
@@ -464,6 +479,24 @@ def test_the_start_prints_the_address_with_the_code(
         assert f"Editing the {kind} file" in lines.text
 
 
+def test_the_address_names_the_port_it_is_published_on(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    """In a container the bound port is the one inside, and the line is
+    what a person copies from the log."""
+    opened: list[str] = []
+    monkeypatch.setattr("webbrowser.open", opened.append)
+    monkeypatch.setattr(ConfigServer, "serve_forever", lambda self: None)
+
+    serve(installation, port=0, open_browser=True, public_port=8781)
+
+    found = re.search(r"(http://127\.0\.0\.1:8781/\?code=\S+)", lines.text)
+    assert found
+    assert opened == [found.group(1)]
+
+
 # -- Post/Redirect/Get ------------------------------------------------------
 
 
@@ -517,6 +550,19 @@ def test_a_refused_form_comes_back_at_once_with_what_was_typed(
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
 
 
+def test_a_refused_form_keeps_the_tick_and_the_level_it_was_sent_with(
+    browser: Browser,
+) -> None:
+    """Shown again with what was typed: a box or a choice is typed too."""
+    _, key_page, _ = browser.post(
+        "/credentials", {"api_key": "a-new\u200bkey", "unchecked": "1"}
+    )
+    _, level_page, _ = browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "verbose"})
+
+    assert 'name="unchecked" value="1" checked' in key_page
+    assert '<option value="verbose" selected>' in level_page
+
+
 def test_a_refused_key_is_not_shown_again(
     browser: Browser, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -545,7 +591,7 @@ def test_a_wrong_token_is_refused(browser: Browser) -> None:
     status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nope")
 
     assert status == 403
-    assert "Sicherheitstoken" in body
+    assert "nicht zu dieser Sitzung" in body
 
 
 def test_a_token_with_a_non_ascii_character_is_refused_too(browser: Browser) -> None:
@@ -557,7 +603,7 @@ def test_a_token_with_a_non_ascii_character_is_refused_too(browser: Browser) -> 
     status, body, _ = browser.post("/permissions", {"action": "save"}, csrf="nöpe")
 
     assert status == 403
-    assert "Sicherheitstoken" in body
+    assert "nicht zu dieser Sitzung" in body
 
 
 @pytest.mark.parametrize("host", ["attacker.example:8770", "192.168.1.20:8770", ""])
@@ -602,7 +648,8 @@ def test_any_loopback_name_and_port_is_answered(browser: Browser, host: str) -> 
 def test_no_page_is_cached(browser: Browser) -> None:
     """They show the bearer token and name the company."""
     assert browser.get("/credentials")[2]["Cache-Control"] == "no-store"
-    assert browser.get("/export")[2]["Cache-Control"] == "no-store"
+    download = browser.post("/permissions", {"action": "policy-export"})
+    assert download[2]["Cache-Control"] == "no-store"
 
 
 def test_no_page_can_be_framed_or_sniffed(browser: Browser) -> None:
@@ -702,7 +749,7 @@ def test_a_planted_cookie_is_not_a_session(browser: Browser) -> None:
     status, body, _ = browser._open(request)
 
     assert status == 403
-    assert "Sicherheitstoken" in body
+    assert "nicht zu dieser Sitzung" in body
 
 
 @pytest.mark.parametrize(
@@ -1020,6 +1067,31 @@ def test_a_setting_is_written_and_takes_effect(
     assert installation.settings.page_size == 80
 
 
+def test_a_save_that_changes_nothing_writes_nothing_and_says_so(
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The form sends every field, so an unchanged one is no change."""
+    written: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        actions, "update_env_file", lambda path, updates: written.append(updates)
+    )
+
+    _, body, _ = browser.post(
+        "/settings", {"LXO_MCP_PAGE_SIZE": "50", "LXO_MCP_TIMEOUT": ""}
+    )
+
+    assert written == []
+    assert "Nichts geändert" in note(body)
+
+
+def test_one_changed_setting_is_one_einstellung(browser: Browser) -> None:
+    _, body, _ = browser.post(
+        "/settings", {"LXO_MCP_PAGE_SIZE": "50", "LXO_MCP_TIMEOUT": "20"}
+    )
+
+    assert "1 Einstellung nach" in note(body)
+
+
 def test_an_emptied_setting_falls_back_to_the_default(
     browser: Browser, installation: Installation
 ) -> None:
@@ -1124,7 +1196,7 @@ def test_the_export_is_the_policy_file_itself(
     installation.env_path.write_text("LXO_MCP_API_KEY=secret-value", encoding="utf-8")
     ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
 
-    status, body, headers = browser.get("/export")
+    status, body, headers = browser.post("/permissions", {"action": "policy-export"})
 
     assert status == 200
     assert "attachment" in headers["Content-Disposition"]
@@ -1132,16 +1204,10 @@ def test_the_export_is_the_policy_file_itself(
     assert json.loads(body) == flags(installation)
 
 
-def test_the_export_button_downloads_the_same(
-    browser: Browser, installation: Installation
-) -> None:
-    ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
-
-    status, body, headers = browser.post("/permissions", {"action": "policy-export"})
-
-    assert status == 200
-    assert "attachment" in headers["Content-Disposition"]
-    assert json.loads(body)["get_profile"] is True
+def test_the_export_is_a_button_and_no_address(browser: Browser) -> None:
+    """Linked from nowhere, and without a policy file it answered one with
+    every tool off, which reads like a file somebody wrote."""
+    assert browser.get("/export")[0] == 404
 
 
 def test_importing_fills_the_form_and_writes_nothing(

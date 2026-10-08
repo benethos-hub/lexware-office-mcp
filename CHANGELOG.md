@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **`setup --public-port N`** names the port the address it prints and
+  opens should carry, where a container is published under another port
+  than the one it binds. Both Compose folders pass `LXO_SETUP_PORT` in, so
+  the line in `docker compose logs setup` is the address to open on this
+  machine, `8781` in the development folder rather than the `8771` inside.
+
 ### Security
 
 - **Every answer of `setup` carries its security headers**, the HTTP
@@ -128,6 +136,22 @@ housekeeping are out of scope here — design decisions live in
   got a new session, and every save was refused for a token that did not
   match. The header is read by hand now, and a cookie of the same name
   planted beside the real one no longer wins either.
+- **Enter in the name of a new profile creates the profile.** A form sends
+  itself with its first button on Enter, which on the permissions page is
+  "Rechte speichern", so the policy file was written instead and no
+  profile made. Without JavaScript it still is.
+- **`setup` shows the HTTP token an environment variable sets.** With
+  `LXO_MCP_BEARER_TOKEN` in the environment, the credentials page showed
+  the token from the `.env` under the badge "aus: Umgebung", the one a
+  client would be refused with. It now shows the token in force and no
+  field, as the settings page does for a value the environment holds.
+- **Saving the settings of `setup` writes only what changed.** The form
+  sends every field, and each was written back and counted, so a save
+  that changed nothing rewrote the `.env` and reported settings written.
+  It now says that nothing changed, and one setting is "1 Einstellung".
+- **A refused key keeps the tick "Ohne Prüfung speichern".** The form
+  came back with what was typed and the box cleared, so sending it again
+  checked the key against the account after all.
 
 ### Changed
 
@@ -145,7 +169,8 @@ housekeeping are out of scope here — design decisions live in
   making a new HTTP token ask first.
 - **The settings of `setup` have a page of their own**, `Einstellungen` at
   `/settings`, in three cards: the connection, the output, the files. The
-  placeholder of an empty field is the built-in default rather than the
+  placeholder of an empty field is what leaving it empty means, the
+  built-in default unless another setting changes it, rather than the
   value in effect, the log level is a choice rather than free text, and a
   setting an environment variable holds is shown as such and offered as no
   field. The credentials page keeps the key and the HTTP token.
@@ -201,6 +226,13 @@ housekeeping are out of scope here — design decisions live in
 - **Every release from 0.2.0 is under the new image name**: 0.2.0 to
   0.4.1 and their minor lines were copied over with the same digest, so a
   pinned tag can move to the new name without pulling different bytes.
+
+### Removed
+
+- **The address `/export` of `setup` is gone.** No page linked it, and
+  without a policy file it answered a download with every tool off, which
+  reads like a file somebody wrote. *Rechtedatei herunterladen* on the
+  permissions page is the download.
 
 ## [0.4.2] - 2026-10-08
 
