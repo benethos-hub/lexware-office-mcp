@@ -13,6 +13,7 @@ from benethos_lexware_office_mcp.files import resources, storage
 from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings import locations as L
 from helpers import (
     API_KEY,
     FILE_ID,
@@ -613,7 +614,7 @@ def test_the_cache_directory_is_cleaned_to_its_bound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Not named by hand, so the default of a hundred applies."""
-    monkeypatch.setattr(storage, "download_dir", lambda: tmp_path)
+    monkeypatch.setattr(L, "download_dir", lambda: tmp_path)
     _aged(tmp_path, [f"{n:03d}.pdf" for n in range(102)])
 
     with caplog.at_level(logging.INFO, logger="benethos_lexware_office_mcp"):
@@ -660,10 +661,7 @@ async def test_a_download_that_is_gone_says_to_fetch_it_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The likeliest reason is the bound, and the remedy is one call away."""
-    monkeypatch.setattr(storage, "download_dir", lambda: tmp_path)
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.server.download_dir", lambda: tmp_path
-    )
+    monkeypatch.setattr(L, "download_dir", lambda: tmp_path)
     server, provider = server_with(recorder())
     uri = "lexware://download/gone.pdf"
 

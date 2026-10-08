@@ -177,6 +177,16 @@ class Settings:
         """Where this process reads and writes its per-tool policy."""
         return self.tool_policy_path or locations.tool_policy_file()
 
+    def download_directory(self) -> Path:
+        """Where downloads go: ``LXO_MCP_DOWNLOAD_DIR``, or this user's cache.
+
+        Raises :class:`ConfigError` when neither resolves, which is no home
+        and no setting. What that means is the caller's to decide - a
+        download says what to set, a clean-up has nothing to clean - so it
+        is raised here rather than answered.
+        """
+        return self.download_path or locations.download_dir()
+
     def require_api_key(self) -> str:
         """Return the API key, or explain how to supply one.
 

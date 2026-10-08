@@ -22,7 +22,6 @@ import httpx
 from .. import logbook
 from ..errors import ConfigError, ValidationError
 from ..settings import Settings
-from ..settings.locations import download_dir
 
 __all__ = [
     "MAX_UPLOAD",
@@ -58,7 +57,7 @@ _DEVICES = frozenset(
 
 def directory_for(settings: Settings) -> Path:
     """Where this server writes downloads, created if it is not there yet."""
-    target = settings.download_path or download_dir()
+    target = settings.download_directory()
     target.mkdir(parents=True, exist_ok=True)
     return target
 
@@ -121,7 +120,7 @@ def prune_for(settings: Settings) -> int:
     if keep is None:
         return 0
     try:
-        directory = settings.download_path or download_dir()
+        directory = settings.download_directory()
     except ConfigError:
         return 0
     removed = prune(directory, keep)

@@ -20,7 +20,7 @@ from ..errors import ConfigError
 from ..policy import ToolPolicy
 from ..settings import Settings, load_settings
 from ..settings.envfile import read_env_file
-from ..settings.locations import download_dir, env_file_in_effect
+from ..settings.locations import env_file_in_effect
 from .profiles import ProfileStore, profile_file
 from .render import (
     CLI_SOURCE,
@@ -203,7 +203,7 @@ def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
     the page says so in the server's own words rather than failing to render.
     """
     try:
-        return str(settings.download_path or download_dir())
+        return str(settings.download_directory())
     except ConfigError as exc:
         return str(exc) if unresolved is None else unresolved
 
