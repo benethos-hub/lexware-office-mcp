@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The container image is built with uv 0.12.24.** uv installs the
+  locked dependencies in the build stage and is not part of the image
+  itself, so what runs is the same.
+
 ## [0.5.0] - 2026-10-08
 
 A minor release, because an installation can trip over three of these:
