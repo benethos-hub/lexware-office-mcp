@@ -61,7 +61,10 @@ jobs:
     environment:
       name: pypi-benethos-lexware-office-mcp
       url: https://pypi.org/p/benethos-lexware-office-mcp
+    # A job's permissions replace the workflow's, so contents: read is
+    # repeated here or checkout would rely on the repository being public.
     permissions:
+      contents: read
       id-token: write # Trusted Publishing, in place of a stored token
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
