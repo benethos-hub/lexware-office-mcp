@@ -3077,8 +3077,11 @@ described in section 7.1. Nothing on the API side is outstanding.
    Since the pins, minor and patch updates come as one pull request per
    ecosystem and week, and a major one alone. `mcp` always comes alone,
    since the suite does not see what the SDK changes.
-7. **An entry in the official MCP Registry**, prepared 2026-10-10 and
-   published by the first release that carries it.
+7. **An entry in the official MCP Registry**, published with 0.5.1 on
+   2026-10-10. The job took it at the first attempt, and the registry
+   lists the version as active and newest, with the PyPI package, the
+   image and the extension, the extension's checksum the one its release
+   asset has.
    `.github/publish/mcp-registry/server.json` names the PyPI package and
    the image, and a third job in `publish.yml` sends it once both are
    up, logged in with the workflow's OIDC identity, so no account and
@@ -3143,8 +3146,9 @@ described in section 7.1. Nothing on the API side is outstanding.
    entry against the package: the versions, the description, the package
    names, the namespace, both ownership proofs, the volumes, the icons and
    the job's order.
-8. **A Claude Desktop extension**, prepared 2026-10-10 and attached to the
-   first release that carries it. `.github/publish/mcpb/` holds the
+8. **A Claude Desktop extension**, attached to every release since 0.5.1
+   of 2026-10-10, whose job built and attached it at its first run.
+   `.github/publish/mcpb/` holds the
    manifest as it ships, the `server.py` uv starts by its path and the
    `build.py` that stages the bundle from the files git tracks. It is a
    `uv` bundle: it carries `pyproject.toml`, `uv.lock` and the source, and
