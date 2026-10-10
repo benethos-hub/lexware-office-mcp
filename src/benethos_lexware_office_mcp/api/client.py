@@ -150,8 +150,6 @@ class LexwareClient(Connection):
         voucher_number: str | None = None,
         voucher_date_from: str | None = None,
         voucher_date_to: str | None = None,
-        only_overdue: bool | None = None,
-        only_open: bool | None = None,
         archived: bool | None = None,
         sort: str | None = None,
         page: int = 0,
@@ -165,6 +163,14 @@ class LexwareClient(Connection):
         (verified 2026-08-20), so the caller always states both even if only
         to say ``any``. ``voucherNumber`` matches the whole number, ignoring
         case, and never a part of it (measured 2026-09-27).
+
+        **There is no ``onlyOpen`` or ``onlyOverdue``.** This method sent
+        both until 2026-10-10, and the endpoint ignored them without a word:
+        the same rows came back with and without. The documentation never
+        listed them. ``voucherStatus=open`` is what filters, overdue
+        documents included, and ``overdue`` alone the past-due ones, which
+        the API refuses to combine with any other state (measured
+        2026-10-10, issue #95).
         """
         params = _page_params(
             page,
@@ -175,8 +181,6 @@ class LexwareClient(Connection):
             voucherNumber=voucher_number,
             voucherDateFrom=voucher_date_from,
             voucherDateTo=voucher_date_to,
-            onlyOverdue=only_overdue,
-            onlyOpen=only_open,
             archived=archived,
             sort=sort,
         )

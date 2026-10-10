@@ -90,8 +90,9 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             Field(
                 description=(
                     "Which state to look for. 'any' covers all of them. "
-                    "'open' is unpaid, 'paid' is settled, 'draft' is not "
-                    "finalized, 'voided' is cancelled."
+                    "'open' is everything unpaid, overdue included, "
+                    "'overdue' only what is past its due date. 'paid' is "
+                    "settled, 'draft' is not finalized, 'voided' is cancelled."
                 )
             ),
         ] = "any",
@@ -123,13 +124,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         ] = None,
         date_to: Annotated[
             str | None, Field(description="Latest voucher date, as YYYY-MM-DD.")
-        ] = None,
-        only_overdue: Annotated[
-            bool | None,
-            Field(description="Only documents whose due date has passed unpaid."),
-        ] = None,
-        only_open: Annotated[
-            bool | None, Field(description="Only documents with an amount outstanding.")
         ] = None,
         archived: Annotated[
             bool | None,
@@ -164,8 +158,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         open amount. A row marked `archived` is filed away.
 
         Narrow `voucher_type` and `voucher_status` to keep the answer small.
-        `only_open` and `only_overdue` answer "what is still outstanding"
-        without paging through everything.
+        `voucher_status` 'open' or 'overdue' answers "what is still
+        outstanding" without paging through everything.
         """
         payload = await provider.get().voucherlist(
             voucher_type=voucher_type,
@@ -174,8 +168,6 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             voucher_number=voucher_number,
             voucher_date_from=date_from,
             voucher_date_to=date_to,
-            only_overdue=only_overdue,
-            only_open=only_open,
             archived=archived,
             sort=sort,
             page=page,
