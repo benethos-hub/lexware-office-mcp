@@ -2877,6 +2877,13 @@ order:
    oldest allowed version of every direct dependency on Python 3.11, with no
    lockfile, and runs the suite, so a lower bound in `pyproject.toml` that has
    stopped being true shows up. It is an early warning, not a required check.
+   Since 2026-10-10 only `test (3.14)` measures coverage and holds the
+   floor, where coverage.py follows branches through `sys.monitoring`. The
+   other matrix jobs run the suite without measuring, since under the older
+   tracer the test step took up to 112 seconds on 3.12 against 42 to 46 on
+   3.14, and 30 to 43 without it. The job keeps its name, so the floor stays
+   a required check, and a line that only an older Python runs no longer
+   counts.
    `.github/dependabot.yml` asks weekly about the dependency ranges, the
    pinned actions and the container base image.
 
