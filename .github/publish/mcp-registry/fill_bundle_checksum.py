@@ -10,6 +10,12 @@ attached and runs this script before publishing:
 It refuses a bundle whose file name is not the one the entry points at, and
 an entry that no longer holds the placeholder, so a hash is never written
 twice or for the wrong file. Standard library only.
+
+The registry takes an entry whole or not at all. Should it refuse the one
+with the bundle, the workflow drops the bundle and publishes the rest, so
+the version is listed at least with PyPI and the image:
+
+    python3 fill_bundle_checksum.py --drop <server.json>
 """
 
 from __future__ import annotations
@@ -38,7 +44,24 @@ def fill(server_json: Path, bundle: Path) -> str:
     return digest
 
 
+def drop(server_json: Path) -> None:
+    entry = json.loads(server_json.read_text(encoding="utf-8"))
+    kept = [p for p in entry["packages"] if p["registryType"] != "mcpb"]
+    if len(kept) == len(entry["packages"]):
+        raise SystemExit("the entry lists no bundle to drop")
+    entry["packages"] = kept
+    server_json.write_text(
+        json.dumps(entry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        sys.exit("usage: fill_bundle_checksum.py <server.json> <bundle.mcpb>")
-    print(fill(Path(sys.argv[1]), Path(sys.argv[2])), file=sys.stderr)
+    if len(sys.argv) == 3 and sys.argv[1] == "--drop":
+        drop(Path(sys.argv[2]))
+    elif len(sys.argv) == 3:
+        print(fill(Path(sys.argv[1]), Path(sys.argv[2])), file=sys.stderr)
+    else:
+        sys.exit(
+            "usage: fill_bundle_checksum.py <server.json> <bundle.mcpb>\n"
+            "       fill_bundle_checksum.py --drop <server.json>"
+        )

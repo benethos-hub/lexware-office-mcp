@@ -308,14 +308,24 @@ jobs:
 
       # The registry reads the PyPI version through PyPI's JSON API, which
       # has reported a fresh upload as missing for minutes. Six tries a
-      # minute apart outlast that.
+      # minute apart outlast that. The registry takes an entry whole or not
+      # at all, so a refusal that outlasts them falls back to the entry
+      # without the bundle, the newest of its packages: the version is
+      # listed at least with PyPI and the image, and the job still fails, so
+      # the refusal is looked at.
       - name: Publish server.json
         run: |
+          set -euo pipefail
+          entry=.github/publish/mcp-registry/server.json
           for attempt in 1 2 3 4 5 6; do
-            if ./mcp-publisher publish .github/publish/mcp-registry/server.json; then
+            if ./mcp-publisher publish "$entry"; then
               exit 0
             fi
             echo "attempt ${attempt} refused, trying again in 60 s"
             sleep 60
           done
+          echo "::warning::The registry refused the entry with the bundle, publishing it without"
+          python3 .github/publish/mcp-registry/fill_bundle_checksum.py --drop "$entry"
+          ./mcp-publisher publish "$entry"
+          echo "::error::Listed without the bundle. The refusals above say why."
           exit 1

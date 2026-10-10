@@ -731,7 +731,8 @@ def test_the_registry_job_publishes_after_both_packages() -> None:
     assert "      contents: read\n      id-token: write" in head
     assert re.search(r"MCP_PUBLISHER_VERSION: v\d+\.\d+\.\d+\n", head)
     assert re.search(r"MCP_PUBLISHER_SHA256: [0-9a-f]{64}\n", head)
-    assert f"publish {REGISTRY_ENTRY.relative_to(REPO).as_posix()};" in job
+    assert f"entry={REGISTRY_ENTRY.relative_to(REPO).as_posix()}\n" in job
+    assert './mcp-publisher publish "$entry"; then' in job
 
 
 def test_the_registry_icons_are_files_in_this_repository() -> None:
@@ -828,3 +829,33 @@ def test_the_checksum_is_written_for_the_named_file_only(tmp_path: Path) -> None
     entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
     with pytest.raises(SystemExit, match="not the file"):
         _fill_script().fill(entry, other)
+
+
+def test_dropping_the_bundle_keeps_pypi_and_the_image(tmp_path: Path) -> None:
+    entry = tmp_path / "server.json"
+    entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
+
+    _fill_script().drop(entry)
+
+    kept = json.loads(entry.read_text(encoding="utf-8"))
+    assert [p["registryType"] for p in kept["packages"]] == ["pypi", "oci"]
+    assert kept["description"] == _entry()["description"]
+    with pytest.raises(SystemExit, match="no bundle"):
+        _fill_script().drop(entry)
+
+
+def test_a_refused_bundle_still_leaves_the_version_listed() -> None:
+    """The registry takes an entry whole or not at all.
+
+    After the retries the bundle is dropped and the rest published, and the
+    job still fails, so the refusal is looked at.
+    """
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    step = workflow.split("- name: Publish server.json", 1)[1]
+    retries = step.index("done")
+    dropped = step.index("--drop")
+    republished = step.index('./mcp-publisher publish "$entry"', dropped)
+
+    assert retries < dropped < republished < step.index("exit 1", republished)

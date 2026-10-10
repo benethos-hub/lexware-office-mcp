@@ -3128,6 +3128,11 @@ order:
    writes its hash in with `fill_bundle_checksum.py` before publishing. The
    script refuses another file name and an entry that holds anything but
    the zeros, so a hash is never written twice or for the wrong file.
+   **The registry takes an entry whole or not at all**, so a refusal that
+   outlasts the retries falls back to the entry without the bundle, the
+   newest of its packages, which `fill_bundle_checksum.py --drop` writes:
+   the version is listed at least with PyPI and the image, and the job
+   still fails, so the refusal is looked at.
 
    `mcp-publisher` is a download rather than an action, pinned by version
    and checksum, so Dependabot does not see it and the release checklist
