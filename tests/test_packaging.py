@@ -61,6 +61,8 @@ VERSION_EXAMPLES = (
     # the image tag, which carries the version in place of a field of its own.
     (".github/publish/mcp-registry/server.json", r'"version": "(\d+\.\d+\.\d+)"'),
     (".github/publish/mcp-registry/server.json", r'-mcp:(\d+\.\d+\.\d+)"'),
+    # The Claude Desktop bundle's manifest, committed as it ships.
+    (".github/publish/mcpb/manifest.json", r'"version": "(\d+\.\d+\.\d+)"'),
 )
 
 # The minor-line tag, which follows patch releases rather than naming one. It
@@ -307,7 +309,7 @@ def test_every_publish_job_checks_the_tag() -> None:
         encoding="utf-8"
     )
 
-    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 3
+    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 4
 
 
 def test_latest_never_follows_a_pre_release() -> None:

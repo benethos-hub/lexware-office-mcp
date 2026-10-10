@@ -28,6 +28,12 @@ housekeeping are out of scope here — design decisions live in
   in place of `--tools read-only`. The interface it opens ends itself after
   30 minutes without a request, through the new `setup` option
   `--exit-when-idle`.
+- **A Claude Desktop extension**, `benethos-lexware-office-mcp.mcpb`,
+  attached to every release. Dragged into Claude Desktop it installs the
+  server with no configuration file to edit and no uv or Python to install
+  first, since Claude Desktop brings both. Nothing is enabled after
+  installing: the prompt "Set up Lexware Office" opens the configuration
+  interface, where the key and the tools are set.
 - **An entry in the official MCP Registry**,
   `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
   this release and with every one after it. It offers the PyPI package and

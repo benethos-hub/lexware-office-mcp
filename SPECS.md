@@ -3124,6 +3124,49 @@ order:
    entry against the package: the versions, the description, the package
    names, the namespace, both ownership proofs, the volumes, the icons and
    the job's order.
+8. **A Claude Desktop extension**, prepared 2026-10-10 and attached to the
+   first release that carries it. `.github/publish/mcpb/` holds the
+   manifest as it ships, the `server.py` uv starts by its path and the
+   `build.py` that stages the bundle from the files git tracks. It is a
+   `uv` bundle: it carries `pyproject.toml`, `uv.lock` and the source, and
+   Claude Desktop installs Python and the dependencies itself, from the
+   lockfile because the manifest says `--frozen`. A job in `publish.yml`
+   packs it with a pinned mcpb CLI and attaches it to the release twice,
+   under its version and under a name without one for a link that always
+   reaches the newest release.
+
+   **Tried before anything was built**, in a Windows Sandbox with Claude
+   Desktop from the Store and no uv or Python on the machine. Claude
+   Desktop brought its own uv 0.9.7, which fetched Python 3.14.0 and
+   installed from a lockfile uv 0.13 had written. The server read the
+   per-user directory, `AppData\Local\benethos-lexware-office-mcp`, the same
+   as an installation from PyPI, since the Store app's container does not
+   redirect it. What it could not do was let anyone start `setup` from
+   outside, see section 7.1, which is what the prompt there is for. With
+   the prompt, the whole way ran in the sandbox: install, pick the prompt,
+   set the key and the tools in the browser, and `get_profile` answered
+   for the test account.
+
+   **The manifest asks for nothing.** Its `user_config` could carry the key
+   into the install dialog, and a first try did, but a value there reaches
+   the server as an environment variable, which beats the `.env` and so
+   could no longer be changed on the configuration pages. One place for
+   everything won. **It lists every tool**, since the dialog shows what the
+   extension can offer, and its long description says that none is on
+   until the person chooses: Claude Desktop shows a server that offers no
+   tool as failed, "Offered no tools to Cowork and Code sessions", and the
+   prompt is listed all the same. **The prompt is declared with its exact
+   text**, because Claude Desktop refuses an undeclared one and drops an
+   answer that differs from the declaration.
+
+   macOS is not measured, in particular whether Claude Desktop there keeps
+   an extension from the per-user directory `setup` writes **(to verify)**.
+   The mcpb CLI is fetched by npx, so Dependabot does not see it and the
+   release checklist raises it. `tests/test_mcpb.py` holds the manifest to
+   the package: the version, the metadata, every tool with the first
+   sentence of its description, the prompt as the server answers it, no
+   settings asked for, and a staged bundle that holds the tracked source
+   and nothing else.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did

@@ -3,11 +3,12 @@ name: Publish
 # Publishes the release artefacts when a GitHub release is published:
 #   * the sdist and the wheel to PyPI, through Trusted Publishing
 #   * the container image to ghcr.io, through the automatic GITHUB_TOKEN
-#   * the entry in the MCP Registry, which points at both, through the
-#     workflow's OIDC identity
+#   * the Claude Desktop bundle (.mcpb), attached to the release itself
+#   * the entry in the MCP Registry, which points at the first two, through
+#     the workflow's OIDC identity
 #
-# The two package jobs are independent, so a broken image push does not
-# withhold the upload to PyPI and neither waits on the other. The registry
+# The package jobs and the bundle are independent, so a broken image push
+# does not withhold the upload to PyPI and none waits on another. The registry
 # job waits on both, because the registry checks the packages the moment it
 # accepts the entry.
 #
@@ -216,6 +217,49 @@ jobs:
           print("OK:", ", ".join(platforms))
           print("   ", annotations["org.opencontainers.image.description"])
           PY
+
+  mcpb-bundle:
+    name: Attach the Claude Desktop bundle
+    # The bundle goes onto the release it is built for, and a manual run has
+    # no release to attach it to.
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # upload the bundle as a release asset
+    env:
+      # Pinned like everything else here. Dependabot does not see a package
+      # npx fetches, so the release checklist in CLAUDE.md raises it.
+      MCPB_VERSION: 2.1.2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The write token is for the upload, nothing here pushes.
+          persist-credentials: false
+
+      - name: The release tag is the package version
+        run: python3 .github/scripts/tag_matches_version.py
+
+      - name: Stage the bundle
+        run: python3 .github/publish/mcpb/build.py "$RUNNER_TEMP/bundle"
+
+      - name: Validate and pack
+        run: |
+          set -euo pipefail
+          npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" validate "$RUNNER_TEMP/bundle/manifest.json"
+          npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" pack "$RUNNER_TEMP/bundle" \
+            "benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
+
+      # Twice: under its version, and without one, which gives the README a
+      # link that always reaches the newest full release.
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          versioned="benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
+          cp "$versioned" benethos-lexware-office-mcp.mcpb
+          gh release upload "$GITHUB_REF_NAME" "$versioned" benethos-lexware-office-mcp.mcpb
 
   mcp-registry-publish:
     name: Publish to the MCP Registry
