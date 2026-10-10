@@ -109,9 +109,10 @@ def test_a_profile_export_is_not_mistaken_for_a_policy_file() -> None:
 def test_json_nested_deeper_than_the_stack_is_not_a_policy() -> None:
     """The decoder recursed per level and raised RecursionError past the handler.
 
-    Where the stack is deep enough - Python 3.14, which measures the real
-    one, on Linux - it is read as the list it is and refused as no object.
-    Either way a refusal, never a crash.
+    From Python 3.14 on the limit is the real stack rather than a count, so
+    where that stack is large enough - 64 MB on Linux, measured 2026-10-10
+    on 3.14 and 3.15, where 8 MB was not - it is read as the list it is and
+    refused as no object. Either way a refusal, never a crash.
     """
     with pytest.raises(transfer.TransferError):
         transfer.parse("[" * 100_000 + "]" * 100_000)
