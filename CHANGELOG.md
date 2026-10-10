@@ -15,7 +15,7 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
-- **The container image is built with uv 0.12.24.** uv installs the
+- **The container image is built with uv 0.13.0.** uv installs the
   locked dependencies in the build stage and is not part of the image
   itself, so what runs is the same.
 
