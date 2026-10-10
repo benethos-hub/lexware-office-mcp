@@ -19,6 +19,13 @@ housekeeping are out of scope here — design decisions live in
   through. The package installs and the suite passes on 3.15.0, and a
   client receives the same tool list as on 3.14. The container image stays
   on 3.14 for now.
+- **A prompt that opens the configuration interface**, "Set up Lexware
+  Office", offered over stdio. Picking it in the client starts `setup` and
+  opens the browser, which is the way in where the server runs out of reach
+  of a terminal, such as a Claude Desktop extension. Only a person can pick
+  it, and it does nothing but open the pages. Over stdio the server's
+  instructions name it, and so does the warning when no policy file exists,
+  in place of `--tools read-only`.
 - **An entry in the official MCP Registry**,
   `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
   this release and with every one after it. It offers the PyPI package and

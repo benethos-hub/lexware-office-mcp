@@ -355,6 +355,11 @@ for permissions: change those later and the running client is told, see
 uvx benethos-lexware-office-mcp setup
 ```
 
+Or from your client: over stdio the server offers a prompt called **Set up
+Lexware Office**, and picking it opens the same pages. In Claude Desktop it
+is under the plus in the message box. The model cannot start it, only you
+can, and it does nothing but open the pages.
+
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
 or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
 run at once, and `--port` picks another. They write the same files the

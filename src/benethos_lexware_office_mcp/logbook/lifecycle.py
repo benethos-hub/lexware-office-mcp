@@ -10,6 +10,7 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
+from ._describe import describe
 from .output import PACKAGE
 
 __all__ = [
@@ -20,6 +21,9 @@ __all__ = [
     "reachable_from_outside",
     "settings_changed",
     "settings_from",
+    "setup_already_open",
+    "setup_not_started",
+    "setup_started",
     "started",
     "token_generated",
     "tools_enabled",
@@ -47,12 +51,44 @@ def settings_from(path: Path | None) -> None:
         _log.info("Settings from %s", path)
 
 
-def no_policy(path: Path | None) -> None:
-    _log.warning(
-        "No tool policy at %s, so no tools are offered. Create one with "
-        "--tools read-only, then enable what this account may be used for.",
-        path,
+def no_policy(path: Path | None, transport: str) -> None:
+    """Over stdio the client offers a prompt that opens the interface.
+
+    Its title is spelled out rather than imported, since the server sits
+    above this layer. `tests/test_setup_prompt.py` holds the two together.
+    """
+    opened_by = (
+        'the client\'s prompt "Set up Lexware Office" opens it, and so does '
+        if transport == "stdio"
+        else "open it with "
     )
+    _log.warning(
+        "No tool policy at %s, so no tools are offered. Choose them in the "
+        "configuration interface: %s`benethos-lexware-office-mcp setup`.",
+        path,
+        opened_by,
+    )
+
+
+def setup_started(port: int) -> None:
+    """The prompt started the configuration interface as a process of its own.
+
+    Its own lines go nowhere, since it was started without a terminal, so
+    this is where a person looking for it learns which port it took.
+    """
+    _log.info(
+        "Configuration interface started at the client's prompt, on port %s", port
+    )
+
+
+def setup_already_open(port: int) -> None:
+    _log.info(
+        "Configuration interface already answers on port %s, not started again", port
+    )
+
+
+def setup_not_started(error: BaseException) -> None:
+    _log.warning("Configuration interface could not be started: %s", describe(error))
 
 
 def tools_enabled(enabled: int, total: int, writers: Sequence[str], path: Path) -> None:
