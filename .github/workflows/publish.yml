@@ -4,13 +4,13 @@ name: Publish
 #   * the sdist and the wheel to PyPI, through Trusted Publishing
 #   * the container image to ghcr.io, through the automatic GITHUB_TOKEN
 #   * the Claude Desktop bundle (.mcpb), attached to the release itself
-#   * the entry in the MCP Registry, which points at the first two, through
-#     the workflow's OIDC identity
+#   * the entry in the MCP Registry, which points at all three, through the
+#     workflow's OIDC identity
 #
 # The package jobs and the bundle are independent, so a broken image push
 # does not withhold the upload to PyPI and none waits on another. The registry
-# job waits on both, because the registry checks the packages the moment it
-# accepts the entry.
+# job waits on all three, because the registry checks every package the
+# moment it accepts the entry, the bundle's download and checksum included.
 #
 # `workflow_dispatch` runs the image half alone and tags the result `edge`,
 # from `main` only: `edge` is public, and the form offers every branch.
@@ -265,7 +265,7 @@ jobs:
     name: Publish to the MCP Registry
     # An entry cannot be taken back, so a pre-release never gets one.
     if: github.event_name == 'release' && !github.event.release.prerelease
-    needs: [pypi-publish, ghcr-publish]
+    needs: [pypi-publish, ghcr-publish, mcpb-bundle]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -290,6 +290,18 @@ jobs:
             "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
           echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
           tar xzf mcp-publisher.tar.gz mcp-publisher
+
+      # The bundle's hash exists only now. The entry holds a placeholder,
+      # and the hash is taken from the very file the release carries.
+      - name: Fill in the bundle's checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bundle="benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
+          gh release download "$GITHUB_REF_NAME" --pattern "$bundle" --dir "$RUNNER_TEMP"
+          python3 .github/publish/mcp-registry/fill_bundle_checksum.py \
+            .github/publish/mcp-registry/server.json "$RUNNER_TEMP/$bundle"
 
       - name: Log in with the workflow's OIDC token
         run: ./mcp-publisher login github-oidc

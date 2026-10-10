@@ -36,8 +36,8 @@ housekeeping are out of scope here — design decisions live in
   interface, where the key and the tools are set.
 - **An entry in the official MCP Registry**,
   `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
-  this release and with every one after it. It offers the PyPI package and
-  the container image, both over stdio. The image is started with the
+  this release and with every one after it. It offers the PyPI package, the
+  container image and the Claude Desktop extension, all over stdio. The image is started with the
   named volumes `lxo-config` and `lxo-downloads`, the ones the README's
   `setup` command for a single container uses, so what is configured there
   is what a client's container reads. The image carries the label the

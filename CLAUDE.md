@@ -129,6 +129,7 @@ containers/       # README.md says which folder is for what
   publish/
     mcp-registry/
       server.json # the MCP Registry entry, sent by publish.yml at a release
+      fill_bundle_checksum.py # the bundle's hash, written in at the release
     mcpb/         # the Claude Desktop bundle: manifest.json as it ships,
                   # server.py that uv starts, build.py that stages it
   scripts/
@@ -378,7 +379,8 @@ fallen behind, so the list is short on purpose. In this order:
    image, and check inside each that the change the release is for is there.
    Last the registry entry, under
    `https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp`,
-   at this version and with this image tag.
+   at this version, with this image tag and with the bundle's checksum in
+   place of the zeros the committed file holds.
 
 ## Conventions
 

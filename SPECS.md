@@ -3118,6 +3118,17 @@ order:
    renderer never enters the project's dependencies. The entry and the
    README title link both by their address on `main`.
 
+   **The Claude Desktop bundle of item 8 is the third package**, by its
+   address as an asset of the release, which is the one form the registry
+   takes for it: `/owner/repo/releases/download/<tag>/<file>`, with "mcp" in
+   it, so the file with the version in its name rather than the one without.
+   The registry wants its SHA-256, which exists only once the release has
+   built the bundle, so the committed entry holds zeros and the job, which
+   waits for the bundle as well, downloads the file the release carries and
+   writes its hash in with `fill_bundle_checksum.py` before publishing. The
+   script refuses another file name and an entry that holds anything but
+   the zeros, so a hash is never written twice or for the wrong file.
+
    `mcp-publisher` is a download rather than an action, pinned by version
    and checksum, so Dependabot does not see it and the release checklist
    in `CLAUDE.md` raises it by hand. `tests/test_packaging.py` holds the

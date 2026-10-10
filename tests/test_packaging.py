@@ -7,12 +7,15 @@ move at release time.
 
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import json
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -61,6 +64,9 @@ VERSION_EXAMPLES = (
     # the image tag, which carries the version in place of a field of its own.
     (".github/publish/mcp-registry/server.json", r'"version": "(\d+\.\d+\.\d+)"'),
     (".github/publish/mcp-registry/server.json", r'-mcp:(\d+\.\d+\.\d+)"'),
+    # The bundle the entry offers, as a release asset: its tag and file name.
+    (".github/publish/mcp-registry/server.json", r"/download/v(\d+\.\d+\.\d+)/"),
+    (".github/publish/mcp-registry/server.json", r"-mcp-(\d+\.\d+\.\d+)\.mcpb"),
     # The Claude Desktop bundle's manifest, committed as it ships.
     (".github/publish/mcpb/manifest.json", r'"version": "(\d+\.\d+\.\d+)"'),
 )
@@ -720,7 +726,7 @@ def test_the_registry_job_publishes_after_both_packages() -> None:
     job = workflow.split("  mcp-registry-publish:", 1)[1]
     head = job.split("steps:", 1)[0]
 
-    assert "needs: [pypi-publish, ghcr-publish]" in head
+    assert "needs: [pypi-publish, ghcr-publish, mcpb-bundle]" in head
     assert "!github.event.release.prerelease" in head
     assert "      contents: read\n      id-token: write" in head
     assert re.search(r"MCP_PUBLISHER_VERSION: v\d+\.\d+\.\d+\n", head)
@@ -746,3 +752,79 @@ def test_the_registry_icons_are_files_in_this_repository() -> None:
     width, height = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
     assert png.startswith(b"\x89PNG\r\n\x1a\n")
     assert icons["image/png"]["sizes"] == [f"{width}x{height}"]
+
+
+# The bundle is a release asset, and the registry accepts only the GitHub
+# pattern /owner/repo/releases/download/<tag>/<file> for it, so the entry
+# names the file of this very release. Its hash exists only once the release
+# has built it: the committed entry holds zeros, and the publish workflow
+# writes the real one with fill_bundle_checksum.py.
+FILL = REPO / ".github" / "publish" / "mcp-registry" / "fill_bundle_checksum.py"
+
+
+def _fill_script() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("fill_bundle_checksum", FILL)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_bundle_entry_is_this_releases_asset() -> None:
+    version = benethos_lexware_office_mcp.__version__
+    bundle = _package("mcpb")
+
+    assert bundle["identifier"] == (
+        f"https://github.com/{_owner()}/lexware-office-mcp/releases/download/"
+        f"v{version}/{_project()['name']}-{version}.mcpb"
+    )
+    assert bundle["transport"] == {"type": "stdio"}
+    assert "registryBaseUrl" not in bundle
+
+
+def test_the_bundle_entry_holds_the_placeholder() -> None:
+    """A real hash in the committed file would be the previous release's."""
+    assert _package("mcpb")["fileSha256"] == _fill_script().PLACEHOLDER
+
+
+def test_the_bundle_file_name_is_the_one_the_workflow_uploads() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    named = 'versioned="benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"'
+
+    assert named in workflow
+
+
+def test_the_bundle_checksum_is_filled_in_before_publishing() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    job = workflow.split("  mcp-registry-publish:", 1)[1]
+
+    assert job.index("fill_bundle_checksum.py") < job.index("mcp-publisher publish")
+
+
+def test_the_checksum_is_written_for_the_named_file_only(tmp_path: Path) -> None:
+    version = benethos_lexware_office_mcp.__version__
+    entry = tmp_path / "server.json"
+    entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
+    bundle = tmp_path / f"benethos-lexware-office-mcp-{version}.mcpb"
+    bundle.write_bytes(b"bundle bytes")
+
+    digest = _fill_script().fill(entry, bundle)
+
+    written = json.loads(entry.read_text(encoding="utf-8"))
+    [package] = [p for p in written["packages"] if p["registryType"] == "mcpb"]
+    assert (
+        package["fileSha256"] == digest == hashlib.sha256(b"bundle bytes").hexdigest()
+    )
+    # The rest of the entry survives the rewrite, the dash included.
+    assert written["description"] == _entry()["description"]
+    with pytest.raises(SystemExit, match="placeholder"):
+        _fill_script().fill(entry, bundle)
+    other = tmp_path / "benethos-lexware-office-mcp-0.0.1.mcpb"
+    other.write_bytes(b"x")
+    entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
+    with pytest.raises(SystemExit, match="not the file"):
+        _fill_script().fill(entry, other)
