@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -130,7 +131,8 @@ def test_starting_the_server_reports_what_is_enabled(
 
     assert started == [True]
     assert "no tools are offered" in caplog.text
-    assert "--tools read-only" in caplog.text
+    assert '"Set up Lexware Office"' in caplog.text
+    assert "`benethos-lexware-office-mcp setup`" in caplog.text
 
 
 def test_starting_with_write_tools_on_says_which_ones(
@@ -270,6 +272,10 @@ class _FakeServer:
 
     def run(self, transport: str = "stdio") -> None:
         self._started.append(transport == "stdio")
+
+    def prompt(self, **_: object) -> Callable[[Callable[[], str]], Callable[[], str]]:
+        """Over stdio the command line offers the setup prompt on it."""
+        return lambda function: function
 
 
 def test_a_named_env_file_that_is_not_there_stops_the_server(

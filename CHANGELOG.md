@@ -19,6 +19,15 @@ housekeeping are out of scope here — design decisions live in
   through. The package installs and the suite passes on 3.15.0, and a
   client receives the same tool list as on 3.14. The container image stays
   on 3.14 for now.
+- **A prompt that opens the configuration interface**, "Set up Lexware
+  Office", offered over stdio. Picking it in the client starts `setup` and
+  opens the browser, which is the way in where the server runs out of reach
+  of a terminal, such as a Claude Desktop extension. Only a person can pick
+  it, and it does nothing but open the pages. Over stdio the server's
+  instructions name it, and so does the warning when no policy file exists,
+  in place of `--tools read-only`. The interface it opens ends itself after
+  30 minutes without a request, through the new `setup` option
+  `--exit-when-idle`.
 - **An entry in the official MCP Registry**,
   `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
   this release and with every one after it. It offers the PyPI package and
@@ -31,6 +40,16 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **A key saved after the server started is used at once**, when the server
+  had none. The first setup no longer needs the client to restart the
+  server for the key, as it never did for the permissions. A key the
+  server was given still applies until it is restarted, as every other
+  setting does.
+- **The messages for a missing and a rejected key say what to do next.**
+  A missing key names the prompt "Set up Lexware Office" over stdio and
+  `setup` everywhere, and that a key saved there is used from the next
+  call. A rejected key adds that a changed key is used once the client
+  starts the server again, Claude Desktop by being quit from the tray.
 - **The container image is built with uv 0.13.0.** uv installs the
   locked dependencies in the build stage and is not part of the image
   itself, so what runs is the same.

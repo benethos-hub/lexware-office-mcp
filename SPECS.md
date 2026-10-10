@@ -112,6 +112,7 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `transport/stdio.py` | The default transport: the client starts the process and owns stdin and stdout. See section 6. | built |
 | `transport/http.py` | The HTTP transport: the bearer guard in front of it, a generated token written into the settings file where that was asked for, and the DNS-rebinding allowlist. Nothing here is reached under stdio. See section 6. | built |
 | `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
+| `transport/setup_prompt.py` | Over stdio, the prompt a person picks in the client to open the configuration interface: `setup` started as a detached process. See section 7.1. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `templates` is the one module importing Jinja2, with the templates under `templates/` and the stylesheet and the script under `static/`, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` each screen as a template and its context, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its guards and the routing. | built |
 | `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
@@ -802,6 +803,22 @@ arriving.
   browser reach a running server. Off by default, because ending is the whole
   of it where nothing restarts it.
 
+  **One exception, since 2026-10-10: a key saved into a server that had
+  none.** A server started before its first key was saved looks for one in
+  the settings file at every API call, until it finds one, so the first
+  setup works without a restart - as it already did for the permissions
+  saved beside it. Measured in the Windows Sandbox of section 7.1: the key
+  was in the file, the connection test on the page succeeded, and the
+  running server still refused every call until Claude Desktop was quit
+  from the tray. Measured again with the change, in a fresh sandbox from
+  the bundle of section 16: the key saved in the browser was used by the
+  next call, with no restart. Only the missing key is looked for. A key the process was
+  given, from the file or from a variable, is never replaced under it, so
+  a changed key still waits for a restart, and so does every other
+  setting. The file is the one the configuration interface writes into,
+  the named one or the one the search settles on, and a key read late is
+  checked and kept out of every message like any other.
+
   The watch compares a **hash of the content**, not a timestamp: the
   configuration interface rewrites the whole file on every save, changed or
   not. Three further rules were bought with defects.
@@ -1095,6 +1112,47 @@ neither owns the files.
 stdio and stdout belongs to the protocol. This is a separate command, started
 by a person, that stops when they are done. The two share their configuration
 modules and nothing else.
+
+**Over stdio the server can start it, at the person's request**, since
+2026-10-10. It offers one MCP prompt, `open_setup`, titled "Set up Lexware
+Office", and picking it in the client starts `setup` as a detached process
+with no hold on stdout, which opens the browser on the start code. When the
+port already answers it starts nothing. The reason is a client that runs the
+server where nothing else can reach it: measured in a Windows Sandbox with
+Claude Desktop from the Store, a server installed as a desktop extension runs
+on a Python inside the app's container, and both the console script and the
+`python.exe` of its environment fail when started from outside, because the
+paths they were made with exist only inside. Started by the server, `setup`
+runs inside as well, and it worked there on the first try. It writes the
+per-user directory, which the container does not redirect, so a permission
+saved there reached the running server as `tools/list_changed` the same
+second.
+
+**It does not weaken section 9.** A prompt is user-controlled in MCP, not
+the model's to call, and this one reaches no data and changes nothing: what
+the page saves is decided by the person in front of it. Over HTTP it is not
+offered, since a remote client would open a page on a machine it does not sit
+at. The prompt always answers with the same sentence, because Claude Desktop
+holds a prompt's answer against the text the extension declared and rejects
+any other as a possible injection - measured, it said "Failed to attach
+prompt" while the browser opened anyway. What happened goes to stderr
+instead. `setup` is handed `--env-file` and `--tools-file` only when the
+server was started with them, so a person who never configured a client is
+not told to put arguments into one, and it inherits the server's
+environment, so a value a variable holds shows as such on its pages.
+
+**It ends itself after 30 minutes without a request**, `--exit-when-idle
+30`, which the prompt passes and nothing else does. Nobody started it from
+a terminal, so no window is there to close it, and while it runs it holds
+the Python it was started with. Measured in the sandbox: an interface left
+running from an earlier try kept Claude Desktop from removing the
+extension, whose folder stayed behind with the old manifest in it, and the
+next install did not replace it. Every connection counts as use, and it
+ends the way Beenden does, after an action that is writing a file.
+
+Over stdio the instructions a client receives name the prompt too. Without
+that a model facing an empty tool list guessed at a broken connection, which
+is what happened in the sandbox before the prompt existed.
 
 **Loopback by default, and loopback names only.** The pages have no password,
 which is defensible exactly as long as they cannot be reached from another
@@ -2328,7 +2386,7 @@ its name.
 | Upstream | Error class | Message shape |
 |---|---|---|
 | 400, 406 | `ValidationError` | the API `errorCode` and `message`, plus the offending field path when the response names one |
-| 401 | `AuthError` | "API key rejected", with a pointer to the add-on page, never the key |
+| 401 | `AuthError` | "API key rejected", with a pointer to the add-on page and the note that a changed key needs the client to start the server again, never the key |
 | 403 | `AuthError` | the method and path the key may not use, and to check the permissions it was created with |
 | 404 | `NotFoundError` | the path that answered nothing - a 404 does not say which part of it was wrong. A tool that looked a record up itself names the resource and the ID or number instead |
 | 406 naming `version`, 409 | `ConflictError` | a stale version (406) says to read the record again. A 409 says the record's current state refused the request, without naming a version. The one message that names both versions is the local check before an update, which compares the version read with the version passed |
@@ -2336,7 +2394,7 @@ its name.
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 | — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
-| — (settings) | `ConfigError` | no API key, said with the command that sets one and never with a path. At startup the same class ends the process in one line |
+| — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path. At startup the same class ends the process in one line |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query

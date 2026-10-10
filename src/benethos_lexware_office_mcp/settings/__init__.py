@@ -155,6 +155,10 @@ class Settings:
     allowed_hosts: tuple[str, ...] = ()
     exit_on_config_change: bool = False
     generate_bearer_token: bool = False
+    # Where a key saved after startup is looked for, see require_api_key.
+    # Set only when there was no key to start with, from the file or from a
+    # variable, so it never stands in for a key this process was given.
+    late_key_file: Path | None = None
 
     def downloads_kept(self) -> int | None:
         """How many downloads the directory keeps, or ``None`` for all of them.
@@ -194,17 +198,46 @@ class Settings:
         lists its tools and runs its tests without credentials. Only a call
         that actually reaches the API needs one.
         """
-        if not self.api_key:
-            # Deliberately without the path of the .env: this message reaches
-            # the client and a model's context, where a directory layout is
-            # nothing anybody can act on. The command names the file on the
-            # machine, which is where somebody can.
-            raise ConfigError(
-                "No API key configured for this server. Set LXO_MCP_API_KEY, "
-                "or run `benethos-lexware-office-mcp setup` on the machine "
-                "the server runs on."
-            )
-        return self.api_key
+        if self.api_key:
+            return self.api_key
+        late = self._key_saved_since_startup()
+        if late:
+            return late
+        # Deliberately without the path of the .env: this message reaches
+        # the client and a model's context, where a directory layout is
+        # nothing anybody can act on. The command names the file on the
+        # machine, which is where somebody can. The prompt's title is
+        # spelled out, since the server sits above this layer, and
+        # tests/test_setup_prompt.py holds the two together.
+        opened_by = (
+            'the client\'s prompt "Set up Lexware Office" opens it, and so does '
+            if self.transport == "stdio"
+            else "open it with "
+        )
+        raise ConfigError(
+            "No API key configured for this server. Save one in the "
+            f"configuration interface, {opened_by}"
+            "`benethos-lexware-office-mcp setup` on the machine the server "
+            "runs on, and it is used from the next call on. Setting "
+            "LXO_MCP_API_KEY works as well."
+        )
+
+    def _key_saved_since_startup(self) -> str | None:
+        """A key written into the settings file after this process started.
+
+        The first thing anybody does with a new installation is save a key,
+        and a server that read its settings before that would refuse every
+        call until its client restarted it - which a person has no reason
+        to expect, since the permissions saved beside it apply at once. So
+        the file is read again for the key alone, and only while there is
+        none: a key this process was given is never replaced under it.
+        """
+        if self.late_key_file is None or not self.late_key_file.is_file():
+            return None
+        raw = read_env_file(self.late_key_file).get("LXO_MCP_API_KEY", "").strip()
+        key = credential(raw or None, name="LXO_MCP_API_KEY")
+        register_secret(key)
+        return key
 
 
 def load_settings(
@@ -228,6 +261,11 @@ def load_settings(
     api_key = get("API_KEY") or None
     register_secret(api_key)
     credential(api_key, name="LXO_MCP_API_KEY")
+    late_key_file = (
+        _file_a_key_is_saved_to(cwd, env_file)
+        if api_key is None and env is None
+        else None
+    )
 
     log_level = (get("LOG_LEVEL") or DEFAULT_LOG_LEVEL).upper()
     if log_level not in LOG_LEVELS:
@@ -286,4 +324,19 @@ def load_settings(
         allowed_hosts=allowed_hosts,
         exit_on_config_change=exit_on_change,
         generate_bearer_token=generate_token,
+        late_key_file=late_key_file,
     )
+
+
+def _file_a_key_is_saved_to(cwd: Path | None, env_file: Path | None) -> Path | None:
+    """The ``.env`` the configuration interface would write the key into.
+
+    The named file, or the one the search settles on, which is where a file
+    is created when none exists yet. No home and no file named: nowhere.
+    """
+    if env_file is not None:
+        return env_file
+    try:
+        return locations.resolve_config_file(".env", cwd)
+    except ConfigError:
+        return None

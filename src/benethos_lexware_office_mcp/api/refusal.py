@@ -155,7 +155,9 @@ def _refusal(status: int, body: dict[str, Any], method: str, path: str) -> ToolE
         return AuthError(
             "The API rejected the key. Check LXO_MCP_API_KEY, and that the "
             "key is still active in Lexware Office under Extensions, "
-            "Public API."
+            "Public API. A key changed since the server started is used once "
+            "the client starts it again, Claude Desktop by being quit from "
+            "the tray."
         )
     if status == 403:
         return AuthError(

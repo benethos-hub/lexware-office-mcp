@@ -33,6 +33,7 @@ from .settings.locations import (
 )
 from .settings.parse import csv_tuple, user_path
 from .transport.http import bearer_ready, run_http
+from .transport.setup_prompt import offer_setup
 from .transport.stdio import run_stdio
 from .transport.watch import Snapshot, snapshot
 
@@ -260,6 +261,15 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         help="setup only: do not open a browser, just print the address",
     )
     parser.add_argument(
+        "--exit-when-idle",
+        type=float,
+        metavar="MINUTES",
+        help=(
+            "setup only: end after this many minutes without a request, as "
+            "the client's prompt starts it (default: run until ended)"
+        ),
+    )
+    parser.add_argument(
         "--public-port",
         type=int,
         help=(
@@ -455,6 +465,7 @@ def _run(
             open_browser=not args.no_browser,
             tools_file_named=bool(args.tools_file),
             public_port=args.public_port,
+            idle_minutes=args.exit_when_idle,
         )
         return
 
@@ -483,12 +494,18 @@ def _run(
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
     logbook.lifecycle.settings_from(env_file_in_effect(named=named_env))
-    _report_what_is_enabled(server.policy)
+    _report_what_is_enabled(server.policy, settings.transport)
     # Here and after each download, and nowhere else: `--tools`, `setup` and
     # anything else that builds a server to look at it deletes nothing.
     storage.prune_for(settings)
 
     if settings.transport == "stdio":
+        offer_setup(
+            server,
+            port=configui.DEFAULT_PORT,
+            env_file=named_env,
+            tools_file=settings.tool_policy_path if args.tools_file else None,
+        )
         run_stdio(server)
         return
 
@@ -526,7 +543,7 @@ def _report_where_it_listens(settings: Settings) -> None:
         logbook.lifecycle.reachable_from_outside(settings.http_host)
 
 
-def _report_what_is_enabled(policy: ToolPolicy) -> None:
+def _report_what_is_enabled(policy: ToolPolicy, transport: str) -> None:
     """Say on stderr what this process may do, and how to change it.
 
     A server offering nothing looks broken from the client, where the tool
@@ -534,7 +551,7 @@ def _report_what_is_enabled(policy: ToolPolicy) -> None:
     something a person can act on.
     """
     if not policy.exists():
-        logbook.lifecycle.no_policy(policy.path)
+        logbook.lifecycle.no_policy(policy.path, transport)
         return
     assert policy.path is not None
     enabled = [name for name, on in policy.as_map().items() if on]

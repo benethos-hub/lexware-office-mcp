@@ -66,6 +66,20 @@ a list answers in pages: read the page block of a result before asking for
 another one.
 """
 
+# What a client offers the person to pick, see `transport.setup_prompt`. The
+# title is here because the instructions below name it.
+SETUP_PROMPT_TITLE = "Set up Lexware Office"
+
+# Over stdio alone, where the prompt exists. Without it a client that lists
+# no tool leaves the model guessing at a broken connection, which is what
+# happened the first time this was tried in Claude Desktop.
+_SETUP_HINT = f"""
+The person can open the configuration interface, where the API key is set and
+the tools are chosen, by picking the prompt "{SETUP_PROMPT_TITLE}" in the
+client. When no tool is listed, or the one a request needs is missing, say so
+and point to that prompt rather than guessing at a fault.
+"""
+
 
 class PolicyServer(MCPServer):
     """An ``MCPServer`` that lists only what the policy file allows.
@@ -275,7 +289,8 @@ def build_server(
         name="benethos-lexware-office-mcp",
         title="Unofficial Lexware Office MCP Server",
         version=__version__,
-        instructions=_INSTRUCTIONS,
+        instructions=_INSTRUCTIONS
+        + (_SETUP_HINT if settings.transport == "stdio" else ""),
         policy=policy,
         downloads=downloads,
         listed_downloads=settings.downloads_listed(),

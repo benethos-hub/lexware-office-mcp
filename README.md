@@ -347,13 +347,20 @@ closing the window. That is for the configuration file you just edited, which
 a client reads once at startup, and it is what a changed setting in the `.env`
 needs too — the server reads those at startup as well. It is **not** needed
 for permissions: change those later and the running client is told, see
-[Switching individual tools off](#switching-individual-tools-off).
+[Switching individual tools off](#switching-individual-tools-off). Nor for
+the first API key: a server started without one uses a key saved later from
+its next call on. Changing a key it already has does need the restart.
 
 ## Configuring it in a browser
 
 ```bash
 uvx benethos-lexware-office-mcp setup
 ```
+
+Or from your client: over stdio the server offers a prompt called **Set up
+Lexware Office**, and picking it opens the same pages. In Claude Desktop it
+is under the plus in the message box. The model cannot start it, only you
+can, and it does nothing but open the pages.
 
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
 or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
@@ -426,7 +433,9 @@ code, and the start says so. And it is a **separate command**: the MCP
 server never serves HTTP, and a client such as Claude Desktop starts that
 one, not this.
 
-`--port N` moves it, `--no-browser` only prints the address, and `--env-file`
+`--port N` moves it, `--no-browser` only prints the address,
+`--exit-when-idle N` ends it after N minutes without a request - the prompt
+starts it with 30 - and `--env-file`
 and `--tools-file` say which files it edits. Unlike everywhere else those
 files do not have to exist yet. `--public-port N` is for a container
 published under another port than the one it binds: the address it prints

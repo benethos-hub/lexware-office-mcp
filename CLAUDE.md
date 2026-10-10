@@ -97,6 +97,7 @@ src/benethos_lexware_office_mcp/
   transport/      # how a client reaches the server
     stdio.py      # the default: the client owns the process
     http.py       # the bearer guard, a generated token, the host allowlist
+    setup_prompt.py # over stdio, a prompt that starts `setup` for the person
     watch.py      # ending the process when its settings file changes
   configui/       # the local configuration interface, `setup` serves it:
                   # state, cost, probe, stamp, profiles, transfer, pages,

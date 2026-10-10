@@ -41,6 +41,7 @@ __all__ = [
     "settings_saved",
     "signed_in",
     "stopped_from_page",
+    "stopped_when_idle",
     "token_saved",
     "write_failed",
 ]
@@ -97,6 +98,11 @@ def interrupted() -> None:
 def stopped_from_page() -> None:
     """Beenden on a page, after the answer went out."""
     _log.info("Stopped from the page")
+
+
+def stopped_when_idle(delay: float) -> None:
+    """``--exit-when-idle``, which the client's prompt starts it with."""
+    _log.info("Stopped after %d minutes without a request", round(delay / 60))
 
 
 def profiles_unreadable(path: Path, error: BaseException) -> None:
