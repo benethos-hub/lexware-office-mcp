@@ -810,7 +810,9 @@ arriving.
   saved beside it. Measured in the Windows Sandbox of section 7.1: the key
   was in the file, the connection test on the page succeeded, and the
   running server still refused every call until Claude Desktop was quit
-  from the tray. Only the missing key is looked for. A key the process was
+  from the tray. Measured again with the change, in a fresh sandbox from
+  the bundle of section 16: the key saved in the browser was used by the
+  next call, with no restart. Only the missing key is looked for. A key the process was
   given, from the file or from a variable, is never replaced under it, so
   a changed key still waits for a restart, and so does every other
   setting. The file is the one the configuration interface writes into,
