@@ -82,16 +82,67 @@ def test_the_link_check_ignores_code_blocks() -> None:
     assert _link_targets(sample) == ["https://example.com"]
 
 
-def test_every_anchor_points_at_a_heading_that_exists() -> None:
-    """A fragment link is rewritten by PyPI, not repaired by it."""
-    text = README.read_text(encoding="utf-8")
-    headings = {
-        re.sub(r"[^a-z0-9 -]", "", h.lower()).replace(" ", "-")
-        for h in re.findall(r"^#{2,4} (.+)$", text, re.M)
-    }
-    dead = [a for a in re.findall(r"\]\(#([a-z0-9-]+)\)", text) if a not in headings]
+# The table of contents and the cross-references jump to headings by their
+# anchor, which GitHub derives from the heading text. Rename a heading and the
+# link still renders, it just lands nowhere, on GitHub and on PyPI alike.
+_HEADING = re.compile(r"^(#{1,6}) (.+)$", re.MULTILINE)
 
-    assert not dead, f"anchors with no heading behind them: {dead}"
+
+def _anchor(heading: str) -> str:
+    """GitHub's anchor for a heading: lower case, punctuation dropped, spaces
+    to hyphens. HTML in the heading, like the icon in the title, is not text."""
+    text = re.sub(r"<[^>]+>", "", heading).strip().lower()
+    return re.sub(r"[^\w\- ]", "", text).replace(" ", "-")
+
+
+def _anchors(markdown: str) -> set[str]:
+    anchors: set[str] = set()
+    for _, heading in _HEADING.findall(_FENCE.sub("", markdown)):
+        anchor = _anchor(heading)
+        # A repeated heading gets -1, -2 and so on.
+        suffix, unique = 0, anchor
+        while unique in anchors:
+            suffix += 1
+            unique = f"{anchor}-{suffix}"
+        anchors.add(unique)
+    return anchors
+
+
+def test_every_fragment_link_lands_on_a_heading() -> None:
+    text = README.read_text(encoding="utf-8")
+    fragments = {t[1:] for t in _link_targets(text) if t.startswith("#")}
+
+    assert fragments, "the README has no fragment links, so this checked nothing"
+    missing = sorted(fragments - _anchors(text))
+    assert not missing, (
+        f"links to {missing} land on no heading. A heading was renamed or the "
+        "link was mistyped."
+    )
+
+
+def test_the_contents_name_every_section() -> None:
+    """A section added below and not to the contents is one nobody finds."""
+    text = README.read_text(encoding="utf-8")
+    contents = text.split("**Contents**", 1)[1].split("\n\n", 2)[1]
+    listed = set(re.findall(r"\]\(#([^)]+)\)", contents))
+    sections = {
+        _anchor(heading)
+        for level, heading in _HEADING.findall(_FENCE.sub("", text))
+        if level == "##"
+    }
+
+    assert sorted(sections - listed) == []
+
+
+def test_anchor_follows_githubs_rules() -> None:
+    assert _anchor("Where a value comes from, and which one wins") == (
+        "where-a-value-comes-from-and-which-one-wins"
+    )
+    assert _anchor("Switching individual tools off") == (
+        "switching-individual-tools-off"
+    )
+    assert _anchor('<img src="x.svg" alt=""> Title') == "title"
+    assert _anchors("## Logs\n\n## Logs\n") == {"logs", "logs-1"}
 
 
 def _documented_tools(markdown: str) -> set[str]:

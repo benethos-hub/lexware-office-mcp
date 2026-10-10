@@ -29,6 +29,32 @@
 > - For **commercial use**, review Lexware's API terms and your own retention
 >   and documentation duties.
 
+**Contents**
+
+- [Why this exists](#why-this-exists)
+- [Safety first](#safety-first)
+- [Tools](#tools)
+- [Requirements](#requirements)
+- [Getting an API key](#getting-an-api-key)
+- [Installation](#installation)
+- [Configuring it in a browser](#configuring-it-in-a-browser)
+- [Switching individual tools off](#switching-individual-tools-off)
+- [Configuration](#configuration)
+  - [Where a value comes from, and which one wins](#where-a-value-comes-from-and-which-one-wins)
+  - [Naming the files](#naming-the-files)
+  - [The settings](#the-settings)
+- [Transport](#transport)
+- [In a container](#in-a-container)
+  - [With Compose](#with-compose)
+  - [As single containers](#as-single-containers)
+  - [Turn the interface off when you are done](#turn-the-interface-off-when-you-are-done)
+- [Logs](#logs)
+- [Example prompts](#example-prompts)
+- [Rate limits](#rate-limits)
+- [Development](#development)
+- [License](#license)
+- [Trademarks and affiliation](#trademarks-and-affiliation)
+
 An [MCP](https://modelcontextprotocol.io) server that connects an MCP client
 such as Claude Desktop to a [Lexware Office](https://www.lexware.de/) account
 through the official
