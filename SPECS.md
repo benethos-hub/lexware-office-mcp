@@ -3,8 +3,9 @@
 > **Status: 0.5.1.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
-> The container image is published, and a client has reached a live account
-> through it over HTTP.
+> The container image is published, a client has reached a live account
+> through it over HTTP, and the Claude Desktop extension of section 16 has
+> done the same from a fresh machine.
 > Facts checked against a live account say so with their date, and this
 > document carries a great many of them because the API's own documentation
 > turned out to be wrong more than once.
@@ -771,10 +772,10 @@ arriving.
 
 ## 6. Transport and runtime
 
-- **0.1.0 is stdio only.** `MCPServer.run()` with the default stdio
-  transport, launched as a subprocess by the client. This is the entire
-  transport surface of the first releases, by explicit decision.
-- **0.2.0 adds HTTP** (`--transport streamable-http` / `sse`) with `--host`,
+- **stdio is the default transport.** `MCPServer.run()` with the default
+  stdio transport, launched as a subprocess by the client, and the only
+  transport until 0.2.0.
+- **HTTP since 0.2.0** (`--transport streamable-http` / `sse`) with `--host`,
   `--port`, `--path` and `--allowed-hosts`, in `transport/http.py`. **The bearer
   token is required, not offered**: an HTTP transport without
   `LXO_MCP_BEARER_TOKEN` refuses to start, because anyone who can reach the
@@ -1215,17 +1216,11 @@ variable names and the same path six times over, the credentials page held
 the key, the HTTP token and every other setting in one form, the permissions
 page put the legend and the profiles before the boxes and the save button
 after twenty-five rows, and a reload after a save repeated the post. The
-rework gives the interface a template engine, a frame, four pages and a
-start code, in four steps. The first is a branch of its own, the other three
-share one with a commit per step and per page, each green on its own, and
-the table says how far it is.
-
-| Step | What it brings | Status |
-|---|---|---|
-| 1 | This section, and the layout in the working guidelines | built 2026-10-08 |
-| 2 | The engine and the frame: the templates, the static files, the content security policy, the palette, dark mode and the contrast test. The three pages moved one to one, same texts | built 2026-10-08 |
-| 3 | The four pages below, a commit each, with Post/Redirect/Get and a question before every destructive action | built 2026-10-08 |
-| 4 | The start code | built 2026-10-08 |
+rework gave the interface a template engine, a frame, four pages and a
+start code, built the same day in that order: the engine and the frame
+with the three pages moved one to one, then the four pages below with
+Post/Redirect/Get and a question before every destructive action, then the
+start code.
 
 **The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
 with autoescaping on and `StrictUndefined`, so a typo in a template raises
@@ -1563,9 +1558,9 @@ consults an annotation.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 34,599
-characters of input schema, 13,687 are prose from `Field(description=...)` and
-the remaining 20,912 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,352
+characters of input schema, 13,668 are prose from `Field(description=...)` and
+the remaining 20,684 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,634 characters on
@@ -1573,11 +1568,11 @@ sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
 (5,410), `create_voucher` (4,288), `update_voucher` (4,210), `create_contact`
-(4,072), `update_contact` (4,022) and `search_vouchers` (3,770) come to 48% of
+(4,072), `update_contact` (4,022) and `search_vouchers` (3,530) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,824 characters, a little under half.
+`read-only` installation sends 23,584 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -1852,11 +1847,11 @@ after. The one it has, booking an unchecked voucher, is a parameter of
 yet. When something does it should be a separate confirmation rather than a
 red label, or the flag is decoration.
 
-The graphical interface below is the intended home for all of this, and
+The permissions page of section 7.1 is the home for all of this, and
 `sync` is what keeps a file fit for it: an interface renders one row per tool,
 which is only possible while the file names every tool there is.
 
-**Interface.** Today the command line: `--tools show` reports, `sync`
+**Interface.** On the command line `--tools show` reports, `sync`
 completes the file without deciding anything, and `read-only`, `write` and
 `irreversible` overwrite it with that preset, each containing the last.
 `--tools-file` says where to write it.
@@ -2685,7 +2680,7 @@ two different things, kept apart deliberately. Section 14.1 says why.
   API key needed to run it.
 - Fixtures are anonymized copies of real response shapes, with placeholder IDs.
 - Coverage floor 80 percent, measured over the offline suite alone and
-  enforced by CI once CI exists.
+  enforced by CI on the newest Python of the matrix, see section 16.
 - **The rate limiter is unit tested against an injected clock**, never against
   `time.sleep`, so the suite stays fast and deterministic. The properties worth
   asserting follow straight from the algorithm in section 10.1: the bucket is
@@ -2695,7 +2690,8 @@ two different things, kept apart deliberately. Section 14.1 says why.
   non-conformant request is delayed and never dropped, concurrent acquisitions
   cannot spend the same token twice, and a run of 429s trips the circuit
   breaker instead of retrying forever.
-- Gates: `pytest -q`, `ruff check .`, `ruff format --check .`, `mypy`.
+- Gates: `pytest -q`, `ruff check .`, `ruff format --check .`, `mypy` and
+  `uv lock --check`.
 
 ### 14.1 Live checks are not a gate
 
@@ -2873,11 +2869,15 @@ Built, tested offline and exercised against a live test account:
   every setting with where its value came from. Reworked 2026-10-08 with
   templates, a content security policy, Post/Redirect/Get and a start
   code. Never part of the server process, loopback only, see section 7.1
+- **a Claude Desktop extension and an entry in the MCP Registry**, since
+  0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
+  `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
   174 MB on 2026-10-08. The server on a loopback-published port and the
-  configuration interface behind a `setup` profile on the same volume. A bearer token made on first
-  start rather than baked in, and a process that ends when its settings file
-  changes so the new ones take effect. `containers/production/` runs the
+  configuration interface behind a `setup` profile on the same volume. A
+  bearer token made on first start rather than baked in, and a process that
+  ends when its settings file changes so the new ones take effect.
+  `containers/production/` runs the
   published image at a version named in `.env` and puts Caddy in front of
   it behind an `https` profile for clients on the local network,
   `containers/development/` builds from the checkout beside it, see
@@ -2915,15 +2915,14 @@ subscriptions, which section 2 rules out. The configuration
 question of section 16.1 is answered too: `setup` serves the interface
 described in section 7.1. Nothing on the API side is outstanding.
 
-**What stood between here and 0.1.0 was not code**, and it was done in this
-order:
+**What surrounds the code**, in the order it was built:
 
 1. ~~**A public repository.**~~ **Done 2026-08-22:**
    `github.com/benethos-hub/lexware-office-mcp`. `main` is protected and can
-   only be reached through a pull request whose six checks are green, for the
-   owner as well. Merges are squash or rebase, the history stays linear, and a
-   merged branch deletes itself. Nothing is written to `main` directly any
-   more.
+   only be reached through a pull request whose required checks are green,
+   for the owner as well. Merges are squash or rebase, the history stays
+   linear, and a merged branch deletes itself. Nothing is written to `main`
+   directly any more.
 2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds four
    jobs: `lint` (`ruff check`, the format check, `mypy` and `uv lock --check`),
    `test` across the Python matrix of section 6 with the coverage floor,
@@ -2935,9 +2934,9 @@ order:
    actually run: the container generates its own bearer token, refuses a
    request that does not carry it, and answers `tools/list` with nothing. It
    also fails the build if a plain `up` would start the configuration
-   interface, which belongs behind its profile. Only `linux/amd64` is built,
-   because nothing publishes a second architecture yet. Every job passes with
-   no key, no network and no account, see section 14.1.
+   interface, which belongs behind its profile. Both architectures a release
+   publishes are built, and only `linux/amd64` is started. Every job passes
+   with no key, no network and no account, see section 14.1.
    A fifth job, `lowest-versions`, was added 2026-09-27. It installs the
    oldest allowed version of every direct dependency on Python 3.11, with no
    lockfile, and runs the suite, so a lower bound in `pyproject.toml` that has
@@ -2959,10 +2958,11 @@ order:
    See section 6 for what changed in Python and why the workaround it broke
    was there.
 
-   **A new job is not required by itself.** The six that block a merge are
-   listed in the branch protection, so a job added later - `docker` with
-   0.2.0, or a Python version added to the matrix - runs, may fail, and still
-   lets the merge through until it is added to that list as well.
+   **A new job is not required by itself.** The jobs that block a merge are
+   listed in the branch protection, eight on 2026-10-10: `lint`, the five
+   `test` jobs, `fresh-install` and `docker`. A job added later - `docker`
+   with 0.2.0, or a Python version added to the matrix - runs, may fail, and
+   still lets the merge through until it is added to that list as well.
 3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
    sample moved into the package as `env.sample`, so it is installed with the
    code instead of sitting beside it, and `--settings-sample` prints it.
@@ -2984,8 +2984,9 @@ order:
    push the tag's version, its minor line and `latest` with the old code.
 5. **Publication of the image**, so that running this server in a container
    does not require cloning the repository first. The same workflow gained a
-   second job that pushes `ghcr.io/benethos-hub/lexware-office-mcp` for
-   `linux/amd64` and `linux/arm64`, authenticated by the automatic
+   second job that pushes the image, under the repository's name then and
+   the package's since 0.4.2, see below, for `linux/amd64` and `linux/arm64`,
+   authenticated by the automatic
    `GITHUB_TOKEN`, which is why the registry is ghcr and not one that needs an
    account and a stored secret. The two jobs are independent: a broken image
    does not withhold the upload to PyPI. `workflow_dispatch` runs the image
@@ -3198,7 +3199,7 @@ suggested they were.
 | Release | Content | State |
 |---|---|---|
 | 0.1.0 | stdio transport, all twenty-five tools of section 8, the per-tool policy of section 9, the configuration interface of section 7.1, the client with its rate limiting, retries, error mapping, paging, downloads and uploads, and the offline suite | **released 2026-08-22** — every part of it is built and exercised against a live account |
-| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the seven checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
+| 0.2.0 | HTTP transport with its own bearer authentication, Docker image and Compose file | **released 2026-08-22** — `transport.py`, `Dockerfile` and `compose.yaml`, guarded by the `docker` job in CI, which is one of the checks a merge needs. The release publishes the image to ghcr beside the package on PyPI, and a client has reached the live account through the pulled image over HTTP |
 | 0.2.1 | The published image on Python 3.14 | **released 2026-08-23** — no change to the package itself. The tags a user pulls, `latest` and the minor line, follow the release tag, so the base image moves only when a version number is spent on it |
 | 0.2.2 | `--env-file` reads the file it names and no other | **released 2026-08-23** — the flag had promised that in its own help since it was added and read the named file after everything the search found, so it isolated nothing. See section 6. The search behind it follows one rule now as well, which is a decision rather than the fix |
 | 0.2.3 | Error messages reach the model again under MCP SDK 2.1 | **released 2026-09-02** — the SDK began sorting a failing tool call by the type of what was raised, and this hierarchy derived from plain `Exception`, so every sentence it sends was replaced by "Error executing tool <name>". It reached installations rather than only this checkout: the declared range already allowed 2.1. See section 12.1. The lockfile was brought current in the same release, and Dependabot had been silent since it was configured because it read `pip` rather than `uv` |
@@ -3216,18 +3217,6 @@ and XRechnung download variants - turned out on 2026-08-21 to be one
 operation the API seemed unable to perform and one that `download_document`
 and `download_file` already do through `file_format`. The first of them
 arrived with 0.3.0 after all, for an unchecked voucher.
-
-**Next, noted 2026-09-29.** Each is its own work stream, scoped before it is
-built. All three are done.
-
-- **The resource list grows with the download directory.** Built
-  2026-09-30: the directory is a cache of the newest 100 downloads, the list
-  names the same ones and is read from the directory when it is asked for,
-  see section 13.
-- **A logging concept.** Built 2026-09-30, see section 11.2.
-- **Refactoring at file level and at code level.** Built 2026-09-30: the
-  package is layered into subpackages, see the table and the import rule
-  in section 4, and `tests/test_layers.py` holds the order.
 
 ### 16.1 Answered: how a user configures the server
 
