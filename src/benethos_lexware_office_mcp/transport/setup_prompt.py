@@ -16,7 +16,6 @@ remote client would open a page on a machine it does not sit at.
 
 from __future__ import annotations
 
-import os
 import socket
 import subprocess
 import sys
@@ -84,8 +83,10 @@ def _start(command: Sequence[str]) -> None:
     stdout is the JSON-RPC stream, so the child gets none of it, and it is
     detached so that a client restarting the server leaves the page open.
     """
+    # sys.platform rather than os.name, which a type checker does not read:
+    # the two flags exist only on Windows, and on Linux it would not know them.
     detached = 0
-    if os.name == "nt":
+    if sys.platform == "win32":
         detached = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(
         command,
@@ -93,7 +94,7 @@ def _start(command: Sequence[str]) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=detached,
-        start_new_session=os.name != "nt",
+        start_new_session=sys.platform != "win32",
     )
 
 
