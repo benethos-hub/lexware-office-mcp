@@ -69,6 +69,7 @@ def start(
     cwd: Path | None = None,
     tools_file_named: bool = False,
     public_port: int | None = None,
+    idle_minutes: float | None = None,
 ) -> None:
     """Serve the interface until interrupted.
 
@@ -90,4 +91,5 @@ def start(
         port=port,
         open_browser=open_browser,
         public_port=public_port,
+        idle_minutes=idle_minutes,
     )

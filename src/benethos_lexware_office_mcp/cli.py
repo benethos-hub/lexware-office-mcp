@@ -261,6 +261,15 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
         help="setup only: do not open a browser, just print the address",
     )
     parser.add_argument(
+        "--exit-when-idle",
+        type=float,
+        metavar="MINUTES",
+        help=(
+            "setup only: end after this many minutes without a request, as "
+            "the client's prompt starts it (default: run until ended)"
+        ),
+    )
+    parser.add_argument(
         "--public-port",
         type=int,
         help=(
@@ -456,6 +465,7 @@ def _run(
             open_browser=not args.no_browser,
             tools_file_named=bool(args.tools_file),
             public_port=args.public_port,
+            idle_minutes=args.exit_when_idle,
         )
         return
 

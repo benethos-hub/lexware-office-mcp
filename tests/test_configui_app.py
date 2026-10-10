@@ -22,12 +22,13 @@ from urllib.parse import urlencode
 
 import pytest
 
-from benethos_lexware_office_mcp.configui import actions, probe, transfer
+from benethos_lexware_office_mcp.configui import actions, app, probe, transfer
 from benethos_lexware_office_mcp.configui.app import (
     CONTENT_SECURITY_POLICY,
     MAX_WAITING_SESSIONS,
     ConfigServer,
     Handler,
+    end_when_idle,
     serve,
 )
 from benethos_lexware_office_mcp.configui.profiles import ProfileStore
@@ -1581,3 +1582,72 @@ def test_ctrl_c_is_a_line_rather_than_a_traceback(
     serve(installation, port=0, open_browser=False)
 
     assert "Stopped by an interrupt" in lines.text
+
+
+# -- ending when nobody uses it --------------------------------------------------
+
+
+class _Watched:
+    """Just what the idle watch reads and calls."""
+
+    def __init__(self, last_request: float) -> None:
+        self.last_request = last_request
+        self.stopped_when_idle = False
+        self.stopped = 0
+
+    def stop_after_actions(self) -> None:
+        self.stopped += 1
+
+
+def test_the_idle_watch_stops_a_server_nobody_asks() -> None:
+    now = [100.0]
+    watched = _Watched(last_request=100.0)
+
+    def wait(seconds: float) -> None:
+        now[0] += seconds
+
+    end_when_idle(watched, 60, poll=15, clock=lambda: now[0], wait=wait)  # type: ignore[arg-type]
+
+    assert watched.stopped == 1
+    assert watched.stopped_when_idle
+    assert now[0] == 160.0
+
+
+def test_a_request_holds_the_idle_watch_off() -> None:
+    """The clock starts again at every request, whatever it asked for."""
+    now = [0.0]
+    watched = _Watched(last_request=0.0)
+
+    def wait(seconds: float) -> None:
+        now[0] += seconds
+        if now[0] == 45.0:
+            watched.last_request = now[0]
+
+    end_when_idle(watched, 60, poll=15, clock=lambda: now[0], wait=wait)  # type: ignore[arg-type]
+
+    assert now[0] == 105.0
+
+
+def test_every_request_counts_as_use(browser: Browser) -> None:
+    before = browser.server.last_request
+    time.sleep(0.01)
+
+    browser.get("/static/app.css")
+
+    assert browser.server.last_request > before
+
+
+def test_ended_when_idle_is_said_on_stderr(
+    installation: Installation,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    def served_until_idle(self: ConfigServer) -> None:
+        self.stopped_when_idle = True
+
+    monkeypatch.setattr(ConfigServer, "serve_forever", served_until_idle)
+    monkeypatch.setattr(app, "end_when_idle", lambda *args, **kwargs: None)
+
+    serve(installation, port=0, open_browser=False, idle_minutes=30)
+
+    assert "Stopped after 30 minutes without a request" in lines.text

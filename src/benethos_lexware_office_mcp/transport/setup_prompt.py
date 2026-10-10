@@ -34,6 +34,12 @@ __all__ = ["SETUP_PROMPT", "SETUP_PROMPT_TEXT", "offer_setup", "setup_command"]
 
 SETUP_PROMPT = "open_setup"
 
+# How long the interface the prompt opened waits for a request before it
+# ends itself. Nobody started it from a terminal, so nothing else ends it,
+# and while it runs it holds the extension's Python, which on Windows keeps
+# Claude Desktop from removing or updating the extension.
+IDLE_MINUTES = 30
+
 # The one answer, whatever happened. Claude Desktop holds a prompt's answer
 # against the text its extension declared and rejects anything else as a
 # possible injection, so this cannot carry what happened - stderr does.
@@ -51,7 +57,14 @@ def setup_command(env_file: Path | None, tools_file: Path | None) -> list[str]:
     would make the page tell a person who never configured a client to put
     `--env-file` into one.
     """
-    command = [sys.executable, "-m", "benethos_lexware_office_mcp", "setup"]
+    command = [
+        sys.executable,
+        "-m",
+        "benethos_lexware_office_mcp",
+        "setup",
+        "--exit-when-idle",
+        str(IDLE_MINUTES),
+    ]
     if env_file is not None:
         command += ["--env-file", str(env_file)]
     if tools_file is not None:

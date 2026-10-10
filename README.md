@@ -433,7 +433,9 @@ code, and the start says so. And it is a **separate command**: the MCP
 server never serves HTTP, and a client such as Claude Desktop starts that
 one, not this.
 
-`--port N` moves it, `--no-browser` only prints the address, and `--env-file`
+`--port N` moves it, `--no-browser` only prints the address,
+`--exit-when-idle N` ends it after N minutes without a request - the prompt
+starts it with 30 - and `--env-file`
 and `--tools-file` say which files it edits. Unlike everywhere else those
 files do not have to exist yet. `--public-port N` is for a container
 published under another port than the one it binds: the address it prints

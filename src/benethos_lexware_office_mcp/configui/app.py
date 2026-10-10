@@ -133,11 +133,20 @@ class ConfigServer(ThreadingHTTPServer):
         # process lingers after answering it.
         self.stopped_from_page = False
         self.linger = LINGER_SECONDS
+        # When a request last arrived, for the idle watch, and whether that
+        # watch is what ended the process.
+        self.last_request = time.monotonic()
+        self.stopped_when_idle = False
         # One action at a time. Each reads a file, changes it and writes it
         # back - the .env, the policy, the profiles - and every request has
         # a thread of its own, so two tabs saving at once each wrote what
         # they had read, and the first save was lost.
         self.acting = threading.Lock()
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        """Every connection counts as use, a page, an action or a stylesheet."""
+        self.last_request = time.monotonic()
+        super().process_request(request, client_address)
 
     def issue_session(self) -> str:
         token = secrets.token_urlsafe(32)
@@ -608,6 +617,28 @@ def _host_and_port(header: str) -> tuple[str, int] | None:
     return (name, port) if name else None
 
 
+def end_when_idle(
+    server: ConfigServer,
+    idle: float,
+    *,
+    poll: float = 15.0,
+    clock: Callable[[], float] = time.monotonic,
+    wait: Callable[[float], object] = time.sleep,
+) -> None:
+    """Stop ``server`` once ``idle`` seconds pass without a request.
+
+    For an interface nobody started from a terminal, the one the client's
+    prompt opens: it has no window to close, and while it runs it holds the
+    Python it was started with, which on Windows keeps the client from
+    removing or updating the extension that Python belongs to. It stops the
+    way Beenden does, after any action that is writing a file.
+    """
+    while clock() - server.last_request < idle:
+        wait(poll)
+    server.stopped_when_idle = True
+    server.stop_after_actions()
+
+
 def serve(
     installation: Installation,
     *,
@@ -615,6 +646,7 @@ def serve(
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
     public_port: int | None = None,
+    idle_minutes: float | None = None,
 ) -> None:
     """Run until interrupted or ended from a page.
 
@@ -648,6 +680,10 @@ def serve(
     logbook.configui.editing("profiles", installation.profiles.path)
     if open_browser:
         webbrowser.open(f"http://{reachable}:{shown_port}/?code={server.code}")
+    if idle_minutes:
+        threading.Thread(
+            target=end_when_idle, args=(server, idle_minutes * 60), daemon=True
+        ).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -655,5 +691,7 @@ def serve(
     else:
         if server.stopped_from_page:
             logbook.configui.stopped_from_page()
+        elif server.stopped_when_idle:
+            logbook.configui.stopped_when_idle(idle_minutes * 60 if idle_minutes else 0)
     finally:
         server.server_close()

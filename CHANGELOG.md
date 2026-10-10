@@ -25,7 +25,9 @@ housekeeping are out of scope here — design decisions live in
   of a terminal, such as a Claude Desktop extension. Only a person can pick
   it, and it does nothing but open the pages. Over stdio the server's
   instructions name it, and so does the warning when no policy file exists,
-  in place of `--tools read-only`.
+  in place of `--tools read-only`. The interface it opens ends itself after
+  30 minutes without a request, through the new `setup` option
+  `--exit-when-idle`.
 - **An entry in the official MCP Registry**,
   `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
   this release and with every one after it. It offers the PyPI package and

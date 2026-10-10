@@ -138,7 +138,14 @@ def test_a_start_that_fails_still_answers_the_one_text(
 def test_setup_is_started_on_the_files_the_server_was_given(tmp_path: Path) -> None:
     """Only those: naming the defaults would ask for client arguments."""
     env, policy = tmp_path / "test.env", tmp_path / "tools.json"
-    base = [sys.executable, "-m", "benethos_lexware_office_mcp", "setup"]
+    base = [
+        sys.executable,
+        "-m",
+        "benethos_lexware_office_mcp",
+        "setup",
+        "--exit-when-idle",
+        "30",
+    ]
 
     assert setup_command(None, None) == base
     assert setup_command(env, policy) == [

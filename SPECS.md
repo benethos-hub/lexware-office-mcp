@@ -1139,6 +1139,15 @@ server was started with them, so a person who never configured a client is
 not told to put arguments into one, and it inherits the server's
 environment, so a value a variable holds shows as such on its pages.
 
+**It ends itself after 30 minutes without a request**, `--exit-when-idle
+30`, which the prompt passes and nothing else does. Nobody started it from
+a terminal, so no window is there to close it, and while it runs it holds
+the Python it was started with. Measured in the sandbox: an interface left
+running from an earlier try kept Claude Desktop from removing the
+extension, whose folder stayed behind with the old manifest in it, and the
+next install did not replace it. Every connection counts as use, and it
+ends the way Beenden does, after an action that is writing a file.
+
 Over stdio the instructions a client receives name the prompt too. Without
 that a model facing an empty tool list guessed at a broken connection, which
 is what happened in the sandbox before the prompt existed.
