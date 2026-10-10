@@ -135,6 +135,99 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
     assert found != [benethos_lexware_office_mcp.__version__]
 
 
+# -- which Python versions this project claims ------------------------------
+
+# A new Python is named in several places, and each of them is one line, so
+# adding it to some and forgetting the rest is easy and fails nothing: the
+# classifiers say what PyPI shows, the matrix what is tested, the coverage
+# step where the floor is held, the lowest-versions job and requires-python
+# where support begins, and CLAUDE.md what a developer sets up.
+
+
+def _versions(text: str) -> list[str]:
+    return sorted(set(re.findall(r"3\.\d+", text)), key=lambda v: int(v[2:]))
+
+
+def _python_claims(pyproject: str, ci: str, claude: str) -> list[str]:
+    """Every place that names a Python version, held against the CI matrix.
+
+    Returns what disagrees, so that an empty list is the pass and the test
+    that feeds it a matrix with one more version can see the guard fire.
+    """
+    import tomllib
+
+    project = tomllib.loads(pyproject)["project"]
+    matrix = re.search(r"\n {8}python-version: \[([^\]]*)\]", ci)
+    if matrix is None:
+        return ["ci.yml no longer has a python-version matrix"]
+    tested = _versions(matrix.group(1))
+    oldest, newest = tested[0], tested[-1]
+
+    problems = []
+    classified = _versions(
+        " ".join(
+            c
+            for c in project["classifiers"]
+            if re.fullmatch(r"Programming Language :: Python :: 3\.\d+", c)
+        )
+    )
+    if classified != tested:
+        problems.append(f"classifiers name {classified}, the matrix tests {tested}")
+    if project["requires-python"] != f">={oldest}":
+        problems.append(
+            f"requires-python is {project['requires-python']!r}, "
+            f"the oldest tested is {oldest}"
+        )
+    plain = re.findall(r"if: matrix\.python-version != '([\d.]+)'\n", ci)
+    measured = re.findall(
+        r"if: matrix\.python-version == '([\d.]+)'\n {8}run: [^\n]*--cov-fail-under",
+        ci,
+    )
+    if plain != [newest] or measured != [newest]:
+        problems.append(
+            f"coverage is measured on {measured} and skipped on all but {plain}, "
+            f"the newest tested is {newest}"
+        )
+    lowest = re.findall(r"uv venv -p ([\d.]+) /tmp/lowest", ci)
+    if lowest != [oldest]:
+        problems.append(
+            f"lowest-versions runs on {lowest}, the oldest tested is {oldest}"
+        )
+    environment = re.findall(r"Python (3\.\d+)-(3\.\d+)\.", claude)
+    if environment != [(oldest, newest)]:
+        problems.append(f"CLAUDE.md names {environment}, the matrix {oldest}-{newest}")
+    return problems
+
+
+def _python_files() -> tuple[str, str, str]:
+    return (
+        (REPO / "pyproject.toml").read_text(encoding="utf-8"),
+        (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"),
+        (REPO / "CLAUDE.md").read_text(encoding="utf-8"),
+    )
+
+
+def test_every_place_names_the_python_versions_the_matrix_tests() -> None:
+    assert _python_claims(*_python_files()) == []
+
+
+def test_the_python_check_would_notice_a_version_added_halfway() -> None:
+    """A new Python in the matrix alone trips every other place."""
+    pyproject, ci, claude = _python_files()
+    newest = _versions(re.findall(r"python-version: \[([^\]]*)\]", ci)[0])[-1]
+    following = f"3.{int(newest[2:]) + 1}"
+    halfway = ci.replace(f'"{newest}"]', f'"{newest}", "{following}"]', 1)
+
+    assert halfway != ci
+    problems = _python_claims(pyproject, halfway, claude)
+
+    assert [p.split(" ", 1)[0] for p in problems] == [
+        "classifiers",
+        "coverage",
+        "CLAUDE.md",
+    ]
+
+
 # -- what Docker keeps of the output ----------------------------------------
 
 CONTAINERS = REPO / "containers"
