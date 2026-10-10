@@ -412,3 +412,91 @@ def test_a_credential_no_header_can_carry_is_refused(name: str, pasted: str) -> 
         load_settings(env={name: pasted})
 
     assert "secret" not in str(refused.value)
+
+
+# -- a key saved after the server started --------------------------------------
+
+LATE = "late-key-saved-in-setup"
+
+
+def _started_without_key(tmp_path: Path) -> tuple[Settings, Path]:
+    """A server started before the configuration interface wrote anything."""
+    env_file = tmp_path / ".env"
+    return load_settings(env_file=env_file), env_file
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_a_key_saved_after_startup_is_used_without_a_restart(tmp_path: Path) -> None:
+    """The permissions saved beside it apply at once, so the key does too."""
+    settings, env_file = _started_without_key(tmp_path)
+    env_file.write_text(f"LXO_MCP_API_KEY={LATE}\n", encoding="utf-8")
+
+    assert settings.api_key is None
+    assert settings.require_api_key() == LATE
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_a_key_read_late_is_redacted_like_any_other(tmp_path: Path) -> None:
+    from benethos_lexware_office_mcp.errors import redact
+
+    settings, env_file = _started_without_key(tmp_path)
+    env_file.write_text(f"LXO_MCP_API_KEY={LATE}\n", encoding="utf-8")
+    settings.require_api_key()
+
+    assert LATE not in redact(f"refused {LATE}")
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_a_key_read_late_is_checked_like_any_other(tmp_path: Path) -> None:
+    settings, env_file = _started_without_key(tmp_path)
+    env_file.write_text("LXO_MCP_API_KEY=two words\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="LXO_MCP_API_KEY contains"):
+        settings.require_api_key()
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_without_a_saved_key_the_message_is_the_usual_one(tmp_path: Path) -> None:
+    settings, _ = _started_without_key(tmp_path)
+
+    with pytest.raises(ConfigError, match="No API key configured"):
+        settings.require_api_key()
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_a_key_the_process_was_given_is_never_replaced(tmp_path: Path) -> None:
+    """Only a missing key is looked for: a changed one waits for a restart."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("LXO_MCP_API_KEY=first-key\n", encoding="utf-8")
+    settings = load_settings(env_file=env_file)
+    env_file.write_text(f"LXO_MCP_API_KEY={LATE}\n", encoding="utf-8")
+
+    assert settings.late_key_file is None
+    assert settings.require_api_key() == "first-key"
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_a_key_from_the_environment_is_never_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LXO_MCP_API_KEY", "from-the-client")
+    settings, env_file = _started_without_key(tmp_path)
+    env_file.write_text(f"LXO_MCP_API_KEY={LATE}\n", encoding="utf-8")
+
+    assert settings.late_key_file is None
+    assert settings.require_api_key() == "from-the-client"
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_without_a_named_file_the_key_is_looked_for_where_setup_writes_it(
+    tmp_path: Path,
+) -> None:
+    """The search's answer to where a file would go, as setup writes it."""
+    settings = load_settings()
+
+    assert settings.late_key_file == L.resolve_config_file(".env")
+
+
+def test_injected_settings_look_nowhere() -> None:
+    """The suite's own settings never read a file behind its back."""
+    assert load_settings({}).late_key_file is None

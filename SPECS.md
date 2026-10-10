@@ -803,6 +803,20 @@ arriving.
   browser reach a running server. Off by default, because ending is the whole
   of it where nothing restarts it.
 
+  **One exception, since 2026-10-10: a key saved into a server that had
+  none.** A server started before its first key was saved looks for one in
+  the settings file at every API call, until it finds one, so the first
+  setup works without a restart - as it already did for the permissions
+  saved beside it. Measured in the Windows Sandbox of section 7.1: the key
+  was in the file, the connection test on the page succeeded, and the
+  running server still refused every call until Claude Desktop was quit
+  from the tray. Only the missing key is looked for. A key the process was
+  given, from the file or from a variable, is never replaced under it, so
+  a changed key still waits for a restart, and so does every other
+  setting. The file is the one the configuration interface writes into,
+  the named one or the one the search settles on, and a key read late is
+  checked and kept out of every message like any other.
+
   The watch compares a **hash of the content**, not a timestamp: the
   configuration interface rewrites the whole file on every save, changed or
   not. Three further rules were bought with defects.

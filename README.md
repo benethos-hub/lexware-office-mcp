@@ -347,7 +347,9 @@ closing the window. That is for the configuration file you just edited, which
 a client reads once at startup, and it is what a changed setting in the `.env`
 needs too — the server reads those at startup as well. It is **not** needed
 for permissions: change those later and the running client is told, see
-[Switching individual tools off](#switching-individual-tools-off).
+[Switching individual tools off](#switching-individual-tools-off). Nor for
+the first API key: a server started without one uses a key saved later from
+its next call on. Changing a key it already has does need the restart.
 
 ## Configuring it in a browser
 
