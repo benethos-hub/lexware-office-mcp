@@ -38,6 +38,8 @@
 - [Requirements](#requirements)
 - [Getting an API key](#getting-an-api-key)
 - [Installation](#installation)
+  - [As a Claude Desktop extension](#as-a-claude-desktop-extension)
+  - [With uvx, for any MCP client](#with-uvx-for-any-mcp-client)
 - [Configuring it in a browser](#configuring-it-in-a-browser)
 - [Switching individual tools off](#switching-individual-tools-off)
 - [Configuration](#configuration)
@@ -268,7 +270,8 @@ and nothing outside it is read, links included.
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
   its own Python and the `uvx` command every example below uses. The Claude
-  Desktop extension brings both itself
+  Desktop extension needs neither, only
+  [Claude Desktop](https://claude.ai/download), which brings both itself
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
   in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
   Jinja2 for the pages of `setup`
@@ -293,21 +296,72 @@ cut access if anything looks wrong.
 
 ## Installation
 
-**In Claude Desktop the shortest way is the extension.** Download
-[benethos-lexware-office-mcp.mcpb](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp.mcpb)
-and drag it into Claude Desktop under *Settings → Extensions*. Claude
-Desktop brings uv and Python itself, so nothing else has to be installed.
-Nothing is enabled after installing, which is why Claude Desktop shows the
-server as failed at first: pick **Set up Lexware Office** under the plus in
-the message box, and in the page it opens enter the API key and choose the
-tools. Both apply at once. Use either the extension or the entry in
-`claude_desktop_config.json` below, not both, or every tool is there twice.
-
-For any other client, the simplest way to run the server is `uvx`: no clone,
-no manual virtual environment, no `git`. It fetches and runs it on demand from
-[PyPI](https://pypi.org/project/benethos-lexware-office-mcp/) (published as
-`benethos-lexware-office-mcp`). To run it in a container instead, see
+Two ways in. In Claude Desktop the shortest is the
+[extension](#as-a-claude-desktop-extension), which needs nothing installed
+beside Claude Desktop. For any other client, or to manage the server
+yourself, run it [with uvx](#with-uvx-for-any-mcp-client). Both read the
+same configuration, so moving from one to the other keeps the key and the
+permissions. To run it in a container instead, see
 [In a container](#in-a-container).
+
+The server is also listed in the
+[official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp)
+as `io.github.benethos-hub/benethos-lexware-office-mcp`, with all three: the
+PyPI package, the container image and the extension.
+
+### As a Claude Desktop extension
+
+**1. Install Claude Desktop** from
+[claude.ai/download](https://claude.ai/download) and sign in, if you have not
+already.
+
+**2. Download the extension**,
+[benethos-lexware-office-mcp.mcpb](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp.mcpb).
+That link always gives the newest release. Each release also carries the
+file with its version in the name, for one in particular.
+
+**3. Install it.** In Claude Desktop open *Settings → Extensions* and drag the
+file in. The dialog asks for nothing. It warns that an extension can reach
+everything on your computer, which is true of every local MCP server, this one
+included. Claude Desktop brings uv and Python itself and installs the
+server's dependencies on its first start, the versions in this project's
+lockfile.
+
+**4. Set it up.** Nothing is enabled after installing, so for now Claude
+Desktop shows the server as failed, offering no tools. In a new chat open the
+plus in the message box and pick **Set up Lexware Office**. Your browser
+opens the interface described under
+[Configuring it in a browser](#configuring-it-in-a-browser): enter the API key
+under *Zugangsdaten*, choose the tools under *Rechte*, and close it with
+*Beenden*. Both apply at once, without restarting Claude Desktop. Left open,
+the page ends itself after 30 minutes without use.
+
+**5. Try it.** Ask *"Which Lexware Office account are you connected to?"* -
+the answer names the company the key belongs to.
+
+Worth knowing:
+
+- **One or the other.** The extension and an entry for the same server in
+  `claude_desktop_config.json` would offer every tool twice. Remove the entry
+  when you switch to the extension.
+- **The configuration is shared.** The extension reads the same per-user
+  `.env` and `tools.json` as an installation with uvx, so
+  `uvx benethos-lexware-office-mcp setup` changes them too.
+- **Updating** is installing the newer file over the old one. If Claude
+  Desktop cannot replace it, end the setup page first with *Beenden*: while it
+  runs, it holds the extension's files.
+- **A changed key** applies once Claude Desktop is quit from the tray and
+  started again. The first key does not need that.
+- **Tried on Windows**, with Claude Desktop from the Microsoft Store and
+  nothing else installed. macOS is expected to work the same way and has not
+  been tried.
+
+### With uvx, for any MCP client
+
+The simplest way for any other client: no clone, no manual virtual
+environment, no `git`. `uvx` fetches the server and runs it on demand from
+[PyPI](https://pypi.org/project/benethos-lexware-office-mcp/) (published as
+`benethos-lexware-office-mcp`).
 
 **1. Install uv**, if you have not already — the
 [uv installation page](https://docs.astral.sh/uv/getting-started/installation/)
