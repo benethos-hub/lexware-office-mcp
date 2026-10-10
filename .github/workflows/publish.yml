@@ -3,9 +3,13 @@ name: Publish
 # Publishes the release artefacts when a GitHub release is published:
 #   * the sdist and the wheel to PyPI, through Trusted Publishing
 #   * the container image to ghcr.io, through the automatic GITHUB_TOKEN
+#   * the entry in the MCP Registry, which points at both, through the
+#     workflow's OIDC identity
 #
-# The two jobs are independent, so a broken image push does not withhold the
-# upload to PyPI and neither waits on the other.
+# The two package jobs are independent, so a broken image push does not
+# withhold the upload to PyPI and neither waits on the other. The registry
+# job waits on both, because the registry checks the packages the moment it
+# accepts the entry.
 #
 # `workflow_dispatch` runs the image half alone and tags the result `edge`,
 # from `main` only: `edge` is public, and the form offers every branch.
@@ -212,3 +216,50 @@ jobs:
           print("OK:", ", ".join(platforms))
           print("   ", annotations["org.opencontainers.image.description"])
           PY
+
+  mcp-registry-publish:
+    name: Publish to the MCP Registry
+    # An entry cannot be taken back, so a pre-release never gets one.
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    needs: [pypi-publish, ghcr-publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # the registry grants io.github.<owner>/* to this identity
+    # Pinned with its checksum, from the release's own checksums file.
+    # Dependabot does not see a download, so the release checklist in
+    # CLAUDE.md raises it by hand.
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: The release tag is the package version
+        run: python3 .github/scripts/tag_matches_version.py
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+
+      - name: Log in with the workflow's OIDC token
+        run: ./mcp-publisher login github-oidc
+
+      # The registry reads the PyPI version through PyPI's JSON API, which
+      # has reported a fresh upload as missing for minutes. Six tries a
+      # minute apart outlast that.
+      - name: Publish server.json
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if ./mcp-publisher publish .github/publish/mcp-registry/server.json; then
+              exit 0
+            fi
+            echo "attempt ${attempt} refused, trying again in 60 s"
+            sleep 60
+          done
+          exit 1

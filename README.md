@@ -1,4 +1,4 @@
-# Unofficial Lexware Office MCP Server
+# <img src="https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/icon.svg" alt="" width="40" height="40"> Unofficial Lexware Office MCP Server
 
 [![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![PyPI benethos-lexware-office-mcp](https://img.shields.io/pypi/v/benethos-lexware-office-mcp?label=PyPI%20benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
@@ -6,6 +6,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
+
+<!-- mcp-name: io.github.benethos-hub/benethos-lexware-office-mcp -->
 
 > **Disclaimer**
 >

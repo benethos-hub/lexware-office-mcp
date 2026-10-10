@@ -62,8 +62,9 @@ exception.
 | GitHub repo | `benethos-hub/lexware-office-mcp` (plain, for discoverability) |
 | Container image | `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, every release from 0.2.0 |
 | Publishing environment | `pypi-benethos-lexware-office-mcp` |
+| MCP Registry entry | `io.github.benethos-hub/benethos-lexware-office-mcp`, from the first release after 0.5.0 |
 | Env var prefix | `LXO_MCP_` |
-| README H1 | `# Unofficial Lexware Office MCP Server` |
+| README H1 | `# Unofficial Lexware Office MCP Server`, the icon from `assets/` before it |
 
 "Lexware Office" is spelled out in prose because it names the integrated API,
 not this project. No Lexware logos, brand colors, or domains containing
@@ -3015,6 +3016,56 @@ order:
    Since the pins, minor and patch updates come as one pull request per
    ecosystem and week, and a major one alone. `mcp` always comes alone,
    since the suite does not see what the SDK changes.
+7. **An entry in the official MCP Registry**, prepared 2026-10-10 and
+   published by the first release that carries it.
+   `.github/publish/mcp-registry/server.json` names the PyPI package and
+   the image, and a third job in `publish.yml` sends it once both are
+   up, logged in with the workflow's OIDC identity, so no account and
+   no secret are involved. The registry hosts nothing, it points at the
+   packages and checks at that moment that each names the entry: the
+   README PyPI shows carries an invisible `mcp-name:` line, and the image
+   a `LABEL` in its configuration. **The name cannot be changed later**,
+   so it is the package's own, in the namespace the workflow's identity
+   is allowed to write, `io.github.benethos-hub/`. A pre-release gets no
+   entry, since an entry cannot be taken back.
+
+   **The image entry mounts the two named volumes** `lxo-config` and
+   `lxo-downloads`, the ones the README's `setup` command for a single
+   container mounts. Measured on 2026-10-10 with the command the template
+   of the registry's documentation gives, `docker run -i --rm <image>`:
+   the image declares `/config` as a volume, so each start got a fresh
+   anonymous one, no policy file was there and no tool was offered. With
+   the named volumes, what the configuration interface saved was the tool
+   list of the next start, and a permission changed while the server ran
+   reached it as `tools/list_changed`. A changed `.env` still needs the
+   client to restart the server, because ending the process on a change
+   is for the HTTP transport, where a restart policy brings it back. The
+   entry also carries the hardening of the Compose files and
+   `--no-healthcheck`, since the image's check knocks on the HTTP port,
+   which a stdio server never opens. Both spellings a client may give a
+   named argument, `--volume x` and `--volume=x`, started the server
+   with the saved tools. Whether a client passes the arguments on at all
+   is the client's business and is assumed.
+
+   **No environment variables in the entry.** A client asks for each one
+   at installation and puts it in its own configuration, where it is a
+   real environment variable and beats the `.env` - so `setup` could
+   no longer change the key or anything else asked for there. The
+   README says how to configure the server, as it does for an
+   installation from PyPI.
+
+   **The icon** is `assets/icon.svg`, with a PNG of 512 by 512 pixels
+   rendered from it for clients that show no SVG. `assets/render_icon.py`
+   renders it with a pinned resvg in a throwaway environment, so the
+   renderer never enters the project's dependencies. The entry and the
+   README title link both by their address on `main`.
+
+   `mcp-publisher` is a download rather than an action, pinned by version
+   and checksum, so Dependabot does not see it and the release checklist
+   in `CLAUDE.md` raises it by hand. `tests/test_packaging.py` holds the
+   entry against the package: the versions, the description, the package
+   names, the namespace, both ownership proofs, the volumes, the icons and
+   the job's order.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did

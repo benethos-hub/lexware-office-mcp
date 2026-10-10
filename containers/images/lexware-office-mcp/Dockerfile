@@ -117,4 +117,9 @@ VOLUME ["/config", "/downloads"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import os, socket; socket.create_connection(('127.0.0.1', int(os.environ.get('LXO_MCP_HTTP_PORT', '8770'))), 3).close()" || exit 1
 
+# The MCP Registry's proof that this image belongs to the entry in
+# .github/publish/mcp-registry/server.json. The registry reads it from the
+# image configuration, so a label on the index alone would not count.
+LABEL io.modelcontextprotocol.server.name="io.github.benethos-hub/benethos-lexware-office-mcp"
+
 ENTRYPOINT ["benethos-lexware-office-mcp"]
