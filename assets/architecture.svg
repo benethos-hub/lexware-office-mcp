@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="540" viewBox="0 0 880 540" role="img" aria-label="How the server sits between an MCP client and the Lexware Office API">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .title { font-size: 15px; font-weight: 600; }
+    .note { font-size: 12.5px; fill: #334155; }
+    .label { font-size: 12px; fill: #475569; }
+    .code { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 11.5px; fill: #334155; }
+    .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; }
+    .layer { fill: #eef2ff; stroke: #818cf8; stroke-width: 1.2; }
+    .outer { fill: #f8fafc; stroke: #4f46e5; stroke-width: 2; }
+    .external { fill: #f1f5f9; stroke: #64748b; stroke-width: 1.5; }
+    .line { stroke: #475569; stroke-width: 1.5; fill: none; }
+    .dashed { stroke: #475569; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+  </style>
+
+  <rect x="0" y="0" width="880" height="540" rx="12" fill="#ffffff"/>
+
+  <!-- The client -->
+  <rect class="box" x="10" y="74" width="165" height="92" rx="10"/>
+  <text class="title" x="92" y="106" text-anchor="middle">MCP client</text>
+  <text class="note" x="92" y="129" text-anchor="middle">Claude Desktop,</text>
+  <text class="note" x="92" y="147" text-anchor="middle">or any other</text>
+
+  <!-- The server process and its layers -->
+  <rect class="outer" x="250" y="30" width="370" height="350" rx="12"/>
+  <text class="title" x="435" y="58" text-anchor="middle">This server, one process</text>
+  <text class="label" x="435" y="76" text-anchor="middle">benethos-lexware-office-mcp</text>
+
+  <rect class="layer" x="270" y="92" width="330" height="56" rx="8"/>
+  <text class="title" x="285" y="115">Transport</text>
+  <text class="note" x="285" y="135">stdio, or HTTP with a bearer token</text>
+
+  <rect class="layer" x="270" y="160" width="330" height="56" rx="8"/>
+  <text class="title" x="285" y="183">Policy</text>
+  <text class="note" x="285" y="203">tools.json alone decides which tools exist</text>
+
+  <rect class="layer" x="270" y="228" width="330" height="56" rx="8"/>
+  <text class="title" x="285" y="251">Tools</text>
+  <text class="note" x="285" y="271">25, each a thin call into the client below</text>
+
+  <rect class="layer" x="270" y="296" width="330" height="64" rx="8"/>
+  <text class="title" x="285" y="319">API client</text>
+  <text class="note" x="285" y="339">one rate limiter, retries, every refusal</text>
+  <text class="note" x="285" y="354">turned into a message the model can use</text>
+
+  <!-- The API -->
+  <rect class="external" x="660" y="290" width="210" height="84" rx="10"/>
+  <text class="title" x="765" y="322" text-anchor="middle">Lexware Office</text>
+  <text class="note" x="765" y="342" text-anchor="middle">public API, over HTTPS,</text>
+  <text class="note" x="765" y="358" text-anchor="middle">2 requests a second</text>
+
+  <!-- Configuration, outside the server -->
+  <rect class="box" x="250" y="440" width="180" height="76" rx="10"/>
+  <text class="title" x="340" y="470" text-anchor="middle">.env and tools.json</text>
+  <text class="note" x="340" y="492" text-anchor="middle">in the per-user directory</text>
+
+  <rect class="box" x="490" y="440" width="230" height="76" rx="10"/>
+  <text class="title" x="605" y="470" text-anchor="middle">setup</text>
+  <text class="note" x="605" y="492" text-anchor="middle">key and tools, in the browser,</text>
+  <text class="note" x="605" y="508" text-anchor="middle">a process of its own</text>
+
+  <!-- Arrows -->
+  <path class="line" d="M 177 120 L 268 120" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <text class="label" x="190" y="111">JSON-RPC</text>
+
+  <path class="line" d="M 600 330 L 658 330" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+
+  <path class="dashed" d="M 340 438 L 340 382" marker-end="url(#arrow)"/>
+  <text class="label" x="348" y="414">read</text>
+
+  <path class="line" d="M 488 478 L 432 478" marker-end="url(#arrow)"/>
+  <text class="label" x="444" y="470">writes</text>
+
+  <path class="dashed" d="M 560 382 L 590 438" marker-end="url(#arrow)"/>
+  <text class="label" x="600" y="398">started by the prompt</text>
+  <text class="label" x="600" y="413">"Set up Lexware Office", or by</text>
+  <text class="code" x="600" y="429">benethos-lexware-office-mcp setup</text>
+</svg>

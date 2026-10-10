@@ -29,6 +29,33 @@
 > - For **commercial use**, review Lexware's API terms and your own retention
 >   and documentation duties.
 
+**Contents**
+
+- [Why this exists](#why-this-exists)
+- [Safety first](#safety-first)
+- [How it works](#how-it-works)
+- [Tools](#tools)
+- [Requirements](#requirements)
+- [Getting an API key](#getting-an-api-key)
+- [Installation](#installation)
+- [Configuring it in a browser](#configuring-it-in-a-browser)
+- [Switching individual tools off](#switching-individual-tools-off)
+- [Configuration](#configuration)
+  - [Where a value comes from, and which one wins](#where-a-value-comes-from-and-which-one-wins)
+  - [Naming the files](#naming-the-files)
+  - [The settings](#the-settings)
+- [Transport](#transport)
+- [In a container](#in-a-container)
+  - [With Compose](#with-compose)
+  - [As single containers](#as-single-containers)
+  - [Turn the interface off when you are done](#turn-the-interface-off-when-you-are-done)
+- [Logs](#logs)
+- [Example prompts](#example-prompts)
+- [Rate limits](#rate-limits)
+- [Development](#development)
+- [License](#license)
+- [Trademarks and affiliation](#trademarks-and-affiliation)
+
 An [MCP](https://modelcontextprotocol.io) server that connects an MCP client
 such as Claude Desktop to a [Lexware Office](https://www.lexware.de/) account
 through the official
@@ -36,16 +63,17 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.5.0.**
+> **Status: 0.5.1.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
-> upload a receipt and book it. `get_profile` answers which account is connected. Every
-> tool in the table below is built, and each was exercised against a live
-> account. It speaks stdio to a client that starts it, and streamable HTTP
-> behind a bearer token where something else has to reach it - as a published
-> container image, with Compose files for running it and for building it from
-> a checkout. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) for the full
-> technical specification and the roadmap.
+> upload a receipt and book it. `get_profile` answers which account is
+> connected. Every tool in the table below is built, and each was exercised
+> against a live account. It speaks stdio to a client that starts it, as a
+> Claude Desktop extension or from PyPI, and streamable HTTP behind a bearer
+> token where something else has to reach it - as a published container
+> image, with Compose files for running it and for building it from a
+> checkout. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md)
+> for the full technical specification and the roadmap.
 
 ## Why this exists
 
@@ -94,6 +122,18 @@ without a restart.
   and which is the one people screenshot when they ask for help. Nor does any
   path from your machine reach the assistant.
 
+## How it works
+
+![The MCP client speaks JSON-RPC with the server's transport. Inside the server the policy file decides which tools exist, the tools call the API client, and the API client reaches Lexware Office over HTTPS. setup, a process of its own, writes the .env and tools.json the server reads, and the prompt Set up Lexware Office starts it, as does the command benethos-lexware-office-mcp setup.](https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/architecture.svg)
+
+The client starts the server, or reaches it over HTTP, and speaks MCP with
+it. What a model can do is settled before anything reaches Lexware: a tool
+the policy file does not name does not exist for the client, and every call
+that is left goes through one API client with one rate limiter. The key and
+the permissions live in two files that `setup` writes, a process of its own
+that the client's prompt **Set up Lexware Office** starts, and so does
+`benethos-lexware-office-mcp setup` in a terminal.
+
 ## Tools
 
 Every tool below is built and was exercised against a live account. None of
@@ -119,7 +159,8 @@ Read tools:
 | `read_download` | Put a downloaded file into the answer, for clients that cannot follow a resource link |
 | `get_deeplink` | Build a permalink to a sales document, contact or voucher in the web app, without an API call |
 
-Write tools. These change real accounting records, so enable them one at a time and against an account you are willing to have changed:
+Write tools. These change real accounting records, so enable them one at a
+time and against an account you are willing to have changed:
 
 | Tool | What it does |
 |---|---|
@@ -226,7 +267,8 @@ and nothing outside it is read, links included.
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
-  its own Python and the `uvx` command every example below uses
+  its own Python and the `uvx` command every example below uses. The Claude
+  Desktop extension brings both itself
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
   in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
   Jinja2 for the pages of `setup`
@@ -239,19 +281,30 @@ and nothing outside it is read, links included.
 2. Open the public API add-on at
    <https://app.lexware.de/addons/public-api>.
 3. Create a key and copy it once — it is shown a single time.
-4. Keep it out of any file that goes into version control. Put it in
-   `config/.env`, which is gitignored, or pass it as an environment variable.
-   A key in `config/.env` is found no matter which directory the server is
-   started from, so a client such as Claude Desktop needs no key of its own in
-   its configuration file.
+4. Keep it out of any file that goes into version control. `setup` writes it
+   into the `.env` the server reads, in the per-user configuration directory
+   or, in a checkout, in `config/.env`, which is gitignored. Either is found
+   no matter which directory the server is started from, so a client such as
+   Claude Desktop needs no key of its own in its configuration file. An
+   environment variable works as well.
 
 A key can be revoked on the same page at any time, which is the fastest way to
 cut access if anything looks wrong.
 
 ## Installation
 
-The simplest way to run the server — no clone, no manual virtual environment,
-no `git`. `uvx` fetches and runs it on demand from
+**In Claude Desktop the shortest way is the extension.** Download
+[benethos-lexware-office-mcp.mcpb](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp.mcpb)
+and drag it into Claude Desktop under *Settings → Extensions*. Claude
+Desktop brings uv and Python itself, so nothing else has to be installed.
+Nothing is enabled after installing, which is why Claude Desktop shows the
+server as failed at first: pick **Set up Lexware Office** under the plus in
+the message box, and in the page it opens enter the API key and choose the
+tools. Both apply at once. Use either the extension or the entry in
+`claude_desktop_config.json` below, not both, or every tool is there twice.
+
+For any other client, the simplest way to run the server is `uvx`: no clone,
+no manual virtual environment, no `git`. It fetches and runs it on demand from
 [PyPI](https://pypi.org/project/benethos-lexware-office-mcp/) (published as
 `benethos-lexware-office-mcp`). To run it in a container instead, see
 [In a container](#in-a-container).
@@ -296,7 +349,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.0"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.1"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -434,12 +487,11 @@ server never serves HTTP, and a client such as Claude Desktop starts that
 one, not this.
 
 `--port N` moves it, `--no-browser` only prints the address,
-`--exit-when-idle N` ends it after N minutes without a request - the prompt
-starts it with 30 - and `--env-file`
-and `--tools-file` say which files it edits. Unlike everywhere else those
-files do not have to exist yet. `--public-port N` is for a container
-published under another port than the one it binds: the address it prints
-and opens names that one.
+`--exit-when-idle N` ends it after N minutes without a request, which the
+prompt sets to 30, and `--env-file` and `--tools-file` say which files it
+edits. Unlike everywhere else those files do not have to exist yet.
+`--public-port N` is for a container published under another port than the
+one it binds: the address it prints and opens names that one.
 
 **If your client starts the server with `--tools-file`, give `setup` the same
 argument** — otherwise it edits a different file and reports success. Both
@@ -647,7 +699,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.5.0` for an exact release,
+Pin a version for anything you depend on - `:0.5.1` for an exact release,
 `:0.5` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
