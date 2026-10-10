@@ -1,0 +1,167 @@
+{
+  "manifest_version": "0.4",
+  "name": "benethos-lexware-office-mcp",
+  "display_name": "Unofficial Lexware Office MCP Server",
+  "version": "0.5.0",
+  "description": "Unofficial MCP server for the Lexware Office accounting API — runs over stdio or HTTP.",
+  "long_description": "Not affiliated with Lexware. **Nothing is enabled after installing**, so Claude Desktop shows the server as failed until you choose its tools. Pick the prompt **Set up Lexware Office** under the plus in the message box: it opens the configuration interface in your browser, where you enter the API key and decide which tools exist. Both apply at once. A key changed later applies after quitting Claude Desktop from the tray and starting it again.",
+  "author": {
+    "name": "Benedikt Oswald"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/benethos-hub/lexware-office-mcp"
+  },
+  "homepage": "https://github.com/benethos-hub/lexware-office-mcp",
+  "documentation": "https://github.com/benethos-hub/lexware-office-mcp#readme",
+  "support": "https://github.com/benethos-hub/lexware-office-mcp/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "--frozen",
+        "server.py"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "get_profile",
+      "description": "Show which Lexware Office account this server is connected to."
+    },
+    {
+      "name": "search_contacts",
+      "description": "Find contacts by name, email address, number or role."
+    },
+    {
+      "name": "get_contact",
+      "description": "Read one contact in full, by id."
+    },
+    {
+      "name": "create_contact",
+      "description": "Create a new customer or vendor in the account."
+    },
+    {
+      "name": "update_contact",
+      "description": "Change an existing contact."
+    },
+    {
+      "name": "search_articles",
+      "description": "List articles, filtered by number, barcode or kind."
+    },
+    {
+      "name": "get_article",
+      "description": "Read one article in full, by id."
+    },
+    {
+      "name": "create_article",
+      "description": "Add an article to the catalogue."
+    },
+    {
+      "name": "update_article",
+      "description": "Change an article."
+    },
+    {
+      "name": "delete_article",
+      "description": "Delete an article."
+    },
+    {
+      "name": "search_vouchers",
+      "description": "Find invoices, credit notes, quotations and bookkeeping vouchers."
+    },
+    {
+      "name": "get_voucher",
+      "description": "Read one bookkeeping voucher, by id or by its document number."
+    },
+    {
+      "name": "get_payments",
+      "description": "Show whether a voucher has been paid, and what is still open."
+    },
+    {
+      "name": "create_voucher",
+      "description": "Record a bookkeeping voucher in the account."
+    },
+    {
+      "name": "update_voucher",
+      "description": "Change a bookkeeping voucher that is already recorded."
+    },
+    {
+      "name": "get_sales_document",
+      "description": "Read one sales document in full: an invoice, quotation or their kin."
+    },
+    {
+      "name": "create_sales_document",
+      "description": "Create an invoice, quotation, credit note or one of their relatives."
+    },
+    {
+      "name": "get_recurring_templates",
+      "description": "Read the templates that issue invoices on a schedule."
+    },
+    {
+      "name": "download_file",
+      "description": "Save a stored file, such as an uploaded receipt."
+    },
+    {
+      "name": "download_document",
+      "description": "Save the rendered PDF of an invoice or another sales document."
+    },
+    {
+      "name": "read_download",
+      "description": "Put the contents of a downloaded file into this conversation."
+    },
+    {
+      "name": "upload_file",
+      "description": "Upload a receipt, which also creates a bookkeeping voucher for it."
+    },
+    {
+      "name": "attach_file_to_voucher",
+      "description": "Attach a file to a voucher that already exists."
+    },
+    {
+      "name": "get_deeplink",
+      "description": "Build a link that opens a record in the Lexware Office web app."
+    },
+    {
+      "name": "get_master_data",
+      "description": "Read one of the lists this account is configured with."
+    }
+  ],
+  "prompts": [
+    {
+      "name": "open_setup",
+      "description": "Opens the configuration interface in the browser.",
+      "text": "The configuration interface of the Lexware Office MCP server is open in the browser, where the person sets the API key and which tools exist. Nothing needs to be done in this conversation."
+    }
+  ],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "lexware",
+    "lexware-office",
+    "lexoffice",
+    "accounting",
+    "invoicing",
+    "bookkeeping"
+  ],
+  "license": "MIT",
+  "privacy_policies": [
+    "https://datenschutz.lexware.de/"
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  }
+}

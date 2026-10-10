@@ -129,14 +129,17 @@ containers/       # README.md says which folder is for what
   publish/
     mcp-registry/
       server.json # the MCP Registry entry, sent by publish.yml at a release
+      fill_bundle_checksum.py # the bundle's hash, written in at the release
+    mcpb/         # the Claude Desktop bundle: manifest.json as it ships,
+                  # server.py that uv starts, build.py that stages it
   scripts/
     tag_matches_version.py  # a release tag has to be the package version
   workflows/
     ci.yml        # lint, test (coverage on 3.15 alone), fresh-install,
                   # docker, and lowest-versions: the oldest allowed
                   # dependencies, an early warning only
-    publish.yml   # a published release -> PyPI, the container image, and
-                  # then the MCP Registry entry pointing at both
+    publish.yml   # a published release -> PyPI, the container image, the
+                  # Claude Desktop bundle, and the MCP Registry entry
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -349,7 +352,8 @@ fallen behind, so the list is short on purpose. In this order:
    `containers/production/.env.example`, the SPECS status line, a roadmap
    row and the example start line in section 11.2, the MCP Registry
    entry in `.github/publish/mcp-registry/server.json` (its own version,
-   the PyPI package's and the image tag), and the changelog section with
+   the PyPI package's and the image tag), the bundle's manifest in
+   `.github/publish/mcpb/manifest.json`, and the changelog section with
    its link reference. Then `uv lock`, which carries the
    package's own version. The guards in `tests/test_packaging.py` catch a
    missed one in any of these places, and `uv lock --check` one in the
@@ -361,7 +365,8 @@ fallen behind, so the list is short on purpose. In this order:
    release of `modelcontextprotocol/registry`. Dependabot does not see a
    download, and a publisher the registry has outgrown fails the entry
    with `invalid audience`. Raise the version and the checksum together,
-   the checksum from the release's own checksums file.
+   the checksum from the release's own checksums file. The same for
+   **`MCPB_VERSION`**, against the newest `@anthropic-ai/mcpb` on npm.
 6. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
    which fires `publish.yml`. Each of its jobs stops when the tag is not
    `v` plus the version in `pyproject.toml`, so a tag ahead of step 3
@@ -374,7 +379,8 @@ fallen behind, so the list is short on purpose. In this order:
    image, and check inside each that the change the release is for is there.
    Last the registry entry, under
    `https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp`,
-   at this version and with this image tag.
+   at this version, with this image tag and with the bundle's checksum in
+   place of the zeros the committed file holds.
 
 ## Conventions
 

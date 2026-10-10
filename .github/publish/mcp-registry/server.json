@@ -47,6 +47,12 @@
       "packageArguments": [
         { "type": "named", "name": "--transport", "value": "stdio" }
       ]
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/benethos-hub/lexware-office-mcp/releases/download/v0.5.0/benethos-lexware-office-mcp-0.5.0.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
     }
   ]
 }
