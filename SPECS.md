@@ -2375,7 +2375,7 @@ its name.
 | Upstream | Error class | Message shape |
 |---|---|---|
 | 400, 406 | `ValidationError` | the API `errorCode` and `message`, plus the offending field path when the response names one |
-| 401 | `AuthError` | "API key rejected", with a pointer to the add-on page, never the key |
+| 401 | `AuthError` | "API key rejected", with a pointer to the add-on page and the note that a changed key needs the client to start the server again, never the key |
 | 403 | `AuthError` | the method and path the key may not use, and to check the permissions it was created with |
 | 404 | `NotFoundError` | the path that answered nothing - a 404 does not say which part of it was wrong. A tool that looked a record up itself names the resource and the ID or number instead |
 | 406 naming `version`, 409 | `ConflictError` | a stale version (406) says to read the record again. A 409 says the record's current state refused the request, without naming a version. The one message that names both versions is the local check before an update, which compares the version read with the version passed |
@@ -2383,7 +2383,7 @@ its name.
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 | — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
-| — (settings) | `ConfigError` | no API key, said with the command that sets one and never with a path. At startup the same class ends the process in one line |
+| — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path. At startup the same class ends the process in one line |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query

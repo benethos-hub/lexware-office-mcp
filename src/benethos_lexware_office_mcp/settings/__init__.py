@@ -206,11 +206,20 @@ class Settings:
         # Deliberately without the path of the .env: this message reaches
         # the client and a model's context, where a directory layout is
         # nothing anybody can act on. The command names the file on the
-        # machine, which is where somebody can.
+        # machine, which is where somebody can. The prompt's title is
+        # spelled out, since the server sits above this layer, and
+        # tests/test_setup_prompt.py holds the two together.
+        opened_by = (
+            'the client\'s prompt "Set up Lexware Office" opens it, and so does '
+            if self.transport == "stdio"
+            else "open it with "
+        )
         raise ConfigError(
-            "No API key configured for this server. Set LXO_MCP_API_KEY, "
-            "or run `benethos-lexware-office-mcp setup` on the machine "
-            "the server runs on."
+            "No API key configured for this server. Save one in the "
+            f"configuration interface, {opened_by}"
+            "`benethos-lexware-office-mcp setup` on the machine the server "
+            "runs on, and it is used from the next call on. Setting "
+            "LXO_MCP_API_KEY works as well."
         )
 
     def _key_saved_since_startup(self) -> str | None:

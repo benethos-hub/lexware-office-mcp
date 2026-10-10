@@ -253,3 +253,19 @@ def test_the_missing_policy_warning_names_the_prompt_where_it_exists(
 
     assert (f'"{SETUP_PROMPT_TITLE}"' in caplog.text) is named
     assert "`benethos-lexware-office-mcp setup`" in caplog.text
+
+
+@pytest.mark.parametrize(("transport", "named"), [("stdio", True), ("sse", False)])
+def test_the_missing_key_message_names_the_prompt_where_it_exists(
+    transport: str, named: bool
+) -> None:
+    """It reaches the model, which can then point the person to it."""
+    from benethos_lexware_office_mcp.errors import ConfigError
+
+    with pytest.raises(ConfigError) as excinfo:
+        Settings(transport=transport).require_api_key()
+
+    message = str(excinfo.value)
+    assert (f'"{SETUP_PROMPT_TITLE}"' in message) is named
+    assert "`benethos-lexware-office-mcp setup`" in message
+    assert "used from the next call on" in message

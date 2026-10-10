@@ -31,6 +31,11 @@ housekeeping are out of scope here — design decisions live in
   server for the key, as it never did for the permissions. A key the
   server was given still applies until it is restarted, as every other
   setting does.
+- **The messages for a missing and a rejected key say what to do next.**
+  A missing key names the prompt "Set up Lexware Office" over stdio and
+  `setup` everywhere, and that a key saved there is used from the next
+  call. A rejected key adds that a changed key is used once the client
+  starts the server again, Claude Desktop by being quit from the tray.
 - **An entry in the official MCP Registry**,
   `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
   this release and with every one after it. It offers the PyPI package and
