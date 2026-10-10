@@ -18,6 +18,9 @@ housekeeping are out of scope here — design decisions live in
 - **The container image is built with uv 0.13.0.** uv installs the
   locked dependencies in the build stage and is not part of the image
   itself, so what runs is the same.
+- **pycparser 3.11 in the lockfile the image is built from**, which cffi
+  under cryptography uses. An installation from the index resolved it
+  already. ruff 0.17.0 moved in the development environment only.
 
 ## [0.5.0] - 2026-10-08
 
