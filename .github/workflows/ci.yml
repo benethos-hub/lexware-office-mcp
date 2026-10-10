@@ -65,6 +65,30 @@ jobs:
       # httpx is mocked at the transport, so the suite never opens a socket.
       # Nothing that talks to Lexware is reachable from here: `testpaths` is
       # tests/, and both live checks sit in live/.
+      - name: Run tests
+        run: uv run pytest -q
+
+  # Coverage is measured here alone, on 3.14, and not in every job of the
+  # matrix. With branch coverage on, coverage.py 7.16 runs on sys.monitoring
+  # under 3.14 and on its older C tracer under 3.11 to 3.13. Measured on the
+  # last three runs before the split, 2026-10-08 and -09: the test step with
+  # coverage took 42 to 46 s on 3.14, 48 to 67 s on 3.13, about 70 s on
+  # 3.11 and 97 to 112 s on 3.12. A line only an older Python runs is not
+  # counted any more.
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Install dependencies (locked)
+        run: uv sync --extra dev --frozen
+
       - name: Run tests with coverage
         run: uv run pytest -q --cov=benethos_lexware_office_mcp --cov-fail-under=80
 

@@ -125,8 +125,9 @@ containers/       # README.md says which folder is for what
   scripts/
     tag_matches_version.py  # a release tag has to be the package version
   workflows/
-    ci.yml        # lint, test, fresh-install, docker, and lowest-versions:
-                  # the oldest allowed dependencies, an early warning only
+    ci.yml        # lint, test, coverage (on 3.14 alone), fresh-install,
+                  # docker, and lowest-versions: the oldest allowed
+                  # dependencies, an early warning only
     publish.yml   # a published release -> PyPI and the container image
 ```
 
