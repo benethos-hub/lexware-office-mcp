@@ -19,6 +19,14 @@ housekeeping are out of scope here — design decisions live in
   through. The package installs and the suite passes on 3.15.0, and a
   client receives the same tool list as on 3.14. The container image stays
   on 3.14 for now.
+- **An entry in the official MCP Registry**,
+  `io.github.benethos-hub/benethos-lexware-office-mcp`, published with
+  this release and with every one after it. It offers the PyPI package and
+  the container image, both over stdio. The image is started with the
+  named volumes `lxo-config` and `lxo-downloads`, the ones the README's
+  `setup` command for a single container uses, so what is configured there
+  is what a client's container reads. The image carries the label the
+  registry checks ownership by.
 
 ### Changed
 

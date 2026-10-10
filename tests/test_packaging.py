@@ -7,11 +7,13 @@ move at release time.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -55,6 +57,10 @@ VERSION_EXAMPLES = (
     ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     # The start line the log catalogue shows as an example.
     ("SPECS.md", r"`(\d+\.\d+\.\d+) started over stdio`"),
+    # The MCP Registry entry: its own version and the PyPI package's, then
+    # the image tag, which carries the version in place of a field of its own.
+    (".github/publish/mcp-registry/server.json", r'"version": "(\d+\.\d+\.\d+)"'),
+    (".github/publish/mcp-registry/server.json", r'-mcp:(\d+\.\d+\.\d+)"'),
 )
 
 # The minor-line tag, which follows patch releases rather than naming one. It
@@ -296,12 +302,12 @@ def test_the_image_is_pushed_under_the_package_name_alone() -> None:
     ]
 
 
-def test_both_publish_jobs_check_the_tag() -> None:
+def test_every_publish_job_checks_the_tag() -> None:
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"
     )
 
-    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 2
+    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 3
 
 
 def test_latest_never_follows_a_pre_release() -> None:
@@ -591,3 +597,130 @@ def test_the_allowed_hosts_example_is_the_compose_service(
         cli.main(["--help"])
 
     assert f"example {found.group(1)}" in " ".join(capsys.readouterr().out.split())
+
+
+# -- the MCP Registry entry --------------------------------------------------
+
+# An entry cannot be changed once it is published, so whatever is wrong in it
+# stays wrong until the next release. The registry checks it against the
+# packages only at that moment, and nothing else reads these files together.
+REGISTRY_ENTRY = REPO / ".github" / "publish" / "mcp-registry" / "server.json"
+
+
+def _entry() -> dict[str, Any]:
+    entry: dict[str, Any] = json.loads(REGISTRY_ENTRY.read_text(encoding="utf-8"))
+    return entry
+
+
+def _package(registry_type: str) -> dict[str, Any]:
+    [package] = [p for p in _entry()["packages"] if p["registryType"] == registry_type]
+    return package
+
+
+def _project() -> dict[str, Any]:
+    import tomllib
+
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    project: dict[str, Any] = pyproject["project"]
+    return project
+
+
+def _owner() -> str:
+    url = _entry()["repository"]["url"]
+    found = re.fullmatch(r"https://github\.com/([\w.-]+)/[\w.-]+", url)
+    assert found, f"{url} is not a GitHub repository"
+    return found.group(1)
+
+
+def test_the_registry_entry_is_named_in_the_owners_namespace() -> None:
+    """The workflow's identity may write io.github.<owner>/* and nothing else."""
+    assert _entry()["name"] == f"io.github.{_owner()}/{_project()['name']}"
+
+
+def test_the_registry_entry_describes_the_package_as_pypi_does() -> None:
+    description = _entry()["description"]
+
+    assert description == _project()["description"]
+    assert len(description) <= 100, "the registry refuses a longer description"
+
+
+def test_the_registry_entry_points_at_the_published_packages() -> None:
+    """The names publish.yml uploads under, and the image without a version."""
+    pypi, oci = _package("pypi"), _package("oci")
+    version = benethos_lexware_office_mcp.__version__
+    image = f"ghcr.io/{_owner()}/{_project()['name']}:{version}"
+
+    assert pypi["identifier"] == _project()["name"]
+    assert oci["identifier"] == image
+    # The registry refuses both on an image: the tag carries the version.
+    assert "version" not in oci
+    assert "registryBaseUrl" not in oci
+
+
+def test_the_ownership_proofs_name_the_entry() -> None:
+    """Once in the README PyPI shows, once as a label in the image.
+
+    The registry wants the name followed by a space, a line end or the end of
+    a comment, so a full stop after it would fail the release.
+    """
+    name = _entry()["name"]
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    labels = re.findall(
+        r'LABEL io\.modelcontextprotocol\.server\.name="([^"]+)"',
+        DOCKERFILE.read_text(encoding="utf-8"),
+    )
+
+    assert re.findall(r"mcp-name: (\S+?)(?=\s|-->)", readme) == [name]
+    assert labels == [name]
+
+
+def test_the_image_entry_mounts_the_volumes_setup_writes_to() -> None:
+    """Without them each start gets empty volumes, and no tool is offered.
+
+    The names are the ones the README's `setup` command mounts, so what the
+    configuration interface saves is what a client's container reads.
+    """
+    volume = re.search(
+        r"^VOLUME (\[.*\])$", DOCKERFILE.read_text(encoding="utf-8"), re.M
+    )
+    assert volume, "the image declares its volumes"
+    declared = json.loads(volume.group(1))
+    mounts = [
+        a["value"]
+        for a in _package("oci")["runtimeArguments"]
+        if a["name"] == "--volume"
+    ]
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+
+    assert [m.split(":", 1)[1] for m in mounts] == declared
+    assert all(f"-v {m}" in readme for m in mounts)
+
+
+def test_the_image_entry_runs_over_stdio() -> None:
+    """The image starts the HTTP transport unless it is told otherwise."""
+    oci = _package("oci")
+
+    assert oci["transport"] == {"type": "stdio"}
+    assert {"type": "named", "name": "--transport", "value": "stdio"} in oci[
+        "packageArguments"
+    ]
+
+
+def test_the_registry_entry_asks_for_no_environment_variables() -> None:
+    """A variable a client sets beats the .env, which `setup` could then not change."""
+    assert all("environmentVariables" not in p for p in _entry()["packages"])
+
+
+def test_the_registry_job_publishes_after_both_packages() -> None:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    job = workflow.split("  mcp-registry-publish:", 1)[1]
+    head = job.split("steps:", 1)[0]
+
+    assert "needs: [pypi-publish, ghcr-publish]" in head
+    assert "!github.event.release.prerelease" in head
+    assert "      contents: read\n      id-token: write" in head
+    assert re.search(r"MCP_PUBLISHER_VERSION: v\d+\.\d+\.\d+\n", head)
+    assert re.search(r"MCP_PUBLISHER_SHA256: [0-9a-f]{64}\n", head)
+    assert f"publish {REGISTRY_ENTRY.relative_to(REPO).as_posix()};" in job

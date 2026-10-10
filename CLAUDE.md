@@ -122,13 +122,17 @@ containers/       # README.md says which folder is for what
   development/    # built from this checkout, a project, ports and volumes of its own
 .github/
   dependabot.yml  # the declared ranges, the pinned actions and the pinned images
+  publish/
+    mcp-registry/
+      server.json # the MCP Registry entry, sent by publish.yml at a release
   scripts/
     tag_matches_version.py  # a release tag has to be the package version
   workflows/
     ci.yml        # lint, test (coverage on 3.15 alone), fresh-install,
                   # docker, and lowest-versions: the oldest allowed
                   # dependencies, an early warning only
-    publish.yml   # a published release -> PyPI and the container image
+    publish.yml   # a published release -> PyPI, the container image, and
+                  # then the MCP Registry entry pointing at both
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -339,24 +343,34 @@ fallen behind, so the list is short on purpose. In this order:
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
    README's status line, pin example and exact image tag, `LXO_VERSION` in
    `containers/production/.env.example`, the SPECS status line, a roadmap
-   row and the example start line in section 11.2, and the changelog
-   section with its link reference. Then `uv lock`, which carries the
+   row and the example start line in section 11.2, the MCP Registry
+   entry in `.github/publish/mcp-registry/server.json` (its own version,
+   the PyPI package's and the image tag), and the changelog section with
+   its link reference. Then `uv lock`, which carries the
    package's own version. The guards in `tests/test_packaging.py` catch a
    missed one in any of these places, and `uv lock --check` one in the
    lockfile. **The minor line** (`:0.5` in the README, and in the comment
    of `.env.example`) changes only with a minor release - the image tag
    itself follows the release tag when the image is built.
 4. **The coverage percentage**, re-read against the static badge.
-5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
-   which fires `publish.yml`. Both of its jobs stop when the tag is not
+5. **`MCP_PUBLISHER_VERSION`** in `publish.yml`, against the newest
+   release of `modelcontextprotocol/registry`. Dependabot does not see a
+   download, and a publisher the registry has outgrown fails the entry
+   with `invalid audience`. Raise the version and the checksum together,
+   the checksum from the release's own checksums file.
+6. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
+   which fires `publish.yml`. Each of its jobs stops when the tag is not
    `v` plus the version in `pyproject.toml`, so a tag ahead of step 3
    publishes nothing rather than an image with the old code.
-6. **Verify the delivered artefacts, not the build.** The PyPI simple index
+7. **Verify the delivered artefacts, not the build.** The PyPI simple index
    with a cache-busting query - the JSON API lags for minutes after an upload
    and has reported a finished release as missing. The ghcr index manifest
    for the exact tag, the minor line and `latest`, all three on the same
    revision. Then install the wheel into a scratch environment and pull the
    image, and check inside each that the change the release is for is there.
+   Last the registry entry, under
+   `https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp`,
+   at this version and with this image tag.
 
 ## Conventions
 

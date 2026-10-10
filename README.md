@@ -7,6 +7,8 @@
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
 
+<!-- mcp-name: io.github.benethos-hub/benethos-lexware-office-mcp -->
+
 > **Disclaimer**
 >
 > - This project is **not affiliated with, endorsed by, or sponsored by

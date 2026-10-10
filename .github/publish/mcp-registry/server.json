@@ -1,0 +1,40 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.benethos-hub/benethos-lexware-office-mcp",
+  "description": "Unofficial MCP server for the Lexware Office accounting API — runs over stdio or HTTP.",
+  "repository": {
+    "url": "https://github.com/benethos-hub/lexware-office-mcp",
+    "source": "github"
+  },
+  "version": "0.5.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "benethos-lexware-office-mcp",
+      "version": "0.5.0",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/benethos-hub/benethos-lexware-office-mcp:0.5.0",
+      "runtimeHint": "docker",
+      "transport": { "type": "stdio" },
+      "runtimeArguments": [
+        { "type": "named", "name": "-i" },
+        { "type": "named", "name": "--rm" },
+        { "type": "named", "name": "--no-healthcheck" },
+        { "type": "named", "name": "--volume", "value": "lxo-config:/config" },
+        { "type": "named", "name": "--volume", "value": "lxo-downloads:/downloads" },
+        { "type": "named", "name": "--read-only" },
+        { "type": "named", "name": "--tmpfs", "value": "/tmp" },
+        { "type": "named", "name": "--cap-drop", "value": "ALL" },
+        { "type": "named", "name": "--security-opt", "value": "no-new-privileges" }
+      ],
+      "packageArguments": [
+        { "type": "named", "name": "--transport", "value": "stdio" }
+      ]
+    }
+  ]
+}
