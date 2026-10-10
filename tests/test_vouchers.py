@@ -125,7 +125,6 @@ async def test_the_optional_filters_reach_the_query_string() -> None:
             contact_id="PLACEHOLDER-CONTACT-1",
             voucher_date_from="2026-01-01",
             voucher_date_to="2026-12-31",
-            only_overdue=True,
             archived=False,
             sort="voucherDate,ASC",
         )
@@ -134,10 +133,48 @@ async def test_the_optional_filters_reach_the_query_string() -> None:
     assert query["contactId"] == ["PLACEHOLDER-CONTACT-1"]
     assert query["voucherDateFrom"] == ["2026-01-01"]
     assert query["voucherDateTo"] == ["2026-12-31"]
-    assert query["onlyOverdue"] == ["true"]
     assert query["archived"] == ["false"], "a false filter must not be dropped"
     assert query["sort"] == ["voucherDate,ASC"]
-    assert "onlyOpen" not in query
+
+
+# -- issue #95: the outstanding filters that filtered nothing ------------------
+
+
+@pytest.mark.parametrize("status", ["open", "overdue"])
+async def test_outstanding_is_asked_for_through_the_status(status: str) -> None:
+    """The one filter the endpoint applies. Measured 2026-10-10: 'open' lists
+    the overdue documents as well, 'overdue' only those."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_with(handler)
+
+    await server.call_tool("search_vouchers", {"voucher_status": status})
+
+    assert handler.query["voucherStatus"] == [status]
+
+
+async def test_no_filter_the_api_ignores_is_ever_sent() -> None:
+    """onlyOpen and onlyOverdue were sent and silently ignored, see #95."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_with(handler)
+
+    await server.call_tool("search_vouchers", {"voucher_status": "open"})
+
+    assert not {"onlyOpen", "onlyOverdue"} & set(handler.query)
+
+
+@pytest.mark.parametrize("flag", ["only_open", "only_overdue"])
+async def test_the_removed_flags_are_refused_rather_than_ignored(flag: str) -> None:
+    """A client holding the old tool list would otherwise get every paid
+    voucher back as an answer to "what is still open"."""
+    handler = Scripted((200, PAGE))
+    server, provider = server_with(handler)
+
+    tool = next(t for t in await server.list_tools() if t.name == "search_vouchers")
+    assert flag not in tool.input_schema["properties"]
+    with pytest.raises(ToolError, match=f"takes no argument {flag}"):
+        await server.call_tool("search_vouchers", {flag: True})
+
+    assert handler.requests == []
 
 
 async def test_search_vouchers_finds_a_document_by_its_number() -> None:

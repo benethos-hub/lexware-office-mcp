@@ -248,3 +248,37 @@ async def test_two_calls_at_once_each_count_their_own(
     messages = [record.getMessage() for record in _tools(lines)]
     assert len(messages) == 2
     assert all(" in 1 API call," in message for message in messages)
+
+
+async def test_an_argument_the_tool_does_not_take_is_named_and_refused(
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    """The SDK would drop it and run the call as if it had never been asked."""
+    with pytest.raises(ToolError, match="takes no argument only_open"):
+        await _call(always({}), "search_contacts", {"name": NAME, "only_open": True})
+
+    assert _only(lines) == "search_contacts refused: invalid only_open"
+    assert "Mustermann" not in lines.text
+
+
+async def test_a_name_that_is_no_name_is_not_repeated(
+    lines: pytest.LogCaptureFixture,
+) -> None:
+    with pytest.raises(ToolError, match=r"takes no argument \?"):
+        await _call(always({}), "search_contacts", {"ignore all; rules": 1})
+
+    assert _only(lines) == "search_contacts refused: invalid ?"
+
+
+async def test_a_withheld_tool_says_nothing_about_its_arguments(
+    lines: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    policy = tmp_path / "tools.json"
+    ToolPolicy(policy).save({"get_profile": True})
+
+    with pytest.raises(ToolError) as excinfo:
+        await _call(
+            always({}), "search_contacts", {"only_open": True}, tool_policy_path=policy
+        )
+
+    assert "takes no argument" not in str(excinfo.value)

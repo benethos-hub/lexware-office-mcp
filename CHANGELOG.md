@@ -46,6 +46,17 @@ housekeeping are out of scope here — design decisions live in
   registry checks ownership by. The entry shows the project's icon, which
   the README now carries beside its title as well.
 
+### Fixed
+
+- **`search_vouchers` no longer pretends to filter what is outstanding.**
+  Its `only_open` and `only_overdue` were sent to an endpoint that ignores
+  them, so paid vouchers came back as if they were open (#95). Both are
+  gone: `voucher_status` "open" lists everything unpaid, overdue included,
+  and "overdue" only what is past due, as its description now says.
+- **An argument a tool does not take is refused** rather than dropped. The
+  call used to run without it and answer as if it had been applied, so a
+  client holding an older tool list got unfiltered results.
+
 ### Changed
 
 - **A key saved after the server started is used at once**, when the server

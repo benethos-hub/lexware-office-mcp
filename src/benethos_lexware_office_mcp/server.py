@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
+import re
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,7 @@ from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook
 from .api.client import ClientProvider
-from .errors import ConfigError
+from .errors import ConfigError, ToolError
 from .files import resources
 from .policy import ToolPolicy
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
@@ -37,6 +38,9 @@ from .tools import register_tools
 # made in the browser feels immediate, long enough that reading a few hundred
 # bytes of JSON at that rate is nothing.
 POLICY_POLL_SECONDS = 2.0
+
+# What an argument's name may look like to be repeated in a refusal.
+_ARGUMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 
 # Sent once, when a session starts, rather than with every request the way a
 # tool description is. That is the whole reason there is room here for what
@@ -148,7 +152,22 @@ class PolicyServer(MCPServer):
         refused before the tool runs, so that wrapper never hears of them,
         and the SDK's own line for them is held back with the rest of its
         INFO. The line names the fields, never what was in them.
+
+        **An argument the tool does not take is refused, not dropped.** The
+        SDK builds each tool's argument model to ignore what it does not
+        know, so a call with a filter that is not there ran without it and
+        answered as if it had: `search_vouchers(only_open=True)` from a
+        client holding a tool list older than the removal of that flag
+        would have listed every paid voucher as before. Only for a tool the
+        policy allows, so a withheld one still says nothing about itself.
         """
+        unknown = await self._unknown_arguments(name, arguments)
+        if unknown:
+            logbook.calls.arguments_refused(name, unknown)
+            raise ToolError(
+                f"{name} takes no argument {', '.join(unknown)}, so nothing "
+                "was sent. The tool list says which arguments it takes."
+            )
         try:
             return await super().call_tool(name, arguments, context)
         except SDKToolError as exc:
@@ -159,6 +178,27 @@ class PolicyServer(MCPServer):
                 )
                 logbook.calls.arguments_refused(name, fields)
             raise
+
+    async def _unknown_arguments(
+        self, name: str, arguments: dict[str, Any]
+    ) -> list[str]:
+        """The arguments of a call that the tool's schema does not name.
+
+        Each is shown by its name when it looks like one and as ``?``
+        otherwise: a name is what the caller typed, and a line on stderr or
+        a message back is no place for an arbitrary string.
+        """
+        if not arguments or not self._policy.as_map().get(name, False):
+            return []
+        tool = next((t for t in await super().list_tools() if t.name == name), None)
+        if tool is None:
+            return []
+        known = set(tool.input_schema.get("properties", {}))
+        return sorted(
+            key if _ARGUMENT_NAME.fullmatch(key) else "?"
+            for key in arguments
+            if key not in known
+        )
 
     @property
     def policy(self) -> ToolPolicy:
