@@ -33,6 +33,7 @@
 
 - [Why this exists](#why-this-exists)
 - [Safety first](#safety-first)
+- [How it works](#how-it-works)
 - [Tools](#tools)
 - [Requirements](#requirements)
 - [Getting an API key](#getting-an-api-key)
@@ -119,6 +120,18 @@ without a restart.
   your client's configuration file, which another program owns and rewrites,
   and which is the one people screenshot when they ask for help. Nor does any
   path from your machine reach the assistant.
+
+## How it works
+
+![The MCP client speaks JSON-RPC with the server's transport. Inside the server the policy file decides which tools exist, the tools call the API client, and the API client reaches Lexware Office over HTTPS. setup, a process of its own, writes the .env and tools.json the server reads, and the prompt Set up Lexware Office starts it, as does the command benethos-lexware-office-mcp setup.](https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/architecture.svg)
+
+The client starts the server, or reaches it over HTTP, and speaks MCP with
+it. What a model can do is settled before anything reaches Lexware: a tool
+the policy file does not name does not exist for the client, and every call
+that is left goes through one API client with one rate limiter. The key and
+the permissions live in two files that `setup` writes, a process of its own
+that the client's prompt **Set up Lexware Office** starts, and so does
+`benethos-lexware-office-mcp setup` in a terminal.
 
 ## Tools
 
