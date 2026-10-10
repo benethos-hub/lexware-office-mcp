@@ -64,7 +64,7 @@ exception.
 | Publishing environment | `pypi-benethos-lexware-office-mcp` |
 | MCP Registry entry | `io.github.benethos-hub/benethos-lexware-office-mcp`, from the first release after 0.5.0 |
 | Env var prefix | `LXO_MCP_` |
-| README H1 | `# Unofficial Lexware Office MCP Server` |
+| README H1 | `# Unofficial Lexware Office MCP Server`, the icon from `assets/` before it |
 
 "Lexware Office" is spelled out in prose because it names the integrated API,
 not this project. No Lexware logos, brand colors, or domains containing
@@ -3054,12 +3054,18 @@ order:
    README says how to configure the server, as it does for an
    installation from PyPI.
 
+   **The icon** is `assets/icon.svg`, with a PNG of 512 by 512 pixels
+   rendered from it for clients that show no SVG. `assets/render_icon.py`
+   renders it with a pinned resvg in a throwaway environment, so the
+   renderer never enters the project's dependencies. The entry and the
+   README title link both by their address on `main`.
+
    `mcp-publisher` is a download rather than an action, pinned by version
    and checksum, so Dependabot does not see it and the release checklist
    in `CLAUDE.md` raises it by hand. `tests/test_packaging.py` holds the
    entry against the package: the versions, the description, the package
-   names, the namespace, both ownership proofs, the volumes and the job's
-   order.
+   names, the namespace, both ownership proofs, the volumes, the icons and
+   the job's order.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did

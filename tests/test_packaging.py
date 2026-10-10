@@ -724,3 +724,23 @@ def test_the_registry_job_publishes_after_both_packages() -> None:
     assert re.search(r"MCP_PUBLISHER_VERSION: v\d+\.\d+\.\d+\n", head)
     assert re.search(r"MCP_PUBLISHER_SHA256: [0-9a-f]{64}\n", head)
     assert f"publish {REGISTRY_ENTRY.relative_to(REPO).as_posix()};" in job
+
+
+def test_the_registry_icons_are_files_in_this_repository() -> None:
+    """A client fetches them from main, so each has to be there by that path.
+
+    The PNG is rendered from the SVG by `assets/render_icon.py`, and its
+    declared size is the one it has.
+    """
+    raw = f"https://raw.githubusercontent.com/{_owner()}/lexware-office-mcp/main/"
+    icons = {icon["mimeType"]: icon for icon in _entry()["icons"]}
+
+    assert set(icons) == {"image/svg+xml", "image/png"}
+    for icon in icons.values():
+        assert icon["src"].startswith(raw)
+        assert (REPO / icon["src"].removeprefix(raw)).is_file(), icon["src"]
+
+    png = (REPO / icons["image/png"]["src"].removeprefix(raw)).read_bytes()
+    width, height = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    assert icons["image/png"]["sizes"] == [f"{width}x{height}"]

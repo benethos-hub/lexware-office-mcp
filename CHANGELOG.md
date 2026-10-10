@@ -26,7 +26,8 @@ housekeeping are out of scope here — design decisions live in
   named volumes `lxo-config` and `lxo-downloads`, the ones the README's
   `setup` command for a single container uses, so what is configured there
   is what a client's container reads. The image carries the label the
-  registry checks ownership by.
+  registry checks ownership by. The entry shows the project's icon, which
+  the README now carries beside its title as well.
 
 ### Changed
 

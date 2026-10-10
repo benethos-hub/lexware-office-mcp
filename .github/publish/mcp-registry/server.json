@@ -7,6 +7,18 @@
     "source": "github"
   },
   "version": "0.5.0",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/icon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    },
+    {
+      "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/icon.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
   "packages": [
     {
       "registryType": "pypi",

@@ -1,4 +1,4 @@
-# Unofficial Lexware Office MCP Server
+# <img src="https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/icon.svg" alt="" width="40" height="40"> Unofficial Lexware Office MCP Server
 
 [![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
 [![PyPI benethos-lexware-office-mcp](https://img.shields.io/pypi/v/benethos-lexware-office-mcp?label=PyPI%20benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)

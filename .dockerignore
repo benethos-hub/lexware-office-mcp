@@ -25,6 +25,7 @@ config/tool_profiles.json
 downloads
 
 # Not needed at build time.
+assets
 tests
 scratch
 containers

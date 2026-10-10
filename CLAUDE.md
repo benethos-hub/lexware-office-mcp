@@ -115,6 +115,9 @@ live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
   shapes/         # one timestamped capture per run
+assets/
+  icon.svg        # the project icon, in the README title and the registry entry
+  icon.png        # rendered from it by render_icon.py - commit both together
 containers/       # README.md says which folder is for what
   images/lexware-office-mcp/
     Dockerfile    # the image, built with the repository root as context

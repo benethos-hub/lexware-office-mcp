@@ -28,12 +28,16 @@ README = Path(__file__).resolve().parents[1] / "README.md"
 # balance the brackets misses the outer target of exactly that construct.
 _LINK = re.compile(r"\]\(([^)\s]+)\)")
 
+# An HTML image, like the icon in the title, carries its target in `src`.
+_SRC = re.compile(r"""<img\b[^>]*?\bsrc=["']([^"']+)["']""")
+
 # Fenced blocks hold example commands and paths, which are not page links.
 _FENCE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 
 
 def _link_targets(markdown: str) -> list[str]:
-    return _LINK.findall(_FENCE.sub("", markdown))
+    text = _FENCE.sub("", markdown)
+    return _LINK.findall(text) + _SRC.findall(text)
 
 
 def test_readme_has_no_relative_links() -> None:
@@ -62,6 +66,13 @@ def test_the_link_check_sees_through_a_badge() -> None:
     sample = "[![License](https://img.shields.io/badge/x)](LICENSE)\n"
 
     assert _link_targets(sample) == ["https://img.shields.io/badge/x", "LICENSE"]
+
+
+def test_the_link_check_sees_an_html_image() -> None:
+    """An `<img>` is no Markdown link, and its source breaks the same way."""
+    sample = '# <img src="assets/icon.svg" alt="" width="40"> Title\n'
+
+    assert _link_targets(sample) == ["assets/icon.svg"]
 
 
 def test_the_link_check_ignores_code_blocks() -> None:
