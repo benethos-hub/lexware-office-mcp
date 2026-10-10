@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,20 +66,21 @@ jobs:
       # Nothing that talks to Lexware is reachable from here: `testpaths` is
       # tests/, and both live checks sit in live/.
       #
-      # Coverage is measured on 3.14 alone, by this job under its usual name,
-      # so the floor stays a required check. With branch coverage on,
-      # coverage.py 7.16 runs on sys.monitoring under 3.14 and on its older C
-      # tracer under 3.11 to 3.13. Measured on the last three runs that
-      # measured everywhere, 2026-10-08 and -09: the test step took 42 to 46 s
-      # on 3.14, 48 to 67 s on 3.13, about 70 s on 3.11 and 97 to 112 s on
-      # 3.12. Without coverage 3.11 to 3.13 took 30 to 43 s. A line only an
-      # older Python runs is not counted.
+      # Coverage is measured on the newest Python alone, by this job under
+      # its usual name, so the floor stays a required check. With branch
+      # coverage on, coverage.py 7.16 runs on sys.monitoring from 3.14 on and
+      # on its older C tracer under 3.11 to 3.13. Measured on the last three
+      # runs that measured everywhere, 2026-10-08 and -09: the test step took
+      # 42 to 46 s on 3.14, 48 to 67 s on 3.13, about 70 s on 3.11 and 97 to
+      # 112 s on 3.12, and 30 to 43 s on 3.11 to 3.13 without coverage. On
+      # 2026-10-10, locally, coverage added 8 % on 3.14 and 1 % on 3.15. A
+      # line only an older Python runs is not counted.
       - name: Run tests
-        if: matrix.python-version != '3.14'
+        if: matrix.python-version != '3.15'
         run: uv run pytest -q
 
       - name: Run tests with coverage
-        if: matrix.python-version == '3.14'
+        if: matrix.python-version == '3.15'
         run: uv run pytest -q --cov=benethos_lexware_office_mcp --cov-fail-under=80
 
   # Every other job installs from uv.lock, which pins dependencies to a set

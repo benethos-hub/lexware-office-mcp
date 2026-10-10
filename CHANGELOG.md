@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **Python 3.15**, in the classifiers and in the tests every change runs
+  through. The package installs and the suite passes on 3.15.0, and a
+  client receives the same tool list as on 3.14. The container image stays
+  on 3.14 for now.
+
 ### Changed
 
 - **The container image is built with uv 0.13.0.** uv installs the

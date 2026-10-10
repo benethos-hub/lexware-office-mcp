@@ -50,7 +50,7 @@ How to work in this repository. Read this before making changes. See
 
 ## Environment
 
-- Windows, PowerShell or Bash. Python 3.11-3.14.
+- Windows, PowerShell or Bash. Python 3.11-3.15.
 - Set up: `uv sync --extra dev`. Without uv: `py -m venv .venv` then
   `.\.venv\Scripts\python.exe -m pip install -e ".[dev]"`.
 - Run the server (stdio): `uv run benethos-lexware-office-mcp`, or
@@ -125,7 +125,7 @@ containers/       # README.md says which folder is for what
   scripts/
     tag_matches_version.py  # a release tag has to be the package version
   workflows/
-    ci.yml        # lint, test (coverage on 3.14 alone), fresh-install,
+    ci.yml        # lint, test (coverage on 3.15 alone), fresh-install,
                   # docker, and lowest-versions: the oldest allowed
                   # dependencies, an early warning only
     publish.yml   # a published release -> PyPI and the container image

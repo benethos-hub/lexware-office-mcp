@@ -986,7 +986,11 @@ arriving.
   `--version` are actions rather than settings and have no equivalent at all.
 - **Entry points:** `python -m benethos_lexware_office_mcp` or the
   `benethos-lexware-office-mcp` console script.
-- **Python:** 3.11 to 3.14, all in the CI matrix.
+- **Python:** 3.11 to 3.15, all in the CI matrix. 3.15 joined on
+  2026-10-10, the day after its release: the suite passed on 3.15.0 with
+  every compiled dependency as a wheel for it, and the stdio probe of
+  section 14.3 answered byte for byte as on 3.14. The image stays on 3.14
+  until `python:3.15-slim` exists and the decision to move it is made.
 - **3.14 changed how annotations reach a schema, measured 2026-08-22.** One
   parameter carries a description built at startup, because the default it
   states is configurable, and the finished annotation is attached after the
@@ -2877,13 +2881,15 @@ order:
    oldest allowed version of every direct dependency on Python 3.11, with no
    lockfile, and runs the suite, so a lower bound in `pyproject.toml` that has
    stopped being true shows up. It is an early warning, not a required check.
-   Since 2026-10-10 only `test (3.14)` measures coverage and holds the
-   floor, where coverage.py follows branches through `sys.monitoring`. The
-   other matrix jobs run the suite without measuring, since under the older
-   tracer the test step took up to 112 seconds on 3.12 against 42 to 46 on
-   3.14, and 30 to 43 without it. The job keeps its name, so the floor stays
-   a required check, and a line that only an older Python runs no longer
-   counts.
+   Since 2026-10-10 only the newest Python of the matrix measures coverage
+   and holds the floor, `test (3.15)` once 3.15 joined the same day, where
+   coverage.py follows branches through `sys.monitoring`. The other matrix
+   jobs run the suite without measuring, since under the older tracer the
+   test step took up to 112 seconds on 3.12 against 42 to 46 on 3.14, and
+   30 to 43 without it. Locally coverage added 8 percent to a run on 3.14
+   and 1 percent on 3.15. The job keeps its name, so the floor stays a
+   required check once that name is one, and a line that only an older
+   Python runs no longer counts.
    `.github/dependabot.yml` asks weekly about the dependency ranges, the
    pinned actions and the container base image.
 
