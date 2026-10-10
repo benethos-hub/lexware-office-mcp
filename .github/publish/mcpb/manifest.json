@@ -4,7 +4,7 @@
   "display_name": "Unofficial Lexware Office MCP Server",
   "version": "0.5.0",
   "description": "Unofficial MCP server for the Lexware Office accounting API — runs over stdio or HTTP.",
-  "long_description": "Not affiliated with Lexware. **Nothing is enabled after installing**, so Claude Desktop shows the server as failed until you choose its tools. Pick the prompt **Set up Lexware Office** under the plus in the message box: it opens the configuration interface in your browser, where you enter the API key and decide which tools exist. Permissions apply at once, a new key after quitting Claude Desktop from the tray and starting it again.",
+  "long_description": "Not affiliated with Lexware. **Nothing is enabled after installing**, so Claude Desktop shows the server as failed until you choose its tools. Pick the prompt **Set up Lexware Office** under the plus in the message box: it opens the configuration interface in your browser, where you enter the API key and decide which tools exist. Both apply at once. A key changed later applies after quitting Claude Desktop from the tray and starting it again.",
   "author": {
     "name": "Benedikt Oswald"
   },
