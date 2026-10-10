@@ -36,7 +36,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.5.0.**
+> **Status: 0.5.1.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is connected. Every
@@ -250,7 +250,17 @@ cut access if anything looks wrong.
 
 ## Installation
 
-The simplest way to run the server — no clone, no manual virtual environment,
+**In Claude Desktop the shortest way is the extension.** Download
+[benethos-lexware-office-mcp.mcpb](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp.mcpb)
+and drag it into Claude Desktop under *Settings → Extensions*. Claude
+Desktop brings uv and Python itself, so nothing else has to be installed.
+Nothing is enabled after installing, which is why Claude Desktop shows the
+server as failed at first: pick **Set up Lexware Office** under the plus in
+the message box, and in the page it opens enter the API key and choose the
+tools. Both apply at once. Use either the extension or the entry in
+`claude_desktop_config.json` below, not both, or every tool is there twice.
+
+For any other client, the simplest way to run the server — no clone, no manual virtual environment,
 no `git`. `uvx` fetches and runs it on demand from
 [PyPI](https://pypi.org/project/benethos-lexware-office-mcp/) (published as
 `benethos-lexware-office-mcp`). To run it in a container instead, see
@@ -296,7 +306,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.0"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.1"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -647,7 +657,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.5.0` for an exact release,
+Pin a version for anything you depend on - `:0.5.1` for an exact release,
 `:0.5` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.

@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-10
+
+A patch release, because no installation trips over it: everything new
+is added beside what was there, and the two flags `search_vouchers`
+loses never filtered anything. New are a Claude Desktop extension, an
+entry in the MCP Registry, a prompt that opens `setup` from the client,
+and Python 3.15 among the tested versions.
+
 ### Added
 
 - **Python 3.15**, in the classifiers and in the tests every change runs
@@ -1377,7 +1385,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.0...v0.4.1

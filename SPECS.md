@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.5.0.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.5.1.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, and a client has reached a live account
@@ -62,7 +62,7 @@ exception.
 | GitHub repo | `benethos-hub/lexware-office-mcp` (plain, for discoverability) |
 | Container image | `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, every release from 0.2.0 |
 | Publishing environment | `pypi-benethos-lexware-office-mcp` |
-| MCP Registry entry | `io.github.benethos-hub/benethos-lexware-office-mcp`, from the first release after 0.5.0 |
+| MCP Registry entry | `io.github.benethos-hub/benethos-lexware-office-mcp`, from 0.5.1 |
 | Env var prefix | `LXO_MCP_` |
 | README H1 | `# Unofficial Lexware Office MCP Server`, the icon from `assets/` before it |
 
@@ -2351,7 +2351,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.5.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.5.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
@@ -3208,6 +3208,7 @@ suggested they were.
 | 0.4.1 | The image on current dependencies | **released 2026-10-05** - no change to the package itself. Python 3.14.8, cryptography 50.0.2 with OpenSSL 4.0.3, MCP SDK 2.3.0 and pypdfium2 5.14.0 with PDFium 156, built with uv 0.12.23 from a stage of its own, so Dependabot sees it. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.0's |
 | 0.4.2 | The container files in `containers/`, and a restart on a changed `.env` that loses nothing | **released 2026-10-08** - `containers/production/` runs the published image at the version its `.env` names, `containers/development/` builds from the checkout beside it, both hardened. The image is published under the package's name as well, and under the old one through the 0.4 line. A save in the first seconds after a start reaches the server, and an open stream holds a shutdown back for five seconds at most |
 | 0.5.0 | The configuration interface rebuilt, HTTPS for the local network, and two reviews' findings | **released 2026-10-08** - a minor, because an installation can trip over it: the image is published under the package's name alone, and `setup` listens on 8771, asks for a start code and has no `/export` any more. `setup` has four pages in a frame of its own, `containers/production/` puts Caddy in front of the server for clients on the local network, and the image is built on pydantic 2.14 and a rebuilt Python 3.14.8 base. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.1's |
+| 0.5.1 | The Claude Desktop extension, the MCP Registry entry, setup from the client, and `search_vouchers` filtering what it says it does | **released 2026-10-10** - a patch, because no installation trips over it: everything new is added beside what was there, and the two flags `search_vouchers` loses never filtered anything (#95). A tool now refuses an argument it does not take, which the SDK used to drop. The extension brings its own uv and Python, `setup` opens from a prompt the person picks in the client, and a key saved into a server that had none is used at once, all measured in a fresh Windows Sandbox. Python 3.15 joins the tested versions. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.0's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
