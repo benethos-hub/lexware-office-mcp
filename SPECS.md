@@ -2578,9 +2578,10 @@ every test in this repository. Section 14.3 says how to look.
   litter.
 - **A link keeps working after a restart.** `read_download` and
   `resources/read` both resolve the file from the download directory. The
-  file outlives the process, and nothing about a link is tied to one. The name is sanitized and
-  the result checked to be inside the directory, since it arrives from the
-  caller. Its content type comes from the extension, which is the name the API
+  file outlives the process, and nothing about a link is tied to one. The
+  name is sanitized and the result checked to be inside the directory, since
+  it arrives from the caller. Its content type comes from the extension,
+  which is the name the API
   itself chose in its `Content-Disposition`. **That name always carried an
   extension**, checked 2026-10-08 over every file and every rendered
   document in the test account (`{id}.pdf`, `{id}.png`,
@@ -2640,8 +2641,9 @@ every test in this repository. Section 14.3 says how to look.
   - **The list names the same newest downloads**, because the SDK answers
     `resources/list` whole and ignores the cursor the protocol has for paging.
     An entry is about 220 bytes, measured 2026-10-12 with the size it carries
-    since then, so a thousand downloads made a list of about 220 KB. Where nothing is deleted, an older file is unlisted but
-    still readable by its link and through `read_download`.
+    since then, so a thousand downloads made a list of about 220 KB. Where
+    nothing is deleted, an older file is unlisted but still readable by its
+    link and through `read_download`.
 - **A client is told when the tool list changes, since 2026-08-22.** For
   resources it still is not, and the measurement below explains why the
   default is what it is. Measured against mcp 2.0.0 on 2026-08-21:
@@ -3073,9 +3075,10 @@ described in section 7.1. Nothing on the API side is outstanding.
    did on its own: the image is published only by a release, so a fix in
    the base reached users with the next release either way. Now a rebuild
    gets the same bytes, and Dependabot's pull request says when the base
-   moved, which is the cue for a patch release. The `# syntax=` line went with it, because it pulled a frontend
-   image by a moving tag on every build. `tests/test_packaging.py` refuses
-   an image without a digest and the line coming back.
+   moved, which is the cue for a patch release. The `# syntax=` line went
+   with it, because it pulled a frontend image by a moving tag on every
+   build. `tests/test_packaging.py` refuses an image without a digest and
+   the line coming back.
 
    **uv has a stage of its own**, since 2026-10-05. Dependabot reads
    `FROM` lines only, and uv was copied with `COPY --from=` straight from
