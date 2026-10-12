@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-12
+
+A patch release, because no installation trips over it: a client
+receives a shorter tool list and a fuller handshake, every answer stays
+the same, and the container image moves to current dependencies.
+
 ### Added
 
 - **The handshake names the project.** A client that shows what it is
@@ -33,9 +39,8 @@ housekeeping are out of scope here — design decisions live in
   text. The three file tools keep the schema they declare.
 - **platformdirs 4.13.0 and pydantic 2.14.1 in the lockfile the image is
   built from**, with pydantic-core 2.50.1 under it. An installation from the
-  index resolved them already. A client receives the same tool list and the
-  same answers as before, and the configuration is found in the same
-  directories.
+  index resolved them already. On their own they change nothing a client
+  receives, and the configuration is found in the same directories.
 
 ## [0.5.1] - 2026-10-10
 
@@ -1409,7 +1414,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.1...v0.4.2
