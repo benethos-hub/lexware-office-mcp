@@ -311,36 +311,44 @@ PyPI package, the container image and the extension.
 
 ### As a Claude Desktop extension
 
-**1. Install Claude Desktop** from
-[claude.ai/download](https://claude.ai/download) and sign in, if you have not
-already.
+All it needs is [Claude Desktop](https://claude.ai/download), signed in.
 
-**2. Download the extension**,
+**1. Get an API key.** Sign in to Lexware Office as the account owner, open
+<https://app.lexware.de/addons/public-api>, create a key and copy it straight
+away, as it is shown once only. The same page revokes it at any time. See
+[Getting an API key](#getting-an-api-key).
+
+**2. Download the extension.** This link always gives the newest release:
 [benethos-lexware-office-mcp.mcpb](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp.mcpb).
-That link always gives the newest release. Each release also carries the
-file with its version in the name, for one in particular.
 
-**3. Install it.** In Claude Desktop open *Settings → Extensions* and drag the
-file in. The dialog asks for nothing. It warns that an extension can reach
-everything on your computer, which is true of every local MCP server, this one
-included. Claude Desktop brings uv and Python itself and installs the
-server's dependencies on its first start, the versions in this project's
-lockfile.
+**3. Drag it into Claude Desktop** under *Settings → Extensions*. Claude
+Desktop brings Python and uv itself, nothing else has to be installed.
 
-**4. Set it up.** Nothing is enabled after installing, so for now Claude
-Desktop shows the server as failed, offering no tools. In a new chat open the
-plus in the message box and pick **Set up Lexware Office**. Your browser
-opens the interface described under
-[Configuring it in a browser](#configuring-it-in-a-browser): enter the API key
-under *Zugangsdaten*, choose the tools under *Rechte*, and close it with
-*Beenden*. Both apply at once, without restarting Claude Desktop. Left open,
-the page ends itself after 30 minutes without use.
+**4. Open the setup.** In a chat, click the plus in the message box, then
+*Connectors* → *Add from Unofficial Lexware Office MCP Server* →
+**Set up Lexware Office**. Your browser opens the interface described under
+[Configuring it in a browser](#configuring-it-in-a-browser). Only you can
+pick this, the model cannot.
 
-**5. Try it.** Ask *"Which Lexware Office account are you connected to?"* -
-the answer names the company the key belongs to.
+**5. Enter the key and choose the tools.** The key goes under
+*Zugangsdaten*, the tools are ticked under *Rechte*, and *Beenden* closes the
+page. Both apply at once, without restarting Claude Desktop.
+
+**6. Try it.** Ask *"Which Lexware Office account are you connected to?"*
+The answer names the company the key belongs to.
 
 Worth knowing:
 
+- **Failed until step 5.** Nothing is enabled after installing, so Claude
+  Desktop shows the server as failed, offering no tools, until the setup
+  page has saved some.
+- **The install dialog** asks for nothing. It warns that an extension can
+  reach everything on your computer, which is true of every local MCP
+  server, this one included. The server's dependencies are installed on its
+  first start, the versions in this project's lockfile.
+- **The setup page ends itself** after 30 minutes without use.
+- **A particular version** is attached to its release as well, with the
+  version in the file name.
 - **One or the other.** The extension and an entry for the same server in
   `claude_desktop_config.json` would offer every tool twice. Remove the entry
   when you switch to the extension.
@@ -466,8 +474,9 @@ uvx benethos-lexware-office-mcp setup
 
 Or from your client: over stdio the server offers a prompt called **Set up
 Lexware Office**, and picking it opens the same pages. In Claude Desktop it
-is under the plus in the message box. The model cannot start it, only you
-can, and it does nothing but open the pages.
+is under the plus in the message box, in *Connectors* under the server's
+name. The model cannot start it, only you can, and it does nothing but open
+the pages.
 
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
 or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
@@ -488,7 +497,9 @@ it is saved unless you say otherwise, and beside it the connection test: one
 call on the button, never on page load, and the account it found. The key is
 never shown back to you, never logged and never exported. If an environment
 variable is setting it, the page says so, because that would override
-whatever you save. The token of the HTTP transport is folded underneath,
+whatever you save. A server that started without a key uses the one saved
+here from its next call. A key that replaces another applies once the client
+starts the server again. The token of the HTTP transport is folded underneath,
 open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
