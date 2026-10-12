@@ -1,83 +1,133 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="540" viewBox="0 0 880 540" role="img" aria-label="How the server sits between an MCP client and the Lexware Office API">
+<svg xmlns="http://www.w3.org/2000/svg" width="1430" height="650" viewBox="0 0 1430 650" role="img" aria-label="How the server sits between an MCP client and the Lexware Office API">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748B"/>
     </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4F46E5"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#312E81" flood-opacity="0.08"/>
+    </filter>
   </defs>
   <style>
-    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
-    .title { font-size: 15px; font-weight: 600; }
-    .note { font-size: 12.5px; fill: #334155; }
-    .label { font-size: 12px; fill: #475569; }
-    .code { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 11.5px; fill: #334155; }
-    .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; }
-    .layer { fill: #eef2ff; stroke: #818cf8; stroke-width: 1.2; }
-    .outer { fill: #f8fafc; stroke: #4f46e5; stroke-width: 2; }
-    .external { fill: #f1f5f9; stroke: #64748b; stroke-width: 1.5; }
-    .line { stroke: #475569; stroke-width: 1.5; fill: none; }
-    .dashed { stroke: #475569; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0F172A; }
+    .head { font-size: 15px; font-weight: 600; letter-spacing: 0.08em; fill: #64748B; }
+    .title { font-size: 20px; font-weight: 600; }
+    .sub { font-size: 15px; fill: #475569; }
+    .faint { font-size: 14px; fill: #64748B; }
+    .steptitle { font-size: 19px; font-weight: 600; fill: #312E81; }
+    .stepsub { font-size: 14.5px; fill: #475569; }
+    .code { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 22px; font-weight: 700; fill: #312E81; }
+    .chiptext { font-size: 15px; }
+    .datatext { font-size: 14.5px; }
+    .lextitle { font-size: 24px; font-weight: 700; }
+    .label { font-size: 14px; font-weight: 600; fill: #64748B; }
+    .foot { font-size: 18px; fill: #475569; }
+    .foot tspan { font-weight: 700; fill: #312E81; }
+    .card { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 2; filter: url(#shadow); }
+    .below { fill: #EEF2FF; stroke: #A5B4FC; stroke-width: 2; }
+    .server { fill: #FFFFFF; stroke: #4F46E5; stroke-width: 3; filter: url(#shadow); }
+    .step { fill: #EEF2FF; stroke: #A5B4FC; stroke-width: 2; }
+    .chip { fill: #F1F2FD; }
+    .lex { fill: #F1F5F9; stroke: #94A3B8; stroke-width: 2; }
+    .data { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1; }
+    line { stroke-width: 2.5; fill: none; }
+    .plain { stroke: #64748B; }
+    .blue { stroke: #4F46E5; }
+    .dash { stroke-dasharray: 6 5; }
   </style>
 
-  <rect x="0" y="0" width="880" height="540" rx="12" fill="#ffffff"/>
-
-  <!-- The client -->
-  <rect class="box" x="10" y="74" width="165" height="92" rx="10"/>
-  <text class="title" x="92" y="106" text-anchor="middle">MCP client</text>
-  <text class="note" x="92" y="129" text-anchor="middle">Claude Desktop,</text>
-  <text class="note" x="92" y="147" text-anchor="middle">or any other</text>
-
-  <!-- The server process and its layers -->
-  <rect class="outer" x="250" y="30" width="370" height="350" rx="12"/>
-  <text class="title" x="435" y="58" text-anchor="middle">This server, one process</text>
-  <text class="label" x="435" y="76" text-anchor="middle">benethos-lexware-office-mcp</text>
-
-  <rect class="layer" x="270" y="92" width="330" height="56" rx="8"/>
-  <text class="title" x="285" y="115">Transport</text>
-  <text class="note" x="285" y="135">stdio, or HTTP with a bearer token</text>
-
-  <rect class="layer" x="270" y="160" width="330" height="56" rx="8"/>
-  <text class="title" x="285" y="183">Policy</text>
-  <text class="note" x="285" y="203">tools.json alone decides which tools exist</text>
-
-  <rect class="layer" x="270" y="228" width="330" height="56" rx="8"/>
-  <text class="title" x="285" y="251">Tools</text>
-  <text class="note" x="285" y="271">25, each a thin call into the client below</text>
-
-  <rect class="layer" x="270" y="296" width="330" height="64" rx="8"/>
-  <text class="title" x="285" y="319">API client</text>
-  <text class="note" x="285" y="339">one rate limiter, retries, every refusal</text>
-  <text class="note" x="285" y="354">turned into a message the model can use</text>
-
-  <!-- The API -->
-  <rect class="external" x="660" y="290" width="210" height="84" rx="10"/>
-  <text class="title" x="765" y="322" text-anchor="middle">Lexware Office</text>
-  <text class="note" x="765" y="342" text-anchor="middle">public API, over HTTPS,</text>
-  <text class="note" x="765" y="358" text-anchor="middle">2 requests a second</text>
-
-  <!-- Configuration, outside the server -->
-  <rect class="box" x="250" y="440" width="180" height="76" rx="10"/>
-  <text class="title" x="340" y="470" text-anchor="middle">.env and tools.json</text>
-  <text class="note" x="340" y="492" text-anchor="middle">in the per-user directory</text>
-
-  <rect class="box" x="490" y="440" width="230" height="76" rx="10"/>
-  <text class="title" x="605" y="470" text-anchor="middle">setup</text>
-  <text class="note" x="605" y="492" text-anchor="middle">key and tools, in the browser,</text>
-  <text class="note" x="605" y="508" text-anchor="middle">a process of its own</text>
-
-  <!-- Arrows -->
-  <path class="line" d="M 177 120 L 268 120" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
-  <text class="label" x="190" y="111">JSON-RPC</text>
-
-  <path class="line" d="M 600 330 L 658 330" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
-
-  <path class="dashed" d="M 340 438 L 340 382" marker-end="url(#arrow)"/>
-  <text class="label" x="348" y="414">read</text>
-
-  <path class="line" d="M 488 478 L 432 478" marker-end="url(#arrow)"/>
-  <text class="label" x="444" y="470">writes</text>
-
-  <path class="dashed" d="M 560 382 L 590 438" marker-end="url(#arrow)"/>
-  <text class="label" x="600" y="398">started by the prompt</text>
-  <text class="label" x="600" y="413">"Set up Lexware Office", or by</text>
-  <text class="code" x="600" y="429">benethos-lexware-office-mcp setup</text>
+  <rect x="0" y="0" width="1430" height="650" rx="12" fill="#F8F9FE"/>
+  <text class="head" x="22" y="54">WHO WORKS WITH IT</text>
+  <text class="head" x="310" y="54">THE SERVER, ONE PROCESS</text>
+  <text class="head" x="990" y="54">YOUR ACCOUNT</text>
+  <rect class="card" x="22" y="90" width="230" height="86" rx="14"/>
+  <text class="title" x="38" y="123">AI agent, local</text>
+  <text class="sub" x="38" y="146">any MCP client</text>
+  <text class="faint" x="38" y="164">starts the server itself</text>
+  <rect class="card" x="22" y="220" width="230" height="86" rx="14"/>
+  <text class="title" x="38" y="253">Remote AI agent</text>
+  <text class="sub" x="38" y="276">over HTTP</text>
+  <text class="faint" x="38" y="294">bearer token, HTTPS too</text>
+  <rect class="card" x="22" y="480" width="230" height="86" rx="14"/>
+  <text class="title" x="38" y="518">A person</text>
+  <text class="sub" x="38" y="542">sets the key and the tools</text>
+  <rect class="server" x="311.5" y="71.5" width="617" height="357" rx="22"/>
+  <g transform="translate(337 93) scale(0.2266)"><defs> <linearGradient id="icon-rim3d" x1="0.15" y1="0" x2="0.85" y2="1"> <stop offset="0%" stop-color="#FFFFFF"/> <stop offset="30%" stop-color="#DDE4FF"/> <stop offset="55%" stop-color="#A5B4FC"/> <stop offset="80%" stop-color="#6E79C9"/> <stop offset="100%" stop-color="#434C8F"/> </linearGradient> <linearGradient id="icon-face" x1="0.2" y1="0" x2="0.8" y2="1"> <stop offset="0%" stop-color="#F7F9FF"/> <stop offset="100%" stop-color="#E2E8FD"/> </linearGradient> <radialGradient id="icon-dish" cx="0.5" cy="0.5" r="0.5"> <stop offset="75%" stop-color="#4C51A8" stop-opacity="0"/> <stop offset="100%" stop-color="#4C51A8" stop-opacity="0.28"/> </radialGradient> </defs> <circle cx="128" cy="128" r="126" fill="url(#icon-face)"/> <circle cx="128" cy="128" r="119" fill="none" stroke="url(#icon-rim3d)" stroke-width="14"/> <circle cx="128" cy="128" r="112" fill="none" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="3"/> <circle cx="128" cy="128" r="110" fill="url(#icon-dish)"/> <path d="M 84 46 H 156 A 12 12 0 0 1 168 58 V 174 l -12 10 l -12 -10 l -12 10 l -12 -10 l -12 10 l -12 -10 l -12 10 l -12 -10 V 58 A 12 12 0 0 1 84 46 Z" fill="#FFFFFF" stroke="#312E81" stroke-width="7" stroke-linejoin="round"/> <g stroke="#818CF8" stroke-width="9" stroke-linecap="round"> <line x1="90" y1="82" x2="150" y2="82"/> <line x1="90" y1="106" x2="150" y2="106"/> <line x1="90" y1="130" x2="126" y2="130"/> </g> <circle cx="184" cy="182" r="38" fill="#EEF2FF"/> <circle cx="184" cy="182" r="34" fill="#4F46E5"/> <path d="M 170 183 l 9 10 l 19 -22" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <text class="code" x="409" y="118">benethos-lexware-office-mcp</text>
+  <text class="sub" x="409" y="142">as an extension, from PyPI or as a container image</text>
+  <rect class="step" x="337" y="183" width="172" height="110" rx="12"/>
+  <text class="steptitle" x="351" y="223">Policy</text>
+  <text class="stepsub" x="351" y="249">tools.json</text>
+  <text class="stepsub" x="351" y="271">one flag per tool</text>
+  <rect class="step" x="537" y="183" width="172" height="110" rx="12"/>
+  <text class="steptitle" x="551" y="223">25 tools</text>
+  <text class="stepsub" x="551" y="249">15 read, 9 write</text>
+  <text class="stepsub" x="551" y="271">1 deletes articles</text>
+  <rect class="step" x="737" y="183" width="172" height="110" rx="12"/>
+  <text class="steptitle" x="751" y="223">API client</text>
+  <text class="stepsub" x="751" y="249">one rate limiter</text>
+  <text class="stepsub" x="751" y="271">backoff on 429</text>
+  <rect class="chip" x="337" y="321" width="281" height="38" rx="9"/>
+  <text class="chiptext" x="350" y="345.5">No tools.json, no tools at all</text>
+  <rect class="chip" x="628" y="321" width="281" height="38" rx="9"/>
+  <text class="chiptext" x="641" y="345.5">Checked when listed and when called</text>
+  <rect class="chip" x="337" y="369" width="281" height="38" rx="9"/>
+  <text class="chiptext" x="350" y="393.5">Unknown arguments refused</text>
+  <rect class="chip" x="628" y="369" width="281" height="38" rx="9"/>
+  <text class="chiptext" x="641" y="393.5">Key never logged, never in an answer</text>
+  <rect class="lex" x="991" y="71" width="416" height="358" rx="22"/>
+  <text class="lextitle" x="1014" y="122">Lexware Office</text>
+  <text class="sub" x="1014" y="147">public API over HTTPS</text>
+  <text class="sub" x="1014" y="168">your own key, revocable any time</text>
+  <text class="sub" x="1014" y="189">2 requests a second for the whole account</text>
+  <rect class="data" x="1014" y="208" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1027" y="231.5">Contacts</text>
+  <rect class="data" x="1205" y="208" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1218" y="231.5">Articles</text>
+  <rect class="data" x="1014" y="252" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1027" y="275.5">Vouchers and payments</text>
+  <rect class="data" x="1205" y="252" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1218" y="275.5">Invoices, quotations</text>
+  <rect class="data" x="1014" y="296" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1027" y="319.5">Credit notes, dunnings</text>
+  <rect class="data" x="1205" y="296" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1218" y="319.5">Recurring invoices</text>
+  <rect class="data" x="1014" y="340" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1027" y="363.5">Files and receipts</text>
+  <rect class="data" x="1205" y="340" width="183" height="36" rx="9"/>
+  <text class="datatext" x="1218" y="363.5">Master data</text>
+  <rect class="below" x="310" y="480" width="160" height="86" rx="14"/>
+  <text class="title" x="326" y="513">setup</text>
+  <text class="sub" x="326" y="536">in the browser</text>
+  <text class="faint" x="326" y="554">its own process</text>
+  <rect class="below" x="530" y="480" width="200" height="86" rx="14"/>
+  <text class="title" x="546" y="513">.env, tools.json</text>
+  <text class="sub" x="546" y="536">key and permissions</text>
+  <text class="faint" x="546" y="554">per-user directory</text>
+  <rect class="below" x="770" y="480" width="160" height="86" rx="14"/>
+  <text class="title" x="786" y="513">Downloads</text>
+  <text class="sub" x="786" y="536">PDF and XRechnung</text>
+  <text class="faint" x="786" y="554">the last 100</text>
+  <line class="plain" x1="256" y1="133" x2="306" y2="133" marker-start="url(#p)" marker-end="url(#p)"/>
+  <line class="plain" x1="256" y1="263" x2="306" y2="263" marker-start="url(#p)" marker-end="url(#p)"/>
+  <line class="blue" x1="511" y1="238" x2="533" y2="238" marker-end="url(#b)"/>
+  <line class="blue" x1="711" y1="238" x2="733" y2="238" marker-end="url(#b)"/>
+  <line class="blue" x1="934" y1="238" x2="986" y2="238" marker-start="url(#b)" marker-end="url(#b)"/>
+  <line class="plain" x1="256" y1="523" x2="306" y2="523" marker-end="url(#p)"/>
+  <line class="plain" x1="472" y1="523" x2="526" y2="523" marker-end="url(#p)"/>
+  <line class="plain dash" x1="390" y1="434" x2="390" y2="476" marker-end="url(#p)"/>
+  <line class="plain dash" x1="630" y1="476" x2="630" y2="434" marker-end="url(#p)"/>
+  <line class="plain dash" x1="850" y1="434" x2="850" y2="476" marker-end="url(#p)"/>
+  <text class="label" x="262" y="122">stdio</text>
+  <text class="label" x="262" y="252">HTTP</text>
+  <text class="label" x="938" y="226">HTTPS</text>
+  <text class="label" x="260" y="512">browser</text>
+  <text class="label" x="480" y="512">writes</text>
+  <text class="label" x="404" y="452">started by the prompt</text>
+  <text class="label" x="404" y="469">or the command line</text>
+  <text class="label" x="638" y="461">reads</text>
+  <text class="label" x="858" y="461">saves</text>
+  <text class="foot" x="22" y="618"><tspan>Unofficial</tspan>, not affiliated with Lexware. Nothing is enabled until you say so. The API key never reaches the model.</text>
 </svg>

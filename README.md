@@ -126,7 +126,7 @@ without a restart.
 
 ## How it works
 
-![The MCP client speaks JSON-RPC with the server's transport. Inside the server the policy file decides which tools exist, the tools call the API client, and the API client reaches Lexware Office over HTTPS. setup, a process of its own, writes the .env and tools.json the server reads, and the prompt Set up Lexware Office starts it, as does the command benethos-lexware-office-mcp setup.](https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/architecture.svg)
+![A local AI agent reaches the server over stdio, a remote one over HTTP with a bearer token. Inside the server the policy file tools.json decides which of the 25 tools exist, and every call goes through one API client with one rate limiter to the public API of Lexware Office over HTTPS. setup, a process of its own that the prompt Set up Lexware Office or the command line starts, writes the .env and tools.json the server reads. Downloads are saved to a folder that keeps the last 100.](https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/architecture.svg)
 
 The client starts the server, or reaches it over HTTP, and speaks MCP with
 it. What a model can do is settled before anything reaches Lexware: a tool
