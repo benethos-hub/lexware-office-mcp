@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **platformdirs 4.13.0 and pydantic 2.14.1 in the lockfile the image is
+  built from**, with pydantic-core 2.50.1 under it. An installation from the
+  index resolved them already. A client receives the same tool list and the
+  same answers as before, and the configuration is found in the same
+  directories.
+
 ## [0.5.1] - 2026-10-10
 
 A patch release, because no installation trips over it: everything new
