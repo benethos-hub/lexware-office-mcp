@@ -166,7 +166,12 @@ fails the suite.
    merge, because the API replaces rather than patches.
 3. Expose it in the matching `tools/` module, then write the docstring by the
    rule below. It writes no log line of its own: the wrapper
-   `register_tool` puts around every tool writes one per call.
+   `register_tool` puts around every tool writes one per call. Return a
+   plain `dict`: it is answered as text and as structured content, and no
+   output schema is published for it, since the only one the SDK could
+   derive says nothing. A tool that answers with content blocks returns a
+   `CallToolResult` and names its model, as the file tools do, see SPECS.md
+   section 8.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds. A named `Literal`
    or an argument model goes in `records/types.py`, not in the tool module.

@@ -65,7 +65,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.5.1.**
+> **Status: 0.5.2.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -126,7 +126,7 @@ without a restart.
 
 ## How it works
 
-![A local AI agent reaches the server over stdio, a remote one over HTTP with a bearer token. Inside the server the policy file tools.json decides which of the 25 tools exist, and every call goes through one API client with one rate limiter to the public API of Lexware Office over HTTPS. setup, a process of its own that the prompt Set up Lexware Office or the command line starts, writes the .env and tools.json the server reads. Downloads are saved to a folder that keeps the last 100.](https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/architecture.svg)
+![A local AI agent reaches the server over stdio, a remote one over HTTP with a bearer token. Inside the server the policy file tools.json decides which tools exist, and every call goes through one API client with one rate limiter to the public API of Lexware Office over HTTPS. setup, a process of its own that the prompt Set up Lexware Office or the command line starts, writes the .env and tools.json the server reads. Downloads are saved to a folder that keeps the last 100.](https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/architecture.svg)
 
 The client starts the server, or reaches it over HTTP, and speaks MCP with
 it. What a model can do is settled before anything reaches Lexware: a tool
@@ -270,8 +270,8 @@ and nothing outside it is read, links included.
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
   its own Python and the `uvx` command every example below uses. The Claude
-  Desktop extension needs neither, only
-  [Claude Desktop](https://claude.ai/download), which brings both itself
+  Desktop extension needs neither uv nor Python:
+  [Claude Desktop](https://claude.ai/download) brings both
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
   in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
   Jinja2 for the pages of `setup`
@@ -347,8 +347,8 @@ Worth knowing:
   server, this one included. The server's dependencies are installed on its
   first start, the versions in this project's lockfile.
 - **The setup page ends itself** after 30 minutes without use.
-- **A particular version** is attached to its release as well, with the
-  version in the file name.
+- **Every release attaches its own bundle too**, the version in the file
+  name, for installing a particular one.
 - **One or the other.** The extension and an entry for the same server in
   `claude_desktop_config.json` would offer every tool twice. Remove the entry
   when you switch to the extension.
@@ -411,7 +411,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.1"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.2"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -764,7 +764,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.5.1` for an exact release,
+Pin a version for anything you depend on - `:0.5.2` for an exact release,
 `:0.5` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.

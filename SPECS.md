@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.5.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.5.2.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -2360,7 +2360,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.5.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.5.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
@@ -2578,9 +2578,10 @@ every test in this repository. Section 14.3 says how to look.
   litter.
 - **A link keeps working after a restart.** `read_download` and
   `resources/read` both resolve the file from the download directory. The
-  file outlives the process, and nothing about a link is tied to one. The name is sanitized and
-  the result checked to be inside the directory, since it arrives from the
-  caller. Its content type comes from the extension, which is the name the API
+  file outlives the process, and nothing about a link is tied to one. The
+  name is sanitized and the result checked to be inside the directory, since
+  it arrives from the caller. Its content type comes from the extension,
+  which is the name the API
   itself chose in its `Content-Disposition`. **That name always carried an
   extension**, checked 2026-10-08 over every file and every rendered
   document in the test account (`{id}.pdf`, `{id}.png`,
@@ -2640,8 +2641,9 @@ every test in this repository. Section 14.3 says how to look.
   - **The list names the same newest downloads**, because the SDK answers
     `resources/list` whole and ignores the cursor the protocol has for paging.
     An entry is about 220 bytes, measured 2026-10-12 with the size it carries
-    since then, so a thousand downloads made a list of about 220 KB. Where nothing is deleted, an older file is unlisted but
-    still readable by its link and through `read_download`.
+    since then, so a thousand downloads made a list of about 220 KB. Where
+    nothing is deleted, an older file is unlisted but still readable by its
+    link and through `read_download`.
 - **A client is told when the tool list changes, since 2026-08-22.** For
   resources it still is not, and the measurement below explains why the
   default is what it is. Measured against mcp 2.0.0 on 2026-08-21:
@@ -3073,9 +3075,10 @@ described in section 7.1. Nothing on the API side is outstanding.
    did on its own: the image is published only by a release, so a fix in
    the base reached users with the next release either way. Now a rebuild
    gets the same bytes, and Dependabot's pull request says when the base
-   moved, which is the cue for a patch release. The `# syntax=` line went with it, because it pulled a frontend
-   image by a moving tag on every build. `tests/test_packaging.py` refuses
-   an image without a digest and the line coming back.
+   moved, which is the cue for a patch release. The `# syntax=` line went
+   with it, because it pulled a frontend image by a moving tag on every
+   build. `tests/test_packaging.py` refuses an image without a digest and
+   the line coming back.
 
    **uv has a stage of its own**, since 2026-10-05. Dependabot reads
    `FROM` lines only, and uv was copied with `COPY --from=` straight from
@@ -3228,6 +3231,7 @@ suggested they were.
 | 0.4.2 | The container files in `containers/`, and a restart on a changed `.env` that loses nothing | **released 2026-10-08** - `containers/production/` runs the published image at the version its `.env` names, `containers/development/` builds from the checkout beside it, both hardened. The image is published under the package's name as well, and under the old one through the 0.4 line. A save in the first seconds after a start reaches the server, and an open stream holds a shutdown back for five seconds at most |
 | 0.5.0 | The configuration interface rebuilt, HTTPS for the local network, and two reviews' findings | **released 2026-10-08** - a minor, because an installation can trip over it: the image is published under the package's name alone, and `setup` listens on 8771, asks for a start code and has no `/export` any more. `setup` has four pages in a frame of its own, `containers/production/` puts Caddy in front of the server for clients on the local network, and the image is built on pydantic 2.14 and a rebuilt Python 3.14.8 base. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.1's |
 | 0.5.1 | The Claude Desktop extension, the MCP Registry entry, setup from the client, and `search_vouchers` filtering what it says it does | **released 2026-10-10** - a patch, because no installation trips over it: everything new is added beside what was there, and the two flags `search_vouchers` loses never filtered anything (#95). A tool now refuses an argument it does not take, which the SDK used to drop. The extension brings its own uv and Python, `setup` opens from a prompt the person picks in the client, and a key saved into a server that had none is used at once, all measured in a fresh Windows Sandbox. Python 3.15 joins the tested versions. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.0's |
+| 0.5.2 | What a client receives, and the image on current dependencies | **released 2026-10-12** - a patch, because no installation trips over it. The twenty-two record tools publish no output schema, which shortens the tool list by 1,773 characters while their answers stay byte-identical, the handshake carries the description, website and icons of the registry entry, and a listed download carries its size. The image moves to platformdirs 4.13.0 and pydantic 2.14.1. The README that PyPI shows catches up with the extension's six steps and the redrawn diagram. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.1's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
