@@ -497,7 +497,9 @@ it is saved unless you say otherwise, and beside it the connection test: one
 call on the button, never on page load, and the account it found. The key is
 never shown back to you, never logged and never exported. If an environment
 variable is setting it, the page says so, because that would override
-whatever you save. The token of the HTTP transport is folded underneath,
+whatever you save. A server that started without a key uses the one saved
+here from its next call. A key that replaces another applies once the client
+starts the server again. The token of the HTTP transport is folded underneath,
 open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
