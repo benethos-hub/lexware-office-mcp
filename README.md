@@ -315,28 +315,33 @@ PyPI package, the container image and the extension.
 [claude.ai/download](https://claude.ai/download) and sign in, if you have not
 already.
 
-**2. Download the extension**,
+**2. Get an API key.** Sign in to Lexware Office as the account owner, open
+<https://app.lexware.de/addons/public-api>, create a key and copy it. It is
+shown once only. See [Getting an API key](#getting-an-api-key).
+
+**3. Download the extension**,
 [benethos-lexware-office-mcp.mcpb](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp.mcpb).
 That link always gives the newest release. Each release also carries the
 file with its version in the name, for one in particular.
 
-**3. Install it.** In Claude Desktop open *Settings → Extensions* and drag the
+**4. Install it.** In Claude Desktop open *Settings → Extensions* and drag the
 file in. The dialog asks for nothing. It warns that an extension can reach
 everything on your computer, which is true of every local MCP server, this one
 included. Claude Desktop brings uv and Python itself and installs the
 server's dependencies on its first start, the versions in this project's
 lockfile.
 
-**4. Set it up.** Nothing is enabled after installing, so for now Claude
+**5. Set it up.** Nothing is enabled after installing, so for now Claude
 Desktop shows the server as failed, offering no tools. In a new chat open the
-plus in the message box and pick **Set up Lexware Office**. Your browser
+plus in the message box, then *Connectors*, then *Add from Unofficial
+Lexware Office MCP Server*, and pick **Set up Lexware Office**. Your browser
 opens the interface described under
 [Configuring it in a browser](#configuring-it-in-a-browser): enter the API key
 under *Zugangsdaten*, choose the tools under *Rechte*, and close it with
 *Beenden*. Both apply at once, without restarting Claude Desktop. Left open,
 the page ends itself after 30 minutes without use.
 
-**5. Try it.** Ask *"Which Lexware Office account are you connected to?"* -
+**6. Try it.** Ask *"Which Lexware Office account are you connected to?"* -
 the answer names the company the key belongs to.
 
 Worth knowing:
@@ -466,8 +471,9 @@ uvx benethos-lexware-office-mcp setup
 
 Or from your client: over stdio the server offers a prompt called **Set up
 Lexware Office**, and picking it opens the same pages. In Claude Desktop it
-is under the plus in the message box. The model cannot start it, only you
-can, and it does nothing but open the pages.
+is under the plus in the message box, in *Connectors* under the server's
+name. The model cannot start it, only you can, and it does nothing but open
+the pages.
 
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
 or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
