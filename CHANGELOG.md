@@ -16,8 +16,9 @@ housekeeping are out of scope here — design decisions live in
 ## [0.5.2] - 2026-10-12
 
 A patch release, because no installation trips over it: a client
-receives a shorter tool list and a fuller handshake, every answer stays
-the same, and the container image moves to current dependencies.
+receives a shorter tool list and a fuller handshake, every tool answers
+as before, only a download's link no longer repeats its name as a title,
+and the container image moves to current dependencies.
 
 ### Added
 
