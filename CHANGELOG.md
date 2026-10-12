@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **The handshake names the project.** A client that shows what it is
+  connected to now receives the server's description, its website and its
+  two icons, the same ones the MCP Registry entry carries. Sent once, when
+  the session starts, and never to the model.
+
 ### Changed
 
 - **The tool list is 1,773 characters shorter.** The twenty-two tools that

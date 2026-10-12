@@ -65,6 +65,9 @@ async def test_a_client_can_connect_and_list_the_tools(tmp_path: Path) -> None:
             tools = await session.list_tools()
 
     assert init.server_info.name == "benethos-lexware-office-mcp"
+    assert init.server_info.website_url is not None
+    assert init.server_info.website_url.startswith("https://github.com/")
+    assert len(init.server_info.icons or []) == 2
     assert [tool.name for tool in tools.tools] == ["get_profile"]
 
 

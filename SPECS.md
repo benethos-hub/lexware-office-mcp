@@ -60,6 +60,7 @@ exception.
 | Console script | `benethos-lexware-office-mcp` |
 | MCP server `name` | `benethos-lexware-office-mcp` |
 | MCP server `title` | `Unofficial Lexware Office MCP Server` |
+| MCP server `description`, `websiteUrl` and `icons` | what the registry entry says, sent once in the handshake for a client to show, since 2026-10-12, and `tests/test_server.py` keeps them equal |
 | GitHub repo | `benethos-hub/lexware-office-mcp` (plain, for discoverability) |
 | Container image | `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, every release from 0.2.0 |
 | Publishing environment | `pypi-benethos-lexware-office-mcp` |
