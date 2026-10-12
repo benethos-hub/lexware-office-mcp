@@ -22,6 +22,10 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **A listed download carries its size**, in bytes, so a client can weigh a
+  file before reading it, as the link in a download's answer already did.
+  The title that repeated the file name is gone from both: a client shows
+  the name when there is no title.
 - **The tool list is 1,773 characters shorter.** The twenty-two tools that
   answer with a record no longer publish an output schema, since the only
   one the SDK could derive for them, an object of anything, said nothing.

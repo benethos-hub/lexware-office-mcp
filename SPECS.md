@@ -2639,8 +2639,8 @@ every test in this repository. Section 14.3 says how to look.
     only "not found" would leave the model guessing whether it ever existed.
   - **The list names the same newest downloads**, because the SDK answers
     `resources/list` whole and ignores the cursor the protocol has for paging.
-    An entry is about 210 bytes, measured, so a thousand downloads made a list
-    of about 210 KB. Where nothing is deleted, an older file is unlisted but
+    An entry is about 220 bytes, measured 2026-10-12 with the size it carries
+    since then, so a thousand downloads made a list of about 220 KB. Where nothing is deleted, an older file is unlisted but
     still readable by its link and through `read_download`.
 - **A client is told when the tool list changes, since 2026-08-22.** For
   resources it still is not, and the measurement below explains why the

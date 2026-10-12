@@ -76,7 +76,9 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
     content type, from the name on disk - a PDF and an
     XRechnung are not the same thing to a client deciding what to do with
     them, which is also why this is a list of files rather than one URI
-    template, which can declare only one type.
+    template, which can declare only one type - and its size, for a client
+    weighing a read. No ``title``: it would repeat ``name``, which is what a
+    client shows when there is none, and the list is sent whole.
 
     A symbolic link is skipped. Nothing this server writes is one, so a link
     in the directory was put there by someone else and could point anywhere.
@@ -89,12 +91,20 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
         Resource(
             uri=uri_for(path.name),
             name=path.name,
-            title=path.name,
             description=_DESCRIPTION,
             mime_type=_plain(storage.content_type_for(path)),
+            size=_size(path),
         )
         for path in storage.newest(directory)[:limit]
     ]
+
+
+def _size(path: Path) -> int | None:
+    """The file's size, or nothing for a file that went since it was listed."""
+    try:
+        return path.stat().st_size
+    except OSError:
+        return None
 
 
 def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
@@ -144,7 +154,6 @@ def link(path: Path, mime_type: str) -> ResourceLink:
         type="resource_link",
         uri=uri_for(path.name),
         name=path.name,
-        title=path.name,
         description=_DESCRIPTION,
         mime_type=_plain(mime_type),
         size=path.stat().st_size,
