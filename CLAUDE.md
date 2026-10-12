@@ -119,7 +119,8 @@ live/             # talks to a real account, run by hand, outside testpaths
 assets/
   icon.svg        # the project icon, in the README title and the registry entry
   icon.png        # rendered from it by render_icon.py - commit both together
-  render_icon.py  # that renderer, a pinned resvg in a throwaway environment
+  social-preview.png # GitHub's link preview, uploaded by hand in the settings
+  render_icon.py  # renders both PNGs, a pinned resvg in a throwaway environment
   architecture.svg # the diagram under "How it works" in the README
 containers/       # README.md says which folder is for what
   images/lexware-office-mcp/
