@@ -23,7 +23,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
 from mcp.server.session import ServerSession
-from mcp.types import Resource, Tool
+from mcp.types import Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook
@@ -69,6 +69,21 @@ all endpoints. One search with the right filter is worth several fetches, and
 a list answers in pages: read the page block of a result before asking for
 another one.
 """
+
+# What a client may show beside the name, sent once in the handshake and
+# never to the model: the same description, address and icons the MCP
+# Registry entry carries, so a client shows what the registry shows.
+# `tests/test_server.py` keeps the two in step.
+DESCRIPTION = (
+    "Unofficial MCP server for the Lexware Office accounting API — runs over "
+    "stdio or HTTP."
+)
+WEBSITE = "https://github.com/benethos-hub/lexware-office-mcp"
+_RAW = "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/"
+ICONS = [
+    Icon(src=_RAW + "icon.svg", mime_type="image/svg+xml", sizes=["any"]),
+    Icon(src=_RAW + "icon.png", mime_type="image/png", sizes=["512x512"]),
+]
 
 # What a client offers the person to pick, see `transport.setup_prompt`. The
 # title is here because the instructions below name it.
@@ -328,6 +343,9 @@ def build_server(
     server = PolicyServer(
         name="benethos-lexware-office-mcp",
         title="Unofficial Lexware Office MCP Server",
+        description=DESCRIPTION,
+        website_url=WEBSITE,
+        icons=ICONS,
         version=__version__,
         instructions=_INSTRUCTIONS
         + (_SETUP_HINT if settings.transport == "stdio" else ""),

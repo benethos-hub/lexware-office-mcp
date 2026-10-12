@@ -60,6 +60,7 @@ exception.
 | Console script | `benethos-lexware-office-mcp` |
 | MCP server `name` | `benethos-lexware-office-mcp` |
 | MCP server `title` | `Unofficial Lexware Office MCP Server` |
+| MCP server `description`, `websiteUrl` and `icons` | what the registry entry says, sent once in the handshake for a client to show, since 2026-10-12, and `tests/test_server.py` keeps them equal |
 | GitHub repo | `benethos-hub/lexware-office-mcp` (plain, for discoverability) |
 | Container image | `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, every release from 0.2.0 |
 | Publishing environment | `pypi-benethos-lexware-office-mcp` |
@@ -1506,19 +1507,20 @@ exposed one tool per path.
 after the four price fields of a sales line became optional for a text
 line, and on 2026-10-08 after `document_type` took the voucher list's
 spelling as well and `read_download` stopped suggesting that null renders
-every page, and on 2026-10-10 after `search_vouchers` lost the two flags
-the API ignored.** Serialized as the compact JSON a `tools/list` answer is,
-twenty-five tools come to **53,399 characters**, around 2,136 each.
-Roughly 14,000 to 17,000 tokens, estimated at 3.2 to 3.8 characters per
-token rather than counted with a tokenizer.
+every page, on 2026-10-10 after `search_vouchers` lost the two flags
+the API ignored, and on 2026-10-12 after the twenty-two tools that answer
+with a record stopped publishing an output schema.** Serialized as the
+compact JSON a `tools/list` answer is, twenty-five tools come to **51,274
+characters**, around 2,051 each. Roughly 13,500 to 16,000 tokens, estimated
+at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,352 | 64% |
-| Tool descriptions, the part under a ceiling | 11,190 | 21% |
-| Output schemas | 4,340 | 8% |
+| Input schemas | 34,352 | 67% |
+| Tool descriptions, the part under a ceiling | 11,190 | 22% |
+| Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,041 | 2% |
-| Names, titles and the rest | ~2,476 | 5% |
+| Names, titles and the rest | ~2,124 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
@@ -1556,6 +1558,18 @@ decisions on them from a server it does not trust. Nothing here enforces
 anything - the policy file of section 9 does that, twice, and neither gate
 consults an annotation.
 
+**An output schema is published where it says something.** The three file
+tools declare one, because a generic object schema tells the model nothing
+about `path` versus `uri`, see section 13. The other twenty-two answer
+with a record, and until 2026-10-12 the SDK read their `dict[str, Any]`
+as a structured tool and published `{"type": "object",
+"additionalProperties": true}` with a generated title for each: 1,773
+characters per listing that no client could act on. `tools/_base.py` now
+registers those tools as unstructured and builds the result the SDK would
+have built, with the same serializer, so the answer a client receives is
+byte-identical to before, record and text both, and only the schema is
+gone. Checked the way section 14.3 says, over stdio, before and after.
+
 Two things follow, and neither was obvious before the measurement.
 
 **The 700-character ceiling governs a fifth of the cost.** Of the 34,352
@@ -1567,12 +1581,12 @@ where it should be watched: `create_voucher` spends 1,634 characters on
 sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
-(5,410), `create_voucher` (4,288), `update_voucher` (4,210), `create_contact`
-(4,072), `update_contact` (4,022) and `search_vouchers` (3,530) come to 48% of
+(5,307), `create_voucher` (4,192), `update_voucher` (4,114), `create_contact`
+(3,976), `update_contact` (3,926) and `search_vouchers` (3,433) come to 49% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,584 characters, a little under half.
+`read-only` installation sends 22,431 characters, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
@@ -2625,8 +2639,8 @@ every test in this repository. Section 14.3 says how to look.
     only "not found" would leave the model guessing whether it ever existed.
   - **The list names the same newest downloads**, because the SDK answers
     `resources/list` whole and ignores the cursor the protocol has for paging.
-    An entry is about 210 bytes, measured, so a thousand downloads made a list
-    of about 210 KB. Where nothing is deleted, an older file is unlisted but
+    An entry is about 220 bytes, measured 2026-10-12 with the size it carries
+    since then, so a thousand downloads made a list of about 220 KB. Where nothing is deleted, an older file is unlisted but
     still readable by its link and through `read_download`.
 - **A client is told when the tool list changes, since 2026-08-22.** For
   resources it still is not, and the measurement below explains why the

@@ -25,6 +25,30 @@ def test_server_identifies_itself() -> None:
     assert server.version == __version__
 
 
+def test_the_handshake_carries_what_the_registry_entry_carries() -> None:
+    """Description, website and icons, sent once and shown by a client.
+
+    Taken from the registry entry rather than written a second time, so a
+    person who found the server in the registry and one who connected a
+    client to it are told the same thing.
+    """
+    entry = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / ".github"
+            / "publish"
+            / "mcp-registry"
+            / "server.json"
+        ).read_text(encoding="utf-8")
+    )
+    server = build_server(Settings())
+
+    assert server.description == entry["description"]
+    assert server.website_url == entry["repository"]["url"]
+    icons = [i.model_dump(by_alias=True, exclude_none=True) for i in server.icons or []]
+    assert icons == entry["icons"]
+
+
 def test_a_server_answers_to_its_own_policy(tmp_path: Path) -> None:
     target = tmp_path / "tools.json"
 

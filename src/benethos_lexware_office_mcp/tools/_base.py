@@ -11,10 +11,11 @@ import functools
 import inspect
 import time
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, NamedTuple
+from typing import Annotated, Any, NamedTuple, get_origin, get_type_hints
 
+import pydantic_core
 from mcp.server.mcpserver import MCPServer
-from mcp.types import CallToolResult, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
 from .. import logbook
@@ -31,6 +32,7 @@ __all__ = [
     "PageSize",
     "UploadPath",
     "VersionField",
+    "as_result",
     "register_tool",
     "require_finalize_confirmed",
     "require_version",
@@ -218,7 +220,42 @@ def register_tool(server: MCPServer, func: Callable[..., Awaitable[Any]]) -> Non
     policy = getattr(server, "policy", None)
     if not isinstance(policy, ToolPolicy):
         policy = ToolPolicy()
-    server.tool(annotations=_annotations(func.__name__))(logged(guarded(func, policy)))
+    tool = logged(guarded(func, policy))
+    record = _returns_record(func)
+    server.tool(
+        annotations=_annotations(func.__name__),
+        structured_output=False if record else None,
+    )(as_result(tool) if record else tool)
+
+
+def _returns_record(func: Callable[..., Any]) -> bool:
+    """Whether the tool answers with a plain ``dict``, as all but the file tools do."""
+    return get_origin(get_type_hints(func, include_extras=True).get("return")) is dict
+
+
+def as_result(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
+    """``func``, its record answered as the SDK would answer it, minus one schema.
+
+    Left to itself, the SDK reads ``-> dict[str, Any]`` as a structured tool
+    and publishes an output schema for it: ``{"type": "object",
+    "additionalProperties": true}`` with a generated title, seventy-odd
+    characters that say nothing and are sent with every request, see
+    SPECS.md section 8. The result it builds from the record is kept exactly,
+    the JSON text for a client that reads content and the record itself as
+    the structured half, by making it here with the same serializer, and the
+    tool is registered as unstructured so no schema is published. The file
+    tools build their own result and declare a schema worth sending.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        record = await func(*args, **kwargs)
+        text = pydantic_core.to_json(record, fallback=str, indent=2).decode()
+        return CallToolResult(
+            content=[TextContent(type="text", text=text)], structured_content=record
+        )
+
+    return wrapper
 
 
 def logged(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

@@ -13,8 +13,24 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **The handshake names the project.** A client that shows what it is
+  connected to now receives the server's description, its website and its
+  two icons, the same ones the MCP Registry entry carries. Sent once, when
+  the session starts, and never to the model.
+
 ### Changed
 
+- **A listed download carries its size**, in bytes, so a client can weigh a
+  file before reading it, as the link in a download's answer already did.
+  The title that repeated the file name is gone from both: a client shows
+  the name when there is no title.
+- **The tool list is 1,773 characters shorter.** The twenty-two tools that
+  answer with a record no longer publish an output schema, since the only
+  one the SDK could derive for them, an object of anything, said nothing.
+  What a call answers with is unchanged, the record and the same JSON as
+  text. The three file tools keep the schema they declare.
 - **platformdirs 4.13.0 and pydantic 2.14.1 in the lockfile the image is
   built from**, with pydantic-core 2.50.1 under it. An installation from the
   index resolved them already. A client receives the same tool list and the

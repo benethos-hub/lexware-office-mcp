@@ -316,6 +316,25 @@ def test_every_gating_tool_is_a_tool() -> None:
     assert set(resources.GATING_TOOLS) <= set(known_tools())
 
 
+def test_a_listed_download_carries_its_size_and_one_name(tmp_path: Path) -> None:
+    """`size` lets a client weigh a file before reading it.
+
+    A `title` repeating `name` was sent for nothing: a client shows the name
+    when there is no title, and the list goes out whole, every entry of it.
+    """
+    path = tmp_path / "invoice.pdf"
+    path.write_bytes(PDF)
+
+    entry = resources.listed(tmp_path, 100)[0]
+    link = resources.link(path, "application/pdf")
+
+    assert entry.size == len(PDF)
+    assert link.size == len(PDF)
+    assert entry.title is None
+    assert link.title is None
+    assert entry.name == link.name == "invoice.pdf"
+
+
 def test_a_symbolic_link_in_the_download_directory_is_not_published(
     tmp_path: Path,
 ) -> None:
