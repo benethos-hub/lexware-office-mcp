@@ -123,7 +123,7 @@ assets/
     social-preview.png # 1280x640, GitHub's link preview, uploaded by hand
   render_icon.py  # renders both PNGs, a pinned resvg in a throwaway environment
   architecture.svg # the diagram under "How it works" in the README
-  icon.svg, icon.png, social-preview.png # the old addresses, which 0.5.2
+  icon.svg, icon.png # the old addresses, which 0.5.2
                   # and earlier link to - kept, no longer rendered
 containers/       # README.md says which folder is for what
   images/lexware-office-mcp/
