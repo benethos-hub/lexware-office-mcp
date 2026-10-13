@@ -2956,7 +2956,14 @@ described in section 7.1. Nothing on the API side is outstanding.
    A fifth job, `lowest-versions`, was added 2026-09-27. It installs the
    oldest allowed version of every direct dependency on Python 3.11, with no
    lockfile, and runs the suite, so a lower bound in `pyproject.toml` that has
-   stopped being true shows up. It is an early warning, not a required check.
+   stopped being true shows up. It began as an early warning and is a
+   required check since 2026-10-13, like every other job.
+   A sixth, `brand`, was added the same day. It calls the organisation's
+   reusable workflow, which wants `assets/brand/` to hold `icon.svg` and,
+   rendered from it, a 512x512 `icon.png` and a 1280x640
+   `social-preview.png`, neither committed before the last change to the
+   SVG. It is the one workflow not pinned to a commit: the rules are the
+   organisation's and are meant to reach every repository as they change.
    Since 2026-10-10 only the newest Python of the matrix measures coverage
    and holds the floor, `test (3.15)` once 3.15 joined the same day, where
    coverage.py follows branches through `sys.monitoring`. The other matrix
@@ -3135,11 +3142,14 @@ described in section 7.1. Nothing on the API side is outstanding.
    README says how to configure the server, as it does for an
    installation from PyPI.
 
-   **The icon** is `assets/icon.svg`, with a PNG of 512 by 512 pixels
+   **The icon** is `assets/brand/icon.svg`, with a PNG of 512 by 512 pixels
    rendered from it for clients that show no SVG. `assets/render_icon.py`
    renders it with a pinned resvg in a throwaway environment, so the
-   renderer never enters the project's dependencies. The entry and the
-   README title link both by their address on `main`.
+   renderer never enters the project's dependencies. The entry, the
+   handshake and the README title link both by their address on `main`.
+   Until 2026-10-13 they lived directly in `assets/`. The copies there
+   stay, because 0.5.2 and earlier, their registry entries and the README
+   PyPI shows for them link to those addresses.
 
    **The Claude Desktop bundle of item 8 is the third package**, by its
    address as an asset of the release, which is the one form the registry

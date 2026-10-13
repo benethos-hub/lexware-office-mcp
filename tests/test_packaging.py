@@ -344,14 +344,17 @@ def test_a_manual_run_pushes_the_image_from_main_only() -> None:
 def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     """A tag is a pointer its publisher can move, a commit is not.
 
-    The version comment is what Dependabot reads to raise the pin.
+    The version comment is what Dependabot reads to raise the pin. The one
+    exception is the organisation's own brand check, a reusable workflow
+    whose rules are meant to move with the organisation, see ci.yml.
     """
     pinned = re.compile(r"uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
+    organisation = "uses: benethos-hub/.github/.github/workflows/brand.yml@main"
     loose = [
         f"{workflow.name}: {line.strip()}"
         for workflow in (REPO / ".github" / "workflows").glob("*.yml")
         for line in workflow.read_text(encoding="utf-8").splitlines()
-        if "uses:" in line and not pinned.search(line)
+        if "uses:" in line and not pinned.search(line) and line.strip() != organisation
     ]
 
     assert loose == []
@@ -738,8 +741,8 @@ def test_the_registry_job_publishes_after_both_packages() -> None:
 def test_the_registry_icons_are_files_in_this_repository() -> None:
     """A client fetches them from main, so each has to be there by that path.
 
-    The PNG is rendered from the SVG by `assets/render_icon.py`, and its
-    declared size is the one it has.
+    The PNG is rendered from the SVG in `assets/brand/` by
+    `assets/render_icon.py`, and its declared size is the one it has.
     """
     raw = f"https://raw.githubusercontent.com/{_owner()}/lexware-office-mcp/main/"
     icons = {icon["mimeType"]: icon for icon in _entry()["icons"]}

@@ -183,12 +183,12 @@ def test_the_staged_bundle_holds_what_uv_needs_and_no_more(tmp_path: Path) -> No
     assert staged == sorted(tracked)
     assert not list(target.rglob("__pycache__"))
     assert (target / MANIFEST["icon"]).read_bytes() == (
-        REPO / "assets" / "icon.png"
+        REPO / "assets" / "brand" / "icon.png"
     ).read_bytes()
 
 
 def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
-    png = (REPO / "assets" / "icon.png").read_bytes()
+    png = (REPO / "assets" / "brand" / "icon.png").read_bytes()
 
     assert png.startswith(b"\x89PNG\r\n\x1a\n")
     assert (int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")) == (

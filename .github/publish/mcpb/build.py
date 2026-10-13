@@ -29,7 +29,7 @@ REPO = HERE.parent.parent.parent
 FILES = {
     "manifest.json": HERE / "manifest.json",
     "server.py": HERE / "server.py",
-    "icon.png": REPO / "assets" / "icon.png",
+    "icon.png": REPO / "assets" / "brand" / "icon.png",
     "pyproject.toml": REPO / "pyproject.toml",
     "uv.lock": REPO / "uv.lock",
     # pyproject.toml names it as the readme, and the build fails without it.
