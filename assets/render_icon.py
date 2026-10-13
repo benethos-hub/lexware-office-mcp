@@ -2,12 +2,17 @@
 # requires-python = ">=3.11"
 # dependencies = ["resvg-py==0.5.0"]
 # ///
-"""Render the PNGs in this folder from icon.svg.
+"""Render the PNGs in brand/ from brand/icon.svg.
 
 - icon.png, 512x512, the fallback for clients that show no SVG.
 - social-preview.png, 1280x640, the image GitHub shows when the repository
   link is shared. It is uploaded by hand under Settings > General > Social
   preview, there is no API for it.
+
+The organisation's brand check in CI wants all three in brand/, and each PNG
+committed with or after the last change to the SVG. The copies directly in
+this folder are the addresses 0.5.2 and earlier link to, and are not
+rendered any more.
 
 Run it after every change to the SVG or to the text below and commit the
 results together:
@@ -28,7 +33,7 @@ from pathlib import Path
 
 import resvg_py
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent / "brand"
 ICON_SVG = HERE / "icon.svg"
 ICON_PNG = HERE / "icon.png"
 ICON_SIZE = 512

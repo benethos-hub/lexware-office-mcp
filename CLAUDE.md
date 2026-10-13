@@ -117,11 +117,14 @@ live/             # talks to a real account, run by hand, outside testpaths
   api_shape.py    # records response shapes, so drift becomes a diff
   shapes/         # one timestamped capture per run
 assets/
-  icon.svg        # the project icon, in the README title and the registry entry
-  icon.png        # rendered from it by render_icon.py - commit both together
-  social-preview.png # GitHub's link preview, uploaded by hand in the settings
+  brand/          # the organisation's brand rules, checked by the brand job:
+    icon.svg      # the project icon, in the README title and the registry entry
+    icon.png      # 512x512, rendered from it - commit both together
+    social-preview.png # 1280x640, GitHub's link preview, uploaded by hand
   render_icon.py  # renders both PNGs, a pinned resvg in a throwaway environment
   architecture.svg # the diagram under "How it works" in the README
+  icon.svg, icon.png, social-preview.png # the old addresses, which 0.5.2
+                  # and earlier link to - kept, no longer rendered
 containers/       # README.md says which folder is for what
   images/lexware-office-mcp/
     Dockerfile    # the image, built with the repository root as context
@@ -139,8 +142,8 @@ containers/       # README.md says which folder is for what
     tag_matches_version.py  # a release tag has to be the package version
   workflows/
     ci.yml        # lint, test (coverage on 3.15 alone), fresh-install,
-                  # docker, and lowest-versions: the oldest allowed
-                  # dependencies, an early warning only
+                  # docker, lowest-versions: the oldest allowed
+                  # dependencies, and brand, the organisation's check
     publish.yml   # a published release -> PyPI, the container image, the
                   # Claude Desktop bundle, and the MCP Registry entry
 ```
@@ -439,7 +442,9 @@ fallen behind, so the list is short on purpose. In this order:
   nothing about it is still open. Then delete the branch. Merging after each
   commit defeats the point of branching. Once a remote exists, the merge goes
   through a pull request instead and `main` is no longer written directly.
-- **Every CI job has to pass before a merge, except `lowest-versions`.** That
-  one installs the oldest versions `pyproject.toml` allows and is an early
-  warning, not a required check. When it goes red, raise the lower bound it
-  names on a branch of its own rather than holding up the work in flight.
+- **Every CI job has to pass before a merge**, and each one is a required
+  check on `main`, `lowest-versions` and `brand / Brand assets` included
+  since 2026-10-13. When `lowest-versions` goes red, the lower bound it
+  names has become untrue: raise it on a branch of its own, and merge that
+  first. When `brand` goes red, render the PNGs again with
+  `uv run assets/render_icon.py` and commit them with the SVG.

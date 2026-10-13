@@ -9,12 +9,12 @@
   "version": "0.5.2",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/icon.svg",
+      "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/brand/icon.svg",
       "mimeType": "image/svg+xml",
       "sizes": ["any"]
     },
     {
-      "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/icon.png",
+      "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/brand/icon.png",
       "mimeType": "image/png",
       "sizes": ["512x512"]
     }

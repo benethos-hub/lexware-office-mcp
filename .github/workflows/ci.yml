@@ -157,9 +157,8 @@ jobs:
   # the oldest allowed version of every direct dependency on the oldest
   # supported Python, and runs the suite on that.
   #
-  # An early warning, not a gate. It is not a required check on main, so a
-  # release of something upstream cannot block a merge here - but a red run
-  # means a lower bound in pyproject.toml has become untrue and wants raising.
+  # A required check on main since 2026-10-13. A red run means a lower bound
+  # in pyproject.toml has become untrue, and raising it is the fix.
   lowest-versions:
     runs-on: ubuntu-latest
     steps:
@@ -320,3 +319,11 @@ jobs:
       - name: What it said
         if: always()
         run: docker logs lxo-ci || true
+
+  # The organisation's brand rules: assets/brand/ holds icon.svg and, rendered
+  # from it, a 512x512 icon.png and a 1280x640 social-preview.png, neither
+  # older than the SVG. The rules live in the organisation's own repository and
+  # move with it, so this one reusable workflow follows main rather than a
+  # commit. It reads only assets/brand and has nothing but read access.
+  brand:
+    uses: benethos-hub/.github/.github/workflows/brand.yml@main

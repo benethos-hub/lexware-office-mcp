@@ -79,7 +79,7 @@ DESCRIPTION = (
     "stdio or HTTP."
 )
 WEBSITE = "https://github.com/benethos-hub/lexware-office-mcp"
-_RAW = "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/"
+_RAW = "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/brand/"
 ICONS = [
     Icon(src=_RAW + "icon.svg", mime_type="image/svg+xml", sizes=["any"]),
     Icon(src=_RAW + "icon.png", mime_type="image/png", sizes=["512x512"]),

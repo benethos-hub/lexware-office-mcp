@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The icons the handshake and the MCP Registry entry name** are served
+  from `assets/brand/` on `main`. The old addresses keep working, so a
+  client of an earlier version still finds them.
+
 ## [0.5.2] - 2026-10-12
 
 A patch release, because no installation trips over it: a client
