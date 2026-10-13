@@ -2982,10 +2982,12 @@ described in section 7.1. Nothing on the API side is outstanding.
    was there.
 
    **A new job is not required by itself.** The jobs that block a merge are
-   listed in the branch protection, eight on 2026-10-10: `lint`, the five
-   `test` jobs, `fresh-install` and `docker`. A job added later - `docker`
-   with 0.2.0, or a Python version added to the matrix - runs, may fail, and
-   still lets the merge through until it is added to that list as well.
+   listed in the branch protection, all ten since 2026-10-13: `lint`, the
+   five `test` jobs, `fresh-install`, `docker`, `lowest-versions` and
+   `brand / Brand assets`. A job added later - `docker` with 0.2.0, or a
+   Python version added to the matrix - runs, may fail, and still lets the
+   merge through until it is added to that list as well, which needs one run
+   of it first.
 3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
    sample moved into the package as `env.sample`, so it is installed with the
    code instead of sitting beside it, and `--settings-sample` prints it.
