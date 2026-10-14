@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-14
+
+A patch release for the container image, which moves to Python 3.15.
+A client receives the same answers as before, and the icons it is
+pointed to come from a new address while the old one keeps working.
+
 ### Changed
 
 - **The icons the handshake and the MCP Registry entry name** are served
@@ -1428,7 +1434,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.4.2...v0.5.0
