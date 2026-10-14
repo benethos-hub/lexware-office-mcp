@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.5.2.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.5.3.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -2360,7 +2360,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.5.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.5.3 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
@@ -3245,6 +3245,7 @@ suggested they were.
 | 0.5.0 | The configuration interface rebuilt, HTTPS for the local network, and two reviews' findings | **released 2026-10-08** - a minor, because an installation can trip over it: the image is published under the package's name alone, and `setup` listens on 8771, asks for a start code and has no `/export` any more. `setup` has four pages in a frame of its own, `containers/production/` puts Caddy in front of the server for clients on the local network, and the image is built on pydantic 2.14 and a rebuilt Python 3.14.8 base. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.4.1's |
 | 0.5.1 | The Claude Desktop extension, the MCP Registry entry, setup from the client, and `search_vouchers` filtering what it says it does | **released 2026-10-10** - a patch, because no installation trips over it: everything new is added beside what was there, and the two flags `search_vouchers` loses never filtered anything (#95). A tool now refuses an argument it does not take, which the SDK used to drop. The extension brings its own uv and Python, `setup` opens from a prompt the person picks in the client, and a key saved into a server that had none is used at once, all measured in a fresh Windows Sandbox. Python 3.15 joins the tested versions. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.0's |
 | 0.5.2 | What a client receives, and the image on current dependencies | **released 2026-10-12** - a patch, because no installation trips over it. The twenty-two record tools publish no output schema, which shortens the tool list by 1,773 characters while their answers stay byte-identical, the handshake carries the description, website and icons of the registry entry, and a listed download carries its size. The image moves to platformdirs 4.13.0 and pydantic 2.14.1. The README that PyPI shows catches up with the extension's six steps and the redrawn diagram. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.1's |
+| 0.5.3 | The image on Python 3.15 | **released 2026-10-14** - no change to what a client receives but the address of the icons, which moved to `assets/brand/` while the old one keeps working. The image is built on `python:3.15-slim` with uv 0.13.1 and starlette 1.8.0, and was checked inside before the release: Python 3.15.0, every compiled dependency, a page rendered by pypdfium2, stdio, and HTTP with and without the token. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.2's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
