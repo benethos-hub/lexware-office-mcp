@@ -18,6 +18,10 @@ housekeeping are out of scope here — design decisions live in
 - **The icons the handshake and the MCP Registry entry name** are served
   from `assets/brand/` on `main`. The old addresses keep working, so a
   client of an earlier version still finds them.
+- **starlette 1.8.0 and truststore 0.10.5 in the lockfile the image is
+  built from**, starlette under the HTTP transport, truststore under the
+  SDK's HTTP client. An installation from the index resolved them already.
+  Over stdio and over HTTP a client receives the same answers as before.
 
 ## [0.5.2] - 2026-10-12
 
