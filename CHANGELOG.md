@@ -22,6 +22,9 @@ housekeeping are out of scope here — design decisions live in
   built from**, starlette under the HTTP transport, truststore under the
   SDK's HTTP client. An installation from the index resolved them already.
   Over stdio and over HTTP a client receives the same answers as before.
+- **The container image runs on Python 3.15.0**, built from
+  `python:3.15-slim` and with uv 0.13.1. The package has been tested on 3.15
+  since 0.5.1, and every compiled dependency installs as a wheel for it.
 
 ## [0.5.2] - 2026-10-12
 

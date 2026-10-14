@@ -1009,8 +1009,8 @@ arriving.
 - **Python:** 3.11 to 3.15, all in the CI matrix. 3.15 joined on
   2026-10-10, the day after its release: the suite passed on 3.15.0 with
   every compiled dependency as a wheel for it, and the stdio probe of
-  section 14.3 answered byte for byte as on 3.14. The image stays on 3.14
-  until `python:3.15-slim` exists and the decision to move it is made.
+  section 14.3 answered byte for byte as on 3.14. The image moved to 3.15
+  on 2026-10-14, two days after `python:3.15-slim` was published.
 - **3.14 changed how annotations reach a schema, measured 2026-08-22.** One
   parameter carries a description built at startup, because the default it
   states is configurable, and the finished annotation is attached after the
@@ -2889,10 +2889,11 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  174 MB on 2026-10-08. The server on a loopback-published port and the
-  configuration interface behind a `setup` profile on the same volume. A
-  bearer token made on first start rather than baked in, and a process that
-  ends when its settings file changes so the new ones take effect.
+  178 MB on 2026-10-14, on Python 3.15. The server on a loopback-published
+  port and the configuration interface behind a `setup` profile on the same
+  volume. A bearer token made on first start rather than baked in, and a
+  process that ends when its settings file changes so the new ones take
+  effect.
   `containers/production/` runs the
   published image at a version named in `.env` and puts Caddy in front of
   it behind an `https` profile for clients on the local network,
@@ -3078,7 +3079,7 @@ described in section 7.1. Nothing on the API side is outstanding.
    `uses:` without a commit.
 
    **The images are pinned by digest as well as tag**, decided the same day:
-   `python:3.14-slim@sha256:…` in both stages and
+   `python:3.15-slim@sha256:…` in both stages and
    `ghcr.io/astral-sh/uv:<release>@sha256:…`. Until then they followed their
    line, so that a security fix would arrive without anyone acting. It never
    did on its own: the image is published only by a release, so a fix in
@@ -3092,7 +3093,7 @@ described in section 7.1. Nothing on the API side is outstanding.
    **uv has a stage of its own**, since 2026-10-05. Dependabot reads
    `FROM` lines only, and uv was copied with `COPY --from=` straight from
    its image, so no pull request ever came for it. Its tag names the exact
-   release, so each one arrives as a new tag. `python:3.14-slim` keeps its
+   release, so each one arrives as a new tag. `python:3.15-slim` keeps its
    line tag, so a rebuild of the base under it moves the digest only.
 
    What makes that bearable is that all three are watched.
