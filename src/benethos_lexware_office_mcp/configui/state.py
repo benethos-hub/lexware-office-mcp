@@ -201,7 +201,7 @@ class Installation:
         return bool(self.settings.api_key)
 
 
-def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
+def downloads_dir(settings: Settings) -> str:
     """The download directory, or why there is none.
 
     Without a home and without ``LXO_MCP_DOWNLOAD_DIR`` nothing resolves, and
@@ -210,7 +210,7 @@ def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
     try:
         return str(settings.download_directory())
     except ConfigError as exc:
-        return str(exc) if unresolved is None else unresolved
+        return str(exc)
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,7 +242,7 @@ SHOWN: tuple[Shown, ...] = (
         "Web-App für Deeplinks",
         lambda s: s.app_base_url,
     ),
-    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda s: downloads_dir(s)),
+    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", downloads_dir),
     Shown(
         "LXO_MCP_KEPT_DOWNLOADS",
         "Downloads im Cache (die neuesten)",
