@@ -15,6 +15,7 @@ from benethos_lexware_office_mcp.configui import pages, probe, templates
 from benethos_lexware_office_mcp.configui.state import EDITABLE_KEYS, Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import Settings, locations
+from helpers import installation
 
 
 @pytest.fixture(autouse=True)
@@ -24,14 +25,12 @@ def only_this_tests_env(no_configuration_from_this_machine: None) -> None:
 
 @pytest.fixture
 def inst(tmp_path: Path) -> Installation:
-    env = tmp_path / ".env"
-    env.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
-    settings = Settings(
+    return installation(
+        tmp_path,
+        "LXO_MCP_PAGE_SIZE=50\n",
         api_key="secret-value-do-not-print",
         page_size=50,
-        tool_policy_path=tmp_path / "tools.json",
     )
-    return Installation(settings=settings, env_path=env, cwd=tmp_path)
 
 
 def text(page: pages.Page) -> str:
@@ -160,17 +159,11 @@ def test_the_overview_says_when_a_server_would_read_a_different_env(
     replaces the whole file. Without this, the page reports success for work
     that never reaches the server.
     """
-    edited = tmp_path / "named.env"
-    edited.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
+    inst = installation(tmp_path, "LXO_MCP_PAGE_SIZE=50\n", env_name="named.env")
     higher = tmp_path / ".env"
     higher.write_text("LXO_MCP_PAGE_SIZE=7\n", encoding="utf-8")
     monkeypatch.setattr(
         locations, "config_candidates", lambda name, cwd=None: [tmp_path / name]
-    )
-    inst = Installation(
-        settings=Settings(tool_policy_path=tmp_path / "tools.json"),
-        env_path=edited,
-        cwd=tmp_path,
     )
 
     assert inst.outranked_by() == higher

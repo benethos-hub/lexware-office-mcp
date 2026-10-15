@@ -59,6 +59,7 @@ __all__ = [
     "capture_lines",
     "fast_client",
     "fast_provider",
+    "installation",
     "no_sleep",
     "server_with",
 ]
@@ -390,6 +391,21 @@ class Browser:
                 )
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
+
+
+def installation(
+    tmp_path: Path, env_text: str = "", *, env_name: str = ".env", **settings: Any
+) -> Installation:
+    """An installation in ``tmp_path``: a settings file holding ``env_text``,
+    the policy file beside it, and ``settings`` as the process resolved them.
+    """
+    env = tmp_path / env_name
+    env.write_text(env_text, encoding="utf-8")
+    return Installation(
+        settings=Settings(tool_policy_path=tmp_path / "tools.json", **settings),
+        env_path=env,
+        cwd=tmp_path,
+    )
 
 
 @contextmanager

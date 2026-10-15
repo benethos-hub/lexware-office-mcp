@@ -15,9 +15,7 @@ import jinja2
 import pytest
 
 from benethos_lexware_office_mcp.configui import pages, templates
-from benethos_lexware_office_mcp.configui.state import Installation
-from benethos_lexware_office_mcp.settings import Settings
-from helpers import Browser, serving, signed_in
+from helpers import Browser, installation, serving, signed_in
 
 PAGES = ("/", "/credentials", "/permissions", "/settings")
 
@@ -28,14 +26,7 @@ def site(
     monkeypatch: pytest.MonkeyPatch,
     no_configuration_from_this_machine: None,
 ) -> Iterator[Browser]:
-    env = tmp_path / ".env"
-    env.write_text("", encoding="utf-8")
-    installation = Installation(
-        settings=Settings(tool_policy_path=tmp_path / "tools.json"),
-        env_path=env,
-        cwd=tmp_path,
-    )
-    with serving(installation) as server:
+    with serving(installation(tmp_path)) as server:
         yield signed_in(server)
 
 
