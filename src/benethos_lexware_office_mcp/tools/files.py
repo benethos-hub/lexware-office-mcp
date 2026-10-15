@@ -166,7 +166,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         as images.
         Anything else as an embedded binary.
         """
-        if not uri.startswith(resources.SCHEME):
+        if resources.name_of(uri) is None:
             raise ValidationError(
                 f"{uri!r} is not a download from this server. Pass the `uri` "
                 f"a download reported, which starts with {resources.SCHEME}."

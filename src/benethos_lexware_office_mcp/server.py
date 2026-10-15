@@ -255,7 +255,7 @@ class PolicyServer(MCPServer):
     async def read_resource(self, uri: Any, context: Any = None) -> Any:
         if not self._resources_enabled():
             raise ResourceNotFoundError(f"Unknown resource: {uri}")
-        if str(uri).startswith(resources.SCHEME):
+        if resources.name_of(str(uri)) is not None:
             found = resources.read(self._downloads, str(uri))
             if found is None:
                 raise ResourceNotFoundError(

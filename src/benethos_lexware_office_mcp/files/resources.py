@@ -55,6 +55,7 @@ __all__ = [
     "gone",
     "link",
     "listed",
+    "name_of",
     "read",
     "too_large",
 ]
@@ -81,6 +82,16 @@ _DESCRIPTION = "Downloaded from Lexware Office by this server."
 def uri_for(name: str) -> str:
     """The URI a downloaded file is offered under."""
     return f"{SCHEME}{name}"
+
+
+def name_of(uri: str) -> str | None:
+    """The file name a download URI carries, or ``None`` when it is none.
+
+    Only the scheme is taken off. Whether the name stays inside the
+    directory is ``storage.resolve``'s to check, since it arrives from the
+    client.
+    """
+    return uri[len(SCHEME) :] if uri.startswith(SCHEME) else None
 
 
 def listed(directory: Path | None, limit: int) -> list[Resource]:
@@ -129,9 +140,10 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
     both or in neither: the name is checked to stay inside the directory,
     since it arrives from the client.
     """
-    if directory is None or not uri.startswith(SCHEME):
+    name = name_of(uri)
+    if directory is None or name is None:
         return None
-    found = storage.resolve(uri[len(SCHEME) :], directory)
+    found = storage.resolve(name, directory)
     if found is None:
         return None
     try:
