@@ -283,7 +283,7 @@ def account_facts(account: Account) -> list[str]:
 
 
 def _badge(inst: Installation, key: str, env: dict[str, str]) -> Badge:
-    return Badge(inst.source_of(key, env), inst.source_detail(key, env))
+    return Badge(*inst.source(key, env))
 
 
 def _cost_note(characters: int) -> str:

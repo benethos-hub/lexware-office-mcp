@@ -294,9 +294,10 @@ def test_the_flag_outranks_the_variable_on_the_badge_too(
         tools_file_named=True,
     )
 
-    assert named.source_of("LXO_MCP_TOOL_POLICY") == "Aufruf"
-    assert "--tools-file" in named.source_detail("LXO_MCP_TOOL_POLICY")
-    assert inst.source_of("LXO_MCP_TOOL_POLICY") == "Umgebung"
+    source, detail = named.source("LXO_MCP_TOOL_POLICY")
+    assert source == "Aufruf"
+    assert "--tools-file" in detail
+    assert inst.source("LXO_MCP_TOOL_POLICY")[0] == "Umgebung"
 
 
 def test_the_policy_file_is_fixed_for_the_life_of_the_process(
