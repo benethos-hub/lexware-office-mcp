@@ -359,7 +359,8 @@ Worth knowing:
   Desktop cannot replace it, end the setup page first with *Beenden*: while it
   runs, it holds the extension's files.
 - **A changed key** applies once Claude Desktop is quit from the tray and
-  started again. The first key does not need that.
+  started again. The first key does not need that, and until that restart
+  neither does a change to it.
 - **Tried on Windows**, with Claude Desktop from the Microsoft Store and
   nothing else installed. macOS is expected to work the same way and has not
   been tried.
@@ -464,7 +465,9 @@ needs too — the server reads those at startup as well. It is **not** needed
 for permissions: change those later and the running client is told, see
 [Switching individual tools off](#switching-individual-tools-off). Nor for
 the first API key: a server started without one uses a key saved later from
-its next call on. Changing a key it already has does need the restart.
+its next call on, and reads it again on every call until it is restarted,
+so a change to that key applies at once too. Changing a key the server was
+started with does need the restart.
 
 ## Configuring it in a browser
 
@@ -498,8 +501,9 @@ call on the button, never on page load, and the account it found. The key is
 never shown back to you, never logged and never exported. If an environment
 variable is setting it, the page says so, because that would override
 whatever you save. A server that started without a key uses the one saved
-here from its next call. A key that replaces another applies once the client
-starts the server again. The token of the HTTP transport is folded underneath,
+here from its next call, and reads whatever is saved here again on every
+call until it is restarted. A key that replaces one the server was started
+with applies once the client starts it again. The token of the HTTP transport is folded underneath,
 open when the server is set to that transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
