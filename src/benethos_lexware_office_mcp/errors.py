@@ -27,9 +27,29 @@ __all__ = [
     "RateLimitError",
     "ToolError",
     "UpstreamError",
+    "SETUP_PROMPT_TITLE",
     "ValidationError",
+    "opened_by",
     "redact",
 ]
+
+# What a client offers the person to pick, see `transport.setup_prompt`. Down
+# here because a refusal and a log line name it as well as the server's
+# instructions, and this module is the one every layer may import.
+SETUP_PROMPT_TITLE = "Set up Lexware Office"
+
+
+def opened_by(prompt: bool) -> str:
+    """How a message says the configuration interface is opened.
+
+    By the client's prompt where it is offered, see
+    ``Settings.offers_setup_prompt``, and by the command either way, whose
+    name follows what this returns.
+    """
+    if prompt:
+        return f'the client\'s prompt "{SETUP_PROMPT_TITLE}" opens it, and so does '
+    return "open it with "
+
 
 _REDACTED = "<redacted>"
 

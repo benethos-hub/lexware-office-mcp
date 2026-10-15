@@ -18,8 +18,8 @@ from typing import Any
 import pytest
 
 from benethos_lexware_office_mcp import cli, logbook
-from benethos_lexware_office_mcp.errors import ConfigError
-from benethos_lexware_office_mcp.server import SETUP_PROMPT_TITLE, build_server
+from benethos_lexware_office_mcp.errors import SETUP_PROMPT_TITLE, ConfigError
+from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings, load_settings
 from benethos_lexware_office_mcp.transport import setup_prompt
 from benethos_lexware_office_mcp.transport.setup_prompt import (
@@ -289,7 +289,7 @@ def test_the_instructions_name_the_prompt_over_stdio_alone(tmp_path: Path) -> No
 def test_the_missing_policy_warning_names_the_prompt_where_it_exists(
     named: bool, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The title is spelled out in the log line, so it is held to the server's."""
+    """The log line names the prompt by the title the server registers."""
     with caplog.at_level("WARNING"):
         logbook.lifecycle.no_policy(Path("tools.json"), named)
 
@@ -302,8 +302,6 @@ def test_the_missing_key_message_names_the_prompt_where_it_exists(
     transport: str, named: bool
 ) -> None:
     """It reaches the model, which can then point the person to it."""
-    from benethos_lexware_office_mcp.errors import ConfigError
-
     with pytest.raises(ConfigError) as excinfo:
         Settings(transport=transport).require_api_key()
 

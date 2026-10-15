@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .. import logbook
-from ..server import SETUP_PROMPT_TITLE
+from ..errors import SETUP_PROMPT_TITLE
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from mcp.server.mcpserver import MCPServer

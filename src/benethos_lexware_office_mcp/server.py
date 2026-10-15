@@ -29,7 +29,7 @@ from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook
 from .api.client import ClientProvider
-from .errors import ConfigError, ToolError
+from .errors import SETUP_PROMPT_TITLE, ConfigError, ToolError
 from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
@@ -85,10 +85,6 @@ ICONS = [
     Icon(src=_RAW + "icon.svg", mime_type="image/svg+xml", sizes=["any"]),
     Icon(src=_RAW + "icon.png", mime_type="image/png", sizes=["512x512"]),
 ]
-
-# What a client offers the person to pick, see `transport.setup_prompt`. The
-# title is here because the instructions below name it.
-SETUP_PROMPT_TITLE = "Set up Lexware Office"
 
 # Wherever the prompt exists, see `Settings.offers_setup_prompt`. Without it
 # a client that lists no tool leaves the model guessing at a broken
