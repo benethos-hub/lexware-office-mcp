@@ -2405,7 +2405,7 @@ its name.
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 | — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
 | — (arguments) | `ToolError` | an argument the tool does not take, by its name when it looks like one and as `?` otherwise, and that nothing was sent. The SDK builds each argument model to drop what it does not know, so such a call ran without the filter and answered as if it had, which is how `only_open` hid paid vouchers (issue #95). Refused only for a tool the policy allows, so a withheld one says nothing about its schema |
-| — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path. At startup the same class ends the process in one line |
+| — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path, also when the file a key is saved to cannot be decoded, which stderr names instead. At startup the same class ends the process in one line |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query

@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import logbook
 from ..errors import ConfigError, register_secret
 from . import locations
 from .envfile import read_env_file
@@ -234,7 +235,19 @@ class Settings:
         """
         if self.late_key_file is None or not self.late_key_file.is_file():
             return None
-        raw = read_env_file(self.late_key_file).get("LXO_MCP_API_KEY", "").strip()
+        try:
+            saved = read_env_file(self.late_key_file)
+        except ConfigError:
+            # The reader's message names the file, and this one reaches the
+            # model. The file is named on stderr instead.
+            logbook.lifecycle.late_key_unreadable(self.late_key_file)
+            raise ConfigError(
+                "No API key could be read: the settings file a key is saved to "
+                "is not UTF-8 text. Save it as UTF-8, which every editor "
+                "offers, and the next call reads it. The server's log names "
+                "the file."
+            ) from None
+        raw = saved.get("LXO_MCP_API_KEY", "").strip()
         key = credential(raw or None, name="LXO_MCP_API_KEY")
         register_secret(key)
         return key

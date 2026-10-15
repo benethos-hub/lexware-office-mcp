@@ -456,6 +456,22 @@ def test_a_key_read_late_is_checked_like_any_other(tmp_path: Path) -> None:
 
 
 @pytest.mark.usefixtures("no_configuration_from_this_machine")
+def test_a_late_key_file_not_in_utf8_is_named_on_stderr_alone(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The refusal reaches the model, so it carries no path of this machine."""
+    settings, env_file = _started_without_key(tmp_path)
+    env_file.write_bytes(b"# Gr\xfc\xdfe\nLXO_MCP_API_KEY=x\n")
+
+    with pytest.raises(ConfigError) as refused:
+        settings.require_api_key()
+
+    assert "not UTF-8" in str(refused.value)
+    assert str(tmp_path) not in str(refused.value)
+    assert str(env_file) in caplog.text
+
+
+@pytest.mark.usefixtures("no_configuration_from_this_machine")
 def test_without_a_saved_key_the_message_is_the_usual_one(tmp_path: Path) -> None:
     settings, _ = _started_without_key(tmp_path)
 

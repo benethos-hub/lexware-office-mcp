@@ -16,6 +16,7 @@ from .output import PACKAGE
 __all__ = [
     "ending_on_change",
     "interrupted",
+    "late_key_unreadable",
     "listening",
     "no_policy",
     "reachable_from_outside",
@@ -49,6 +50,17 @@ def settings_from(path: Path | None) -> None:
         )
     else:
         _log.info("Settings from %s", path)
+
+
+def late_key_unreadable(path: Path) -> None:
+    """The file a call looked for a newly saved key in, which it cannot read.
+
+    The model is told only that it is not UTF-8, so the file is named here.
+    """
+    _log.warning(
+        "%s is not UTF-8 text, so a key saved to it cannot be read. Save it as UTF-8.",
+        path,
+    )
 
 
 def no_policy(path: Path | None, transport: str) -> None:
