@@ -188,11 +188,8 @@ def contact_row(item: dict[str, Any]) -> dict[str, Any]:
     """One line of a contact search result.
 
     Identity, the numbers a human uses to refer to the record, and one way to
-    reach it. Everything else is what ``get_contact`` is for.
-
-    ``archived`` appears only when it is true. It is false on nearly every row
-    and repeating it costs more than it tells anyone, which is why the tool
-    description states that an unmarked row is active.
+    reach it. Everything else is what ``get_contact`` is for. ``archived``
+    only when it is true, as on every row, see :func:`_row`.
     """
     roles = item.get("roles") or {}
     company = item.get("company") or {}
@@ -208,10 +205,9 @@ def contact_row(item: dict[str, Any]) -> dict[str, Any]:
         "vendorNumber": (roles.get("vendor") or {}).get("number"),
         "email": _first_entry(item.get("emailAddresses"), _EMAIL_KINDS),
         "phone": _first_entry(item.get("phoneNumbers"), _PHONE_KINDS),
+        "archived": item.get("archived"),
     }
-    if item.get("archived"):
-        row["archived"] = True
-    return compact_object(row)
+    return _row(row, ())
 
 
 def _contact_name(company: dict[str, Any], person: dict[str, Any]) -> str:

@@ -397,6 +397,11 @@ def _gross_total(lines: list[dict[str, Any]], tax_type: Any) -> float:
 _PRICE_KEYS = ("leadingPrice", "netPrice", "grossPrice", "taxRate")
 
 
+# Fields an article carries when read and a PUT has no business repeating:
+# the id is in the path, and the rest the API keeps itself.
+ARTICLE_PUT_DROP = ("id", "organizationId", "createdDate", "updatedDate")
+
+
 def article_body(
     *,
     base: dict[str, Any] | None = None,
@@ -423,9 +428,9 @@ def article_body(
     number nobody checked. Verified 2026-08-21: a gross price of 11.90 at 19%
     comes back with a net price of 10.00 beside it.
     """
-    body: dict[str, Any] = dict(base) if base else {}
-    for key in ("id", "organizationId", "createdDate", "updatedDate"):
-        body.pop(key, None)
+    body: dict[str, Any] = {
+        k: v for k, v in (base or {}).items() if k not in ARTICLE_PUT_DROP
+    }
     if base is None:
         body["version"] = 0
 
