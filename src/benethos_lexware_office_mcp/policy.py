@@ -51,6 +51,7 @@ __all__ = [
     "json_text",
     "known_tools",
     "policy_text",
+    "withheld",
     "preset",
     "writing",
 ]
@@ -178,18 +179,21 @@ def preset(kind: Preset) -> dict[str, bool]:
     raise ValueError(f"Unknown preset: {kind!r}")
 
 
-def flags_from(data: dict[Any, Any], source: str = "tool policy") -> dict[str, bool]:
+def flags_from(
+    data: dict[Any, Any], source: str = "tool policy", *, report: bool = True
+) -> dict[str, bool]:
     """Read flags from a parsed policy file. Only JSON ``true`` switches on.
 
     ``bool()`` would have been the obvious reading and is the wrong one:
     ``"false"`` is a non-empty string and therefore true, so a hand-written
     ``"create_voucher": "false"`` would have enabled the very tool it meant to
     refuse. Anything that is not the literal ``true`` is off, and a value that
-    is not a boolean at all is named on stderr so the mistake is found.
+    is not a boolean at all is named on stderr so the mistake is found,
+    unless ``report`` says it has been already.
     """
     flags: dict[str, bool] = {}
     for key, value in data.items():
-        if not isinstance(value, bool):
+        if report and not isinstance(value, bool):
             logbook.policy.not_a_flag(source, str(key), value)
         flags[str(key)] = value is True
     return flags
@@ -205,6 +209,8 @@ class ToolPolicy:
 
     def __init__(self, path: Path | None = None) -> None:
         self._path = path
+        # What was wrong with the file at the last read, see _news.
+        self._complaint: tuple[object, ...] = ()
 
     @property
     def path(self) -> Path | None:
@@ -215,8 +221,21 @@ class ToolPolicy:
         """Whether there is a file at all. Nothing is enabled without one."""
         return self._path is not None and self._path.is_file()
 
+    def _news(self, complaint: tuple[object, ...]) -> bool:
+        """Whether ``complaint`` is not what the last read found wrong.
+
+        The watcher reads the file every two seconds and a call three times,
+        so a mistake named on every read flooded stderr for the life of the
+        process. It is named when it appears, and again only once the file
+        says something else - fixed and broken again included.
+        """
+        new = complaint != self._complaint
+        self._complaint = complaint
+        return new and bool(complaint)
+
     def _stored(self) -> dict[str, bool]:
         if not self.exists():
+            self._complaint = ()
             return {}
         assert self._path is not None
         try:
@@ -228,12 +247,19 @@ class ToolPolicy:
             # The file is edited by hand and by other programs, so a broken one
             # must not stop the server. It must not grant anything either: an
             # unreadable policy enables nothing, and says so on stderr.
-            logbook.policy.unreadable(self._path, exc)
+            if self._news(("unreadable", type(exc).__name__, str(exc))):
+                logbook.policy.unreadable(self._path, exc)
             return {}
         if not isinstance(data, dict):
-            logbook.policy.not_an_object(self._path)
+            if self._news(("not an object", type(data).__name__)):
+                logbook.policy.not_an_object(self._path)
             return {}
-        return flags_from(data, source=str(self._path))
+        not_flags = tuple(
+            (str(key), type(value).__name__)
+            for key, value in data.items()
+            if not isinstance(value, bool)
+        )
+        return flags_from(data, source=str(self._path), report=self._news(not_flags))
 
     def enabled(self, name: str) -> bool:
         """Whether ``name`` may be listed and called.
@@ -298,6 +324,20 @@ def policy_text(flags: Mapping[str, bool]) -> str:
     return json_text({name: bool(flags[name]) for name in sorted(flags)})
 
 
+def withheld(name: str) -> PermissionDeniedError:
+    """The refusal of a tool the policy does not enable, one text everywhere.
+
+    No path in it. It travels to the client and from there into a model's
+    context, and where a file sits on somebody's disk - user name, directory
+    layout and all - is nothing the caller can act on. The person who can
+    act on it is at the machine, where stderr already names the file.
+    """
+    return PermissionDeniedError(
+        f"{name} is not enabled for this installation. The account "
+        "owner decides that in the server's tool policy."
+    )
+
+
 def guarded(func: F, policy: ToolPolicy) -> F:
     """``func``, refusing to run while ``policy`` does not enable it.
 
@@ -311,15 +351,7 @@ def guarded(func: F, policy: ToolPolicy) -> F:
 
     def guard() -> None:
         if not policy.enabled(name):
-            # No path in this message. It travels to the client and from
-            # there into a model's context, and where a file sits on
-            # somebody's disk - user name, directory layout and all - is
-            # nothing the caller can act on. The person who can act on it
-            # is at the machine, where stderr already names the file.
-            raise PermissionDeniedError(
-                f"{name} is not enabled for this installation. The account "
-                "owner decides that in the server's tool policy."
-            )
+            raise withheld(name)
 
     if inspect.iscoroutinefunction(func):
 

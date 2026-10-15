@@ -115,9 +115,16 @@ def newest(directory: Path, *, downloads_only: bool = False) -> list[Path]:
     thing, deliberately: ``downloads_only`` leaves out a file this server
     could not have written, which the clean-up must never delete and the
     list still names.
+
+    A directory that cannot be listed has nothing in it to offer or to
+    clean, rather than ending ``resources/list`` in an internal error.
     """
+    try:
+        entries = list(directory.iterdir())
+    except OSError:
+        return []
     found: list[tuple[float, str, Path]] = []
-    for path in directory.iterdir():
+    for path in entries:
         try:
             if path.is_symlink() or not path.is_file():
                 continue

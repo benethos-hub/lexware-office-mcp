@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 from pathlib import Path
 
 import pytest
@@ -200,5 +201,20 @@ async def test_enforcement_never_waits_for_the_notification(policy: Path) -> Non
 
         assert names == {"get_profile"}
         assert session.told == 0  # before the watcher has even looked
+    finally:
+        await server.stop_watching()
+
+
+async def test_a_session_that_ended_is_not_kept(policy: Path) -> None:
+    """Over HTTP, short sessions come and go without a policy change between."""
+    server = build_server(Settings(tool_policy_path=policy))
+    kept = Session()
+    for _ in range(3):
+        await server._handle_list_tools(Ctx(Session()), None)
+    await server._handle_list_tools(Ctx(kept), None)
+    try:
+        gc.collect()
+
+        assert list(server._sessions) == [kept]
     finally:
         await server.stop_watching()

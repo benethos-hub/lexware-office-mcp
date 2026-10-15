@@ -48,9 +48,24 @@ from mcp.types import Resource, ResourceLink
 
 from . import storage
 
-__all__ = ["GATING_TOOLS", "SCHEME", "gone", "link", "listed", "read"]
+__all__ = [
+    "GATING_TOOLS",
+    "MAX_INLINE",
+    "SCHEME",
+    "gone",
+    "link",
+    "listed",
+    "read",
+    "too_large",
+]
 
 SCHEME = "lexware://download/"
+
+# Base64 costs roughly 1.37 times the file size in the answer, so this is a
+# ceiling on damage rather than a working size. It is the same 5 MiB the API
+# accepts for an upload, so there is one number to remember. It bounds both
+# ways a download's bytes reach a client: `read_download` and a resource read.
+MAX_INLINE = 5 * 1024 * 1024
 
 # The tools a download resource belongs to. A resource is a way of handing out
 # a file one of them produced, so it is reachable exactly while at least one of
@@ -120,6 +135,9 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
     if found is None:
         return None
     try:
+        size = found.stat().st_size
+        if size > MAX_INLINE:
+            raise ResourceError(too_large(uri, size))
         content = found.read_bytes()
     except OSError as exc:
         # The reason and never the path, as everywhere a local file fails.
@@ -131,6 +149,14 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
             content=content, mime_type=_plain(storage.content_type_for(found))
         )
     ]
+
+
+def too_large(uri: str, size: int) -> str:
+    """Why a download is not put in an answer whole, and where it is instead."""
+    return (
+        f"{uri} is {size / 1024 / 1024:.1f} MiB, too much to put in an answer. "
+        "It is on disk already, so use the path the download reported."
+    )
 
 
 def gone(kept: int | None) -> str:

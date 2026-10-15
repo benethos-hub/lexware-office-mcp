@@ -28,6 +28,23 @@ housekeeping are out of scope here — design decisions live in
 - **A list whose rows are not records says the API answered in an
   unexpected shape**, as a single record already did. It ended in a bare
   failure that named only the tool.
+- **A mistake in the policy file is named on stderr once**, not on every
+  read. The server reads the file every two seconds and on every call, so
+  a flag written as `"false"` filled the log, a container's included, for
+  as long as the process ran. It is named again once the file changes what
+  it says.
+- **A tool the policy does not enable is refused before its arguments are
+  checked.** Called with invalid arguments, it answered with the fields it
+  requires and the values sent, which is the schema the policy keeps from
+  the caller. It now says only that it is not enabled.
+- **A client session that ended is forgotten with it.** The server kept
+  every session that had listed its tools until a policy change failed to
+  reach it, so over HTTP many short sessions added up.
+- **A download read as a resource is held to the 5 MiB `read_download`
+  keeps**, with the same answer: it is too much for one message, and the
+  file is on disk already. A larger file in the download directory was
+  encoded into one message whole. **A download directory that cannot be
+  listed lists no resources** instead of failing the request.
 
 ## [0.5.3] - 2026-10-14
 

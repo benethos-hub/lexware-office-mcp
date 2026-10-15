@@ -2364,7 +2364,7 @@ where it differs.
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
-| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |
+| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds |
 | `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
@@ -2404,7 +2404,7 @@ its name.
 | 3xx | `UpstreamError` | the status, and that it came instead of a result. The client follows no redirect and the API documents none, so a redirect's body is never taken for a document. On a write the outcome is unknown |
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
-| — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
+| — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change. Refused before its arguments are checked, since the SDK's refusal of invalid ones names the fields the tool requires and quotes what was sent |
 | — (arguments) | `ToolError` | an argument the tool does not take, by its name when it looks like one and as `?` otherwise, and that nothing was sent. The SDK builds each argument model to drop what it does not know, so such a call ran without the filter and answered as if it had, which is how `only_open` hid paid vouchers (issue #95). Refused only for a tool the policy allows, so a withheld one says nothing about its schema |
 | — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path, also when the file a key is saved to cannot be decoded, which stderr names instead. At startup the same class ends the process in one line |
 
@@ -2570,7 +2570,9 @@ every test in this repository. Section 14.3 says how to look.
   **text**, so an XRechnung becomes an invoice a model can read, images as
   **images**, and everything else as an embedded binary the client handles.
   Capped at 5 MiB, the same number the upload accepts, because base64 of
-  anything larger would swallow the answer it was meant to be part of.
+  anything larger would swallow the answer it was meant to be part of. A
+  `resources/read` is held to the same ceiling with the same sentence, since
+  it puts the bytes into one message just as well.
 - **A downloaded file is reused, not copied.** Saving refuses to overwrite a
   file whose contents differ, because replacing last month's invoice with this
   month's is worse than failing. A file whose contents are *identical* is

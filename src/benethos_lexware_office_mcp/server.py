@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import functools
 import re
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,7 @@ from . import __version__, logbook
 from .api.client import ClientProvider
 from .errors import ConfigError, ToolError
 from .files import resources
-from .policy import ToolPolicy
+from .policy import ToolPolicy, known_tools, withheld
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .tools import register_tools
 
@@ -134,7 +135,10 @@ class PolicyServer(MCPServer):
         self._downloads = downloads
         self._listed_downloads = listed_downloads
         self._kept_downloads = kept_downloads
-        self._sessions: set[ServerSession] = set()
+        # Held weakly: a session that ended is gone from here with it. Over
+        # streamable HTTP every client that lists tools opens one, and a
+        # plain set kept each until a policy change failed to reach it.
+        self._sessions: weakref.WeakSet[ServerSession] = weakref.WeakSet()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
         # Bound once, here, rather than per transport: `run_stdio_async` and
@@ -175,8 +179,22 @@ class PolicyServer(MCPServer):
         client holding a tool list older than the removal of that flag
         would have listed every paid voucher as before. Only for a tool the
         policy allows, so a withheld one still says nothing about itself.
+
+        **A withheld tool is refused first**, before the SDK checks the
+        arguments: its refusal of an invalid call names the fields the tool
+        requires and quotes what was sent, which is the schema the policy
+        keeps from the caller. The answer is the one the guard each tool is
+        wrapped in gives a valid call.
         """
-        unknown = await self._unknown_arguments(name, arguments)
+        enabled = self._policy.enabled(name)
+        if not enabled and name in known_tools():
+            refused = withheld(name)
+            logbook.calls.ended(name, refused, 0, 0.0)
+            # Worded as the SDK words a refusal raised inside a tool, which is
+            # where the guard raises it for a valid call, so a client reads
+            # the same answer whatever the arguments were.
+            raise SDKToolError(f"Error executing tool {name}: {refused}") from refused
+        unknown = await self._unknown_arguments(name, arguments) if enabled else []
         if unknown:
             logbook.calls.arguments_refused(name, unknown)
             raise ToolError(
@@ -203,7 +221,7 @@ class PolicyServer(MCPServer):
         otherwise: a name is what the caller typed, and a line on stderr or
         a message back is no place for an arbitrary string.
         """
-        if not arguments or not self._policy.as_map().get(name, False):
+        if not arguments:
             return []
         tool = next((t for t in await super().list_tools() if t.name == name), None)
         if tool is None:
