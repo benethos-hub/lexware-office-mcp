@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import functools
 import re
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -134,7 +135,10 @@ class PolicyServer(MCPServer):
         self._downloads = downloads
         self._listed_downloads = listed_downloads
         self._kept_downloads = kept_downloads
-        self._sessions: set[ServerSession] = set()
+        # Held weakly: a session that ended is gone from here with it. Over
+        # streamable HTTP every client that lists tools opens one, and a
+        # plain set kept each until a policy change failed to reach it.
+        self._sessions: weakref.WeakSet[ServerSession] = weakref.WeakSet()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
         # Bound once, here, rather than per transport: `run_stdio_async` and
