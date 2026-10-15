@@ -338,8 +338,18 @@ def _answered(
         return response
     if status == 401:
         logbook.api.key_rejected()
-    if status < 400:
+    if status < 300:
         return response
+    if status < 400:
+        # httpx follows no redirect, and the API sends none it documents.
+        # Taken as a success, a download saved the redirect's body under
+        # the document's name and a read reported a malformed body.
+        moved = UpstreamError(
+            f"The API answered {method} {path} with {status} instead of a result.",
+            outcome_unknown=method not in READ_METHODS,
+        )
+        moved.status = status
+        raise moved
     refused = from_response(response, method, path)
     # Only a write can have moved the record. A read that is refused after
     # a lost answer - a draft's file, say - is refused for its own reasons.

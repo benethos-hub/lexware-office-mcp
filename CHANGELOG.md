@@ -20,6 +20,11 @@ housekeeping are out of scope here — design decisions live in
   when that file could not be decoded the model was told where it lies on
   the machine. It is now told only what to do, and the server's log names
   the file.
+- **A redirect from the API is an error, not a result.** The client
+  follows none, so a 3xx answer counted as success: a download saved the
+  redirect's page under the document's name, and a read reported a
+  malformed body. Both now say which status came back, and a write adds
+  that its outcome is unknown.
 
 ## [0.5.3] - 2026-10-14
 

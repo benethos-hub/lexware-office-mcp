@@ -362,6 +362,25 @@ async def test_a_post_is_never_retried_after_a_timeout() -> None:
     assert excinfo.value.outcome_unknown is True
 
 
+@pytest.mark.parametrize("status", [301, 302, 304, 307])
+async def test_a_redirect_is_not_a_result(status: int) -> None:
+    """httpx does not follow it, so its body is not the document asked for."""
+    moved = httpx.Response(status, headers={"Location": "/elsewhere"}, text="<html/>")
+    async with make_client(moved) as client:
+        with pytest.raises(UpstreamError, match=f"with {status} instead") as excinfo:
+            await client.download("/v1/files/x")
+        assert client.handler.calls == 1  # type: ignore[attr-defined]
+    assert excinfo.value.status == status
+    assert excinfo.value.outcome_unknown is False
+
+
+async def test_a_redirect_answering_a_write_leaves_the_outcome_open() -> None:
+    async with make_client(httpx.Response(303)) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request("POST", "/v1/invoices", json={})
+    assert excinfo.value.outcome_unknown is True
+
+
 def _undecodable() -> httpx.Response:
     """Announces gzip, carries none: httpx raises DecodingError reading it."""
     return httpx.Response(

@@ -2401,6 +2401,7 @@ its name.
 | 404 | `NotFoundError` | the path that answered nothing - a 404 does not say which part of it was wrong. A tool that looked a record up itself names the resource and the ID or number instead |
 | 406 naming `version`, 409 | `ConflictError` | a stale version (406) says to read the record again. A 409 says the record's current state refused the request, without naming a version. The one message that names both versions is the local check before an update, which compares the version read with the version passed |
 | 429 | `RateLimitError` | after retries are exhausted, to try again shortly. When the breaker trips it says how long it pauses, and when `Retry-After` asks for longer than a call waits it says that wait |
+| 3xx | `UpstreamError` | the status, and that it came instead of a result. The client follows no redirect and the API documents none, so a redirect's body is never taken for a document. On a write the outcome is unknown |
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 | — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
