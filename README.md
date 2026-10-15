@@ -546,8 +546,10 @@ variable holds is shown rather than offered, since saving over it would change
 nothing.
 
 Three things worth knowing. Every start makes a **start code**, and the
-address it prints and opens carries it: `http://127.0.0.1:8771/?code=…`.
-Without it every page shows one field, *Code eingeben*, so another program
+address it prints carries it: `http://127.0.0.1:8771/?code=…`. The browser
+it opens signs in with a code of its own that works once, since a browser's
+address can stay readable in its command line for other users of the
+machine. Without it every page shows one field, *Code eingeben*, so another program
 or another user on the same machine cannot open the pages through the
 loopback port. The code lives as long as the process, and after five wrong
 ones each further try waits. It **binds `127.0.0.1`**, because the code

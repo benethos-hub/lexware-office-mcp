@@ -1119,7 +1119,7 @@ modules and nothing else.
 **Over stdio the server can start it, at the person's request**, since
 2026-10-10. It offers one MCP prompt, `open_setup`, titled "Set up Lexware
 Office", and picking it in the client starts `setup` as a detached process
-with no hold on stdout, which opens the browser on the start code. When the
+with no hold on stdout, which opens the browser signed in. When the
 port already answers it starts nothing. The reason is a client that runs the
 server where nothing else can reach it: measured in a Windows Sandbox with
 Claude Desktop from the Store, a server installed as a desktop extension runs
@@ -1307,7 +1307,8 @@ and the key is never shown again. A refusal raised in `settings/` is quoted,
 not translated, as above. Every destructive action asks first.
 
 **The start code.** `setup` makes a random code at start, writes the address
-with the code to stderr and opens the browser with it. Without a valid code
+with the code to stderr and opens the browser with a code of its own, see
+below. Without a valid code
 every page shows one field, *Code eingeben*, and the static files are the
 one thing served without it, since that page needs them too. After the
 first valid request the session cookie carries the sign-in, and a redirect
@@ -1324,14 +1325,19 @@ would keep the person out, and it starts the count over. The
 code is 16 random bytes, so the wait is not what protects it: it keeps a
 stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the
-container's log, where the operator reads anyway. **The code passes through
-the command line of the browser** that `setup` opens: the address is handed
-over as an argument, so while that process starts, the code is in its
-arguments, which another user of the same machine may be able to list.
-That is the price of a start that signs its own browser in, and it is
-accepted rather than built around: the code is good for this one process,
-and whoever wants none of it starts with `--no-browser` and types the code
-into the page. The code closes the pages
+container's log, where the operator reads anyway. **The browser gets a code
+of its own, spent by its first sign-in**, since 2026-10-15. The address is
+handed to the browser as an argument, and on Linux and macOS it stays in
+that process's command line for as long as the browser runs, which another
+user of the same machine may list. Opened with the start code, that was a
+sign-in for the whole run, and a `setup` the prompt started had no
+`--no-browser` to avoid it, since nobody reads its stderr. So the browser is
+opened with a second random code, and the first sign-in with it spends it:
+what stays in the command line opens nothing afterwards. The printed code
+is unchanged, for the terminal and the log. A browser that lost its session
+after that signs in with the printed code, or, when the prompt started the
+interface, from the prompt again once the interface has ended itself after
+its idle time. The code closes the pages
 to other processes and users of the same machine, which the host and origin
 checks above never did. It does not make a bind beyond loopback safe, since
 it travels in the clear over HTTP, and the warning at the start stays. A

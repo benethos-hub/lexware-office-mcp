@@ -124,6 +124,13 @@ class ConfigServer(ThreadingHTTPServer):
         # The start code, made once, written to stderr, and asked for by
         # every page until a session has given it.
         self.code = secrets.token_urlsafe(16)
+        # What the browser this process opens signs in with, in place of the
+        # code. On Linux and macOS a browser's address stays in its command
+        # line for as long as it runs, which every user of the machine can
+        # read, and the code would let them sign in for the whole run. This
+        # one is spent by its first sign-in, so what is left there opens
+        # nothing. The printed code stays for the terminal and the log.
+        self.opening = secrets.token_urlsafe(16)
         self._signed_in: set[str] = set()
         self._wrong = 0
         self._trying = threading.Lock()
@@ -186,7 +193,10 @@ class ConfigServer(ThreadingHTTPServer):
         the count over.
         """
         # As bytes, for the reason _csrf_ok gives.
-        if typed and secrets.compare_digest(typed.encode(), self.code.encode()):
+        if typed and (
+            secrets.compare_digest(typed.encode(), self.code.encode())
+            or self._spend_opening(typed)
+        ):
             with self._sessions_lock:
                 self._wrong = 0
                 self._signed_in.add(session)
@@ -197,6 +207,16 @@ class ConfigServer(ThreadingHTTPServer):
                 waits = self._wrong > FREE_TRIES
             if waits:
                 self.pause(WAIT_SECONDS)
+        return False
+
+    def _spend_opening(self, typed: str) -> bool:
+        """Whether ``typed`` is the browser's code, which it then no longer is."""
+        with self._sessions_lock:
+            if self.opening and secrets.compare_digest(
+                typed.encode(), self.opening.encode()
+            ):
+                self.opening = ""
+                return True
         return False
 
     def leave(self, session: str, once: Reply) -> None:
@@ -670,8 +690,9 @@ def serve(
     # 0.0.0.0 is a bind, not a destination.
     reachable = DEFAULT_HOST if host in ("0.0.0.0", "::", "") else host
     shown_port = public_port or server.server_address[1]
-    # The code goes with the address, so the browser this opens is signed
-    # in at once and the line is all a person copies from a container's log.
+    # The code goes with the address, so the line is all a person copies
+    # from a container's log. The browser this opens is signed in at once
+    # with a code of its own, see ConfigServer.opening.
     logbook.configui.serving(reachable, shown_port, server.code)
     if host not in LOOPBACK_NAMES:
         logbook.configui.bound_beyond_loopback(host)
@@ -679,7 +700,7 @@ def serve(
     logbook.configui.editing("policy", installation.policy_path)
     logbook.configui.editing("profiles", installation.profiles.path)
     if open_browser:
-        webbrowser.open(f"http://{reachable}:{shown_port}/?code={server.code}")
+        webbrowser.open(f"http://{reachable}:{shown_port}/?code={server.opening}")
     if idle_minutes:
         threading.Thread(
             target=end_when_idle, args=(server, idle_minutes * 60), daemon=True

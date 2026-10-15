@@ -22,6 +22,13 @@ housekeeping are out of scope here — design decisions live in
   offered, and neither the instructions nor the refusal of a call without
   a key name it. On by default, and a choice on the settings page.
 
+### Changed
+
+- **The browser `setup` opens signs in with a code that works once.** On
+  Linux and macOS its address stays in the browser's command line, which
+  other users of the machine can read, and the start code in it was good
+  for the whole run. The printed address keeps the start code.
+
 ### Fixed
 
 - **A settings file that is not UTF-8 no longer puts its path in a tool's

@@ -5,7 +5,7 @@ can: Claude Desktop's extensions live in a sandbox whose Python cannot be
 started from outside it. A prompt is the one thing such a client lets a
 person trigger from its own window, so the server offers one that starts
 ``setup`` as a process of its own, inside the same sandbox, and the browser
-opens on the start code. See SPECS.md section 7.1.
+opens signed in. See SPECS.md section 7.1.
 
 A prompt is user-controlled, never the model's to call, so this does not
 weaken the rule that the policy file alone decides what exists: the prompt
