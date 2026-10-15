@@ -1,8 +1,9 @@
 """Unofficial Lexware Office MCP server.
 
 An MCP server that gives MCP clients such as Claude Desktop access to a
-Lexware Office account through the documented public REST API. Read-only by
-default. Not affiliated with Lexware or Haufe-Lexware.
+Lexware Office account through the documented public REST API. Nothing is
+enabled until the policy file says so. Not affiliated with Lexware or
+Haufe-Lexware.
 """
 
 from importlib.metadata import PackageNotFoundError, version
