@@ -137,7 +137,8 @@ containers/       # README.md says which folder is for what
       server.json # the MCP Registry entry, sent by publish.yml at a release
       fill_bundle_checksum.py # the bundle's hash, written in at the release
     mcpb/         # the Claude Desktop bundle: manifest.json as it ships,
-                  # server.py that uv starts, build.py that stages it
+                  # server.py that uv starts, build.py that stages it,
+                  # check_packed.py that holds the packed bundle to it
   scripts/
     tag_matches_version.py  # a release tag has to be the package version
   workflows/

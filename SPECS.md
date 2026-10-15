@@ -3204,7 +3204,14 @@ described in section 7.1. Nothing on the API side is outstanding.
    lockfile because the manifest says `--frozen`. A job in `publish.yml`
    packs it with a pinned mcpb CLI and attaches it to the release twice,
    under its version and under a name without one for a link that always
-   reaches the newest release.
+   reaches the newest release. Between the two, since 2026-10-15,
+   `check_packed.py` unpacks the result and holds it to the staged tree,
+   the same files byte for byte and no other: the CLI's own version is
+   pinned, but npx resolves everything beneath it afresh at every release,
+   in a job that can write to the release, and the registry entry vouches
+   for the bundle by its hash. Comparing costs a standard-library script,
+   where a lockfile for the CLI would be a second package manager's file to
+   keep current.
 
    **Tried before anything was built**, in a Windows Sandbox with Claude
    Desktop from the Store and no uv or Python on the machine. Claude
