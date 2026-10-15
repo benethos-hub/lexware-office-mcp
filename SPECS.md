@@ -75,19 +75,26 @@ not this project. No Lexware logos, brand colors, or domains containing
 ## 4. Architecture
 
 ```
-a person          --browser/HTTP-->  configui/ (localhost, on request only)
-                                          |  writes .env and tools.json
-                                          v
-MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
-                                              |
-                     +------------------------+-----------------------+
-                     v                        v                       v
-                 tools/*.py               client.py             formatting.py
-             (thin tool defs)      (httpx, auth, retries,     (API JSON ->
-                                    error mapping, owns the    compact output)
-                                    one ratelimit.TokenBucket)
-                                              |
-                                        https://api.lexware.io/v1/...
+a person   --browser-->  configui/ (setup, localhost, on request only)
+                                             |  writes the .env and tools.json
+                                             |  the server reads
+                                             v
+MCP client --stdio/HTTP--> transport/ --> server.py (PolicyServer)
+                                             |  policy.py decides, on every
+                                             |  listing and every call
+                                             v
+                                        tools/*.py (thin definitions)
+                     +-----------------------+----------------------+
+                     v                       v                      v
+                 records/                  api/                  files/
+             types, payloads,     client: one method per    storage, resources,
+             formatting           endpoint. connection:     rendering, delivery
+                                  auth, retries, the one
+                                  ratelimit.TokenBucket
+                                             |
+                               https://api.lexware.io/v1/...
+
+beneath every layer: errors.py, settings/, logbook/ (stderr only)
 ```
 
 | Module | Responsibility | State |
@@ -95,6 +102,9 @@ MCP client (Claude)  --stdio/JSON-RPC-->  server.py (MCPServer + policy)
 | `server.py` | The `PolicyServer`, an `MCPServer` listing only what the policy file allows, and `build_server`, which makes one from the settings and fills the tool registry. | built |
 | `cli.py` | The console script and `python -m`: the arguments, `--tools`, `setup`, `--settings-sample`, what a start reports on stderr, and handing the server to the transport the command line asked for. | built |
 | `__main__.py` | Enables `python -m benethos_lexware_office_mcp`. | built |
+| `__init__.py` | `__version__`, read from the installed distribution, which every module may import. | built |
+| `py.typed` | Says the package ships its type hints. | built |
+| `env.sample` | The commented settings sample, shipped with the package so that `--settings-sample` prints it. `tests/test_env_sample.py` holds it to what the loader reads. | built |
 | `errors.py` | `ToolError` and its subclasses, and `redact`, which every message passes on its way out. Every layer raises these, so the module depends on nothing else in the package. | built |
 | `settings/` | Settings resolution and credential lookup, see section 7 for the precedence. `Settings` and `load_settings` in the package itself, `locations` for the directories, the search and the one file that applies, `parse` for reading one value, `envfile` for the file itself. | built |
 | `settings/envfile.py` | Reading a `.env` and writing one back without disturbing comments, ordering or settings this project knows nothing about. One parser, used by the server and by the interface, so a displayed value cannot differ from a read one. | built |
@@ -146,6 +156,7 @@ below it:
 | `transport` | `server` and the three above |
 | `configui` | everything but `transport` and `cli`, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
 | `cli` | everything, imported by nothing but `python -m` |
+| `__main__` | `cli` |
 
 Two things the table does not follow from, decided 2026-09-30. `errors` is
 the one module every layer raises from, so `server` and `transport` import it
