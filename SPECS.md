@@ -2404,7 +2404,7 @@ its name.
 | 3xx | `UpstreamError` | the status, and that it came instead of a result. The client follows no redirect and the API documents none, so a redirect's body is never taken for a document. On a write the outcome is unknown |
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
-| — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change |
+| — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change. Refused before its arguments are checked, since the SDK's refusal of invalid ones names the fields the tool requires and quotes what was sent |
 | — (arguments) | `ToolError` | an argument the tool does not take, by its name when it looks like one and as `?` otherwise, and that nothing was sent. The SDK builds each argument model to drop what it does not know, so such a call ran without the filter and answered as if it had, which is how `only_open` hid paid vouchers (issue #95). Refused only for a tool the policy allows, so a withheld one says nothing about its schema |
 | — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path, also when the file a key is saved to cannot be decoded, which stderr names instead. At startup the same class ends the process in one line |
 

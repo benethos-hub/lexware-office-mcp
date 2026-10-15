@@ -33,6 +33,10 @@ housekeeping are out of scope here — design decisions live in
   a flag written as `"false"` filled the log, a container's included, for
   as long as the process ran. It is named again once the file changes what
   it says.
+- **A tool the policy does not enable is refused before its arguments are
+  checked.** Called with invalid arguments, it answered with the fields it
+  requires and the values sent, which is the schema the policy keeps from
+  the caller. It now says only that it is not enabled.
 
 ## [0.5.3] - 2026-10-14
 

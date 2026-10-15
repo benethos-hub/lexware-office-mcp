@@ -282,3 +282,23 @@ async def test_a_withheld_tool_says_nothing_about_its_arguments(
         )
 
     assert "takes no argument" not in str(excinfo.value)
+
+
+async def test_a_withheld_tool_is_refused_before_its_arguments_are_checked(
+    lines: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """The SDK's refusal of invalid arguments names the fields and the values."""
+    policy = tmp_path / "tools.json"
+    ToolPolicy(policy).save({"get_profile": True})
+
+    with pytest.raises(ToolError) as excinfo:
+        await _call(
+            always({}), "get_contact", {"contact_id": 42}, tool_policy_path=policy
+        )
+
+    assert str(excinfo.value) == (
+        "Error executing tool get_contact: get_contact is not enabled for this "
+        "installation. The account owner decides that in the server's tool policy."
+    )
+    assert "42" not in str(excinfo.value)
+    assert _only(lines).startswith("get_contact refused: PermissionDeniedError")

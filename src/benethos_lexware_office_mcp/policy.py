@@ -51,6 +51,7 @@ __all__ = [
     "json_text",
     "known_tools",
     "policy_text",
+    "withheld",
     "preset",
     "writing",
 ]
@@ -323,6 +324,20 @@ def policy_text(flags: Mapping[str, bool]) -> str:
     return json_text({name: bool(flags[name]) for name in sorted(flags)})
 
 
+def withheld(name: str) -> PermissionDeniedError:
+    """The refusal of a tool the policy does not enable, one text everywhere.
+
+    No path in it. It travels to the client and from there into a model's
+    context, and where a file sits on somebody's disk - user name, directory
+    layout and all - is nothing the caller can act on. The person who can
+    act on it is at the machine, where stderr already names the file.
+    """
+    return PermissionDeniedError(
+        f"{name} is not enabled for this installation. The account "
+        "owner decides that in the server's tool policy."
+    )
+
+
 def guarded(func: F, policy: ToolPolicy) -> F:
     """``func``, refusing to run while ``policy`` does not enable it.
 
@@ -336,15 +351,7 @@ def guarded(func: F, policy: ToolPolicy) -> F:
 
     def guard() -> None:
         if not policy.enabled(name):
-            # No path in this message. It travels to the client and from
-            # there into a model's context, and where a file sits on
-            # somebody's disk - user name, directory layout and all - is
-            # nothing the caller can act on. The person who can act on it
-            # is at the machine, where stderr already names the file.
-            raise PermissionDeniedError(
-                f"{name} is not enabled for this installation. The account "
-                "owner decides that in the server's tool policy."
-            )
+            raise withheld(name)
 
     if inspect.iscoroutinefunction(func):
 
