@@ -27,6 +27,7 @@ downloads
 # Not needed at build time.
 assets
 tests
+live
 scratch
 containers
 SPECS.md

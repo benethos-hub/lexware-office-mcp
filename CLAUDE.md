@@ -67,6 +67,9 @@ src/benethos_lexware_office_mcp/
   server.py       # PolicyServer (an MCPServer that lists what the policy allows)
   cli.py          # the console script: arguments, --tools, setup, what a start reports
   __main__.py     # enables `python -m benethos_lexware_office_mcp`
+  __init__.py     # __version__, which every module may import
+  py.typed        # the package ships its type hints
+  env.sample      # the commented settings sample --settings-sample prints
   errors.py       # the ToolError hierarchy, and redact
   settings/       # settings resolution, credential lookup
     __init__.py   # Settings, load_settings, the defaults
