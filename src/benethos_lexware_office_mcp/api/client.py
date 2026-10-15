@@ -53,6 +53,22 @@ def _expect_object(payload: Any, endpoint: str) -> dict[str, Any]:
     return payload
 
 
+def _expect_page(payload: Any, endpoint: str) -> dict[str, Any]:
+    """Insist on a page: an object whose ``content`` is a list of objects.
+
+    Every row is read as an object on the way to the caller, so anything
+    else in ``content`` would end the call in an ``AttributeError``, which
+    reaches the model as a bare failure rather than as what happened.
+    """
+    page = _expect_object(payload, endpoint)
+    content = page.get("content") or []
+    if not isinstance(content, list) or not all(
+        isinstance(row, dict) for row in content
+    ):
+        raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+    return page
+
+
 def _expect_list(payload: Any, endpoint: str) -> list[Any]:
     """Insist that an endpoint documented to return a bare list returned one."""
     if not isinstance(payload, list):
@@ -102,7 +118,7 @@ class LexwareClient(Connection):
             customer=customer,
             vendor=vendor,
         )
-        return _expect_object(
+        return _expect_page(
             await self.get_json("/v1/contacts", params=params), "contacts"
         )
 
@@ -184,7 +200,7 @@ class LexwareClient(Connection):
             archived=archived,
             sort=sort,
         )
-        return _expect_object(
+        return _expect_page(
             await self.get_json("/v1/voucherlist", params=params), "voucherlist"
         )
 
@@ -270,7 +286,7 @@ class LexwareClient(Connection):
             gtin=gtin,
             type=article_type,
         )
-        return _expect_object(
+        return _expect_page(
             await self.get_json("/v1/articles", params=params), "articles"
         )
 
@@ -327,7 +343,7 @@ class LexwareClient(Connection):
         refuses anything else, and it ignores every other parameter.
         """
         params = _page_params(page, size, sort=sort)
-        return _expect_object(
+        return _expect_page(
             await self.get_json("/v1/recurring-templates", params=params),
             "recurring-templates",
         )

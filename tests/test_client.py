@@ -56,6 +56,39 @@ async def test_profile_rejects_an_unexpected_shape() -> None:
             await client.profile()
 
 
+@pytest.mark.parametrize(
+    "content", [{"id": "x"}, ["not", "rows"], "text", [{"id": "x"}, None]]
+)
+@pytest.mark.parametrize(
+    ("method", "endpoint"),
+    [
+        ("contacts", "contacts"),
+        ("articles", "articles"),
+        ("recurring_templates", "recurring-templates"),
+    ],
+)
+async def test_a_page_whose_rows_are_not_objects_is_an_unexpected_shape(
+    method: str, endpoint: str, content: Any
+) -> None:
+    """Every row is read as an object, so anything else is drift, said so."""
+    answer = httpx.Response(200, json={"content": content, "totalPages": 1})
+    async with make_client(answer) as client:
+        with pytest.raises(UpstreamError, match=f"The {endpoint} endpoint returned"):
+            await getattr(client, method)()
+
+
+async def test_the_voucher_list_is_held_to_the_same_shape() -> None:
+    answer = httpx.Response(200, json={"content": "rows"})
+    async with make_client(answer) as client:
+        with pytest.raises(UpstreamError, match="voucherlist endpoint returned"):
+            await client.voucherlist(voucher_type="any", voucher_status="any")
+
+
+async def test_an_empty_page_is_still_a_page() -> None:
+    async with make_client(httpx.Response(200, json={"content": None})) as client:
+        assert await client.contacts() == {"content": None}
+
+
 async def test_a_malformed_body_is_reported_rather_than_raised_raw() -> None:
     async with make_client(httpx.Response(200, text="<html>nope</html>")) as client:
         with pytest.raises(UpstreamError):
@@ -359,6 +392,25 @@ async def test_a_post_is_never_retried_after_a_timeout() -> None:
         with pytest.raises(UpstreamError) as excinfo:
             await client.request("POST", "/v1/invoices", json={})
         assert client.handler.calls == 1  # type: ignore[attr-defined]
+    assert excinfo.value.outcome_unknown is True
+
+
+@pytest.mark.parametrize("status", [301, 302, 304, 307])
+async def test_a_redirect_is_not_a_result(status: int) -> None:
+    """httpx does not follow it, so its body is not the document asked for."""
+    moved = httpx.Response(status, headers={"Location": "/elsewhere"}, text="<html/>")
+    async with make_client(moved) as client:
+        with pytest.raises(UpstreamError, match=f"with {status} instead") as excinfo:
+            await client.download("/v1/files/x")
+        assert client.handler.calls == 1  # type: ignore[attr-defined]
+    assert excinfo.value.status == status
+    assert excinfo.value.outcome_unknown is False
+
+
+async def test_a_redirect_answering_a_write_leaves_the_outcome_open() -> None:
+    async with make_client(httpx.Response(303)) as client:
+        with pytest.raises(UpstreamError) as excinfo:
+            await client.request("POST", "/v1/invoices", json={})
     assert excinfo.value.outcome_unknown is True
 
 

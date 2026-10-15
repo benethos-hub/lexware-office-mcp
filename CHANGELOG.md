@@ -13,6 +13,22 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Fixed
+
+- **A settings file that is not UTF-8 no longer puts its path in a tool's
+  answer.** A server started without a key looks for one saved since, and
+  when that file could not be decoded the model was told where it lies on
+  the machine. It is now told only what to do, and the server's log names
+  the file.
+- **A redirect from the API is an error, not a result.** The client
+  follows none, so a 3xx answer counted as success: a download saved the
+  redirect's page under the document's name, and a read reported a
+  malformed body. Both now say which status came back, and a write adds
+  that its outcome is unknown.
+- **A list whose rows are not records says the API answered in an
+  unexpected shape**, as a single record already did. It ended in a bare
+  failure that named only the tool.
+
 ## [0.5.3] - 2026-10-14
 
 A patch release for the container image, which moves to Python 3.15.
