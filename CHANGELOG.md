@@ -40,6 +40,11 @@ housekeeping are out of scope here — design decisions live in
 - **A client session that ended is forgotten with it.** The server kept
   every session that had listed its tools until a policy change failed to
   reach it, so over HTTP many short sessions added up.
+- **A download read as a resource is held to the 5 MiB `read_download`
+  keeps**, with the same answer: it is too much for one message, and the
+  file is on disk already. A larger file in the download directory was
+  encoded into one message whole. **A download directory that cannot be
+  listed lists no resources** instead of failing the request.
 
 ## [0.5.3] - 2026-10-14
 

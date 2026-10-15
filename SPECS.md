@@ -2570,7 +2570,9 @@ every test in this repository. Section 14.3 says how to look.
   **text**, so an XRechnung becomes an invoice a model can read, images as
   **images**, and everything else as an embedded binary the client handles.
   Capped at 5 MiB, the same number the upload accepts, because base64 of
-  anything larger would swallow the answer it was meant to be part of.
+  anything larger would swallow the answer it was meant to be part of. A
+  `resources/read` is held to the same ceiling with the same sentence, since
+  it puts the bytes into one message just as well.
 - **A downloaded file is reused, not copied.** Saving refuses to overwrite a
   file whose contents differ, because replacing last month's invoice with this
   month's is worse than failing. A file whose contents are *identical* is

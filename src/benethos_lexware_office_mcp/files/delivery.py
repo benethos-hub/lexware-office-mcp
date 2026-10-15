@@ -37,11 +37,6 @@ from . import rendering, resources, storage
 
 __all__ = ["deliver", "inline", "load_inline", "saved"]
 
-# Base64 costs roughly 1.37 times the file size in the answer, so this is a
-# ceiling on damage rather than a working size. It is the same 5 MiB the API
-# accepts for an upload, so there is one number to remember.
-MAX_INLINE = 5 * 1024 * 1024
-
 # Types a model can actually read. XML is the one that matters: an XRechnung
 # is an invoice in text form.
 TEXT_TYPES = ("application/xml", "text/xml", "application/json")
@@ -82,12 +77,8 @@ def load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult:
             )
         payload = found.read_bytes()
     mime = storage.content_type_for(found)
-    if len(payload) > MAX_INLINE:
-        raise ValidationError(
-            f"{uri} is {len(payload) / 1024 / 1024:.1f} MiB, too much to "
-            "put in an answer. It is on disk already, so use the path the "
-            "download reported."
-        )
+    if len(payload) > resources.MAX_INLINE:
+        raise ValidationError(resources.too_large(uri, len(payload)))
     return inline(uri, payload, mime, max_pages)
 
 

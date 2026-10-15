@@ -7,7 +7,11 @@ import os
 from pathlib import Path
 
 import pytest
-from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
+from mcp.server.mcpserver.exceptions import (
+    ResourceError,
+    ResourceNotFoundError,
+    ToolError,
+)
 
 from benethos_lexware_office_mcp.files import resources, storage
 from benethos_lexware_office_mcp.policy import known_tools
@@ -684,3 +688,30 @@ async def test_where_nothing_is_deleted_the_advice_is_only_to_fetch_it(
 
     assert "Download the document again." in said
     assert "keeps the newest" not in said
+
+
+async def test_a_resource_too_large_for_an_answer_is_refused_unread(
+    tmp_path: Path,
+) -> None:
+    """The ceiling read_download keeps, so the resource is no way round it."""
+    big = tmp_path / "big.pdf"
+    with big.open("wb") as handle:
+        handle.truncate(resources.MAX_INLINE + 1)
+    uri = resources.uri_for("big.pdf")
+
+    with pytest.raises(ResourceError, match=r"5\.0 MiB, too much"):
+        resources.read(tmp_path, uri)
+
+
+def test_a_directory_that_cannot_be_listed_lists_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty list, where resources/list ended in an internal error."""
+
+    def refused(self: Path) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(Path, "iterdir", refused)
+
+    assert storage.newest(tmp_path) == []
+    assert resources.listed(tmp_path, 10) == []
