@@ -35,6 +35,7 @@ from .types import (
 __all__ = [
     "article_body",
     "contact_body",
+    "require_one_contact",
     "require_type_fields",
     "sales_document_body",
     "voucher_body",
@@ -250,6 +251,28 @@ VOUCHER_PUT_DROP = (
     "updatedDate",
     "organizationId",
 )
+
+
+def require_one_contact(
+    contact_id: str | None, use_collective_contact: bool | None
+) -> None:
+    """Refuse a contact change that names two contacts, or none it can move to.
+
+    Checked before the read an update spends first. Measured 2026-10-08: off
+    the collective contact without a named one is refused with
+    `contactId: Missing_ContactId`.
+    """
+    if contact_id is not None and use_collective_contact:
+        raise ValidationError(
+            "Pass contact_id or use_collective_contact, not both: a voucher "
+            "belongs either to a named contact or to the collective one."
+        )
+    if use_collective_contact is False and contact_id is None:
+        raise ValidationError(
+            "use_collective_contact=false on its own names no contact, and "
+            "the API refuses a voucher without one. Pass contact_id to move "
+            "it to a named contact, or leave both out to keep its contact."
+        )
 
 
 def voucher_body(
