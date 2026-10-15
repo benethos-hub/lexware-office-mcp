@@ -113,6 +113,49 @@ async def test_a_broken_file_enables_nothing_and_says_so(
     assert "unreadable tool policy" in caplog.text.lower()
 
 
+@pytest.mark.parametrize(
+    "text",
+    ['{"get_profile": "false"}', "{not json at all", '["get_profile"]'],
+    ids=["not a flag", "unreadable", "not an object"],
+)
+def test_a_mistake_in_the_file_is_named_once_not_on_every_read(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, text: str
+) -> None:
+    """The watcher reads it every two seconds, and stderr is somebody's log."""
+    policy = tmp_path / "tools.json"
+    policy.write_text(text, encoding="utf-8")
+    store = ToolPolicy(policy)
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            store.as_map()
+
+    assert len(caplog.records) == 1
+
+
+def test_a_mistake_is_named_again_once_the_file_says_something_else(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    policy = tmp_path / "tools.json"
+    store = ToolPolicy(policy)
+
+    with caplog.at_level(logging.WARNING):
+        for text in [
+            '{"get_profile": "false"}',
+            '{"get_profile": "false"}',
+            '{"get_profile": true}',
+            '{"get_profile": "false"}',
+            '{"get_profile": "false", "get_deeplink": 1}',
+        ]:
+            policy.write_text(text, encoding="utf-8")
+            store.enabled("get_profile")
+
+    # The first, the same one again after the fix, and both once a second
+    # mistake joins it.
+    assert len(caplog.records) == 4
+    assert "'get_deeplink'" in caplog.records[-1].getMessage()
+
+
 async def test_a_file_holding_something_other_than_an_object_is_ignored(
     tmp_path: Path,
 ) -> None:

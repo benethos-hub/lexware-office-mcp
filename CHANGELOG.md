@@ -28,6 +28,11 @@ housekeeping are out of scope here — design decisions live in
 - **A list whose rows are not records says the API answered in an
   unexpected shape**, as a single record already did. It ended in a bare
   failure that named only the tool.
+- **A mistake in the policy file is named on stderr once**, not on every
+  read. The server reads the file every two seconds and on every call, so
+  a flag written as `"false"` filled the log, a container's included, for
+  as long as the process ran. It is named again once the file changes what
+  it says.
 
 ## [0.5.3] - 2026-10-14
 

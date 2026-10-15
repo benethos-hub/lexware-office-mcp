@@ -2364,7 +2364,7 @@ where it differs.
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
-| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean |
+| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds |
 | `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
