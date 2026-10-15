@@ -577,8 +577,25 @@ async def test_a_url_outside_the_setting_leaves_no_host_in_the_log(
         "https://mustermann-gmbh.example.net/a.pdf",
     )
 
+    assert (
+        "Refused to fetch an upload over https: the address is outside "
+        "LXO_MCP_UPLOAD_URLS, nothing was requested"
+    ) in lines.text
     assert "upload_file refused: ValidationError" in lines.text
     assert "mustermann" not in lines.text
+
+
+async def test_without_the_setting_the_log_says_that_is_why(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    lines = capture_lines(caplog, "DEBUG")
+
+    await refused(server(lexware(), served(), tmp_path=tmp_path), LINK)
+
+    assert "LXO_MCP_UPLOAD_URLS allows no address, nothing was requested" in (
+        lines.text
+    )
+    assert "files.example.com" not in lines.text
 
 
 # -- the tool list --------------------------------------------------------

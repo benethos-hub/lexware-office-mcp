@@ -25,8 +25,10 @@ housekeeping are out of scope here — design decisions live in
   the fetch gets 30 seconds, the file is cut off at 5 MiB whether its size
   was declared or not, and its type has to be one the API takes. The
   Lexware key is never sent along, and the log names the scheme and the
-  host of a link and nothing after them. `http://` is taken for
-  `127.0.0.1`, `::1` and `localhost` alone: any other host stops the start.
+  host of a link and nothing after them. A link outside the setting is a
+  log line by its scheme alone, since the model chose its host. `http://`
+  is taken for `127.0.0.1`, `::1` and `localhost` alone: any other host
+  stops the start.
   A field on the settings page, beside the upload directory.
 
 ### Changed

@@ -9,8 +9,9 @@ neither is in a line.
 Nor can it say where an upload was fetched from. A line here does, by scheme
 and host alone: a signed link carries its key in the path or the query, and
 the link is as good as the key for as long as it lives. The host is one
-``LXO_MCP_UPLOAD_URLS`` names - a URL outside the setting is refused before
-any line about it, and its host, which the model chose, is not written down.
+``LXO_MCP_UPLOAD_URLS`` names. A URL outside the setting is refused before
+anything is sent, and its line says so by the scheme alone: its host was
+chosen by the model, and a host name can carry any text a prompt put there.
 """
 
 from __future__ import annotations
@@ -20,7 +21,14 @@ import logging
 from ._describe import describe
 from .output import PACKAGE
 
-__all__ = ["fetched", "not_fetched", "pruned", "reused"]
+__all__ = [
+    "fetched",
+    "none_allowed",
+    "not_allowed",
+    "not_fetched",
+    "pruned",
+    "reused",
+]
 
 _log = logging.getLogger(f"{PACKAGE}.storage")
 
@@ -36,6 +44,21 @@ def pruned(count: int, kept: int) -> None:
 def fetched(scheme: str, host: str, size: int, ms: float) -> None:
     _log.info(
         "Fetched %d bytes to upload from %s://%s in %.0f ms", size, scheme, host, ms
+    )
+
+
+def none_allowed() -> None:
+    _log.warning(
+        "Refused to fetch an upload: LXO_MCP_UPLOAD_URLS allows no address, "
+        "nothing was requested"
+    )
+
+
+def not_allowed(scheme: str) -> None:
+    _log.warning(
+        "Refused to fetch an upload over %s: the address is outside "
+        "LXO_MCP_UPLOAD_URLS, nothing was requested",
+        scheme,
     )
 
 

@@ -170,6 +170,7 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
     no prefix, whatever it starts with.
     """
     if not allowed:
+        logbook.files.none_allowed()
         raise ValidationError(
             "This server fetches no URL for upload: no address is allowed in "
             "LXO_MCP_UPLOAD_URLS. Give a path on this machine, or ask the "
@@ -189,6 +190,9 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
                 _port(base),
             ) and _under(target.path, base.path):
                 return target
+    # By the scheme alone, which `is_url` held to http or https. The host is
+    # the model's choice and stays out of the log.
+    logbook.files.not_allowed(target.scheme)
     raise ValidationError(
         f"{target.hostname or 'This URL'} is outside the addresses this server "
         "may fetch uploads from, so nothing was requested. Ask the account "

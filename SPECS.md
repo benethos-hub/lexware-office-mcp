@@ -1608,9 +1608,13 @@ What each source checks earlier - a file's size before it is read, a
 response's before it is streamed - is an early way out, not a second rule.
 
 **A URL is a capability**, see section 11. A log line names its scheme and
-its host and never its path or query, and a host outside the setting, which
-the model chose, appears in no line at all. A refusal tells the model the
-host alone.
+its host and never its path or query. A URL outside the setting is a line by
+its scheme alone, saying the address was outside the list and nothing was
+requested: the host was the model's choice, and a host name can carry any
+text a prompt put into it - a customer's name, an IBAN. Whoever reads the
+log learns why the call was refused, and the host itself is in the refusal
+the model was given. The same line without a scheme says that no address is
+allowed at all.
 
 ## 8. Tools
 
@@ -2298,9 +2302,9 @@ These rules are absolute for this repository.
 - **A URL an upload is fetched from is a capability, like a token.** A signed
   link carries its key in the path or the query, and is as good as the key
   for as long as it lives. A log line names its scheme and host, never more,
-  and only a host `LXO_MCP_UPLOAD_URLS` allows - one outside it was chosen by
-  the model and is written nowhere. The Lexware key never travels with a
-  fetch: its client is not the API's, see section 7.2.
+  and the host only where `LXO_MCP_UPLOAD_URLS` allows it - one outside was
+  chosen by the model, and its line names the scheme alone. The Lexware key
+  never travels with a fetch: its client is not the API's, see section 7.2.
 - Downloaded documents are real business records. They go to the download
   directory, which is gitignored, and are never committed.
 - **What one installation is allowed to do is not a property of the code**,
@@ -2502,7 +2506,7 @@ where it differs.
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
-| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not |
+| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, and that no address is allowed at all |
 | | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
 | | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
