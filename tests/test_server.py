@@ -17,6 +17,7 @@ from benethos_lexware_office_mcp.policy import ToolPolicy
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.settings.locations import settings_sample
+from helpers import server_obeying
 
 
 def test_server_identifies_itself() -> None:
@@ -126,12 +127,7 @@ async def test_a_server_without_a_policy_file_offers_nothing(
 
 
 async def test_a_server_offers_exactly_what_the_file_names(tmp_path: Path) -> None:
-    target = tmp_path / "tools.json"
-    target.write_text(
-        json.dumps({"get_profile": True, "search_contacts": False}), encoding="utf-8"
-    )
-
-    server = build_server(Settings(tool_policy_path=target))
+    server = server_obeying(tmp_path, {"get_profile": True, "search_contacts": False})
 
     assert [t.name for t in await server.list_tools()] == ["get_profile"]
 
@@ -140,14 +136,9 @@ def test_starting_the_server_reports_what_is_enabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A client shows an empty tool list without explaining why. stderr does."""
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.load_settings",
-        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
-    )
     started: list[bool] = []
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.build_server",
-        lambda settings: _FakeServer(started, settings),
+    started_cli(
+        monkeypatch, Settings(tool_policy_path=tmp_path / "absent.json"), started
     )
 
     with caplog.at_level("WARNING"):
@@ -167,14 +158,7 @@ def test_starting_with_write_tools_on_says_which_ones(
     target.write_text(
         json.dumps({"get_profile": True, "upload_file": True}), encoding="utf-8"
     )
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.load_settings",
-        lambda **_: Settings(tool_policy_path=target),
-    )
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.build_server",
-        lambda settings: _FakeServer([], settings),
-    )
+    started_cli(monkeypatch, Settings(tool_policy_path=target))
 
     with caplog.at_level("WARNING"):
         main(["--log-level", "WARNING"])
@@ -186,14 +170,7 @@ def test_starting_with_write_tools_on_says_which_ones(
 def test_starting_says_which_version_over_which_transport(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.load_settings",
-        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
-    )
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.build_server",
-        lambda settings: _FakeServer([], settings),
-    )
+    started_cli(monkeypatch, Settings(tool_policy_path=tmp_path / "absent.json"))
 
     with caplog.at_level("INFO"):
         main([])
@@ -206,14 +183,7 @@ def test_starting_names_the_env_file_it_read(
 ) -> None:
     env = tmp_path / ".env"
     env.write_text("LXO_MCP_PAGE_SIZE=40\n", encoding="utf-8")
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.load_settings",
-        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
-    )
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.build_server",
-        lambda settings: _FakeServer([], settings),
-    )
+    started_cli(monkeypatch, Settings(tool_policy_path=tmp_path / "absent.json"))
 
     with caplog.at_level("INFO"):
         main(["--env-file", str(env)])
@@ -225,14 +195,7 @@ def test_starting_names_the_env_file_it_read(
 def test_starting_says_when_no_env_file_was_found(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.load_settings",
-        lambda **_: Settings(tool_policy_path=tmp_path / "absent.json"),
-    )
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.build_server",
-        lambda settings: _FakeServer([], settings),
-    )
+    started_cli(monkeypatch, Settings(tool_policy_path=tmp_path / "absent.json"))
 
     with caplog.at_level("INFO"):
         main([])
@@ -247,17 +210,13 @@ def test_starting_the_server_cleans_the_download_directory(
     downloads.mkdir()
     for name in ("a.pdf", "b.pdf", "c.pdf"):
         (downloads / name).write_bytes(b"%PDF")
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.load_settings",
-        lambda **_: Settings(
+    started_cli(
+        monkeypatch,
+        Settings(
             tool_policy_path=tmp_path / "absent.json",
             download_path=downloads,
             kept_downloads=1,
         ),
-    )
-    monkeypatch.setattr(
-        "benethos_lexware_office_mcp.cli.build_server",
-        lambda settings: _FakeServer([], settings),
     )
 
     main(["--log-level", "ERROR"])
@@ -284,6 +243,24 @@ def test_writing_the_policy_file_cleans_nothing(
     main(["--tools", "show", "--log-level", "ERROR"])
 
     assert len(list(downloads.iterdir())) == 3
+
+
+def started_cli(
+    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
+    started: list[bool] | None = None,
+) -> None:
+    """The command line on ``settings``, with a server that never opens stdio.
+
+    ``started`` collects whether the server was run over stdio.
+    """
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.load_settings", lambda **_: settings
+    )
+    monkeypatch.setattr(
+        "benethos_lexware_office_mcp.cli.build_server",
+        lambda settings: _FakeServer([] if started is None else started, settings),
+    )
 
 
 class _FakeServer:

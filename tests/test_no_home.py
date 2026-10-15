@@ -18,12 +18,12 @@ import pytest
 from benethos_lexware_office_mcp import settings as C
 from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.configui import pages
-from benethos_lexware_office_mcp.configui.state import Installation
 from benethos_lexware_office_mcp.errors import ConfigError
 from benethos_lexware_office_mcp.files import storage
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.settings import locations as L
+from helpers import installation
 
 
 def _no_home(*_args: object, **_kwargs: object) -> str:
@@ -140,13 +140,7 @@ def test_the_command_line_ends_in_one_line_not_a_traceback(
 def test_the_pages_render_and_say_why_there_is_no_download_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    env = tmp_path / ".env"
-    env.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
-    inst = Installation(
-        settings=Settings(tool_policy_path=tmp_path / "tools.json"),
-        env_path=env,
-        cwd=tmp_path,
-    )
+    inst = installation(tmp_path, "LXO_MCP_PAGE_SIZE=50\n")
 
     overview = pages.overview(inst).html().decode("utf-8")
     settings = pages.settings(inst).html().decode("utf-8")

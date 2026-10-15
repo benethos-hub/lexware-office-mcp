@@ -13,7 +13,7 @@ from benethos_lexware_office_mcp.cli import main
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
-from helpers import write_policy
+from helpers import server_obeying, write_policy
 
 pytestmark = pytest.mark.anyio
 
@@ -42,10 +42,9 @@ async def test_a_tool_the_file_does_not_mention_is_off(tmp_path: Path) -> None:
     later. This one lists what to allow, so a tool nobody has decided about
     stays out.
     """
-    policy = write_policy(tmp_path / "tools.json", {"get_contact": True})
-    settings = Settings(api_key=API_KEY, tool_policy_path=policy)
+    server = server_obeying(tmp_path, {"get_contact": True})
 
-    names = {t.name for t in await build_server(settings).list_tools()}
+    names = {t.name for t in await server.list_tools()}
 
     assert names == {"get_contact"}
 
@@ -65,12 +64,11 @@ async def test_a_byte_order_mark_does_not_switch_everything_off(
 
 
 async def test_a_disabled_tool_is_not_listed(tmp_path: Path) -> None:
-    policy = write_policy(
-        tmp_path / "tools.json", {"download_file": False, "download_document": True}
+    server = server_obeying(
+        tmp_path, {"download_file": False, "download_document": True}
     )
-    settings = Settings(api_key=API_KEY, tool_policy_path=policy)
 
-    names = {t.name for t in await build_server(settings).list_tools()}
+    names = {t.name for t in await server.list_tools()}
 
     assert "download_file" not in names
     assert "download_document" in names
@@ -82,10 +80,9 @@ async def test_a_write_tool_is_offered_when_the_file_says_so(tmp_path: Path) -> 
     The tier used to refuse a write tool whatever the file said. That is gone
     on purpose: one place decides, and this is it.
     """
-    policy = write_policy(tmp_path / "tools.json", {"upload_file": True})
-    settings = Settings(api_key=API_KEY, tool_policy_path=policy)
+    server = server_obeying(tmp_path, {"upload_file": True})
 
-    names = {t.name for t in await build_server(settings).list_tools()}
+    names = {t.name for t in await server.list_tools()}
 
     assert names == {"upload_file"}
 
@@ -365,11 +362,10 @@ async def test_switching_a_tool_off_takes_effect_without_a_restart(
     switched off is refused - even though it stays in a list the client
     already holds.
     """
-    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
-    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+    server = server_obeying(tmp_path, {"get_profile": True})
 
     assert [t.name for t in await server.list_tools()] == ["get_profile"]
-    write_policy(policy, {"get_profile": False})
+    write_policy(tmp_path / "tools.json", {"get_profile": False})
 
     with pytest.raises(ToolError) as excinfo:
         await server.call_tool("get_profile", {})
@@ -385,11 +381,12 @@ async def test_switching_a_tool_on_takes_effect_too(tmp_path: Path) -> None:
     where the check sat, not a decision, and it made "the file takes effect on
     the next request" true in one direction only.
     """
-    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
-    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+    server = server_obeying(tmp_path, {"get_profile": True})
 
     assert [t.name for t in await server.list_tools()] == ["get_profile"]
-    write_policy(policy, {"get_profile": True, "search_contacts": True})
+    write_policy(
+        tmp_path / "tools.json", {"get_profile": True, "search_contacts": True}
+    )
 
     assert {t.name for t in await server.list_tools()} == {
         "get_profile",
@@ -399,11 +396,10 @@ async def test_switching_a_tool_on_takes_effect_too(tmp_path: Path) -> None:
 
 async def test_a_tool_enabled_while_running_can_be_called(tmp_path: Path) -> None:
     """Listing it and refusing it would be worse than either alone."""
-    policy = write_policy(tmp_path / "tools.json", {})
-    server = build_server(Settings(api_key=API_KEY, tool_policy_path=policy))
+    server = server_obeying(tmp_path, {})
 
     assert await server.list_tools() == []
-    write_policy(policy, {"get_deeplink": True})
+    write_policy(tmp_path / "tools.json", {"get_deeplink": True})
 
     result = await server.call_tool(
         "get_deeplink", {"target": "voucher", "target_id": "PLACEHOLDER-1"}

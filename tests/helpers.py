@@ -53,15 +53,16 @@ __all__ = [
     "downloaded",
     "make_pdf",
     "recorder",
-    "Answer",
     "Handler",
     "Scripted",
     "always",
     "capture_lines",
-    "fast_bucket",
     "fast_client",
     "fast_provider",
+    "installation",
     "no_sleep",
+    "page_of",
+    "server_obeying",
     "server_with",
 ]
 
@@ -148,6 +149,18 @@ def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientPr
     return build_server(settings, provider), provider
 
 
+def server_obeying(
+    tmp_path: Path, flags: Mapping[str, bool], **settings: Any
+) -> PolicyServer:
+    """A server whose policy file, ``tools.json`` in ``tmp_path``, says ``flags``.
+
+    For a test about what the file decides. One that changes the file while
+    the server runs writes to the same path.
+    """
+    policy = write_policy(tmp_path / "tools.json", flags)
+    return build_server(Settings(api_key=API_KEY, tool_policy_path=policy, **settings))
+
+
 def capture_lines(caplog: Any, level: str) -> Any:
     """``caplog`` catching this package's lines at ``level``.
 
@@ -158,6 +171,25 @@ def capture_lines(caplog: Any, level: str) -> Any:
     configure(level, io.StringIO())
     caplog.set_level(getattr(logging, level), logger=PACKAGE)
     return caplog
+
+
+def page_of(*rows: Any, sort: str = "name") -> dict[str, Any]:
+    """The first and only page of a list, as every list endpoint answers it.
+
+    The envelope the API wraps rows in, sort block included, which the
+    formatters drop. `test_contacts.py` keeps the one measured live in full.
+    """
+    return {
+        "content": list(rows),
+        "first": True,
+        "last": True,
+        "number": 0,
+        "numberOfElements": len(rows),
+        "size": 25,
+        "sort": [{"property": sort, "nullHandling": "NATIVE"}],
+        "totalElements": len(rows),
+        "totalPages": 1 if rows else 0,
+    }
 
 
 def write_policy(path: Path, flags: Mapping[str, bool]) -> Path:
@@ -392,6 +424,21 @@ class Browser:
                 )
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read().decode("utf-8"), dict(exc.headers)
+
+
+def installation(
+    tmp_path: Path, env_text: str = "", *, env_name: str = ".env", **settings: Any
+) -> Installation:
+    """An installation in ``tmp_path``: a settings file holding ``env_text``,
+    the policy file beside it, and ``settings`` as the process resolved them.
+    """
+    env = tmp_path / env_name
+    env.write_text(env_text, encoding="utf-8")
+    return Installation(
+        settings=Settings(tool_policy_path=tmp_path / "tools.json", **settings),
+        env_path=env,
+        cwd=tmp_path,
+    )
 
 
 @contextmanager

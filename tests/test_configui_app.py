@@ -22,6 +22,7 @@ from urllib.parse import urlencode
 
 import pytest
 
+import helpers
 from benethos_lexware_office_mcp.configui import actions, app, probe, transfer
 from benethos_lexware_office_mcp.configui.app import (
     CONTENT_SECURITY_POLICY,
@@ -59,12 +60,9 @@ def installation(
     no_configuration_from_this_machine: None,
 ) -> Installation:
     monkeypatch.setattr(probe, "check", fake_check)
-    env = tmp_path / ".env"
-    env.write_text("LXO_MCP_PAGE_SIZE=50\n", encoding="utf-8")
-    settings = Settings(
-        api_key="secret-value", page_size=50, tool_policy_path=tmp_path / "tools.json"
+    return helpers.installation(
+        tmp_path, "LXO_MCP_PAGE_SIZE=50\n", api_key="secret-value", page_size=50
     )
-    return Installation(settings=settings, env_path=env, cwd=tmp_path)
 
 
 @pytest.fixture
