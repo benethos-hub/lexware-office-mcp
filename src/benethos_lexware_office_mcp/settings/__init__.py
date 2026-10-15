@@ -357,12 +357,9 @@ def load_settings(
 def _file_a_key_is_saved_to(cwd: Path | None, env_file: Path | None) -> Path | None:
     """The ``.env`` the configuration interface would write the key into.
 
-    The named file, or the one the search settles on, which is where a file
-    is created when none exists yet. No home and no file named: nowhere.
+    No home and no file named: nowhere.
     """
-    if env_file is not None:
-        return env_file
     try:
-        return locations.resolve_config_file(".env", cwd)
+        return locations.env_file_to_write(env_file, cwd)
     except ConfigError:
         return None

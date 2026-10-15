@@ -43,6 +43,7 @@ __all__ = [
     "config_dir",
     "download_dir",
     "env_file_in_effect",
+    "env_file_to_write",
     "resolve_config_file",
     "settings_sample",
     "tool_policy_file",
@@ -168,6 +169,23 @@ def resolve_config_file(name: str, cwd: Path | None = None) -> Path:
             return path
     config_dir()  # raises when there is no home, and so nowhere to create one
     return candidates[0]
+
+
+def env_file_to_write(named: Path | None = None, cwd: Path | None = None) -> Path:
+    """The ``.env`` a setting is written to, which need not exist yet.
+
+    The named file, or else the one the search would read, and when there
+    is none anywhere the per-user configuration directory, where an
+    installed copy creates one. Asked by the configuration interface, which
+    writes there, by the server that watches it or writes a generated
+    token, and by a server started without a key, which looks there for
+    one saved since. Without a home and without a name there is nowhere,
+    and :class:`ConfigError` says what to set.
+
+    Not :func:`env_file_in_effect`, which answers ``None`` when no file
+    exists: every caller here needs the place a file belongs either way.
+    """
+    return named if named is not None else resolve_config_file(".env", cwd)
 
 
 def env_file_in_effect(

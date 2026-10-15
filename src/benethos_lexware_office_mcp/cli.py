@@ -28,7 +28,7 @@ from .server import build_server
 from .settings import LOG_LEVELS, LOOPBACK_NAMES, TRANSPORTS, Settings, load_settings
 from .settings.locations import (
     env_file_in_effect,
-    resolve_config_file,
+    env_file_to_write,
     settings_sample,
 )
 from .settings.parse import csv_tuple, user_path
@@ -459,7 +459,7 @@ def _run(
     if args.command == "setup":
         configui.start(
             settings,
-            configui.target_env_file(named_env),
+            env_file_to_write(named_env),
             host=args.host or configui.DEFAULT_HOST,
             port=args.port or configui.DEFAULT_PORT,
             open_browser=not args.no_browser,
@@ -486,10 +486,10 @@ def _run(
 
     if settings.transport != "stdio":
         generating = not settings.bearer_token
-        settings = bearer_ready(settings, _env_in_effect(named_env))
+        settings = bearer_ready(settings, env_file_to_write(named_env))
         if generating:
             # This process wrote that, so the file now says what it holds.
-            loaded = snapshot(_env_in_effect(named_env))
+            loaded = snapshot(env_file_to_write(named_env))
 
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
@@ -511,23 +511,11 @@ def _run(
         return
 
     _report_where_it_listens(settings)
-    watch = _env_in_effect(named_env) if settings.exit_on_config_change else None
+    # Pinned here, as the policy file is: the identity of the file is decided
+    # once, and only its contents are read again. One `.env` applies, so
+    # watching the place it belongs watches for one appearing as well.
+    watch = env_file_to_write(named_env) if settings.exit_on_config_change else None
     run_http(server, settings, watch=watch, since=loaded)
-
-
-def _env_in_effect(named: Path | None) -> Path:
-    """The settings file this process was configured from.
-
-    Pinned here for the same reason the policy file is pinned: the identity
-    of the file is decided once, and only its contents are read again.
-
-    Not ``locations.env_file_in_effect``, which answers ``None`` when no file
-    exists. The two callers here need a path either way - one watches for a
-    file appearing, the other writes a generated token into the place a file
-    belongs - and since one `.env` applies, watching that one is watching all
-    of them.
-    """
-    return named if named is not None else resolve_config_file(".env")
 
 
 def _report_where_it_listens(settings: Settings) -> None:

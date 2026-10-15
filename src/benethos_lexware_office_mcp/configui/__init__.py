@@ -30,7 +30,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..settings import DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, Settings
-from ..settings.locations import resolve_config_file
 from .state import Installation
 
 __all__ = [
@@ -38,7 +37,6 @@ __all__ = [
     "DEFAULT_PORT",
     "Installation",
     "start",
-    "target_env_file",
 ]
 
 # Loopback, as the transport binds by default. The port is one above the
@@ -46,17 +44,6 @@ __all__ = [
 # listening on its port does not end `setup` with "in use".
 DEFAULT_HOST = DEFAULT_HTTP_HOST
 DEFAULT_PORT = DEFAULT_HTTP_PORT + 1
-
-
-def target_env_file(named: Path | None = None, cwd: Path | None = None) -> Path:
-    """The ``.env`` this interface writes to.
-
-    A file named on the command line, or else the one the search would read —
-    and when there is none anywhere, the per-user configuration directory,
-    which is where an installed copy should create one. It does not have to
-    exist yet: creating it is half of what this interface is for.
-    """
-    return named if named is not None else resolve_config_file(".env", cwd)
 
 
 def start(
