@@ -90,9 +90,10 @@ ICONS = [
 # title is here because the instructions below name it.
 SETUP_PROMPT_TITLE = "Set up Lexware Office"
 
-# Over stdio alone, where the prompt exists. Without it a client that lists
-# no tool leaves the model guessing at a broken connection, which is what
-# happened the first time this was tried in Claude Desktop.
+# Wherever the prompt exists, see `Settings.offers_setup_prompt`. Without it
+# a client that lists no tool leaves the model guessing at a broken
+# connection, which is what happened the first time this was tried in Claude
+# Desktop.
 _SETUP_HINT = f"""
 The person can open the configuration interface, where the API key is set and
 the tools are chosen, by picking the prompt "{SETUP_PROMPT_TITLE}" in the
@@ -366,7 +367,7 @@ def build_server(
         icons=ICONS,
         version=__version__,
         instructions=_INSTRUCTIONS
-        + (_SETUP_HINT if settings.transport == "stdio" else ""),
+        + (_SETUP_HINT if settings.offers_setup_prompt() else ""),
         policy=policy,
         downloads=downloads,
         listed_downloads=settings.downloads_listed(),

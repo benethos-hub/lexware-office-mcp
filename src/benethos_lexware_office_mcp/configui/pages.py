@@ -38,6 +38,7 @@ from .state import (
     LABELS,
     LOG_LEVEL_KEY,
     POLICY_KEY,
+    SETUP_PROMPT_KEY,
     Installation,
     if_emptied,
     resolved,
@@ -93,6 +94,12 @@ SETTINGS_CARDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "Dateien",
         "Wo Downloads landen, wie viele bleiben, woher Uploads kommen dürfen.",
         ("LXO_MCP_DOWNLOAD_DIR", "LXO_MCP_KEPT_DOWNLOADS", "LXO_MCP_UPLOAD_DIR"),
+    ),
+    (
+        "Einrichtung",
+        "Ob der Client ein Prompt anbietet, das diese Seiten öffnet. Aus, wenn "
+        "der Client seine Prompts dem Modell überlässt.",
+        (SETUP_PROMPT_KEY,),
     ),
 )
 
@@ -511,7 +518,7 @@ def credentials(
 
 
 def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page:
-    """The settings that are no secret, in three cards.
+    """The settings that are no secret, card by card.
 
     The placeholder is what an empty field means, read the way the value
     in effect is read: the built-in default, unless another setting changes
@@ -538,6 +545,11 @@ def settings(inst: Installation, *, typed: dict[str, str] | None = None) -> Page
             if value and value not in LOG_LEVELS:
                 value = shown.get(key, "")
                 choices.append((value, f"{value} (unbekannt)"))
+        if key == SETUP_PROMPT_KEY:
+            choices = [("", f"Standard ({default[key]})"), ("1", "an"), ("0", "aus")]
+            # As above, and here it says what the server makes of it.
+            if value not in ("", "1", "0"):
+                choices.append((value, f"{value} (gilt als {values[key]})"))
         return {
             "key": key,
             "label": LABELS[key],

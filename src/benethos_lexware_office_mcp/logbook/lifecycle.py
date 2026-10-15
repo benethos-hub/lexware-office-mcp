@@ -63,15 +63,15 @@ def late_key_unreadable(path: Path) -> None:
     )
 
 
-def no_policy(path: Path | None, transport: str) -> None:
-    """Over stdio the client offers a prompt that opens the interface.
+def no_policy(path: Path | None, prompt: bool) -> None:
+    """Where the client offers a prompt that opens the interface, it is named.
 
     Its title is spelled out rather than imported, since the server sits
     above this layer. `tests/test_setup_prompt.py` holds the two together.
     """
     opened_by = (
         'the client\'s prompt "Set up Lexware Office" opens it, and so does '
-        if transport == "stdio"
+        if prompt
         else "open it with "
     )
     _log.warning(

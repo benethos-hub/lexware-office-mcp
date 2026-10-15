@@ -1012,6 +1012,14 @@ def test_an_unknown_log_level_is_refused_rather_than_stored(
     assert installation.settings.log_level == "DEBUG"
 
 
+def test_the_setup_prompt_is_switched_off_from_the_page(
+    browser: Browser, installation: Installation
+) -> None:
+    browser.post("/settings", {"LXO_MCP_SETUP_PROMPT": "0"})
+
+    assert installation.settings.offers_setup_prompt() is False
+
+
 def test_two_saves_at_once_both_arrive(
     browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
