@@ -17,6 +17,7 @@ from benethos_lexware_office_mcp.policy import ToolPolicy
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.settings.locations import settings_sample
+from helpers import server_obeying
 
 
 def test_server_identifies_itself() -> None:
@@ -126,12 +127,7 @@ async def test_a_server_without_a_policy_file_offers_nothing(
 
 
 async def test_a_server_offers_exactly_what_the_file_names(tmp_path: Path) -> None:
-    target = tmp_path / "tools.json"
-    target.write_text(
-        json.dumps({"get_profile": True, "search_contacts": False}), encoding="utf-8"
-    )
-
-    server = build_server(Settings(tool_policy_path=target))
+    server = server_obeying(tmp_path, {"get_profile": True, "search_contacts": False})
 
     assert [t.name for t in await server.list_tools()] == ["get_profile"]
 

@@ -61,6 +61,7 @@ __all__ = [
     "fast_provider",
     "installation",
     "no_sleep",
+    "server_obeying",
     "server_with",
 ]
 
@@ -145,6 +146,18 @@ def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientPr
     settings = Settings(api_key=API_KEY, **fields)
     provider = fast_provider(handler, settings=settings)
     return build_server(settings, provider), provider
+
+
+def server_obeying(
+    tmp_path: Path, flags: Mapping[str, bool], **settings: Any
+) -> PolicyServer:
+    """A server whose policy file, ``tools.json`` in ``tmp_path``, says ``flags``.
+
+    For a test about what the file decides. One that changes the file while
+    the server runs writes to the same path.
+    """
+    policy = write_policy(tmp_path / "tools.json", flags)
+    return build_server(Settings(api_key=API_KEY, tool_policy_path=policy, **settings))
 
 
 def capture_lines(caplog: Any, level: str) -> Any:
