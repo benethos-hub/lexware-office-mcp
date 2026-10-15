@@ -23,6 +23,7 @@ from .parse import (
     csv_tuple,
     flag,
     https_url,
+    url_prefixes,
     user_path,
 )
 
@@ -139,6 +140,8 @@ class Settings:
     app_base_url: str = DEFAULT_APP_BASE_URL
     download_path: Path | None = None
     upload_path: Path | None = None
+    # The addresses an upload may be fetched from. None set, none is fetched.
+    upload_urls: tuple[str, ...] = ()
     timeout: float = DEFAULT_TIMEOUT
     rate: float = DEFAULT_RATE
     burst: int = DEFAULT_BURST
@@ -319,6 +322,9 @@ def load_settings(
         ),
         download_path=user_path(get("DOWNLOAD_DIR"), name="LXO_MCP_DOWNLOAD_DIR"),
         upload_path=user_path(get("UPLOAD_DIR"), name="LXO_MCP_UPLOAD_DIR"),
+        upload_urls=url_prefixes(
+            get("UPLOAD_URLS"), name="LXO_MCP_UPLOAD_URLS", loopback=LOOPBACK_NAMES
+        ),
         timeout=as_float(get("TIMEOUT"), DEFAULT_TIMEOUT, name="LXO_MCP_TIMEOUT"),
         rate=as_float(get("RATE"), DEFAULT_RATE, name="LXO_MCP_RATE"),
         burst=as_int(get("BURST"), DEFAULT_BURST, name="LXO_MCP_BURST"),

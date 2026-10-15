@@ -120,32 +120,39 @@ def fast_provider(
     *,
     settings: Settings | None = None,
     bucket: TokenBucket | None = None,
+    fetch: Handler | None = None,
     **fields: Any,
 ) -> ClientProvider:
     """The one provider a server takes, against ``handler``.
 
     ``fields`` go into the :class:`Settings` beside the key. ``settings``
     replaces that whole object, for a test about the settings themselves.
+    ``fetch`` answers an upload fetched from a URL, which never reaches
+    ``handler``: that one stands for Lexware.
     """
     provider = ClientProvider(
         settings or Settings(api_key=API_KEY, **fields),
         transport=httpx.MockTransport(handler),
         bucket=bucket or fast_bucket(),
         sleep=no_sleep,
+        fetch_transport=None if fetch is None else httpx.MockTransport(fetch),
     )
     OPEN_PROVIDERS.append(provider)
     return provider
 
 
-def server_with(handler: Handler, **fields: Any) -> tuple[PolicyServer, ClientProvider]:
+def server_with(
+    handler: Handler, *, fetch: Handler | None = None, **fields: Any
+) -> tuple[PolicyServer, ClientProvider]:
     """A server whose every tool answers from ``handler``, and its provider.
 
     The provider is returned too, for a test that looks at it. It is closed
     after the test either way. ``fields`` are :class:`Settings` fields,
-    ``page_size`` or ``download_path`` say.
+    ``page_size`` or ``download_path`` say. ``fetch`` answers the URLs an
+    upload is fetched from.
     """
     settings = Settings(api_key=API_KEY, **fields)
-    provider = fast_provider(handler, settings=settings)
+    provider = fast_provider(handler, settings=settings, fetch=fetch)
     return build_server(settings, provider), provider
 
 

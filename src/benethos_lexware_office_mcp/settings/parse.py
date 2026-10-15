@@ -19,6 +19,7 @@ __all__ = [
     "csv_tuple",
     "flag",
     "https_url",
+    "url_prefixes",
     "user_path",
 ]
 
@@ -97,6 +98,55 @@ def https_url(raw: str | None, fallback: str, *, name: str) -> str:
     if parsed.scheme != "https" or not host:
         raise refused
     return value
+
+
+def url_prefixes(
+    raw: str | None, *, name: str, loopback: frozenset[str]
+) -> tuple[str, ...]:
+    """The addresses a fetched URL has to start with, comma separated.
+
+    Each is a scheme, a host, and optionally a port and the start of a path.
+    Nothing else: a query or a fragment is no part of an address, and a user
+    name before the host is the oldest way to make one URL read as another.
+    A ``.`` or ``..`` segment is refused too, since a prefix that climbs out
+    of its own path names some other one.
+
+    ``https://`` is the rule. ``http://`` carries the file in the clear, so
+    it is taken for a service on this machine alone, a host in ``loopback``,
+    and refused for any other: a setting that would send an upload across a
+    network unencrypted is a mistake to stop at startup, not at the first
+    call.
+    """
+    prefixes: list[str] = []
+    for entry in csv_tuple(raw):
+        refused = ConfigError(
+            f"{name} takes addresses such as https://files.example.com/inbox/, "
+            f"got {entry!r}: a scheme and a host, and optionally a port and the "
+            "start of a path, without a user name, a query or a fragment."
+        )
+        try:
+            parsed = urlsplit(entry)
+            host = parsed.hostname
+            parsed.port  # noqa: B018 - read for the ValueError it may raise
+        except ValueError:
+            raise refused from None
+        if (
+            parsed.scheme not in ("https", "http")
+            or not host
+            or "@" in parsed.netloc
+            or "?" in entry
+            or "#" in entry
+            or any(segment in (".", "..") for segment in parsed.path.split("/"))
+        ):
+            raise refused
+        if parsed.scheme == "http" and host not in loopback:
+            raise ConfigError(
+                f"{name} allows http:// only for a service on this machine - "
+                f"127.0.0.1, ::1 or localhost - since it carries the file "
+                f"unencrypted. Use https:// for {host}."
+            )
+        prefixes.append(entry)
+    return tuple(prefixes)
 
 
 def user_path(raw: str | None, *, name: str) -> Path | None:

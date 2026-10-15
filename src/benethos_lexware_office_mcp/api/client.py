@@ -492,12 +492,23 @@ class ClientProvider:
 
     Creation is lazy, so building a server to list its tools does not open a
     connection pool that nobody uses.
+
+    ``fetch_transport`` is what an upload fetched from a URL travels by, for
+    the test suite to inject as it injects the client's own. Never the
+    client's: that one carries the key, and a fetch goes elsewhere.
     """
 
-    def __init__(self, settings: Settings, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        fetch_transport: httpx.AsyncBaseTransport | None = None,
+        **kwargs: Any,
+    ) -> None:
         self._settings = settings
         self._kwargs = kwargs
         self._client: LexwareClient | None = None
+        self.fetch_transport = fetch_transport
 
     def get(self) -> LexwareClient:
         """The process-wide client, built on first use."""

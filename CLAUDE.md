@@ -28,10 +28,12 @@ How to work in this repository. Read this before making changes. See
    a second copy of a rule that lives in the code.
 4. **stdio is sacred.** stdout carries the MCP JSON-RPC stream. Never
    `print()` to stdout from server or library code, log to **stderr** only.
-5. **One rate limiter.** Every outbound request passes the single
+5. **One rate limiter.** Every request to Lexware passes the single
    `ratelimit.TokenBucket` that `api/connection.py` owns — retries and pagination
    follow-ups included. The upstream limit is global across all endpoints, so a
-   second bucket anywhere is a bug. See SPECS.md section 10.1. **A throwaway
+   second bucket anywhere is a bug. See SPECS.md section 10.1. A file an upload
+   fetches from a URL comes from another server and takes no token, see
+   section 7.2. **A throwaway
    probe script is not an exception**: build a `LexwareClient` rather than a
    bare `httpx.AsyncClient`, or the third request comes back 429 and the
    account has been told this key misbehaves.
@@ -86,12 +88,15 @@ src/benethos_lexware_office_mcp/
     formatting.py # API JSON -> compact tool output
     types.py      # every Literal and model a tool's schema is built from
   api/            # everything that talks to Lexware
-    connection.py # ALL HTTP access: auth, retries, error mapping
+    connection.py # ALL HTTP access to Lexware: auth, retries, error mapping
     client.py     # LexwareClient: one method per endpoint, on a connection
     ratelimit.py  # the one token bucket, clock injectable for tests
     refusal.py    # a refused answer read into a ToolError
   files/          # what becomes of a file, behind the files tools
     storage.py    # where downloads land, filenames made safe first, uploads read
+                  # and checked, wherever they came from
+    fetch.py      # an upload fetched from a URL LXO_MCP_UPLOAD_URLS allows,
+                  # its own client, never the API's
     resources.py  # downloads published as MCP resources for the client
     rendering.py  # PDF pages -> PNG, the only module touching pypdfium2
     delivery.py   # a download saved and answered with a link, or read back
@@ -118,6 +123,7 @@ tests/            # offline, httpx MockTransport - the whole of the gate
 live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
+  upload_from_url.py # writes: one upload fetched from 127.0.0.1, test account only
   shapes/         # one timestamped capture per run
 assets/
   brand/          # the organisation's brand rules, checked by the brand job:

@@ -30,7 +30,7 @@ __all__ = [
     "FinalizeConfirm",
     "PageNumber",
     "PageSize",
-    "UploadPath",
+    "UploadSource",
     "VersionField",
     "as_result",
     "register_tool",
@@ -147,12 +147,12 @@ FinalizeConfirm = Annotated[
     Field(description="Required only for finalize. Ignored otherwise."),
 ]
 
-UploadPath = Annotated[
+UploadSource = Annotated[
     str,
     Field(
         description=(
-            "Path to the file on this machine, for example a scanned "
-            "receipt. PDFs and images are accepted, at most 5 MiB."
+            "The file: a path on this machine, or a URL to fetch it from. A "
+            "URL works only for addresses the account owner allowed."
         )
     ),
 ]
