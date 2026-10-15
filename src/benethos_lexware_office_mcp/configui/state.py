@@ -142,8 +142,9 @@ class Installation:
             return None
         return applies
 
-    def source_of(self, key: str, env: dict[str, str] | None = None) -> str:
-        """Where this value comes from, in the order that decides.
+    def source(self, key: str, env: dict[str, str] | None = None) -> tuple[str, str]:
+        """Where this value comes from, in the order that decides, and a
+        tooltip for its badge: which file, or which variable.
 
         A file is asked before the command line for one reason: the policy
         path lands in the settings whether it came from ``--tools-file`` or
@@ -158,15 +159,19 @@ class Installation:
         ``--tools-file`` is asked first of all for the policy file, because it
         outranks the environment: with both set, the path is the flag's.
         """
+        named = "Mit --tools-file auf der Kommandozeile benannt."
         if key == POLICY_KEY and self.tools_file_named:
-            return CLI_SOURCE
-        if os.environ.get(key, "").strip():
-            return ENV_SOURCE
-        if self.source_file(key, env) is not None:
-            return FILE_SOURCE
+            return CLI_SOURCE, named
+        if self.shadowed(key):
+            return ENV_SOURCE, f"Umgebungsvariable {key}"
+        supplier = self.source_file(key, env)
+        if supplier is not None:
+            return FILE_SOURCE, str(supplier)
         if key == POLICY_KEY:
-            return CLI_SOURCE if self._policy_named else SEARCH_SOURCE
-        return DEFAULT_SOURCE
+            if self._policy_named:
+                return CLI_SOURCE, named
+            return SEARCH_SOURCE, "Beim Start gesucht und seitdem festgehalten."
+        return DEFAULT_SOURCE, ""
 
     def source_file(self, key: str, env: dict[str, str] | None = None) -> Path | None:
         """The ``.env`` that supplies this value, if a file does.
@@ -183,21 +188,6 @@ class Installation:
             return self.env_path
         return None
 
-    def source_detail(self, key: str, env: dict[str, str] | None = None) -> str:
-        """A tooltip for the badge: which file, or which variable."""
-        if key == POLICY_KEY and self.tools_file_named:
-            return "Mit --tools-file auf der Kommandozeile benannt."
-        if self.shadowed(key):
-            return f"Umgebungsvariable {key}"
-        supplier = self.source_file(key, env)
-        if supplier is not None:
-            return str(supplier)
-        if key == POLICY_KEY:
-            if self._policy_named:
-                return "Mit --tools-file auf der Kommandozeile benannt."
-            return "Beim Start gesucht und seitdem festgehalten."
-        return ""
-
     def shadowed(self, key: str) -> bool:
         """Whether writing this key here would have no effect.
 
@@ -211,7 +201,7 @@ class Installation:
         return bool(self.settings.api_key)
 
 
-def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
+def downloads_dir(settings: Settings) -> str:
     """The download directory, or why there is none.
 
     Without a home and without ``LXO_MCP_DOWNLOAD_DIR`` nothing resolves, and
@@ -220,7 +210,7 @@ def downloads_dir(settings: Settings, unresolved: str | None = None) -> str:
     try:
         return str(settings.download_directory())
     except ConfigError as exc:
-        return str(exc) if unresolved is None else unresolved
+        return str(exc)
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,7 +242,7 @@ SHOWN: tuple[Shown, ...] = (
         "Web-App für Deeplinks",
         lambda s: s.app_base_url,
     ),
-    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", lambda s: downloads_dir(s)),
+    Shown("LXO_MCP_DOWNLOAD_DIR", "Downloads", downloads_dir),
     Shown(
         "LXO_MCP_KEPT_DOWNLOADS",
         "Downloads im Cache (die neuesten)",

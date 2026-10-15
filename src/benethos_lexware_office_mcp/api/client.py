@@ -82,11 +82,33 @@ class LexwareClient(Connection):
     One instance per server process, handed out by :class:`ClientProvider`.
     """
 
+    # -- the three shapes most endpoints take -------------------------------
+
+    async def _get_object(
+        self, path: str, *, endpoint: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """``GET`` an endpoint documented to answer with one object."""
+        return _expect_object(await self.get_json(path, params=params), endpoint)
+
+    async def _create(
+        self, path: str, body: dict[str, Any], *, endpoint: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """``POST`` a JSON body, never retried, and read what it answers."""
+        return await self._send_json(
+            "POST", path, json=body, endpoint=endpoint, **kwargs
+        )
+
+    async def _replace(
+        self, path: str, body: dict[str, Any], *, endpoint: str
+    ) -> dict[str, Any]:
+        """``PUT`` a whole record, carrying the version it was read at."""
+        return await self._send_json("PUT", path, json=body, endpoint=endpoint)
+
     # -- endpoints --------------------------------------------------------
 
     async def profile(self) -> dict[str, Any]:
         """``GET /v1/profile``. One API call."""
-        return _expect_object(await self.get_json("/v1/profile"), "profile")
+        return await self._get_object("/v1/profile", endpoint="profile")
 
     async def contacts(
         self,
@@ -124,8 +146,8 @@ class LexwareClient(Connection):
 
     async def contact(self, contact_id: str) -> dict[str, Any]:
         """``GET /v1/contacts/{id}``. One API call."""
-        return _expect_object(
-            await self.get_json(f"/v1/contacts/{_segment(contact_id)}"), "contacts"
+        return await self._get_object(
+            f"/v1/contacts/{_segment(contact_id)}", endpoint="contacts"
         )
 
     async def create_contact(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -135,9 +157,7 @@ class LexwareClient(Connection):
         ``{id, resourceUri, createdDate, updatedDate, version}``. The record
         itself has to be read back if the caller wants to see it.
         """
-        return await self._send_json(
-            "POST", "/v1/contacts", json=body, endpoint="contacts"
-        )
+        return await self._create("/v1/contacts", body, endpoint="contacts")
 
     async def update_contact(
         self, contact_id: str, body: dict[str, Any]
@@ -148,11 +168,8 @@ class LexwareClient(Connection):
         carry the ``version`` that was read, which is what makes a concurrent
         change fail instead of being overwritten.
         """
-        return await self._send_json(
-            "PUT",
-            f"/v1/contacts/{_segment(contact_id)}",
-            json=body,
-            endpoint="contacts",
+        return await self._replace(
+            f"/v1/contacts/{_segment(contact_id)}", body, endpoint="contacts"
         )
 
     # -- vouchers ---------------------------------------------------------
@@ -206,8 +223,8 @@ class LexwareClient(Connection):
 
     async def voucher(self, voucher_id: str) -> dict[str, Any]:
         """``GET /v1/vouchers/{id}``. One API call."""
-        return _expect_object(
-            await self.get_json(f"/v1/vouchers/{_segment(voucher_id)}"), "vouchers"
+        return await self._get_object(
+            f"/v1/vouchers/{_segment(voucher_id)}", endpoint="vouchers"
         )
 
     async def vouchers_by_number(self, voucher_number: str) -> dict[str, Any]:
@@ -225,11 +242,10 @@ class LexwareClient(Connection):
         refused with 400 ``voucherNumber parameter is required`` rather than
         answered with some other voucher.
         """
-        return _expect_object(
-            await self.get_json(
-                "/v1/vouchers", params={"voucherNumber": voucher_number}
-            ),
-            "vouchers",
+        return await self._get_object(
+            "/v1/vouchers",
+            params={"voucherNumber": voucher_number},
+            endpoint="vouchers",
         )
 
     async def payments(self, voucher_id: str) -> dict[str, Any]:
@@ -237,15 +253,13 @@ class LexwareClient(Connection):
 
         Takes the id of the **voucher**, not of a payment.
         """
-        return _expect_object(
-            await self.get_json(f"/v1/payments/{_segment(voucher_id)}"), "payments"
+        return await self._get_object(
+            f"/v1/payments/{_segment(voucher_id)}", endpoint="payments"
         )
 
     async def create_voucher(self, body: dict[str, Any]) -> dict[str, Any]:
         """``POST /v1/vouchers``. One API call, never retried."""
-        return await self._send_json(
-            "POST", "/v1/vouchers", json=body, endpoint="vouchers"
-        )
+        return await self._create("/v1/vouchers", body, endpoint="vouchers")
 
     async def update_voucher(
         self, voucher_id: str, body: dict[str, Any]
@@ -255,11 +269,8 @@ class LexwareClient(Connection):
         As with contacts the body replaces the record and has to carry the
         ``version`` that was read.
         """
-        return await self._send_json(
-            "PUT",
-            f"/v1/vouchers/{_segment(voucher_id)}",
-            json=body,
-            endpoint="vouchers",
+        return await self._replace(
+            f"/v1/vouchers/{_segment(voucher_id)}", body, endpoint="vouchers"
         )
 
     # -- articles ---------------------------------------------------------
@@ -292,15 +303,13 @@ class LexwareClient(Connection):
 
     async def article(self, article_id: str) -> dict[str, Any]:
         """``GET /v1/articles/{id}``. One API call."""
-        return _expect_object(
-            await self.get_json(f"/v1/articles/{_segment(article_id)}"), "articles"
+        return await self._get_object(
+            f"/v1/articles/{_segment(article_id)}", endpoint="articles"
         )
 
     async def create_article(self, body: dict[str, Any]) -> dict[str, Any]:
         """``POST /v1/articles``. One API call, never retried."""
-        return await self._send_json(
-            "POST", "/v1/articles", json=body, endpoint="articles"
-        )
+        return await self._create("/v1/articles", body, endpoint="articles")
 
     async def update_article(
         self, article_id: str, body: dict[str, Any]
@@ -311,11 +320,8 @@ class LexwareClient(Connection):
         read. Verified 2026-08-21: a stale one is refused with **409**, where
         a contact answers 406.
         """
-        return await self._send_json(
-            "PUT",
-            f"/v1/articles/{_segment(article_id)}",
-            json=body,
-            endpoint="articles",
+        return await self._replace(
+            f"/v1/articles/{_segment(article_id)}", body, endpoint="articles"
         )
 
     async def delete_article(self, article_id: str) -> None:
@@ -350,9 +356,9 @@ class LexwareClient(Connection):
 
     async def recurring_template(self, template_id: str) -> dict[str, Any]:
         """``GET /v1/recurring-templates/{id}``. One API call."""
-        return _expect_object(
-            await self.get_json(f"/v1/recurring-templates/{_segment(template_id)}"),
-            "recurring-templates",
+        return await self._get_object(
+            f"/v1/recurring-templates/{_segment(template_id)}",
+            endpoint="recurring-templates",
         )
 
     # -- master data ------------------------------------------------------
@@ -390,12 +396,8 @@ class LexwareClient(Connection):
             params["finalize"] = "true"
         if preceding_sales_voucher_id is not None:
             params["precedingSalesVoucherId"] = preceding_sales_voucher_id
-        return await self._send_json(
-            "POST",
-            f"/v1/{resource}",
-            json=body,
-            params=params or None,
-            endpoint=resource,
+        return await self._create(
+            f"/v1/{resource}", body, params=params or None, endpoint=resource
         )
 
     async def sales_document(self, resource: str, document_id: str) -> dict[str, Any]:
@@ -406,8 +408,8 @@ class LexwareClient(Connection):
         does not match the id is a 404, indistinguishable from an id that
         does not exist.
         """
-        return _expect_object(
-            await self.get_json(f"/v1/{resource}/{_segment(document_id)}"), resource
+        return await self._get_object(
+            f"/v1/{resource}/{_segment(document_id)}", endpoint=resource
         )
 
     # -- files ------------------------------------------------------------

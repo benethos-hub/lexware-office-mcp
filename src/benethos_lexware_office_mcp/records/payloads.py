@@ -35,6 +35,7 @@ from .types import (
 __all__ = [
     "article_body",
     "contact_body",
+    "require_one_contact",
     "require_type_fields",
     "sales_document_body",
     "voucher_body",
@@ -252,6 +253,28 @@ VOUCHER_PUT_DROP = (
 )
 
 
+def require_one_contact(
+    contact_id: str | None, use_collective_contact: bool | None
+) -> None:
+    """Refuse a contact change that names two contacts, or none it can move to.
+
+    Checked before the read an update spends first. Measured 2026-10-08: off
+    the collective contact without a named one is refused with
+    `contactId: Missing_ContactId`.
+    """
+    if contact_id is not None and use_collective_contact:
+        raise ValidationError(
+            "Pass contact_id or use_collective_contact, not both: a voucher "
+            "belongs either to a named contact or to the collective one."
+        )
+    if use_collective_contact is False and contact_id is None:
+        raise ValidationError(
+            "use_collective_contact=false on its own names no contact, and "
+            "the API refuses a voucher without one. Pass contact_id to move "
+            "it to a named contact, or leave both out to keep its contact."
+        )
+
+
 def voucher_body(
     *,
     base: dict[str, Any] | None = None,
@@ -374,6 +397,11 @@ def _gross_total(lines: list[dict[str, Any]], tax_type: Any) -> float:
 _PRICE_KEYS = ("leadingPrice", "netPrice", "grossPrice", "taxRate")
 
 
+# Fields an article carries when read and a PUT has no business repeating:
+# the id is in the path, and the rest the API keeps itself.
+ARTICLE_PUT_DROP = ("id", "organizationId", "createdDate", "updatedDate")
+
+
 def article_body(
     *,
     base: dict[str, Any] | None = None,
@@ -400,9 +428,9 @@ def article_body(
     number nobody checked. Verified 2026-08-21: a gross price of 11.90 at 19%
     comes back with a net price of 10.00 beside it.
     """
-    body: dict[str, Any] = dict(base) if base else {}
-    for key in ("id", "organizationId", "createdDate", "updatedDate"):
-        body.pop(key, None)
+    body: dict[str, Any] = {
+        k: v for k, v in (base or {}).items() if k not in ARTICLE_PUT_DROP
+    }
     if base is None:
         body["version"] = 0
 

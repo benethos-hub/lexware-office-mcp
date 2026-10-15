@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .. import logbook
-from ..errors import ConfigError, register_secret
+from ..errors import ConfigError, opened_by, register_secret
 from . import locations
 from .envfile import read_env_file
 from .parse import (
@@ -222,17 +222,10 @@ class Settings:
         # Deliberately without the path of the .env: this message reaches
         # the client and a model's context, where a directory layout is
         # nothing anybody can act on. The command names the file on the
-        # machine, which is where somebody can. The prompt's title is
-        # spelled out, since the server sits above this layer, and
-        # tests/test_setup_prompt.py holds the two together.
-        opened_by = (
-            'the client\'s prompt "Set up Lexware Office" opens it, and so does '
-            if self.offers_setup_prompt()
-            else "open it with "
-        )
+        # machine, which is where somebody can.
         raise ConfigError(
             "No API key configured for this server. Save one in the "
-            f"configuration interface, {opened_by}"
+            f"configuration interface, {opened_by(self.offers_setup_prompt())}"
             "`benethos-lexware-office-mcp setup` on the machine the server "
             "runs on, and it is used from the next call on. Setting "
             "LXO_MCP_API_KEY works as well."
@@ -364,12 +357,9 @@ def load_settings(
 def _file_a_key_is_saved_to(cwd: Path | None, env_file: Path | None) -> Path | None:
     """The ``.env`` the configuration interface would write the key into.
 
-    The named file, or the one the search settles on, which is where a file
-    is created when none exists yet. No home and no file named: nowhere.
+    No home and no file named: nowhere.
     """
-    if env_file is not None:
-        return env_file
     try:
-        return locations.resolve_config_file(".env", cwd)
+        return locations.env_file_to_write(env_file, cwd)
     except ConfigError:
         return None

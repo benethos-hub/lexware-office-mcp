@@ -10,6 +10,7 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
+from ..errors import opened_by
 from ._describe import describe
 from .output import PACKAGE
 
@@ -64,21 +65,12 @@ def late_key_unreadable(path: Path) -> None:
 
 
 def no_policy(path: Path | None, prompt: bool) -> None:
-    """Where the client offers a prompt that opens the interface, it is named.
-
-    Its title is spelled out rather than imported, since the server sits
-    above this layer. `tests/test_setup_prompt.py` holds the two together.
-    """
-    opened_by = (
-        'the client\'s prompt "Set up Lexware Office" opens it, and so does '
-        if prompt
-        else "open it with "
-    )
+    """Where the client offers a prompt that opens the interface, it is named."""
     _log.warning(
         "No tool policy at %s, so no tools are offered. Choose them in the "
         "configuration interface: %s`benethos-lexware-office-mcp setup`.",
         path,
-        opened_by,
+        opened_by(prompt),
     )
 
 

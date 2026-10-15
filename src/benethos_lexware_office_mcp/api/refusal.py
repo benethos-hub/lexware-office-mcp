@@ -7,7 +7,7 @@ never appears in what it builds - every message passes ``errors.redact``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..errors import (
     AuthError,
@@ -40,7 +40,18 @@ def _json_object(response: httpx.Response) -> dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
-def _issues(body: dict[str, Any]) -> list[Any]:
+class _Issue(NamedTuple):
+    """One issue, read once: the field it names and what it says of it.
+
+    ``absent`` is whether the field was simply left out, see :data:`_ABSENT`.
+    """
+
+    source: str
+    kind: str
+    absent: bool
+
+
+def _issues(body: dict[str, Any]) -> list[_Issue]:
     """Every issue the body carries, in whichever shape it used.
 
     Two lists are in use upstream and they share no field names.
@@ -53,18 +64,42 @@ def _issues(body: dict[str, Any]) -> list[Any]:
 
     A third shape is one issue flattened onto the top level, which is how the
     files endpoint reports a missing form field.
+
+    A refused body names the field and what was wrong with it as ``field``
+    and ``violation``, a rejected query parameter as ``source`` and
+    ``i18nKey``. A localized sentence beside them says no more than the
+    violation does and is left out.
     """
+    raw: list[Any] = []
     for key in ("IssueList", "details"):
         value = body.get(key)
         if isinstance(value, list):
-            return value
-    return [body] if body.get("source") or body.get("field") else []
+            raw = value
+            break
+    else:
+        if body.get("source") or body.get("field"):
+            raw = [body]
+    return [
+        _Issue(
+            source=str(issue.get("source") or issue.get("field") or ""),
+            kind=str(
+                issue.get("i18nKey")
+                or issue.get("type")
+                or issue.get("violation")
+                or ""
+            ),
+            absent=str(issue.get("violation") or issue.get("i18nKey") or "").upper()
+            in _ABSENT,
+        )
+        for issue in raw
+        if isinstance(issue, dict)
+    ]
 
 
-def _detail_text(body: dict[str, Any]) -> str:
+def _detail_text(body: dict[str, Any], issues: list[_Issue]) -> str:
     """The API's own wording for a failure, without ever echoing the key."""
     parts = [str(body[key]) for key in ("errorCode", "message") if body.get(key)]
-    parts.extend(_issue_texts(_issues(body)))
+    parts.extend(_issue_texts(issues))
     text = " ".join(dict.fromkeys(part for part in parts if part)).strip()
     return f" {text}" if text else ""
 
@@ -77,7 +112,7 @@ def _detail_text(body: dict[str, Any]) -> str:
 _ABSENT = ("NOTNULL", "NOTEMPTY", "NOTBLANK", "MISSING_ENTITY")
 
 
-def _issue_sources(body: dict[str, Any]) -> set[str]:
+def _issue_sources(issues: list[_Issue]) -> set[str]:
     """Which fields an error blamed for a value it did not like.
 
     The status alone does not say what went wrong: contacts answer a missing
@@ -89,41 +124,24 @@ def _issue_sources(body: dict[str, Any]) -> set[str]:
     `NOTNULL`, and reading that as a version mismatch would send the caller
     off to re-read a record that is not the problem.
     """
-    return {
-        str(issue.get("source") or issue.get("field"))
-        for issue in _issues(body)
-        if isinstance(issue, dict)
-        and (issue.get("source") or issue.get("field"))
-        and str(issue.get("violation") or issue.get("i18nKey") or "").upper()
-        not in _ABSENT
-    }
+    return {issue.source for issue in issues if issue.source and not issue.absent}
 
 
-def _issue_texts(issues: Any) -> list[str]:
-    """Flatten the API's ``IssueList`` into readable fragments.
+def _issue_texts(issues: list[_Issue]) -> list[str]:
+    """The issues as readable fragments, the field and what was wrong with it.
 
     A rejected query parameter comes back as
     ``{"source": "number", "i18nKey": "invalid_value"}`` and nothing else, so
     dropping either half leaves the caller guessing which field was wrong or
-    what was wrong with it. A refused body names the same two things as
-    ``field`` and ``violation``, plus a localized sentence that says no more
-    than the violation does and is therefore left out.
+    what was wrong with it.
     """
-    if not isinstance(issues, list):
-        return []
-    texts = []
-    for issue in issues:
-        if not isinstance(issue, dict):
-            continue
-        source = str(issue.get("source") or issue.get("field") or "")
-        kind = str(
-            issue.get("i18nKey") or issue.get("type") or issue.get("violation") or ""
-        )
-        if source and kind:
-            texts.append(f"{source}: {kind}")
-        elif source or kind:
-            texts.append(source or kind)
-    return texts
+    return [
+        f"{issue.source}: {issue.kind}"
+        if issue.source and issue.kind
+        else issue.source or issue.kind
+        for issue in issues
+        if issue.source or issue.kind
+    ]
 
 
 def from_response(response: httpx.Response, method: str, path: str) -> ToolError:
@@ -139,17 +157,20 @@ def from_response(response: httpx.Response, method: str, path: str) -> ToolError
     """
     status = response.status_code
     body = _json_object(response)
-    error = _refusal(status, body, method, path)
+    issues = _issues(body)
+    error = _refusal(status, body, issues, method, path)
     error.status = status
-    codes = [str(body.get("errorCode") or ""), *_issue_texts(_issues(body))]
+    codes = [str(body.get("errorCode") or ""), *_issue_texts(issues)]
     error.code = " ".join(dict.fromkeys(code for code in codes if code))
     return error
 
 
-def _refusal(status: int, body: dict[str, Any], method: str, path: str) -> ToolError:
+def _refusal(
+    status: int, body: dict[str, Any], issues: list[_Issue], method: str, path: str
+) -> ToolError:
     """The error class and message for a refused request."""
-    detail = _detail_text(body)
-    sources = _issue_sources(body)
+    detail = _detail_text(body, issues)
+    sources = _issue_sources(issues)
 
     if status == 401:
         return AuthError(

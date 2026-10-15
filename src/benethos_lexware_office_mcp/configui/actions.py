@@ -123,15 +123,11 @@ def save_key(inst: Installation, form: Form) -> Reply:
         if verified is None
         else f" Geprüft, das Konto lautet {verified.label}."
     )
-    shadow = (
-        " Achtung: eine Umgebungsvariable setzt ihn weiterhin außer Kraft."
-        if inst.shadowed(API_KEY)
-        else ""
-    )
     return _written(
         inst,
         _CREDENTIALS,
-        f"Schlüssel nach {inst.env_path} geschrieben.{suffix}{shadow}",
+        f"Schlüssel nach {inst.env_path} geschrieben.{suffix}"
+        + _still_overridden(inst, API_KEY, "ihn"),
     )
 
 
@@ -167,16 +163,11 @@ def save_bearer(inst: Installation, form: Form) -> Reply:
     logbook.configui.token_saved(
         inst.env_path.name, field(form, "action") == "generate"
     )
-    shadow = (
-        " Achtung: eine Umgebungsvariable setzt es weiterhin außer Kraft."
-        if inst.shadowed(BEARER_KEY)
-        else ""
-    )
     return _written(
         inst,
         _CREDENTIALS,
         f"{done} Ein laufender Server übernimmt es beim nächsten Start, "
-        f"jeder Client braucht es dann neu.{shadow}",
+        "jeder Client braucht es dann neu." + _still_overridden(inst, BEARER_KEY, "es"),
     )
 
 
@@ -288,13 +279,7 @@ def _load_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
         f"Profil {profile.name} geladen, {len(profile.tools)} Tools. "
         "Noch nichts geschrieben — dafür oben rechts auf „Rechte speichern“."
     )
-    if newer:
-        text += (
-            f" {len(newer)} Tools sind neuer als das Profil und bleiben "
-            "deshalb aus: " + ", ".join(newer) + "."
-        )
-    if unknown:
-        text += f" Übergangen, weil es sie nicht mehr gibt: {', '.join(unknown)}."
+    text += _left_out(newer, "sind neuer als das Profil", unknown, "nicht mehr")
     return _done(_PERMISSIONS, text, "warn", flags=profile.flags(known))
 
 
@@ -315,20 +300,7 @@ def _save_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
             f"Es gibt schon ein Profil namens „{clash.name}“. Oben "
             "auswählen und überschreiben, oder einen anderen Namen nehmen.",
         )
-    try:
-        profile = inst.profiles.save(name, ticks.chosen, known_tools())
-    except ProfileError as exc:
-        return _back(ticks.page("profiles"), str(exc))
-    except OSError as exc:
-        return _failed_write(ticks.page("profiles"), inst.profiles.path, exc)
-    logbook.configui.profile_saved(profile.name, len(profile.tools), False)
-    return _done(
-        _PERMISSIONS,
-        f"Profil {profile.name} angelegt, {len(profile.tools)} Tools. "
-        "Die Rechtedatei selbst ist unverändert.",
-        flags=ticks.flags,
-        opened="profiles",
-    )
+    return _store_profile(inst, name, ticks, replaced=False)
 
 
 def _overwrite_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
@@ -336,15 +308,24 @@ def _overwrite_profile(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
     name = field(form, "profile")
     if inst.profiles.get(name) is None:
         return _back(ticks.page("profiles"), f"Kein Profil namens {name}.")
+    return _store_profile(inst, name, ticks, replaced=True)
+
+
+def _store_profile(
+    inst: Installation, name: str, ticks: _Ticks, *, replaced: bool
+) -> Reply:
+    """Save what is ticked under ``name``, which the caller has checked."""
     try:
         profile = inst.profiles.save(name, ticks.chosen, known_tools())
+    except ProfileError as exc:
+        return _back(ticks.page("profiles"), str(exc))
     except OSError as exc:
         return _failed_write(ticks.page("profiles"), inst.profiles.path, exc)
-    logbook.configui.profile_saved(profile.name, len(profile.tools), True)
+    logbook.configui.profile_saved(profile.name, len(profile.tools), replaced)
     return _done(
         _PERMISSIONS,
-        f"Profil {profile.name} überschrieben, {len(profile.tools)} Tools. "
-        "Die Rechtedatei selbst ist unverändert.",
+        f"Profil {profile.name} {'überschrieben' if replaced else 'angelegt'}, "
+        f"{len(profile.tools)} Tools. Die Rechtedatei selbst ist unverändert.",
         flags=ticks.flags,
         opened="profiles",
     )
@@ -417,17 +398,37 @@ def _import_policy(inst: Installation, form: Form, ticks: _Ticks) -> Reply:
         f"Rechtedatei eingelesen, {on} von {len(known)} Tools angehakt. "
         "Geschrieben ist noch nichts — dafür oben rechts auf „Rechte speichern“."
     )
-    if newer:
-        text_out += (
-            f" {len(newer)} Tools nennt die Datei nicht und bleiben "
-            "deshalb aus: " + ", ".join(newer) + "."
-        )
-    if unknown:
-        text_out += f" Übergangen, weil es sie hier nicht gibt: {', '.join(unknown)}."
+    text_out += _left_out(newer, "nennt die Datei nicht", unknown, "hier nicht")
     return _done(_PERMISSIONS, text_out, "warn", flags=flags, opened="policy")
 
 
 # --- small helpers ---------------------------------------------------------
+
+
+def _left_out(newer: list[str], why_off: str, unknown: list[str], gone: str) -> str:
+    """How a loaded profile or an imported file ends: what stays off, and why.
+
+    ``newer`` are tools it did not know, which stay off for the reason
+    ``why_off`` gives, and ``unknown`` names in it that are no tool, which
+    ``gone`` says are not there.
+    """
+    text = ""
+    if newer:
+        text += (
+            f" {len(newer)} Tools {why_off} und bleiben deshalb aus: "
+            + ", ".join(newer)
+            + "."
+        )
+    if unknown:
+        text += f" Übergangen, weil es sie {gone} gibt: {', '.join(unknown)}."
+    return text
+
+
+def _still_overridden(inst: Installation, key: str, it: str) -> str:
+    """The warning a save ends with when a variable outranks what it wrote."""
+    if not inst.shadowed(key):
+        return ""
+    return f" Achtung: eine Umgebungsvariable setzt {it} weiterhin außer Kraft."
 
 
 def _done(address: str, text: str, kind: str = "ok", **view: Any) -> Reply:

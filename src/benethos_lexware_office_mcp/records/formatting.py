@@ -15,6 +15,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from ..errors import NotFoundError, ValidationError
+
 __all__ = [
     "article",
     "article_row",
@@ -25,6 +27,7 @@ __all__ = [
     "contact_row",
     "contacts_page",
     "master_data",
+    "one_by_number",
     "page",
     "page_info",
     "payments",
@@ -128,6 +131,21 @@ def page(
     return {key: rows, "page": page_info(payload)}
 
 
+def one_by_number(found: dict[str, Any], voucher_number: str) -> dict[str, Any]:
+    """The one voucher a number lookup found, or why there is not exactly one."""
+    matches = found.get("content") or []
+    if not matches:
+        raise NotFoundError("voucher", voucher_number, by="the number")
+    if len(matches) > 1:
+        ids = ", ".join(str(match.get("id")) for match in matches)
+        raise ValidationError(
+            f"{len(matches)} vouchers carry the number "
+            f"{voucher_number!r}: {ids}. Read one of them by id."
+        )
+    first: dict[str, Any] = matches[0]
+    return first
+
+
 # `created` carries `userEmail` and `userName`, which are the address of the
 # person who set the account up. The tool answers *which organization* is
 # connected, so that person's identity is neither needed nor ours to hand to a
@@ -170,11 +188,8 @@ def contact_row(item: dict[str, Any]) -> dict[str, Any]:
     """One line of a contact search result.
 
     Identity, the numbers a human uses to refer to the record, and one way to
-    reach it. Everything else is what ``get_contact`` is for.
-
-    ``archived`` appears only when it is true. It is false on nearly every row
-    and repeating it costs more than it tells anyone, which is why the tool
-    description states that an unmarked row is active.
+    reach it. Everything else is what ``get_contact`` is for. ``archived``
+    only when it is true, as on every row, see :func:`_row`.
     """
     roles = item.get("roles") or {}
     company = item.get("company") or {}
@@ -190,10 +205,9 @@ def contact_row(item: dict[str, Any]) -> dict[str, Any]:
         "vendorNumber": (roles.get("vendor") or {}).get("number"),
         "email": _first_entry(item.get("emailAddresses"), _EMAIL_KINDS),
         "phone": _first_entry(item.get("phoneNumbers"), _PHONE_KINDS),
+        "archived": item.get("archived"),
     }
-    if item.get("archived"):
-        row["archived"] = True
-    return compact_object(row)
+    return _row(row, ())
 
 
 def _contact_name(company: dict[str, Any], person: dict[str, Any]) -> str:

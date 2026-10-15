@@ -23,11 +23,8 @@ from typing import Any
 import pytest
 
 import benethos_lexware_office_mcp
-from benethos_lexware_office_mcp.server import (
-    SETUP_PROMPT_TITLE,
-    _registry,
-    build_server,
-)
+from benethos_lexware_office_mcp.errors import SETUP_PROMPT_TITLE
+from benethos_lexware_office_mcp.server import _registry, build_server
 from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.transport.setup_prompt import (
     SETUP_PROMPT,

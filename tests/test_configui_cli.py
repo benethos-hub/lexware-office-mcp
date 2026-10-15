@@ -9,6 +9,7 @@ import pytest
 
 from benethos_lexware_office_mcp import cli, configui
 from benethos_lexware_office_mcp.settings import DEFAULT_HTTP_PORT, Settings
+from benethos_lexware_office_mcp.settings import locations as L
 
 
 @pytest.fixture
@@ -90,16 +91,16 @@ def test_without_a_named_file_the_search_decides(
 ) -> None:
     """And when nothing is found, the place to create one is the answer."""
     monkeypatch.setattr(
-        configui, "resolve_config_file", lambda name, cwd=None: tmp_path / name
+        L, "resolve_config_file", lambda name, cwd=None: tmp_path / name
     )
 
-    assert configui.target_env_file() == tmp_path / ".env"
+    assert L.env_file_to_write() == tmp_path / ".env"
 
 
 def test_a_named_file_wins_over_the_search(tmp_path: Path) -> None:
     named = tmp_path / "named.env"
 
-    assert configui.target_env_file(named) == named
+    assert L.env_file_to_write(named) == named
 
 
 def test_setup_and_the_transport_do_not_share_a_default_port(

@@ -69,7 +69,7 @@ def load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult:
     """Find a download, read it and build the answer. Blocking, run in a thread."""
     with storage.on_disk("read the download"):
         found = storage.resolve(
-            uri[len(resources.SCHEME) :], storage.directory_for(settings)
+            resources.name_of(uri) or "", storage.directory_for(settings)
         )
         if found is None:
             raise NotFoundError(
