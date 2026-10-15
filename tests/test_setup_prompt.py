@@ -18,8 +18,9 @@ from typing import Any
 import pytest
 
 from benethos_lexware_office_mcp import cli, logbook
+from benethos_lexware_office_mcp.errors import ConfigError
 from benethos_lexware_office_mcp.server import SETUP_PROMPT_TITLE, build_server
-from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.settings import Settings, load_settings
 from benethos_lexware_office_mcp.transport import setup_prompt
 from benethos_lexware_office_mcp.transport.setup_prompt import (
     SETUP_PROMPT,
@@ -193,13 +194,18 @@ def test_the_probe_sees_whether_the_port_answers() -> None:
 
 
 def _run(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *argv: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *argv: str,
+    setup_prompt: bool = True,
 ) -> list[dict[str, Any]]:
     offered: list[dict[str, Any]] = []
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda **_: Settings(tool_policy_path=tmp_path / "tools.json"),
+        lambda **_: Settings(
+            tool_policy_path=tmp_path / "tools.json", setup_prompt=setup_prompt
+        ),
     )
     monkeypatch.setattr(
         cli, "offer_setup", lambda server, **kwargs: offered.append(kwargs)
@@ -231,6 +237,35 @@ def test_a_named_policy_file_is_handed_on(
     assert offered["tools_file"] == named
 
 
+def test_a_withheld_prompt_is_not_offered(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """For a client that hands its prompts to the model."""
+    assert _run(monkeypatch, tmp_path, setup_prompt=False) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "offered"),
+    [(None, True), ("", True), ("1", True), ("on", True), ("0", False), ("no", False)],
+)
+def test_the_prompt_is_on_unless_a_setting_withholds_it(
+    value: str | None, offered: bool
+) -> None:
+    env = {} if value is None else {"LXO_MCP_SETUP_PROMPT": value}
+
+    assert load_settings(env).offers_setup_prompt() is offered
+
+
+def test_nothing_points_to_a_withheld_prompt(tmp_path: Path) -> None:
+    """Not the instructions, and not the refusal of a call without a key."""
+    withheld = Settings(tool_policy_path=tmp_path / "tools.json", setup_prompt=False)
+
+    assert SETUP_PROMPT_TITLE not in build_server(withheld).instructions
+    with pytest.raises(ConfigError) as excinfo:
+        withheld.require_api_key()
+    assert SETUP_PROMPT_TITLE not in str(excinfo.value)
+
+
 def test_over_http_there_is_no_prompt(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -250,13 +285,13 @@ def test_the_instructions_name_the_prompt_over_stdio_alone(tmp_path: Path) -> No
     assert stdio.startswith(http)
 
 
-@pytest.mark.parametrize(("transport", "named"), [("stdio", True), ("sse", False)])
+@pytest.mark.parametrize("named", [True, False])
 def test_the_missing_policy_warning_names_the_prompt_where_it_exists(
-    transport: str, named: bool, caplog: pytest.LogCaptureFixture
+    named: bool, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The title is spelled out in the log line, so it is held to the server's."""
     with caplog.at_level("WARNING"):
-        logbook.lifecycle.no_policy(Path("tools.json"), transport)
+        logbook.lifecycle.no_policy(Path("tools.json"), named)
 
     assert (f'"{SETUP_PROMPT_TITLE}"' in caplog.text) is named
     assert "`benethos-lexware-office-mcp setup`" in caplog.text

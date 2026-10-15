@@ -481,6 +481,28 @@ def test_the_log_level_is_a_choice(inst: Installation) -> None:
     assert '<option value="DEBUG">DEBUG</option>' in body
 
 
+def test_the_setup_prompt_is_a_choice_of_on_off_and_the_default(
+    inst: Installation,
+) -> None:
+    body = text(pages.settings(inst))
+
+    assert '<select id="f-LXO_MCP_SETUP_PROMPT" name="LXO_MCP_SETUP_PROMPT">' in body
+    assert '<option value="" selected>Standard (an)</option>' in body
+    assert '<option value="0">aus</option>' in body
+
+
+def test_a_hand_written_switch_says_what_the_server_makes_of_it(
+    inst: Installation,
+) -> None:
+    """Shown as written, or the next save would write the default over it."""
+    inst.env_path.write_text("LXO_MCP_SETUP_PROMPT=nein\n", encoding="utf-8")
+    inst.reload()
+
+    body = text(pages.settings(inst))
+
+    assert '<option value="nein" selected>nein (gilt als aus)</option>' in body
+
+
 def test_the_save_button_is_at_the_top_right(inst: Installation) -> None:
     body = text(pages.settings(inst))
 

@@ -156,6 +156,9 @@ class Settings:
     allowed_hosts: tuple[str, ...] = ()
     exit_on_config_change: bool = False
     generate_bearer_token: bool = False
+    # Whether a client over stdio is offered the prompt that opens the
+    # configuration interface, see offers_setup_prompt.
+    setup_prompt: bool = True
     # Where a key saved after startup is looked for, see require_api_key.
     # Set only when there was no key to start with, from the file or from a
     # variable, so it never stands in for a key this process was given.
@@ -177,6 +180,18 @@ class Settings:
     def downloads_listed(self) -> int:
         """How many downloads ``resources/list`` names. Always a bound."""
         return self.kept_downloads or DEFAULT_KEPT_DOWNLOADS
+
+    def offers_setup_prompt(self) -> bool:
+        """Whether the client is offered the prompt that opens ``setup``.
+
+        Over stdio alone, where the server runs on the machine the person
+        sits at, and unless ``LXO_MCP_SETUP_PROMPT`` withholds it. A prompt
+        is the person's to pick by convention only: a client that hands its
+        prompts to the model lets the model open the interface, so whoever
+        runs such a client switches it off. Everything that names the prompt
+        asks here, so nothing points to one that is not there.
+        """
+        return self.transport == "stdio" and self.setup_prompt
 
     def policy_file(self) -> Path:
         """Where this process reads and writes its per-tool policy."""
@@ -212,7 +227,7 @@ class Settings:
         # tests/test_setup_prompt.py holds the two together.
         opened_by = (
             'the client\'s prompt "Set up Lexware Office" opens it, and so does '
-            if self.transport == "stdio"
+            if self.offers_setup_prompt()
             else "open it with "
         )
         raise ConfigError(
@@ -296,6 +311,10 @@ def load_settings(
     # off unless said otherwise. The container image says otherwise.
     exit_on_change = flag(get("EXIT_ON_CONFIG_CHANGE"))
     generate_token = flag(get("GENERATE_BEARER_TOKEN"))
+    # On unless said otherwise, and then off for anything but a yes, the
+    # way every other switch reads an odd value.
+    prompt_raw = get("SETUP_PROMPT")
+    setup_prompt = flag(prompt_raw) if prompt_raw else True
 
     allowed_hosts = csv_tuple(get("ALLOWED_HOSTS"))
 
@@ -337,6 +356,7 @@ def load_settings(
         allowed_hosts=allowed_hosts,
         exit_on_config_change=exit_on_change,
         generate_bearer_token=generate_token,
+        setup_prompt=setup_prompt,
         late_key_file=late_key_file,
     )
 

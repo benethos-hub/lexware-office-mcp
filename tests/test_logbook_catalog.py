@@ -62,6 +62,7 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "ms": ("a duration in milliseconds", 230.0),
     "path": ("a configuration file's path", Path("tools.json")),
     "port": ("the port this server binds", 8770),
+    "prompt": ("whether the client is offered the setup prompt", True),
     "profile": ("a profile's name, the operator's own label", "Nur Lesen"),
     "queued": ("milliseconds spent waiting for the rate limiter", 400.0),
     "record_id": ("a Lexware id, shown only as a UUID", RECORD),

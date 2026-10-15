@@ -13,6 +13,22 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **`LXO_MCP_SETUP_PROMPT`, to withhold the prompt "Set up Lexware
+  Office".** A prompt is the person's to pick only where the client keeps
+  it so. A client that hands its prompts to the model let the model open
+  the configuration interface, signed in. Set to `0`, the prompt is not
+  offered, and neither the instructions nor the refusal of a call without
+  a key name it. On by default, and a choice on the settings page.
+
+### Changed
+
+- **The browser `setup` opens signs in with a code that works once.** On
+  Linux and macOS its address stays in the browser's command line, which
+  other users of the machine can read, and the start code in it was good
+  for the whole run. The printed address keeps the start code.
+
 ### Fixed
 
 - **A settings file that is not UTF-8 no longer puts its path in a tool's

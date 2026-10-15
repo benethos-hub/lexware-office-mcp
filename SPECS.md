@@ -1048,6 +1048,7 @@ arriving.
 | `LXO_MCP_BURST` | Token bucket capacity. Upstream holds 4, measured. | `2` |
 | `LXO_MCP_PAGE_SIZE` | Rows per page, sent upstream as `size`. | `25` |
 | `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. httpx, httpcore and the SDK stay at `WARNING` whatever it says, because their `INFO` lines carry request URLs and error text. | `INFO` |
+| `LXO_MCP_SETUP_PROMPT` | Offer the prompt that opens the configuration interface over stdio, see section 7.1. Set, it is on only for a yes, as every switch reads an odd value. `0` withholds it, and the instructions and the refusal of a call without a key stop naming it. | on |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse`, see section 6. `--transport` wins. | `stdio` |
 | `LXO_MCP_BEARER_TOKEN` | The shared secret every HTTP request must carry. An HTTP transport refuses to start without one, see section 6. Visible ASCII only, as the key. Registered as a secret, so it is redacted like the key. | — |
 | `LXO_MCP_GENERATE_BEARER_TOKEN` | Make a token at startup when none is set, and write it into the settings file. For a deployment with nobody to type one - the image sets it. | off |
@@ -1118,7 +1119,7 @@ modules and nothing else.
 **Over stdio the server can start it, at the person's request**, since
 2026-10-10. It offers one MCP prompt, `open_setup`, titled "Set up Lexware
 Office", and picking it in the client starts `setup` as a detached process
-with no hold on stdout, which opens the browser on the start code. When the
+with no hold on stdout, which opens the browser signed in. When the
 port already answers it starts nothing. The reason is a client that runs the
 server where nothing else can reach it: measured in a Windows Sandbox with
 Claude Desktop from the Store, a server installed as a desktop extension runs
@@ -1130,9 +1131,17 @@ per-user directory, which the container does not redirect, so a permission
 saved there reached the running server as `tools/list_changed` the same
 second.
 
-**It does not weaken section 9.** A prompt is user-controlled in MCP, not
-the model's to call, and this one reaches no data and changes nothing: what
-the page saves is decided by the person in front of it. Over HTTP it is not
+**It does not weaken section 9 where the client keeps prompts to the
+person.** A prompt is user-controlled in MCP, not the model's to call, and
+this one reaches no data and changes nothing itself: what the page saves is
+decided by the person in front of it. That guard is the client's prompt
+handling, not anything the server can enforce. A client that hands its
+prompts to the model - agent frameworks, the SDK's own client, some editors -
+lets the model open a signed-in page, and with a browser tool beside it tick
+boxes under *Rechte* and read the bearer token, though never the key. So
+`LXO_MCP_SETUP_PROMPT=0` withholds the prompt, decided 2026-10-15 as a
+variable that defaults to on: Claude Desktop, the client it exists for,
+keeps prompts to the person. Over HTTP it is not
 offered, since a remote client would open a page on a machine it does not sit
 at. The prompt always answers with the same sentence, because Claude Desktop
 holds a prompt's answer against the text the extension declared and rejects
@@ -1277,7 +1286,7 @@ for, and its primary action at the top right.
 | Overview (`Übersicht`) | A card *Stand* with three rows and their tags: the key stored or missing, the permissions as n of 25 on with what they cost or no file yet, the last connection test with the account or never run. The first red row is the next step and links to the page that does it. A card *Client* with the `"args"` entry to copy, and the warning that a server without `--env-file` reads another file only when that is true. A card *Dateien* with each file's name and state, the full path folded. |
 | Credentials (`Zugangsdaten`) | The key, checked against the API before it is written unless that is declined, and the connection test as a card beside it. The HTTP token as a folded card, open only when the transport is not stdio, *Neu erzeugen* with a question before it. |
 | Permissions (`Rechte`) | The counter and *Rechte speichern* at the top right, the presets as a bar, then one card per domain with its group switches and the tool rows with mark and cost. The legend, the profiles and import and export folded underneath, deleting a profile with a question before it. |
-| Settings (`Einstellungen`) | The eleven settings that are no secret, in three cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory). The placeholder shows what empty means, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
+| Settings (`Einstellungen`) | The twelve settings that are no secret, in four cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory), the setup (whether the client is offered the prompt that opens the interface, a choice of on, off and the default). The placeholder shows what empty means, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
 
 The settings page reads a value in effect and a default the same way, so
 the placeholder of an empty field is what empty means rather than what
@@ -1298,7 +1307,8 @@ and the key is never shown again. A refusal raised in `settings/` is quoted,
 not translated, as above. Every destructive action asks first.
 
 **The start code.** `setup` makes a random code at start, writes the address
-with the code to stderr and opens the browser with it. Without a valid code
+with the code to stderr and opens the browser with a code of its own, see
+below. Without a valid code
 every page shows one field, *Code eingeben*, and the static files are the
 one thing served without it, since that page needs them too. After the
 first valid request the session cookie carries the sign-in, and a redirect
@@ -1315,14 +1325,19 @@ would keep the person out, and it starts the count over. The
 code is 16 random bytes, so the wait is not what protects it: it keeps a
 stray script from filling the log.
 With `--no-browser` and in a container the line is on stderr and in the
-container's log, where the operator reads anyway. **The code passes through
-the command line of the browser** that `setup` opens: the address is handed
-over as an argument, so while that process starts, the code is in its
-arguments, which another user of the same machine may be able to list.
-That is the price of a start that signs its own browser in, and it is
-accepted rather than built around: the code is good for this one process,
-and whoever wants none of it starts with `--no-browser` and types the code
-into the page. The code closes the pages
+container's log, where the operator reads anyway. **The browser gets a code
+of its own, spent by its first sign-in**, since 2026-10-15. The address is
+handed to the browser as an argument, and on Linux and macOS it stays in
+that process's command line for as long as the browser runs, which another
+user of the same machine may list. Opened with the start code, that was a
+sign-in for the whole run, and a `setup` the prompt started had no
+`--no-browser` to avoid it, since nobody reads its stderr. So the browser is
+opened with a second random code, and the first sign-in with it spends it:
+what stays in the command line opens nothing afterwards. The printed code
+is unchanged, for the terminal and the log. A browser that lost its session
+after that signs in with the printed code, or, when the prompt started the
+interface, from the prompt again once the interface has ended itself after
+its idle time. The code closes the pages
 to other processes and users of the same machine, which the host and origin
 checks above never did. It does not make a bind beyond loopback safe, since
 it travels in the clear over HTTP, and the warning at the start stays. A
@@ -2406,7 +2421,7 @@ its name.
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
 | — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change. Refused before its arguments are checked, since the SDK's refusal of invalid ones names the fields the tool requires and quotes what was sent |
 | — (arguments) | `ToolError` | an argument the tool does not take, by its name when it looks like one and as `?` otherwise, and that nothing was sent. The SDK builds each argument model to drop what it does not know, so such a call ran without the filter and answered as if it had, which is how `only_open` hid paid vouchers (issue #95). Refused only for a tool the policy allows, so a withheld one says nothing about its schema |
-| — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well, and that a key saved there is used from the next call - never with a path, also when the file a key is saved to cannot be decoded, which stderr names instead. At startup the same class ends the process in one line |
+| — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well unless `LXO_MCP_SETUP_PROMPT` withholds it, and that a key saved there is used from the next call - never with a path, also when the file a key is saved to cannot be decoded, which stderr names instead. At startup the same class ends the process in one line |
 
 **Two lists of issues are in use upstream, and they share no field names.**
 `IssueList` carries `source` and `i18nKey`, which is what a rejected query

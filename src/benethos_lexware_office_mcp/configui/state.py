@@ -46,6 +46,8 @@ BEARER_KEY = "LXO_MCP_BEARER_TOKEN"
 # The one setting the settings page offers as a choice rather than a field,
 # and the one the server does not refuse, so the page refuses it instead.
 LOG_LEVEL_KEY = "LXO_MCP_LOG_LEVEL"
+# A switch, offered as a choice too: on, off, or the default, which is on.
+SETUP_PROMPT_KEY = "LXO_MCP_SETUP_PROMPT"
 
 # Where a setting actually comes from. Showing the file alone would be
 # misleading exactly when it matters most: a real environment variable
@@ -275,6 +277,11 @@ SHOWN: tuple[Shown, ...] = (
         lambda s: str(s.pdf_pages),
     ),
     Shown(LOG_LEVEL_KEY, "Protokollstufe", lambda s: s.log_level),
+    Shown(
+        SETUP_PROMPT_KEY,
+        "Prompt „Set up Lexware Office“",
+        lambda s: "an" if s.setup_prompt else "aus",
+    ),
 )
 
 LABELS: dict[str, str] = {shown.key: shown.label for shown in SHOWN}

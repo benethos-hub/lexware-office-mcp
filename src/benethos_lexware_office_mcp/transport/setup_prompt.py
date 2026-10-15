@@ -5,13 +5,15 @@ can: Claude Desktop's extensions live in a sandbox whose Python cannot be
 started from outside it. A prompt is the one thing such a client lets a
 person trigger from its own window, so the server offers one that starts
 ``setup`` as a process of its own, inside the same sandbox, and the browser
-opens on the start code. See SPECS.md section 7.1.
+opens signed in. See SPECS.md section 7.1.
 
 A prompt is user-controlled, never the model's to call, so this does not
 weaken the rule that the policy file alone decides what exists: the prompt
 reaches no data and changes nothing, and what the page saves is decided by
-the person in front of it. Over HTTP it is not offered at all, since a
-remote client would open a page on a machine it does not sit at.
+the person in front of it. That holds as far as the client keeps prompts to
+the person, which is why ``LXO_MCP_SETUP_PROMPT=0`` withholds it. Over HTTP
+it is not offered at all, since a remote client would open a page on a
+machine it does not sit at.
 """
 
 from __future__ import annotations

@@ -478,8 +478,11 @@ uvx benethos-lexware-office-mcp setup
 Or from your client: over stdio the server offers a prompt called **Set up
 Lexware Office**, and picking it opens the same pages. In Claude Desktop it
 is under the plus in the message box, in *Connectors* under the server's
-name. The model cannot start it, only you can, and it does nothing but open
-the pages.
+name. There the model cannot start it, only you can, and it does nothing
+but open the pages. That guard is the client's, not the server's: a client
+that hands its prompts to the model, as some agent frameworks and editors
+do, lets the model open the pages too. With such a client set
+`LXO_MCP_SETUP_PROMPT=0`, and the prompt is not offered.
 
 Four pages on `http://127.0.0.1:8771/`, closed with *Beenden* in the sidebar
 or Ctrl+C. The port is one above the HTTP transport's `8770`, so both can
@@ -535,15 +538,18 @@ Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
 
-**Settings** (`Einstellungen`) — the eleven settings that are not secret, in
-three cards: the connection, the output, the files. An empty field means the
+**Settings** (`Einstellungen`) — the twelve settings that are not secret, in
+four cards: the connection, the output, the files, and whether the client is
+offered the prompt that opens these pages. An empty field means the
 built-in default, which the placeholder shows. A setting a real environment
 variable holds is shown rather than offered, since saving over it would change
 nothing.
 
 Three things worth knowing. Every start makes a **start code**, and the
-address it prints and opens carries it: `http://127.0.0.1:8771/?code=…`.
-Without it every page shows one field, *Code eingeben*, so another program
+address it prints carries it: `http://127.0.0.1:8771/?code=…`. The browser
+it opens signs in with a code of its own that works once, since a browser's
+address can stay readable in its command line for other users of the
+machine. Without it every page shows one field, *Code eingeben*, so another program
 or another user on the same machine cannot open the pages through the
 loopback port. The code lives as long as the process, and after five wrong
 ones each further try waits. It **binds `127.0.0.1`**, because the code
@@ -719,6 +725,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_PAGE_SIZE` | Rows per page a search requests and returns | `25` |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders by default, at most 100 | `10` |
 | `LXO_MCP_LOG_LEVEL` | Level of this server's own lines on stderr. The libraries underneath stay at `WARNING` | `INFO` |
+| `LXO_MCP_SETUP_PROMPT` | Offer the prompt **Set up Lexware Office** over stdio. `0` withholds it, for a client that hands its prompts to the model | on |
 | `LXO_MCP_TRANSPORT` | `stdio`, `streamable-http` or `sse` | `stdio` |
 | `LXO_MCP_BEARER_TOKEN` | Shared secret every HTTP request must carry. Required for an HTTP transport. Visible ASCII only | — |
 | `LXO_MCP_HTTP_HOST` | Address to bind for an HTTP transport | `127.0.0.1` |

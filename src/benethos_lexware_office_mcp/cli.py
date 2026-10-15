@@ -494,18 +494,19 @@ def _run(
     server = build_server(settings)
     logbook.lifecycle.started(__version__, settings.transport)
     logbook.lifecycle.settings_from(env_file_in_effect(named=named_env))
-    _report_what_is_enabled(server.policy, settings.transport)
+    _report_what_is_enabled(server.policy, settings.offers_setup_prompt())
     # Here and after each download, and nowhere else: `--tools`, `setup` and
     # anything else that builds a server to look at it deletes nothing.
     storage.prune_for(settings)
 
     if settings.transport == "stdio":
-        offer_setup(
-            server,
-            port=configui.DEFAULT_PORT,
-            env_file=named_env,
-            tools_file=settings.tool_policy_path if args.tools_file else None,
-        )
+        if settings.offers_setup_prompt():
+            offer_setup(
+                server,
+                port=configui.DEFAULT_PORT,
+                env_file=named_env,
+                tools_file=settings.tool_policy_path if args.tools_file else None,
+            )
         run_stdio(server)
         return
 
@@ -543,7 +544,7 @@ def _report_where_it_listens(settings: Settings) -> None:
         logbook.lifecycle.reachable_from_outside(settings.http_host)
 
 
-def _report_what_is_enabled(policy: ToolPolicy, transport: str) -> None:
+def _report_what_is_enabled(policy: ToolPolicy, prompt: bool) -> None:
     """Say on stderr what this process may do, and how to change it.
 
     A server offering nothing looks broken from the client, where the tool
@@ -551,7 +552,7 @@ def _report_what_is_enabled(policy: ToolPolicy, transport: str) -> None:
     something a person can act on.
     """
     if not policy.exists():
-        logbook.lifecycle.no_policy(policy.path, transport)
+        logbook.lifecycle.no_policy(policy.path, prompt)
         return
     assert policy.path is not None
     enabled = [name for name, on in policy.as_map().items() if on]

@@ -379,9 +379,11 @@ def test_the_start_prints_the_address_with_the_code(
 
     (record,) = [r for r in lines.records if "interface at" in r.getMessage()]
     assert record.levelno == logging.WARNING
-    found = re.search(r"(http://127\.0\.0\.1:\d+/\?code=\S+)", record.getMessage())
+    found = re.search(r"(http://127\.0\.0\.1:\d+/)\?code=(\S+)", record.getMessage())
     assert found
-    assert opened == [found.group(1)]
+    (address,) = opened
+    assert address.startswith(f"{found.group(1)}?code=")
+    assert found.group(2) not in address
     for kind in ("settings", "policy", "profiles"):
         assert f"Editing the {kind} file" in lines.text
 
@@ -399,9 +401,23 @@ def test_the_address_names_the_port_it_is_published_on(
 
     serve(installation, port=0, open_browser=True, public_port=8781)
 
-    found = re.search(r"(http://127\.0\.0\.1:8781/\?code=\S+)", lines.text)
+    found = re.search(r"http://127\.0\.0\.1:8781/\?code=(\S+)", lines.text)
     assert found
-    assert opened == [found.group(1)]
+    (address,) = opened
+    assert address.startswith("http://127.0.0.1:8781/?code=")
+    assert found.group(1) not in address
+
+
+def test_the_browser_signs_in_with_a_code_spent_on_first_use(
+    browser: Browser,
+) -> None:
+    """Its address sits in a command line every user of the machine can read."""
+    server = browser.server
+    opening = server.opening
+
+    assert server.try_code("browser", opening)
+    assert not server.try_code("reader of ps", opening)
+    assert server.try_code("terminal", server.code)
 
 
 # -- Post/Redirect/Get ------------------------------------------------------
@@ -1010,6 +1026,14 @@ def test_an_unknown_log_level_is_refused_rather_than_stored(
 
     browser.post("/settings", {"LXO_MCP_LOG_LEVEL": "debug"})
     assert installation.settings.log_level == "DEBUG"
+
+
+def test_the_setup_prompt_is_switched_off_from_the_page(
+    browser: Browser, installation: Installation
+) -> None:
+    browser.post("/settings", {"LXO_MCP_SETUP_PROMPT": "0"})
+
+    assert installation.settings.offers_setup_prompt() is False
 
 
 def test_two_saves_at_once_both_arrive(
