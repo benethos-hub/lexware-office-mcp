@@ -25,6 +25,9 @@ housekeeping are out of scope here — design decisions live in
   redirect's page under the document's name, and a read reported a
   malformed body. Both now say which status came back, and a write adds
   that its outcome is unknown.
+- **A list whose rows are not records says the API answered in an
+  unexpected shape**, as a single record already did. It ended in a bare
+  failure that named only the tool.
 
 ## [0.5.3] - 2026-10-14
 

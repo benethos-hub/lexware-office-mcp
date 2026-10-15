@@ -56,6 +56,39 @@ async def test_profile_rejects_an_unexpected_shape() -> None:
             await client.profile()
 
 
+@pytest.mark.parametrize(
+    "content", [{"id": "x"}, ["not", "rows"], "text", [{"id": "x"}, None]]
+)
+@pytest.mark.parametrize(
+    ("method", "endpoint"),
+    [
+        ("contacts", "contacts"),
+        ("articles", "articles"),
+        ("recurring_templates", "recurring-templates"),
+    ],
+)
+async def test_a_page_whose_rows_are_not_objects_is_an_unexpected_shape(
+    method: str, endpoint: str, content: Any
+) -> None:
+    """Every row is read as an object, so anything else is drift, said so."""
+    answer = httpx.Response(200, json={"content": content, "totalPages": 1})
+    async with make_client(answer) as client:
+        with pytest.raises(UpstreamError, match=f"The {endpoint} endpoint returned"):
+            await getattr(client, method)()
+
+
+async def test_the_voucher_list_is_held_to_the_same_shape() -> None:
+    answer = httpx.Response(200, json={"content": "rows"})
+    async with make_client(answer) as client:
+        with pytest.raises(UpstreamError, match="voucherlist endpoint returned"):
+            await client.voucherlist(voucher_type="any", voucher_status="any")
+
+
+async def test_an_empty_page_is_still_a_page() -> None:
+    async with make_client(httpx.Response(200, json={"content": None})) as client:
+        assert await client.contacts() == {"content": None}
+
+
 async def test_a_malformed_body_is_reported_rather_than_raised_raw() -> None:
     async with make_client(httpx.Response(200, text="<html>nope</html>")) as client:
         with pytest.raises(UpstreamError):
