@@ -215,8 +215,8 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Confirm the organization with `get_profile` first. One API call,
         never retried.
 
-        Takes a path or a URL, PDF, JPEG, PNG or XML, at most 5 MiB. An XML
-        file is treated as an XRechnung. The voucher starts `unchecked`:
+        Takes PDF, JPEG, PNG or XML, at most 5 MiB, from a path or a URL. An
+        XML file is treated as an XRechnung. The voucher starts `unchecked`:
         `update_voucher` fills it in, and its `finalize` books it.
         """
         content, name, content_type = await fetch.upload_from(
@@ -250,7 +250,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         is no call that detaches a file. Confirm the organization with
         `get_profile` first. One API call, never retried.
 
-        Takes a path or a URL, PDF, JPEG, PNG or XML, at most 5 MiB. The
+        Takes PDF, JPEG, PNG or XML, at most 5 MiB, from a path or a URL. The
         answer is the new file id, which `download_file` reads back.
         """
         content, name, content_type = await fetch.upload_from(

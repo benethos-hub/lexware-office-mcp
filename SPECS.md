@@ -114,7 +114,7 @@ beneath every layer: errors.py, settings/, logbook/ (stderr only)
 | `records/payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
 | `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the API. | built |
-| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. | built |
+| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. It also carries the transport an upload fetched from a URL travels by, which only the test suite sets. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
 | `files/storage.py` | Where downloads land on disk, how a file is read for upload, and the one check every upload passes, read or fetched: its size, its type, and a name whose extension says that type. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, because one whose contents match is reused rather than copied, and because the directory is a cache kept to its newest downloads, see section 13. | built |
@@ -1635,14 +1635,14 @@ every page, on 2026-10-10 after `search_vouchers` lost the two flags
 the API ignored, and on 2026-10-12 after the twenty-two tools that answer
 with a record stopped publishing an output schema, and on 2026-10-15 after
 the two upload tools took a URL as well as a path.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **51,338
+compact JSON a `tools/list` answer is, twenty-five tools come to **51,348
 characters**, around 2,054 each. Roughly 13,500 to 16,000 tokens, estimated
 at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 34,382 | 67% |
-| Tool descriptions, the part under a ceiling | 11,224 | 22% |
+| Tool descriptions, the part under a ceiling | 11,234 | 22% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,041 | 2% |
 | Names, titles and the rest | ~2,124 | 4% |
@@ -2118,9 +2118,10 @@ Four details that matter:
 single object owned by the client module and shared by every request, whatever
 resource it targets. A per-resource limiter would let five idle endpoints hand
 out five buckets worth of tokens and blow the global budget while each one
-believes it is well behaved. There is exactly one bucket, and every outbound
-call acquires a token from it before the request is issued, including retries,
-pagination follow-ups and the read that an update makes before it writes.
+believes it is well behaved. There is exactly one bucket, and every call to
+Lexware acquires a token from it before the request is issued, including
+retries, pagination follow-ups and the read that an update makes before it
+writes.
 
 **Parameters:** *r* is `LXO_MCP_RATE` (default `1.5` per second) and *b* is
 `LXO_MCP_BURST` (default `2`). The rate sits deliberately **below** the
@@ -3056,6 +3057,9 @@ Built, tested offline and exercised against a live test account:
 - binary downloads and multipart uploads through the same rate limiter and
   retry rules as every other call, and three ways to hand a downloaded file
   to a client: a path, an MCP resource, and the file rendered into the answer
+- an upload read from a path or, since 2026-10-15 and only from the
+  addresses `LXO_MCP_UPLOAD_URLS` names, fetched from a URL by a client of
+  its own, see section 7.2
 
 Verified against a live account rather than assumed, and written up where it
 belongs in section 5: the profile response shape, the per-endpoint page

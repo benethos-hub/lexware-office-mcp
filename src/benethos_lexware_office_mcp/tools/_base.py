@@ -86,7 +86,8 @@ DocumentIdField = Annotated[
 
 # Two tools answer without reaching the API at all: `get_deeplink` builds a
 # URL out of ids the caller already holds, and `read_download` reads a file
-# this server put on disk earlier. Everything else talks to Lexware.
+# this server put on disk earlier. Everything else talks to Lexware, and the
+# two upload tools may fetch from another server first - open world twice.
 _CLOSED_WORLD = frozenset({"get_deeplink", "read_download"})
 
 
