@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.5.3.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.5.4.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -1152,9 +1152,9 @@ lets the model open a signed-in page, and with a browser tool beside it tick
 boxes under *Rechte* and read the bearer token, though never the key. So
 `LXO_MCP_SETUP_PROMPT=0` withholds the prompt, decided 2026-10-15 as a
 variable that defaults to on: Claude Desktop, the client it exists for,
-keeps prompts to the person. Over HTTP it is not
-offered, since a remote client would open a page on a machine it does not sit
-at. The prompt always answers with the same sentence, because Claude Desktop
+keeps prompts to the person. Over HTTP it is not offered, since a remote
+client would open a page on a machine it does not sit at. The prompt
+always answers with the same sentence, because Claude Desktop
 holds a prompt's answer against the text the extension declared and rejects
 any other as a possible injection - measured, it said "Failed to attach
 prompt" while the browser opened anyway. What happened goes to stderr
@@ -1319,42 +1319,40 @@ not translated, as above. Every destructive action asks first.
 
 **The start code.** `setup` makes a random code at start, writes the address
 with the code to stderr and opens the browser with a code of its own, see
-below. Without a valid code
-every page shows one field, *Code eingeben*, and the static files are the
-one thing served without it, since that page needs them too. After the
-first valid request the session cookie carries the sign-in, and a redirect
-takes the code out of the URL, to the page the address named or, for any
-other address, to the overview. A code in an address that a browser says
-another page opened, `Sec-Fetch-Site` `cross-site` or `same-site`, is not
-tried, since a GET never meets the `Origin` check and a page elsewhere could
-send codes in a loop. The field is a form like any other, behind
-the `Origin` and CSRF checks. After five wrong codes every further wrong
-one is answered two seconds later, and those answers go out one at a time,
-so a loop cannot fill the log faster in parallel either. A right code is
-checked first and never waits behind them, or a script looping wrong codes
-would keep the person out, and it starts the count over. The
-code is 16 random bytes, so the wait is not what protects it: it keeps a
-stray script from filling the log.
-With `--no-browser` and in a container the line is on stderr and in the
-container's log, where the operator reads anyway. **The browser gets a code
-of its own, spent by its first sign-in**, since 2026-10-15. The address is
-handed to the browser as an argument, and on Linux and macOS it stays in
-that process's command line for as long as the browser runs, which another
-user of the same machine may list. Opened with the start code, that was a
-sign-in for the whole run, and a `setup` the prompt started had no
-`--no-browser` to avoid it, since nobody reads its stderr. So the browser is
-opened with a second random code, and the first sign-in with it spends it:
-what stays in the command line opens nothing afterwards. The printed code
-is unchanged, for the terminal and the log. A browser that lost its session
-after that signs in with the printed code, or, when the prompt started the
-interface, from the prompt again once the interface has ended itself after
-its idle time. The code closes the pages
-to other processes and users of the same machine, which the host and origin
+below. Without a valid code every page shows one field, *Code eingeben*, and
+the static files are the one thing served without it, since that page needs
+them too. After the first valid request the session cookie carries the
+sign-in, and a redirect takes the code out of the URL, to the page the
+address named or, for any other address, to the overview. A code in an
+address that a browser says another page opened, `Sec-Fetch-Site`
+`cross-site` or `same-site`, is not tried, since a GET never meets the
+`Origin` check and a page elsewhere could send codes in a loop. The field is
+a form like any other, behind the `Origin` and CSRF checks. After five wrong
+codes every further wrong one is answered two seconds later, and those
+answers go out one at a time, so a loop cannot fill the log faster in
+parallel either. A right code is checked first and never waits behind them,
+or a script looping wrong codes would keep the person out, and it starts the
+count over. The code is 16 random bytes, so the wait is not what protects it:
+it keeps a stray script from filling the log. With `--no-browser` and in a
+container the line is on stderr and in the container's log, where the
+operator reads anyway. **The browser gets a code of its own, spent by its
+first sign-in**, since 2026-10-15. The address is handed to the browser as an
+argument, and on Linux and macOS it stays in that process's command line for
+as long as the browser runs, which another user of the same machine may list.
+Opened with the start code, that was a sign-in for the whole run, and a
+`setup` the prompt started had no `--no-browser` to avoid it, since nobody
+reads its stderr. So the browser is opened with a second random code, and the
+first sign-in with it spends it: what stays in the command line opens nothing
+afterwards. The printed code is unchanged, for the terminal and the log. A
+browser that lost its session after that signs in with the printed code, or,
+when the prompt started the interface, from the prompt again once the
+interface has ended itself after its idle time. The code closes the pages to
+other processes and users of the same machine, which the host and origin
 checks above never did. It does not make a bind beyond loopback safe, since
 it travels in the clear over HTTP, and the warning at the start stays. A
 password was weighed and dropped: it needs a stored hash, a way to reset it
-and a first run that creates it, for a page that runs for minutes and ends.
-A code has no secret that outlives its process.
+and a first run that creates it, for a page that runs for minutes and ends. A
+code has no secret that outlives its process.
 
 **Beenden ends it from the page**, added 2026-10-08 beside the start code.
 The interface is meant to run for minutes and nothing stops it, so the way
@@ -2386,7 +2384,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.5.3 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.5.4 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 sessions told` |
@@ -3282,6 +3280,7 @@ suggested they were.
 | 0.5.1 | The Claude Desktop extension, the MCP Registry entry, setup from the client, and `search_vouchers` filtering what it says it does | **released 2026-10-10** - a patch, because no installation trips over it: everything new is added beside what was there, and the two flags `search_vouchers` loses never filtered anything (#95). A tool now refuses an argument it does not take, which the SDK used to drop. The extension brings its own uv and Python, `setup` opens from a prompt the person picks in the client, and a key saved into a server that had none is used at once, all measured in a fresh Windows Sandbox. Python 3.15 joins the tested versions. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.0's |
 | 0.5.2 | What a client receives, and the image on current dependencies | **released 2026-10-12** - a patch, because no installation trips over it. The twenty-two record tools publish no output schema, which shortens the tool list by 1,773 characters while their answers stay byte-identical, the handshake carries the description, website and icons of the registry entry, and a listed download carries its size. The image moves to platformdirs 4.13.0 and pydantic 2.14.1. The README that PyPI shows catches up with the extension's six steps and the redrawn diagram. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.1's |
 | 0.5.3 | The image on Python 3.15 | **released 2026-10-14** - no change to what a client receives but the address of the icons, which moved to `assets/brand/` while the old one keeps working. The image is built on `python:3.15-slim` with uv 0.13.1 and starlette 1.8.0, and was checked inside before the release: Python 3.15.0, every compiled dependency, a page rendered by pypdfium2, stdio, and HTTP with and without the token. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.2's |
+| 0.5.4 | The review of 2026-10-15 | **released 2026-10-15** - a patch, because an installation that runs as before sees nothing new: the tool list and every answer over stdio are byte for byte those of 0.5.3. What changed shows in edge cases - a redirect, a withheld tool called with bad arguments, a resource above 5 MiB, a settings file that is not UTF-8, a mistake in the policy file named once - plus `LXO_MCP_SETUP_PROMPT` to withhold the setup prompt and a browser code that works once. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.3's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

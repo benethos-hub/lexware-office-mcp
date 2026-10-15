@@ -65,7 +65,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.5.3.**
+> **Status: 0.5.4.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -412,7 +412,7 @@ uvx benethos-lexware-office-mcp --help
 No path from your machine appears in there, which is the point: `uvx` looks
 the package up by name. Two things worth knowing about that entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.3"]`.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.5.4"]`.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -506,8 +506,9 @@ variable is setting it, the page says so, because that would override
 whatever you save. A server that started without a key uses the one saved
 here from its next call, and reads whatever is saved here again on every
 call until it is restarted. A key that replaces one the server was started
-with applies once the client starts it again. The token of the HTTP transport is folded underneath,
-open when the server is set to that transport.
+with applies once the client starts it again. The token of the HTTP
+transport is folded underneath, open when the server is set to that
+transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
 as buttons and the save button at the top right beside the count. On a fresh
@@ -546,13 +547,14 @@ variable holds is shown rather than offered, since saving over it would change
 nothing.
 
 Three things worth knowing. Every start makes a **start code**, and the
-address it prints carries it: `http://127.0.0.1:8771/?code=…`. The browser
-it opens signs in with a code of its own that works once, since a browser's
-address can stay readable in its command line for other users of the
-machine. Without it every page shows one field, *Code eingeben*, so another program
+address it prints carries it: `http://127.0.0.1:8771/?code=…`. Without a
+valid code every page shows one field, *Code eingeben*, so another program
 or another user on the same machine cannot open the pages through the
 loopback port. The code lives as long as the process, and after five wrong
-ones each further try waits. It **binds `127.0.0.1`**, because the code
+ones each further try waits. The browser `setup` opens signs in with a
+second code that works once, since a browser's address can stay readable
+in its command line for other users of the machine. It **binds
+`127.0.0.1`**, because the code
 travels in the clear and keeps nobody out who can read the traffic.
 `--host` exists for a container, where the host-side publish keeps the port
 local, see [In a container](#in-a-container). Anywhere else a bind beyond
@@ -775,7 +777,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.5.3` for an exact release,
+Pin a version for anything you depend on - `:0.5.4` for an exact release,
 `:0.5` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
