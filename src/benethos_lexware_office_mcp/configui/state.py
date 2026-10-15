@@ -254,6 +254,11 @@ SHOWN: tuple[Shown, ...] = (
         lambda s: str(s.upload_path) if s.upload_path else "überall",
     ),
     Shown(
+        "LXO_MCP_UPLOAD_URLS",
+        "Uploads von Adressen",
+        lambda s: ", ".join(s.upload_urls) or "keine",
+    ),
+    Shown(
         "LXO_MCP_TIMEOUT",
         "Zeitlimit je Anfrage (s)",
         lambda s: f"{s.timeout:g}",

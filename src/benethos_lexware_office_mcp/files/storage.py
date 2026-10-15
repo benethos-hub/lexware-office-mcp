@@ -7,7 +7,9 @@ overwritten. A download that silently replaces last month's invoice with this
 month's is worse than one that fails.
 
 The other direction lives here too: a file the model names for upload is
-read under the one rule that bounds it, ``LXO_MCP_UPLOAD_DIR``.
+read under the one rule that bounds it, ``LXO_MCP_UPLOAD_DIR``, and whatever
+an upload sends - read here or fetched from a URL by ``fetch`` - passes the
+one check :func:`accepted` makes.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import contextlib
 import re
 from collections.abc import Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import NamedTuple
 from urllib.parse import unquote
 
 import httpx
@@ -26,14 +29,21 @@ from ..settings import Settings
 
 __all__ = [
     "CONTENT_TYPES",
+    "MAX_UPLOAD",
+    "UPLOAD_TYPES",
+    "Upload",
+    "accepted",
     "content_type_for",
     "directory_for",
     "newest",
+    "not_accepted",
     "on_disk",
     "read_upload",
     "resolve",
     "save",
     "suggested_name",
+    "too_large",
+    "upload_name",
 ]
 
 # Anything outside this set is replaced. Deliberately narrow: a filename that
@@ -349,13 +359,93 @@ UPLOAD_TYPES: dict[str, str] = {
 MAX_UPLOAD = 5 * 1024 * 1024
 
 
-def read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
+# The extension a fetched file is given when its name has none the API takes,
+# one per type: the first that names it, so a JPEG becomes `.jpg`.
+_EXTENSION: dict[str, str] = {
+    content_type: extension
+    for extension, content_type in reversed(UPLOAD_TYPES.items())
+}
+
+
+class Upload(NamedTuple):
+    """What an upload sends: the bytes, the name they go under, their type."""
+
+    content: bytes
+    name: str
+    content_type: str
+
+
+def too_large(label: str, size: int | None = None) -> ValidationError:
+    """The refusal of a file above the ceiling, measured or only known to be."""
+    measured = (
+        "is larger than 5 MiB" if size is None else f"is {size / 1024 / 1024:.1f} MiB"
+    )
+    return ValidationError(
+        f"{label} {measured}. The API accepts at most 5 MiB, so this was not sent."
+    )
+
+
+def not_accepted(found: str) -> ValidationError:
+    """The refusal of a type the API does not take, by extension or content type."""
+    accepted_types = ", ".join(sorted(UPLOAD_TYPES))
+    return ValidationError(
+        f"The API does not accept {found}. It takes: {accepted_types}."
+    )
+
+
+def accepted(content: bytes, name: str, content_type: str, *, label: str) -> Upload:
+    """The one check every upload passes, wherever its bytes came from.
+
+    The size, the type, and a name whose extension says that type: the API
+    is sent a file as what it is called, and a PNG named `.pdf` is refused
+    by it only after it has arrived. Each source checks what it can earlier
+    as well - a file's size before it is read, a response's before it is
+    streamed - so nothing is read that this would refuse, but this is the
+    check that holds, written once. ``label`` is what a refusal calls the
+    file: its name, or where it was fetched from.
+    """
+    if len(content) > MAX_UPLOAD:
+        raise too_large(label, len(content))
+    if content_type not in _EXTENSION:
+        raise not_accepted(content_type or "a file without a content type")
+    if UPLOAD_TYPES.get(PurePosixPath(name).suffix.lower()) != content_type:
+        raise ValidationError(
+            f"{name} was served as {content_type}, which its extension does not "
+            "say, so it was not sent."
+        )
+    return Upload(content, name, content_type)
+
+
+def upload_name(disposition: str, url_path: str, content_type: str) -> str:
+    """The name a fetched file is uploaded under, made safe and given its type.
+
+    ``Content-Disposition`` first, then the last part of the URL's path,
+    then a name of the type alone - each sanitized as a download's name is,
+    because a server elsewhere wrote it. A name without an extension the API
+    takes is given the type's: the end of a signed link is a key more often
+    than a filename. One whose extension names another type keeps it, and
+    :func:`accepted` refuses it.
+    """
+    name = (
+        _safe_name(_header_name(disposition))
+        # The last part as written: `/inbox/` ends in nothing, where a path
+        # object would answer `inbox`.
+        or _safe_name(unquote(url_path.rsplit("/", 1)[-1]))
+        or "receipt"
+    )
+    if PurePosixPath(name).suffix.lower() in UPLOAD_TYPES:
+        return name
+    extension = _EXTENSION[content_type]
+    return name[: MAX_NAME - len(extension)] + extension
+
+
+def read_upload(raw_path: str, allowed: Path | None) -> Upload:
     """Read a local file for upload, the file system's refusals turned into answers."""
     with on_disk("read the file to upload"):
         return _read_upload(raw_path, allowed)
 
 
-def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
+def _read_upload(raw_path: str, allowed: Path | None) -> Upload:
     """Read a local file for upload, refusing what the API would refuse.
 
     ``allowed`` is ``LXO_MCP_UPLOAD_DIR``. The path comes from the model, so
@@ -393,14 +483,8 @@ def _read_upload(raw_path: str, allowed: Path | None) -> tuple[bytes, str, str]:
 
     size = path.stat().st_size
     if size > MAX_UPLOAD:
-        raise ValidationError(
-            f"{path.name} is {size / 1024 / 1024:.1f} MiB. The API accepts at "
-            "most 5 MiB, so this was not sent."
-        )
-
+        raise too_large(path.name, size)
     content_type = UPLOAD_TYPES.get(path.suffix.lower())
     if content_type is None:
-        accepted = ", ".join(sorted(UPLOAD_TYPES))
-        found = path.suffix or "no extension"
-        raise ValidationError(f"The API does not accept {found}. It takes: {accepted}.")
-    return path.read_bytes(), path.name, content_type
+        raise not_accepted(path.suffix or "no extension")
+    return accepted(path.read_bytes(), path.name, content_type, label=path.name)

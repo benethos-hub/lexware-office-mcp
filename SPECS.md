@@ -87,12 +87,13 @@ MCP client --stdio/HTTP--> transport/ --> server.py (PolicyServer)
                      +-----------------------+----------------------+
                      v                       v                      v
                  records/                  api/                  files/
-             types, payloads,     client: one method per    storage, resources,
-             formatting           endpoint. connection:     rendering, delivery
-                                  auth, retries, the one
-                                  ratelimit.TokenBucket
-                                             |
-                               https://api.lexware.io/v1/...
+             types, payloads,     client: one method per    storage, fetch,
+             formatting           endpoint. connection:     resources,
+                                  auth, retries, the one    rendering, delivery
+                                  ratelimit.TokenBucket          |
+                                             |                   | an upload's URL,
+                                             v                   v if allowed
+                               https://api.lexware.io/v1/...   another service
 
 beneath every layer: errors.py, settings/, logbook/ (stderr only)
 ```
@@ -112,11 +113,12 @@ beneath every layer: errors.py, settings/, logbook/ (stderr only)
 | `records/types.py` | Every enumeration a tool takes and every model its arguments are built from, plus the two models the file tools answer with. The schema a client sees is generated from these, so this is the vocabulary of the whole tool list, in one place. | built |
 | `records/payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
-| `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the network. | built |
-| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. | built |
+| `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the API. | built |
+| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. It also carries the transport an upload fetched from a URL travels by, which only the test suite sets. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
-| `files/storage.py` | Where downloads land on disk, and how a file is read for upload. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, because one whose contents match is reused rather than copied, and because the directory is a cache kept to its newest downloads, see section 13. | built |
+| `files/storage.py` | Where downloads land on disk, how a file is read for upload, and the one check every upload passes, read or fetched: its size, its type, and a name whose extension says that type. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, because one whose contents match is reused rather than copied, and because the directory is a cache kept to its newest downloads, see section 13. | built |
+| `files/fetch.py` | An upload fetched from a URL instead of read from disk, under `LXO_MCP_UPLOAD_URLS`, see section 7.2. A client of its own, never the API's: no key, no retries, no rate limiter, no redirects, 30 seconds and 5 MiB. The one place besides `api/connection.py` that opens a connection, and never to Lexware. | built |
 | `files/resources.py` | Downloaded files as MCP resources, so a client that does not share a filesystem with the server can still get the bytes. Both the list, bounded to the newest downloads, and the reads are answered from the download directory, not from a registry. See section 13. | built |
 | `files/rendering.py` | PDF pages to PNG images, the only way a PDF becomes visible in a client that cannot display one. The single place allowed to touch `pypdfium2`. | built |
 | `files/delivery.py` | A download as an answer: a file saved to disk, with the clean-up that follows, and answered as a line and a resource link, or a download read back and put into the conversation as text, image, rendered pages or a blob, whichever makes the bytes usable to a client. The tools in `tools/files.py` only register and delegate to it. | built |
@@ -1053,6 +1055,7 @@ arriving.
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
 | `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. An `.xml` counts as a document there: any XML file the process can read is sent, and only the API refuses one that is not an XRechnung. | unset, anywhere |
+| `LXO_MCP_UPLOAD_URLS` | The addresses the same two tools may fetch a file from, comma separated: a scheme and a host, optionally a port and the start of a path. Unset, no URL is fetched. `https://` for any host, `http://` for `127.0.0.1`, `::1` and `localhost` alone - any other is a `ConfigError` at startup, and in the configuration interface before the file is written. See section 7.2. | unset, none |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
@@ -1297,7 +1300,7 @@ for, and its primary action at the top right.
 | Overview (`Übersicht`) | A card *Stand* with three rows and their tags: the key stored or missing, the permissions as n of 25 on with what they cost or no file yet, the last connection test with the account or never run. The first red row is the next step and links to the page that does it. A card *Client* with the `"args"` entry to copy, and the warning that a server without `--env-file` reads another file only when that is true. A card *Dateien* with each file's name and state, the full path folded. |
 | Credentials (`Zugangsdaten`) | The key, checked against the API before it is written unless that is declined, and the connection test as a card beside it. The HTTP token as a folded card, open only when the transport is not stdio, *Neu erzeugen* with a question before it. |
 | Permissions (`Rechte`) | The counter and *Rechte speichern* at the top right, the presets as a bar, then one card per domain with its group switches and the tool rows with mark and cost. The legend, the profiles and import and export folded underneath, deleting a profile with a question before it. |
-| Settings (`Einstellungen`) | The twelve settings that are no secret, in four cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory), the setup (whether the client is offered the prompt that opens the interface, a choice of on, off and the default). The placeholder shows what empty means, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
+| Settings (`Einstellungen`) | The thirteen settings that are no secret, in four cards: the connection (the two base URLs, the timeout, the rate, the burst), the output (rows per page, PDF pages, the log level), the files (the download directory, the cache, the upload directory, the addresses an upload may be fetched from), the setup (whether the client is offered the prompt that opens the interface, a choice of on, off and the default). The placeholder shows what empty means, the source badge stays. A value held by an environment variable is marked as such and offered as no field, since typing over it would change nothing. |
 
 The settings page reads a value in effect and a default the same way, so
 the placeholder of an empty field is what empty means rather than what
@@ -1516,6 +1519,103 @@ actually runs on.
 No format carried the API key, and this one has nowhere to put a setting at
 all.
 
+### 7.2 Uploads from a URL
+
+**What it is for.** Another MCP server - a mailbox, say - issues a
+short-lived signed link for an attachment, and the model hands that link to
+`upload_file` or `attach_file_to_voucher`. The file goes from service to
+service and never through the model's context: base64 of a 5 MiB PDF is
+nearly seven million characters, and a model is no reliable copier of bytes
+anyway. Neither server knows the other or holds anything of the other's.
+What connects them is the URL and `LXO_MCP_UPLOAD_URLS`. Built 2026-10-15,
+and verified live the same day against the second test account with
+`live/upload_from_url.py`: a PDF served by `http.server` on 127.0.0.1 was
+fetched and uploaded, a link one port off was refused without a request, the
+local server was asked once and saw no `Authorization` header, and the log
+line named `http://127.0.0.1` and nothing after it.
+
+**One parameter, `source`, replaced `path`.** A value that starts with
+`https://` or `http://`, in any case, is a URL. A `file:` URL is refused
+with the advice to give the path itself, since it would be a path read past
+`LXO_MCP_UPLOAD_DIR` in disguise. Anything else is a path, read as before.
+Two parameters would have needed a rule for which wins when both are given,
+and a caller would have had to learn it. The cost is a renamed argument: a
+caller that passed `path` by name is refused until it lists the tools again.
+No tool is new, so a policy file reads exactly as it did.
+
+**No URL without the setting.** The model chooses the URL, and a model reads
+email. Without a list, one prompt in a message could have this server fetch
+from anywhere it can reach - a document server on the local network that
+answers only from inside, say - and file what came back in the books. So
+nothing is fetched until the account owner names the addresses, golden rule
+1 again. A prefix is a scheme and a host, optionally a port and the start of
+a path, and a URL is compared to it part by part rather than as text, which
+would let `https://files.example.com` cover
+`https://files.example.com.elsewhere.net`. No port means the scheme's
+default. A path is covered by segments: `/inbox` covers `/inbox/a.pdf` and
+not `/inboxes/a.pdf`. A URL with a user name before its host is covered by
+nothing, and neither is one whose path steps up with `..`, written plainly
+or percent-encoded, nor one with a backslash after decoding - a server that
+decodes before it routes would be reading another path than the one
+checked. All of it is decided before a connection is opened, so a URL
+outside the list is refused without a word about what is out there.
+
+**`http://` is for this machine alone.** It carries the file in the clear,
+so a prefix with it is taken for `127.0.0.1`, `::1` and `localhost` and for
+no other host. Any other stops the start with a `ConfigError`, and the
+configuration interface refuses to write it: a setting that would send
+receipts unencrypted across a network is a mistake to stop at once, not at
+the first call. The names are compared, not resolved. In a container,
+"this machine" is the container.
+
+**Its own client.** A fetch never goes through `api/connection.py`: another
+address, and no `Authorization` header, since the Lexware key goes to
+Lexware and nowhere else. None of the API client's machinery applies either.
+No retry - a link that failed once is for the model to fetch again or to ask
+for anew. No token from the bucket, see section 10.1. **No redirect is
+followed**, since one leads off the address that was allowed, and a service
+that answers with one has to be allowed under the address that serves the
+file. **Thirty seconds for the whole of it**, connecting and reading
+together, fixed rather than a setting: `LXO_MCP_TIMEOUT` bounds each request
+to Lexware, and a server sending a byte now and then would never trip a
+per-read limit.
+
+**The response is held to what the API takes before it is read.** A status
+other than 200 is refused by its number, and the page that came with it is
+never passed on: an error page is the other service's business. A
+`Content-Length` above 5 MiB is refused unread. The body is then streamed
+and cut off at 5 MiB whether a length was declared or not, so a missing or
+false header changes nothing, and counted after decoding, so a compressed
+body cannot unpack into more. The `Content-Type` has to be one of the four
+the API takes, read without its parameters, and `text/xml` counts as
+`application/xml`, which RFC 7303 says it is. Anything else is refused,
+`application/octet-stream` among it: the type is taken from the response
+and not guessed from the bytes, the way a file on disk is taken by its
+extension.
+
+**The name.** From `Content-Disposition`, else the last part of the URL's
+path, else `receipt`, each sanitized as a download's name is, because a
+server elsewhere wrote it. A name without an extension the API takes is
+given the type's - the end of a signed link is a key more often than a
+filename. A name whose extension says another type is refused rather than
+renamed: one of the two is wrong, and nothing here can tell which. An XML
+file is not checked for being an XRechnung, as from disk: the API refuses
+one that is not, and a second check here could only disagree with it.
+
+**One check for both.** A file read from disk and one fetched end in
+`storage.accepted`, which holds the size, the type and the name's extension.
+What each source checks earlier - a file's size before it is read, a
+response's before it is streamed - is an early way out, not a second rule.
+
+**A URL is a capability**, see section 11. A log line names its scheme and
+its host and never its path or query. A URL outside the setting is a line by
+its scheme alone, saying the address was outside the list and nothing was
+requested: the host was the model's choice, and a host name can carry any
+text a prompt put into it - a customer's name, an IBAN. Whoever reads the
+log learns why the call was refused, and the host itself is in the refusal
+the model was given. The same line without a scheme says that no address is
+allowed at all.
+
 ## 8. Tools
 
 Tool count is kept deliberately low. Descriptions and schemas are sent on
@@ -1533,15 +1633,16 @@ line, and on 2026-10-08 after `document_type` took the voucher list's
 spelling as well and `read_download` stopped suggesting that null renders
 every page, on 2026-10-10 after `search_vouchers` lost the two flags
 the API ignored, and on 2026-10-12 after the twenty-two tools that answer
-with a record stopped publishing an output schema.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **51,274
-characters**, around 2,051 each. Roughly 13,500 to 16,000 tokens, estimated
+with a record stopped publishing an output schema, and on 2026-10-15 after
+the two upload tools took a URL as well as a path.** Serialized as the
+compact JSON a `tools/list` answer is, twenty-five tools come to **51,348
+characters**, around 2,054 each. Roughly 13,500 to 16,000 tokens, estimated
 at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,352 | 67% |
-| Tool descriptions, the part under a ceiling | 11,190 | 22% |
+| Input schemas | 34,382 | 67% |
+| Tool descriptions, the part under a ceiling | 11,234 | 22% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,041 | 2% |
 | Names, titles and the rest | ~2,124 | 4% |
@@ -1596,9 +1697,9 @@ gone. Checked the way section 14.3 says, over stdio, before and after.
 
 Two things follow, and neither was obvious before the measurement.
 
-**The 700-character ceiling governs a fifth of the cost.** Of the 34,352
-characters of input schema, 13,668 are prose from `Field(description=...)` and
-the remaining 20,684 are structure the schema generator emits: types,
+**The 700-character ceiling governs a fifth of the cost.** Of the 34,382
+characters of input schema, 13,686 are prose from `Field(description=...)` and
+the remaining 20,696 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
 where it should be watched: `create_voucher` spends 1,634 characters on
@@ -1651,8 +1752,8 @@ arguments cost three to four times what the simple ones do.
 | `delete_article` | **Built 2026-08-21**, and the first tool in the whole server carrying an irreversible effect. Takes `confirm: true` and sends nothing without it. The record is removed rather than archived - verified live: 204, then 404 on the same id. |
 | `create_voucher` / `update_voucher` | **Built 2026-08-20.** `create_voucher` takes the type, date, tax type and lines, and adds the totals up from the lines unless the caller states them, which is arithmetic the API insists on rather than a number being invented. The document number is required, and no status can be asked for - both measured 2026-08-23, see section 5. `update_voucher` reads, merges and replaces like `update_contact`, and additionally strips the fields a voucher refuses on the way back in. It adds the totals up again only when it writes new lines - the tool takes no tax type, so a voucher keeps the one it has - and otherwise sends the ones it read: a voucher made from an upload holds no lines, and adding up nothing gave it a total of zero. `use_collective_contact` moves a voucher back from a named contact, measured 2026-09-27. `finalize`, with `confirm`, books an `unchecked` voucher such as `upload_file` leaves behind, and is refused for any other status before anything is written - so a receipt goes from upload to the books without the web app, verified live 2026-09-27. Neither can be undone: the API cannot delete a voucher. |
 | `create_sales_document` | **Built 2026-08-21.** Six types, `down-payment-invoice` left out because it has no POST. The per-type requirement of section 5 is checked here rather than upstream, so a missing `shipping_date` costs no request and the message names the field. Addresses by `contact_id` only: a one-time address would add a nested model to the largest schema in the server for a case `create_contact` already covers. `finalize` needs `confirm` beside it. Line items carry the price on the side the document's `tax_type` names, and the totals are left to the API. |
-| `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
-| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. That voucher starts `unchecked`, and since 2026-09-27 the docstring also names `update_voucher` and its `finalize` as the way to fill it in and book it. |
+| `attach_file_to_voucher` | **Built 2026-08-21.** Hangs a file on a voucher that already exists, which `upload_file` cannot do: that one creates a voucher per file. Same `source`, same validation, same 5 MiB ceiling, same four types, and the answer is the file id alone. Neither the attachment nor a wrongly created voucher can be removed, so the description names the neighbouring tool rather than leaving the caller to find the difference. |
+| `upload_file` | **Built 2026-08-20.** Takes a path on the machine the server runs on, and since 2026-10-15 a URL as well, in one parameter `source` that replaced `path`: a value starting `https://` or `http://` is fetched, see section 7.2, anything else is read from disk. Accepts PDF, JPEG, PNG and XML, and refuses a missing file, any other extension and anything above 5 MiB before spending a request. The answer carries a `voucherId` as well as a file id, because uploading creates a voucher, and the docstring says so where a caller will read it. That voucher starts `unchecked`, and since 2026-09-27 the docstring also names `update_voucher` and its `finalize` as the way to fill it in and book it. |
 
 ### Irreversible tools
 
@@ -1946,6 +2047,11 @@ them is labelled as an estimate and derived from a fixed ratio.
 The upstream limit is 2 requests per second, applied as a token bucket **across
 all endpoints of the API at once**. That single sentence decides the design.
 
+It is Lexware's limit, so it is Lexware's requests the bucket counts. An
+upload fetched from a URL, see section 7.2, goes to another server and does
+not take a token: it would spend the account's allowance on traffic the
+account never sees. The upload that follows the fetch does take one.
+
 #### The algorithm, and which half of it we implement
 
 The [token bucket](https://en.wikipedia.org/wiki/Token_bucket) has three
@@ -2012,9 +2118,10 @@ Four details that matter:
 single object owned by the client module and shared by every request, whatever
 resource it targets. A per-resource limiter would let five idle endpoints hand
 out five buckets worth of tokens and blow the global budget while each one
-believes it is well behaved. There is exactly one bucket, and every outbound
-call acquires a token from it before the request is issued, including retries,
-pagination follow-ups and the read that an update makes before it writes.
+believes it is well behaved. There is exactly one bucket, and every call to
+Lexware acquires a token from it before the request is issued, including
+retries, pagination follow-ups and the read that an update makes before it
+writes.
 
 **Parameters:** *r* is `LXO_MCP_RATE` (default `1.5` per second) and *b* is
 `LXO_MCP_BURST` (default `2`). The rate sits deliberately **below** the
@@ -2193,6 +2300,12 @@ These rules are absolute for this repository.
   interface both name it. The exception is a path the caller supplied or
   asked for — `download_file` answers with where it wrote the bytes, which is
   the point of calling it.
+- **A URL an upload is fetched from is a capability, like a token.** A signed
+  link carries its key in the path or the query, and is as good as the key
+  for as long as it lives. A log line names its scheme and host, never more,
+  and the host only where `LXO_MCP_UPLOAD_URLS` allows it - one outside was
+  chosen by the model, and its line names the scheme alone. The Lexware key
+  never travels with a fetch: its client is not the API's, see section 7.2.
 - Downloaded documents are real business records. They go to the download
   directory, which is gitignored, and are never committed.
 - **What one installation is allowed to do is not a property of the code**,
@@ -2393,7 +2506,8 @@ where it differs.
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
-| `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name |
+| `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
+| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, and that no address is allowed at all |
 | | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
 | | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
@@ -2428,6 +2542,7 @@ its name.
 | 3xx | `UpstreamError` | the status, and that it came instead of a result. The client follows no redirect and the API documents none, so a redirect's body is never taken for a document. On a write the outcome is unknown |
 | 5xx, network | `UpstreamError` | short, no traceback. On a POST, on a PUT or DELETE that ran out of retries, and on any write whose 2xx answer cannot be read, it says the outcome is unknown |
 | — (local disk) | `LocalFileError` | a download or upload the machine refused: the operating system's reason, never a path |
+| — (upload URL) | `ValidationError`, `UpstreamError` | a URL no prefix of `LXO_MCP_UPLOAD_URLS` covers, or none allowed at all, and that nothing was requested. A file too large, of a type the API does not take, or named as another type, as for a file on disk. A status other than 200, a redirect among them, by its number and never with the page that came with it, a fetch past 30 seconds, no connection - each by the host alone, and that nothing was sent to Lexware |
 | — (policy) | `PermissionDeniedError` | a tool the policy file does not enable, called by a client whose tool list predates the change. Refused before its arguments are checked, since the SDK's refusal of invalid ones names the fields the tool requires and quotes what was sent |
 | — (arguments) | `ToolError` | an argument the tool does not take, by its name when it looks like one and as `?` otherwise, and that nothing was sent. The SDK builds each argument model to drop what it does not know, so such a call ran without the filter and answered as if it had, which is how `only_open` hid paid vouchers (issue #95). Refused only for a tool the policy allows, so a withheld one says nothing about its schema |
 | — (settings) | `ConfigError` | no API key, said with the command that sets one, over stdio the prompt that opens it as well unless `LXO_MCP_SETUP_PROMPT` withholds it, and that a key saved there is used from the next call - never with a path, also when the file a key is saved to cannot be decoded, which stderr names instead. At startup the same class ends the process in one line |
@@ -2765,6 +2880,13 @@ The consequences are the point of writing this down.
   the script, it is absent from the server and refused if called. The script
   checks that too, on the tool list it was given. A promise that a script
   makes no writing call is worth less than a server that cannot make one.
+- **`live/upload_from_url.py` is the one live script that writes**, built
+  2026-10-15 for section 7.2. An upload creates a voucher the API cannot
+  delete, so the script takes the organization it may write to as a required
+  argument and stops before anything is written when `get_profile` reports
+  another. The check golden rule 1 asks for is then done by the script rather
+  than remembered by whoever runs it. Its server enables `get_profile` and
+  `upload_file` alone.
 - **A check that could not run is reported as skipped, never as passed.** An
   empty account has no article to read and no rendered document to download,
   and a live check that reported those as successes would be the same hole as
@@ -2935,6 +3057,9 @@ Built, tested offline and exercised against a live test account:
 - binary downloads and multipart uploads through the same rate limiter and
   retry rules as every other call, and three ways to hand a downloaded file
   to a client: a path, an MCP resource, and the file rendered into the answer
+- an upload read from a path or, since 2026-10-15 and only from the
+  addresses `LXO_MCP_UPLOAD_URLS` names, fetched from a URL by a client of
+  its own, see section 7.2
 
 Verified against a live account rather than assumed, and written up where it
 belongs in section 5: the profile response shape, the per-endpoint page

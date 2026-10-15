@@ -93,7 +93,12 @@ SETTINGS_CARDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
         "Dateien",
         "Wo Downloads landen, wie viele bleiben, woher Uploads kommen dürfen.",
-        ("LXO_MCP_DOWNLOAD_DIR", "LXO_MCP_KEPT_DOWNLOADS", "LXO_MCP_UPLOAD_DIR"),
+        (
+            "LXO_MCP_DOWNLOAD_DIR",
+            "LXO_MCP_KEPT_DOWNLOADS",
+            "LXO_MCP_UPLOAD_DIR",
+            "LXO_MCP_UPLOAD_URLS",
+        ),
     ),
     (
         "Einrichtung",

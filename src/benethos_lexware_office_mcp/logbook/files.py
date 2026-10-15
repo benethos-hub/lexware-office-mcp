@@ -1,19 +1,34 @@
-"""Downloads on disk.
+"""Downloads on disk, and uploads fetched from a URL.
 
 The tool line already says what was downloaded and how large it was. What it
 cannot say is that nothing new was written, or that older downloads were
 deleted to keep the directory at its bound. A download's name is the
 document's own and often the customer's, and its path is this machine's, so
 neither is in a line.
+
+Nor can it say where an upload was fetched from. A line here does, by scheme
+and host alone: a signed link carries its key in the path or the query, and
+the link is as good as the key for as long as it lives. The host is one
+``LXO_MCP_UPLOAD_URLS`` names. A URL outside the setting is refused before
+anything is sent, and its line says so by the scheme alone: its host was
+chosen by the model, and a host name can carry any text a prompt put there.
 """
 
 from __future__ import annotations
 
 import logging
 
+from ._describe import describe
 from .output import PACKAGE
 
-__all__ = ["pruned", "reused"]
+__all__ = [
+    "fetched",
+    "none_allowed",
+    "not_allowed",
+    "not_fetched",
+    "pruned",
+    "reused",
+]
 
 _log = logging.getLogger(f"{PACKAGE}.storage")
 
@@ -24,3 +39,30 @@ def reused(size: int) -> None:
 
 def pruned(count: int, kept: int) -> None:
     _log.info("Deleted %d older downloads, the newest %d are kept", count, kept)
+
+
+def fetched(scheme: str, host: str, size: int, ms: float) -> None:
+    _log.info(
+        "Fetched %d bytes to upload from %s://%s in %.0f ms", size, scheme, host, ms
+    )
+
+
+def none_allowed() -> None:
+    _log.warning(
+        "Refused to fetch an upload: LXO_MCP_UPLOAD_URLS allows no address, "
+        "nothing was requested"
+    )
+
+
+def not_allowed(scheme: str) -> None:
+    _log.warning(
+        "Refused to fetch an upload over %s: the address is outside "
+        "LXO_MCP_UPLOAD_URLS, nothing was requested",
+        scheme,
+    )
+
+
+def not_fetched(scheme: str, host: str, error: BaseException) -> None:
+    _log.warning(
+        "Fetching an upload from %s://%s failed: %s", scheme, host, describe(error)
+    )

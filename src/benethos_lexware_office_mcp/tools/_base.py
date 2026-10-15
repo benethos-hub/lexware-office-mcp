@@ -30,7 +30,7 @@ __all__ = [
     "FinalizeConfirm",
     "PageNumber",
     "PageSize",
-    "UploadPath",
+    "UploadSource",
     "VersionField",
     "as_result",
     "register_tool",
@@ -86,7 +86,8 @@ DocumentIdField = Annotated[
 
 # Two tools answer without reaching the API at all: `get_deeplink` builds a
 # URL out of ids the caller already holds, and `read_download` reads a file
-# this server put on disk earlier. Everything else talks to Lexware.
+# this server put on disk earlier. Everything else talks to Lexware, and the
+# two upload tools may fetch from another server first - open world twice.
 _CLOSED_WORLD = frozenset({"get_deeplink", "read_download"})
 
 
@@ -147,12 +148,12 @@ FinalizeConfirm = Annotated[
     Field(description="Required only for finalize. Ignored otherwise."),
 ]
 
-UploadPath = Annotated[
+UploadSource = Annotated[
     str,
     Field(
         description=(
-            "Path to the file on this machine, for example a scanned "
-            "receipt. PDFs and images are accepted, at most 5 MiB."
+            "The file: a path on this machine, or a URL to fetch it from. A "
+            "URL works only for addresses the account owner allowed."
         )
     ),
 ]

@@ -173,7 +173,7 @@ time and against an account you are willing to have changed:
 | `create_voucher` | Record a bookkeeping voucher |
 | `update_voucher` | Change one that is already recorded, or book a receipt that `upload_file` left unchecked |
 | `create_sales_document` | Create an invoice, quotation, credit note, order confirmation, delivery note or dunning — a draft unless you ask for it to be issued, which the assistant may only do on your explicit instruction |
-| `upload_file` | Upload a receipt, which also creates its voucher |
+| `upload_file` | Upload a receipt from a path or a URL, which also creates its voucher |
 | `attach_file_to_voucher` | Hang a file on a voucher that already exists |
 
 `update_contact` and `update_voucher` cost two API calls rather than one.
@@ -255,9 +255,11 @@ themselves. A download does not carry one — it answers where the bytes are,
 which is a different question, and the two were joined once long enough for a
 broken link to ride along with a working download.
 
-`upload_file` accepts PDF, JPEG, PNG and XML, at most 5 MiB per file, which
-is what the API takes. An XML file is treated as an XRechnung and is
-rejected if it is not one.
+`upload_file` and `attach_file_to_voucher` take a `source`: a path on the
+machine the server runs on, or a URL to fetch the file from. Either way they
+accept PDF, JPEG, PNG and XML, at most 5 MiB per file, which is what the API
+takes. An XML file is treated as an XRechnung and is rejected if it is not
+one.
 
 **The model chooses the path.** Without `LXO_MCP_UPLOAD_DIR`, `upload_file`
 and `attach_file_to_voucher` read any file this process can read that has
@@ -265,6 +267,26 @@ one of those extensions, and send it to Lexware. That includes any `.xml`:
 a configuration file or an export is refused as not an XRechnung only after
 it has reached the API. Set it to one directory - an inbox for receipts -
 and nothing outside it is read, links included.
+
+**A URL only from addresses you allow.** Another server can hand the model a
+short-lived link to a file - a mailbox server for an attachment, say - and
+the file then goes from that server to Lexware without passing through the
+model. `LXO_MCP_UPLOAD_URLS` lists the addresses such a link may point to,
+comma separated: a scheme and a host, optionally a port and the start of a
+path, such as `https://files.example.com/inbox/`. **Without it no URL is
+fetched.** The list is required because the model chooses the URL, and a
+model reads email: one instruction hidden in a message could otherwise have
+the server fetch from anywhere it can reach, a document server on your own
+network included, and file what came back in your books. A link outside
+every prefix is refused before anything is sent, a redirect is not
+followed, the fetch gets 30 seconds, and the file is cut off at 5 MiB. The
+Lexware key is never sent along, and the log names a link's host, never its
+path or query, which is where a signed link keeps its key.
+
+`https://` is the rule. `http://` is meant for a service on the same
+machine, and is accepted for `127.0.0.1`, `::1` and `localhost` alone: the
+server refuses to start with any other host, since the file would cross the
+network unencrypted. In a container, the same machine is the container.
 
 ## Requirements
 
@@ -721,6 +743,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all, while the resource list still names the newest 100 | unset: `100` in the default directory, all in one you name |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
+| `LXO_MCP_UPLOAD_URLS` | Addresses the upload tools may fetch a file from, comma separated. `http://` only for `127.0.0.1`, `::1` and `localhost` | none |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |

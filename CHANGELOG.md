@@ -13,6 +13,32 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **An upload from a URL.** `upload_file` and `attach_file_to_voucher`
+  fetch the file from a URL when the source starts with `https://` or
+  `http://`, so a link another server issued - a mailbox server for an
+  attachment, say - goes from that server to Lexware without passing
+  through the model. Only from the addresses `LXO_MCP_UPLOAD_URLS` names,
+  comma separated, and without that setting no URL is fetched. A link
+  outside it is refused before anything is sent, no redirect is followed,
+  the fetch gets 30 seconds, the file is cut off at 5 MiB whether its size
+  was declared or not, and its type has to be one the API takes. The
+  Lexware key is never sent along, and the log names the scheme and the
+  host of a link and nothing after them. A link outside the setting is a
+  log line by its scheme alone, since the model chose its host. `http://`
+  is taken for `127.0.0.1`, `::1` and `localhost` alone: any other host
+  stops the start.
+  A field on the settings page, beside the upload directory.
+
+### Changed
+
+- **Breaking: the two upload tools take `source` instead of `path`.** A
+  path works as it did, under the same name. A client that passed `path`
+  by name is refused until it lists the tools again, and a policy file
+  needs no change: no tool is new. A `file:` URL is refused with the
+  advice to give the path itself.
+
 ## [0.5.4] - 2026-10-15
 
 A patch release from the review of 2026-10-15. An installation that

@@ -50,7 +50,7 @@ async def test_an_upload_sends_the_part_and_the_type_the_api_demands(
     handler = recorder(status=202, json_body=UPLOADED)
     server, provider = server_with(handler, download_path=tmp_path)
 
-    result = await server.call_tool("upload_file", {"path": str(receipt)})
+    result = await server.call_tool("upload_file", {"source": str(receipt)})
 
     sent = handler.last.content
     assert b'name="file"' in sent
@@ -79,7 +79,7 @@ async def test_an_upload_outside_the_upload_directory_is_refused(
     handler = recorder(status=202, json_body=UPLOADED)
     server, provider = upload_server(handler, tmp_path, inbox)
 
-    arguments = {"path": str(elsewhere), "voucher_id": "PLACEHOLDER-VOUCHER-1"}
+    arguments = {"source": str(elsewhere), "voucher_id": "PLACEHOLDER-VOUCHER-1"}
     if tool == "upload_file":
         del arguments["voucher_id"]
     with pytest.raises(ToolError, match="LXO_MCP_UPLOAD_DIR") as excinfo:
@@ -103,7 +103,7 @@ async def test_outside_the_upload_directory_nothing_is_said_about_existence(
     answers = []
     for name in ("there.pdf", "not-there.pdf"):
         with pytest.raises(ToolError) as excinfo:
-            await server.call_tool("upload_file", {"path": str(tmp_path / name)})
+            await server.call_tool("upload_file", {"source": str(tmp_path / name)})
         answers.append(str(excinfo.value).replace(name, "<name>"))
 
     assert answers[0] == answers[1]
@@ -118,7 +118,7 @@ async def test_an_upload_inside_the_upload_directory_is_sent(tmp_path: Path) -> 
     handler = recorder(status=202, json_body=UPLOADED)
     server, provider = upload_server(handler, tmp_path, inbox)
 
-    await server.call_tool("upload_file", {"path": str(receipt)})
+    await server.call_tool("upload_file", {"source": str(receipt)})
 
     assert len(handler.requests) == 1
 
@@ -134,7 +134,7 @@ async def test_a_path_that_climbs_out_of_the_upload_directory_is_refused(
 
     with pytest.raises(ToolError, match="outside"):
         await server.call_tool(
-            "upload_file", {"path": str(inbox / ".." / "private.pdf")}
+            "upload_file", {"source": str(inbox / ".." / "private.pdf")}
         )
 
     assert handler.requests == []
@@ -153,7 +153,7 @@ async def test_an_attachment_hangs_on_a_voucher_that_already_exists(
 
     result = await server.call_tool(
         "attach_file_to_voucher",
-        {"voucher_id": "PLACEHOLDER-VOUCHER-1", "path": str(receipt)},
+        {"voucher_id": "PLACEHOLDER-VOUCHER-1", "source": str(receipt)},
     )
 
     sent = handler.last.content
@@ -177,7 +177,7 @@ async def test_an_attachment_is_never_retried(tmp_path: Path) -> None:
     with pytest.raises(ToolError):
         await server.call_tool(
             "attach_file_to_voucher",
-            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "path": str(receipt)},
+            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "source": str(receipt)},
         )
 
     assert len(handler.requests) == 1
@@ -196,7 +196,7 @@ async def test_an_attachment_refuses_the_same_files_an_upload_does(
     with pytest.raises(ToolError):
         await server.call_tool(
             "attach_file_to_voucher",
-            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "path": str(wrong)},
+            {"voucher_id": "PLACEHOLDER-VOUCHER-1", "source": str(wrong)},
         )
 
     assert handler.requests == []
@@ -224,7 +224,7 @@ async def test_an_upload_is_never_retried(tmp_path: Path) -> None:
     server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
-        await server.call_tool("upload_file", {"path": str(receipt)})
+        await server.call_tool("upload_file", {"source": str(receipt)})
 
     assert len(handler.requests) == 1
 
@@ -238,7 +238,7 @@ async def test_a_file_that_is_too_large_is_refused_before_the_request(
     server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
-        await server.call_tool("upload_file", {"path": str(big)})
+        await server.call_tool("upload_file", {"source": str(big)})
 
     assert "5 MiB" in str(excinfo.value)
     assert handler.requests == [], "the oversized file went out anyway"
@@ -251,7 +251,7 @@ async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
     handler = recorder(status=202, json_body=UPLOADED)
     server, provider = server_with(handler, download_path=tmp_path)
 
-    await server.call_tool("upload_file", {"path": str(edge)})
+    await server.call_tool("upload_file", {"source": str(edge)})
 
     assert len(handler.requests) == 1
 
@@ -263,7 +263,7 @@ async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
     server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
-        await server.call_tool("upload_file", {"path": str(note)})
+        await server.call_tool("upload_file", {"source": str(note)})
 
     assert ".pdf" in str(excinfo.value)
     assert handler.requests == []
@@ -274,7 +274,7 @@ async def test_a_missing_file_says_so_plainly(tmp_path: Path) -> None:
     server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError) as excinfo:
-        await server.call_tool("upload_file", {"path": str(tmp_path / "nope.pdf")})
+        await server.call_tool("upload_file", {"source": str(tmp_path / "nope.pdf")})
 
     assert "No file at" in str(excinfo.value)
 
@@ -284,7 +284,7 @@ async def test_a_directory_is_not_a_file(tmp_path: Path) -> None:
     server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
-        await server.call_tool("upload_file", {"path": str(tmp_path)})
+        await server.call_tool("upload_file", {"source": str(tmp_path)})
 
     assert handler.requests == []
 
@@ -296,7 +296,7 @@ async def test_an_xrechnung_may_be_uploaded(tmp_path: Path) -> None:
     handler = recorder(status=202, json_body=UPLOADED)
     server, provider = server_with(handler, download_path=tmp_path)
 
-    await server.call_tool("upload_file", {"path": str(invoice)})
+    await server.call_tool("upload_file", {"source": str(invoice)})
 
     assert b'name="file"' in handler.last.content
     assert b"application/xml" in handler.last.content
@@ -310,7 +310,7 @@ async def test_a_gif_is_refused_because_the_api_refuses_it(tmp_path: Path) -> No
     server, provider = server_with(handler, download_path=tmp_path)
 
     with pytest.raises(ToolError):
-        await server.call_tool("upload_file", {"path": str(image)})
+        await server.call_tool("upload_file", {"source": str(image)})
 
     assert handler.requests == []
 
@@ -329,6 +329,6 @@ async def test_a_file_that_cannot_be_read_for_upload_says_why(
     monkeypatch.setattr(Path, "read_bytes", locked)
 
     with pytest.raises(ToolError, match="Could not read the file to upload"):
-        await server.call_tool("upload_file", {"path": str(receipt)})
+        await server.call_tool("upload_file", {"source": str(receipt)})
 
     assert handler.requests == []

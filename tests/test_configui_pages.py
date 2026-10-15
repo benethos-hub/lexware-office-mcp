@@ -453,6 +453,27 @@ def test_the_placeholder_says_what_empty_means_beside_the_other_settings(
     assert kept.format("alle") in text(pages.settings(inst))
 
 
+def test_the_upload_addresses_are_offered_beside_the_upload_directory(
+    inst: Installation,
+) -> None:
+    """None by default, which is no URL fetched at all."""
+    field = 'name="LXO_MCP_UPLOAD_URLS" type="text" value="{}" placeholder="keine"'
+    body = text(pages.settings(inst))
+
+    assert "Uploads von Adressen" in body
+    assert field.format("") in body
+    assert body.index("LXO_MCP_UPLOAD_DIR") < body.index("LXO_MCP_UPLOAD_URLS")
+
+    inst.env_path.write_text(
+        "LXO_MCP_UPLOAD_URLS=https://files.example.com/inbox/\n", encoding="utf-8"
+    )
+    inst.reload()
+
+    assert field.format("https://files.example.com/inbox/") in text(
+        pages.settings(inst)
+    )
+
+
 def test_a_value_an_environment_variable_holds_is_no_field(
     inst: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:

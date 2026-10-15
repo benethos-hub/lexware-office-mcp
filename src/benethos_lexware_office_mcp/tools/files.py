@@ -18,12 +18,12 @@ from pydantic import Field
 
 from ..api.client import ClientProvider
 from ..errors import ValidationError
-from ..files import delivery, resources, storage
+from ..files import delivery, fetch, resources, storage
 from ..policy import classify
 from ..records import formatting
 from ..records.types import RESOURCES, Delivered, Download, Format
 from ..settings import MAX_PDF_PAGES, Settings
-from ._base import DocumentIdField, DocumentTypeField, UploadPath, register_tool
+from ._base import DocumentIdField, DocumentTypeField, UploadSource, register_tool
 
 __all__ = ["register"]
 
@@ -205,7 +205,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
 
     @classify("write", "files", "create", permanence="books")
     async def upload_file(
-        path: UploadPath,
+        source: UploadSource,
     ) -> dict[str, Any]:
         """Upload a receipt, which also creates a bookkeeping voucher for it.
 
@@ -215,12 +215,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Confirm the organization with `get_profile` first. One API call,
         never retried.
 
-        Takes PDF, JPEG, PNG or XML, at most 5 MiB. An XML file is treated as
-        an XRechnung. The voucher starts `unchecked`: `update_voucher` fills
-        it in, and its `finalize` books it.
+        Takes PDF, JPEG, PNG or XML, at most 5 MiB, from a path or a URL. An
+        XML file is treated as an XRechnung. The voucher starts `unchecked`:
+        `update_voucher` fills it in, and its `finalize` books it.
         """
-        content, name, content_type = await asyncio.to_thread(
-            storage.read_upload, path, settings.upload_path
+        content, name, content_type = await fetch.upload_from(
+            source, settings, transport=provider.fetch_transport
         )
         return formatting.compact_object(
             await provider.get().upload_file(content, name, content_type)
@@ -237,7 +237,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
                 )
             ),
         ],
-        path: UploadPath,
+        source: UploadSource,
     ) -> dict[str, Any]:
         """Attach a file to a voucher that already exists.
 
@@ -250,11 +250,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         is no call that detaches a file. Confirm the organization with
         `get_profile` first. One API call, never retried.
 
-        Takes PDF, JPEG, PNG or XML, at most 5 MiB. The answer is the new file
-        id, which `download_file` reads back.
+        Takes PDF, JPEG, PNG or XML, at most 5 MiB, from a path or a URL. The
+        answer is the new file id, which `download_file` reads back.
         """
-        content, name, content_type = await asyncio.to_thread(
-            storage.read_upload, path, settings.upload_path
+        content, name, content_type = await fetch.upload_from(
+            source, settings, transport=provider.fetch_transport
         )
         return formatting.compact_object(
             await provider.get().attach_file(voucher_id, content, name, content_type)

@@ -471,6 +471,27 @@ def test_a_refused_form_comes_back_at_once_with_what_was_typed(
     assert "9999" not in installation.env_path.read_text(encoding="utf-8")
 
 
+def test_an_upload_address_over_http_elsewhere_is_refused_and_one_here_saved(
+    browser: Browser, installation: Installation
+) -> None:
+    """The rule the server starts by, applied before the file is written."""
+    status, body, _ = browser.post(
+        "/settings",
+        {"LXO_MCP_UPLOAD_URLS": "http://files.example.com/"},
+        follow=False,
+    )
+
+    assert status == 400
+    assert "only for a service on this machine" in note(body)
+    assert "UPLOAD_URLS" not in installation.env_path.read_text(encoding="utf-8")
+
+    browser.post("/settings", {"LXO_MCP_UPLOAD_URLS": "http://127.0.0.1:8765/"})
+
+    assert "LXO_MCP_UPLOAD_URLS=http://127.0.0.1:8765/" in (
+        installation.env_path.read_text(encoding="utf-8")
+    )
+
+
 def test_a_refused_form_keeps_the_tick_and_the_level_it_was_sent_with(
     browser: Browser,
 ) -> None:

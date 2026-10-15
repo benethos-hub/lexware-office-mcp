@@ -105,7 +105,7 @@ async def test_an_upload_names_the_voucher_it_created(
     await _call(
         always({"id": FILE, "voucherId": VOUCHER}, status=202),
         "upload_file",
-        {"path": str(receipt)},
+        {"source": str(receipt)},
     )
 
     assert _only(lines).startswith(f"upload_file wrote {FILE} for voucher {VOUCHER}")
@@ -189,7 +189,7 @@ async def test_our_own_refusal_names_the_class_and_never_the_message(
         await _call(
             always({}),
             "upload_file",
-            {"path": str(tmp_path / "Mustermann" / "missing.pdf")},
+            {"source": str(tmp_path / "Mustermann" / "missing.pdf")},
         )
 
     assert _only(lines).startswith("upload_file refused: ValidationError, after 0")
