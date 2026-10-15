@@ -250,6 +250,15 @@ jobs:
           npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" pack "$RUNNER_TEMP/bundle" \
             "benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
 
+      # The packer's own dependencies are resolved afresh at every release,
+      # in a job that can write to it, and the registry entry vouches for
+      # the result by its hash. So the result is unpacked and held to the
+      # staged tree, byte for byte, before anything leaves this job.
+      - name: The bundle is the staged tree
+        run: >-
+          python3 .github/publish/mcpb/check_packed.py "$RUNNER_TEMP/bundle"
+          "benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
+
       # Twice: under its version, and without one, which gives the README a
       # link that always reaches the newest full release.
       - name: Attach it to the release

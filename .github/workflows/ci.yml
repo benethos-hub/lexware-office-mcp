@@ -325,5 +325,14 @@ jobs:
   # older than the SVG. The rules live in the organisation's own repository and
   # move with it, so this one reusable workflow follows main rather than a
   # commit. It reads only assets/brand and has nothing but read access.
+  #
+  # The one unpinned reference here, and a required check, so whoever writes
+  # that repository's main decides whether a merge here is green - a change
+  # there can turn every open pull request red, or run other code in this
+  # job, without a commit in this repository. Kept on main deliberately,
+  # decided again 2026-10-15: both repositories have the same owner, and a
+  # pin would only trail the rules it exists to apply. Pinning is a commit
+  # SHA here with the version beside it, which Dependabot's github-actions
+  # group would then raise.
   brand:
     uses: benethos-hub/.github/.github/workflows/brand.yml@main
