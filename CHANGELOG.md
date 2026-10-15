@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-15
+
+A patch release from the review of 2026-10-15. An installation that
+runs as before sees nothing new: the tool list and every answer are
+the same. What changed shows in edge cases, and one setting is new,
+which nobody has to set.
+
 ### Added
 
 - **`LXO_MCP_SETUP_PROMPT`, to withhold the prompt "Set up Lexware
@@ -1483,7 +1490,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.0...v0.5.1
