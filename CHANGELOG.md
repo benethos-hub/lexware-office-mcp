@@ -24,7 +24,7 @@ which nobody has to set.
 
 - **`LXO_MCP_SETUP_PROMPT`, to withhold the prompt "Set up Lexware
   Office".** A prompt is the person's to pick only where the client keeps
-  it so. A client that hands its prompts to the model let the model open
+  it so. A client that hands its prompts to the model lets the model open
   the configuration interface, signed in. Set to `0`, the prompt is not
   offered, and neither the instructions nor the refusal of a call without
   a key name it. On by default, and a choice on the settings page.

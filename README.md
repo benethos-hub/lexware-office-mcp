@@ -506,8 +506,9 @@ variable is setting it, the page says so, because that would override
 whatever you save. A server that started without a key uses the one saved
 here from its next call, and reads whatever is saved here again on every
 call until it is restarted. A key that replaces one the server was started
-with applies once the client starts it again. The token of the HTTP transport is folded underneath,
-open when the server is set to that transport.
+with applies once the client starts it again. The token of the HTTP
+transport is folded underneath, open when the server is set to that
+transport.
 
 **Permissions** (`Rechte`) — one checkbox per tool, grouped, with the presets
 as buttons and the save button at the top right beside the count. On a fresh
@@ -546,13 +547,14 @@ variable holds is shown rather than offered, since saving over it would change
 nothing.
 
 Three things worth knowing. Every start makes a **start code**, and the
-address it prints carries it: `http://127.0.0.1:8771/?code=…`. The browser
-it opens signs in with a code of its own that works once, since a browser's
-address can stay readable in its command line for other users of the
-machine. Without it every page shows one field, *Code eingeben*, so another program
+address it prints carries it: `http://127.0.0.1:8771/?code=…`. Without a
+valid code every page shows one field, *Code eingeben*, so another program
 or another user on the same machine cannot open the pages through the
 loopback port. The code lives as long as the process, and after five wrong
-ones each further try waits. It **binds `127.0.0.1`**, because the code
+ones each further try waits. The browser `setup` opens signs in with a
+second code that works once, since a browser's address can stay readable
+in its command line for other users of the machine. It **binds
+`127.0.0.1`**, because the code
 travels in the clear and keeps nobody out who can read the traffic.
 `--host` exists for a container, where the host-side publish keeps the port
 local, see [In a container](#in-a-container). Anywhere else a bind beyond
