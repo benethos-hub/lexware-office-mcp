@@ -61,6 +61,7 @@ __all__ = [
     "fast_provider",
     "installation",
     "no_sleep",
+    "page_of",
     "server_obeying",
     "server_with",
 ]
@@ -170,6 +171,25 @@ def capture_lines(caplog: Any, level: str) -> Any:
     configure(level, io.StringIO())
     caplog.set_level(getattr(logging, level), logger=PACKAGE)
     return caplog
+
+
+def page_of(*rows: Any, sort: str = "name") -> dict[str, Any]:
+    """The first and only page of a list, as every list endpoint answers it.
+
+    The envelope the API wraps rows in, sort block included, which the
+    formatters drop. `test_contacts.py` keeps the one measured live in full.
+    """
+    return {
+        "content": list(rows),
+        "first": True,
+        "last": True,
+        "number": 0,
+        "numberOfElements": len(rows),
+        "size": 25,
+        "sort": [{"property": sort, "nullHandling": "NATIVE"}],
+        "totalElements": len(rows),
+        "totalPages": 1 if rows else 0,
+    }
 
 
 def write_policy(path: Path, flags: Mapping[str, bool]) -> Path:

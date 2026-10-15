@@ -20,7 +20,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp.records import formatting
 from benethos_lexware_office_mcp.records.payloads import article_body
-from helpers import Scripted, fast_client, server_with
+from helpers import Scripted, fast_client, page_of, server_with
 
 ARTICLE: dict[str, Any] = {
     "id": "PLACEHOLDER-ARTICLE-1",
@@ -44,17 +44,7 @@ ARTICLE: dict[str, Any] = {
     "version": 0,
 }
 
-PAGE: dict[str, Any] = {
-    "content": [ARTICLE],
-    "first": True,
-    "last": True,
-    "number": 0,
-    "numberOfElements": 1,
-    "size": 25,
-    "sort": [{"property": "title", "nullHandling": "NATIVE"}],
-    "totalElements": 1,
-    "totalPages": 1,
-}
+PAGE = page_of(ARTICLE, sort="title")
 
 WRITTEN: dict[str, Any] = {
     "id": "PLACEHOLDER-ARTICLE-1",

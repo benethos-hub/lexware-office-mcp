@@ -21,7 +21,7 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from benethos_lexware_office_mcp.records import formatting
-from helpers import Scripted, fast_client, server_with
+from helpers import Scripted, fast_client, page_of, server_with
 
 # The schedule. `finalize` false is the setting that makes each run leave a
 # draft rather than issuing and mailing an invoice, and `executionStatus`
@@ -97,17 +97,7 @@ TEMPLATE: dict[str, Any] = {
     "remark": "Vielen Dank fuer die gute Zusammenarbeit.",
 }
 
-PAGE: dict[str, Any] = {
-    "content": [ROW],
-    "first": True,
-    "last": True,
-    "number": 0,
-    "numberOfElements": 1,
-    "size": 25,
-    "sort": [{"property": "updatedDate", "direction": "DESC"}],
-    "totalElements": 1,
-    "totalPages": 1,
-}
+PAGE = page_of(ROW, sort="updatedDate")
 
 
 # -- client ---------------------------------------------------------------

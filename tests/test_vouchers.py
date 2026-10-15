@@ -19,7 +19,7 @@ from benethos_lexware_office_mcp.records.payloads import voucher_body
 from benethos_lexware_office_mcp.records.types import VoucherItem
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
-from helpers import Scripted, fast_client, server_with
+from helpers import Scripted, fast_client, page_of, server_with
 
 CATEGORY = "PLACEHOLDER-CATEGORY-ID"
 
@@ -66,17 +66,7 @@ ROW = {
     "archived": False,
 }
 
-PAGE = {
-    "content": [ROW],
-    "first": True,
-    "last": True,
-    "number": 0,
-    "numberOfElements": 1,
-    "size": 25,
-    "sort": [{"property": "voucherDate", "nullHandling": "NATIVE"}],
-    "totalElements": 1,
-    "totalPages": 1,
-}
+PAGE = page_of(ROW, sort="voucherDate")
 
 PAYMENTS = {
     "openAmount": 0.0,
