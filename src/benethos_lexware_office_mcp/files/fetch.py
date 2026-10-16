@@ -21,7 +21,8 @@ talking to. The rules, in the order they apply:
 - 30 seconds for the whole of it, connecting and reading together
 - a ``Content-Length`` above 5 MiB is refused before the body is read, and
   the body is cut off at 5 MiB whether one was sent or not
-- the ``Content-Type`` has to be one the API takes
+- the ``Content-Type`` has to be one the API takes, or say no more than
+  that the file is bytes, and then the first bytes have to be one
 - the name comes from ``Content-Disposition`` or the URL, see
   :func:`.storage.upload_name`
 
@@ -54,6 +55,18 @@ _DEFAULT_PORTS = {"https": 443, "http": 80}
 # The XML type RFC 7303 names beside `application/xml`, and which many a
 # server sends. Both are the same thing to the API.
 _ALIASES = {"text/xml": "application/xml"}
+
+# Types that say a file is bytes and nothing more. A mail program attaching a
+# PDF does this often, and so does a store that serves whatever it holds:
+# the first bytes decide then, and only between the types the API takes.
+_UNSAID = ("application/octet-stream", "binary/octet-stream", "")
+_SIGNATURES = (
+    (b"%PDF-", storage.UPLOAD_TYPES[".pdf"]),
+    (b"\x89PNG\r\n\x1a\n", storage.UPLOAD_TYPES[".png"]),
+    (b"\xff\xd8\xff", storage.UPLOAD_TYPES[".jpg"]),
+    (b"<?xml", storage.UPLOAD_TYPES[".xml"]),
+    (b"\xef\xbb\xbf<?xml", storage.UPLOAD_TYPES[".xml"]),
+)
 
 
 def is_url(source: str) -> bool:
@@ -149,9 +162,12 @@ async def _get(
         if declared is not None and declared > storage.MAX_UPLOAD:
             raise storage.too_large(label, declared)
         content_type = _content_type(response)
-        if content_type not in storage.UPLOAD_TYPES.values():
-            raise storage.not_accepted(content_type or "a file without a content type")
+        unsaid = content_type in _UNSAID
+        if not unsaid and content_type not in storage.UPLOAD_TYPES.values():
+            raise storage.not_accepted(content_type)
         content = await _capped(response, label)
+        if unsaid:
+            content_type = _sniffed(content, content_type)
         name = storage.upload_name(
             response.headers.get("content-disposition", ""), path, content_type
         )
@@ -235,6 +251,22 @@ def _content_type(response: httpx.Response) -> str:
     """The response's type without its parameters, an alias read as its name."""
     raw = response.headers.get("content-type", "").split(";")[0].strip().lower()
     return _ALIASES.get(raw, raw)
+
+
+def _sniffed(content: bytes, declared: str) -> str:
+    """The type ``content`` starts as, of those the API takes.
+
+    Only for a response that did not say, and only by the first bytes: a
+    file that starts as a PDF and is none is the API's to refuse, as one
+    read from disk under a ``.pdf`` name would be.
+    """
+    for signature, content_type in _SIGNATURES:
+        if content.startswith(signature):
+            return content_type
+    served = f"served as {declared}" if declared else "without a content type"
+    raise storage.not_accepted(
+        f"a file {served} that does not start as any type it takes"
+    )
 
 
 async def _capped(response: httpx.Response, label: str) -> bytes:

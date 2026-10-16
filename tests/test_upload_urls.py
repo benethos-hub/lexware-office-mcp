@@ -375,9 +375,7 @@ async def test_a_body_of_exactly_five_mebibytes_without_a_length_is_sent(
     assert b"y" * 10 in api.last.content
 
 
-@pytest.mark.parametrize(
-    "content_type", ["text/html", "image/gif", "application/octet-stream", None]
-)
+@pytest.mark.parametrize("content_type", ["text/html", "image/gif", "text/plain"])
 async def test_a_type_the_api_does_not_take_is_refused(
     content_type: str | None, tmp_path: Path
 ) -> None:
@@ -409,6 +407,66 @@ async def test_a_type_is_read_without_its_parameters_and_text_xml_as_xml(
     ).call_tool("upload_file", {"source": LINK})
 
     assert b"Content-Type: " + sent in api.last.content
+
+
+@pytest.mark.parametrize(
+    ("content", "sent", "name"),
+    [
+        (PDF, b"application/pdf", b"9f3c.pdf"),
+        (b"\x89PNG\r\n\x1a\n" + b"x" * 10, b"image/png", b"9f3c.png"),
+        (b"\xff\xd8\xff\xe0" + b"x" * 10, b"image/jpeg", b"9f3c.jpg"),
+        (b'<?xml version="1.0"?><Invoice/>', b"application/xml", b"9f3c.xml"),
+        (
+            b'\xef\xbb\xbf<?xml version="1.0"?><Invoice/>',
+            b"application/xml",
+            b"9f3c.xml",
+        ),
+    ],
+    ids=["pdf", "png", "jpeg", "xml", "xml with a byte order mark"],
+)
+@pytest.mark.parametrize(
+    "content_type", ["application/octet-stream", "binary/octet-stream", None]
+)
+async def test_a_file_served_only_as_bytes_is_known_by_its_first_bytes(
+    content: bytes, sent: bytes, name: bytes, content_type: str | None, tmp_path: Path
+) -> None:
+    api = lexware()
+
+    await server(
+        api, served(content, content_type=content_type), INBOX, tmp_path=tmp_path
+    ).call_tool("upload_file", {"source": LINK})
+
+    assert b"Content-Type: " + sent in api.last.content
+    assert b'filename="' + name + b'"' in api.last.content
+
+
+@pytest.mark.parametrize("content_type", ["application/octet-stream", None])
+async def test_bytes_that_start_as_no_type_the_api_takes_are_refused(
+    content_type: str | None, tmp_path: Path
+) -> None:
+    api = lexware()
+    other = served(b"<html>a login page</html>", content_type=content_type)
+
+    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
+
+    assert "does not start as any type it takes" in message
+    assert "login page" not in message
+    assert api.requests == []
+
+
+async def test_a_name_that_says_another_type_than_the_first_bytes_is_refused(
+    tmp_path: Path,
+) -> None:
+    api = lexware()
+    other = served(
+        content_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="photo.png"'},
+    )
+
+    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
+
+    assert "photo.png arrived as application/pdf" in message
+    assert api.requests == []
 
 
 # -- the name -------------------------------------------------------------
@@ -451,7 +509,7 @@ async def test_a_name_whose_extension_says_another_type_is_refused(
 
     message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
 
-    assert "photo.png was served as application/pdf" in message
+    assert "photo.png arrived as application/pdf" in message
     assert api.requests == []
 
 
