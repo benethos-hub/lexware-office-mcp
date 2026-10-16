@@ -2808,6 +2808,18 @@ every test in this repository. Section 14.3 says how to look.
     since then, so a thousand downloads made a list of about 220 KB. Where
     nothing is deleted, an older file is unlisted but still readable by its
     link and through `read_download`.
+  - **What the list costs a model is the client's decision, not the
+    server's.** Unlike the tool list of section 8 it is not sent with every
+    request, only when a client asks, and nothing in the tool list or the
+    instructions names a download. Claude Desktop offers it in its attachment
+    menu, "Add from" the server, for a person to pick from, measured
+    2026-10-16. A client that passes the whole list to the model pays for
+    every entry: 225 to 241 characters each with names shaped like the API's
+    own, `{id}.pdf` and `invoice-{id}.pdf`, so the default 100 came to 23,415
+    characters on 2026-10-16, roughly 6,200 to 7,300 tokens at the ratio of
+    section 8. That is why the bound is one number for the disk and the list:
+    lowering `LXO_MCP_KEPT_DOWNLOADS` for such a client shortens both, and
+    no second setting is needed for it.
 - **A client is told when the tool list changes, since 2026-08-22, and
   when the download list does, since 2026-10-16.** The measurement below
   explains why neither happened by default. Measured against mcp 2.0.0 on
