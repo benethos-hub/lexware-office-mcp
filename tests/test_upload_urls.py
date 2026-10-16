@@ -427,6 +427,16 @@ async def test_a_type_the_api_does_not_take_is_refused(
     assert api.requests == []
 
 
+async def test_a_type_is_quoted_back_only_so_far(tmp_path: Path) -> None:
+    """The header is the other server's to fill, the answer the model's."""
+    other = served(content_type="application/" + "x" * 10_000)
+
+    message = await refused(server(lexware(), other, INBOX, tmp_path=tmp_path), LINK)
+
+    assert f"application/{'x' * 48} (cut short). It takes" in message
+    assert len(message) < 200
+
+
 @pytest.mark.parametrize(
     ("content_type", "sent"),
     [

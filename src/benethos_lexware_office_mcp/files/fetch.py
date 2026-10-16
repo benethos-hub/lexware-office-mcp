@@ -55,6 +55,10 @@ TIMEOUT = 30.0
 _SCHEMES = ("https://", "http://")
 _NOT_A_URL = "This is not a URL that can be fetched."
 
+# The longest content type quoted back. The longest real one among those
+# the API takes is 15 characters.
+_QUOTED = 60
+
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 
 # The XML type RFC 7303 names beside `application/xml`, and which many a
@@ -170,7 +174,7 @@ async def _get(
         content_type = _content_type(response)
         unsaid = content_type in _UNSAID
         if not unsaid and content_type not in storage.UPLOAD_TYPES.values():
-            raise storage.not_accepted(content_type)
+            raise storage.not_accepted(_shortened(content_type))
         content = await _capped(response, label)
         if unsaid:
             content_type = _sniffed(content, content_type)
@@ -289,6 +293,17 @@ def _content_type(response: httpx.Response) -> str:
     """The response's type without its parameters, an alias read as its name."""
     raw = response.headers.get("content-type", "").split(";")[0].strip().lower()
     return _ALIASES.get(raw, raw)
+
+
+def _shortened(content_type: str) -> str:
+    """A type another server sent, short enough to quote in an answer.
+
+    A header can be as long as the server likes, and the refusal goes into
+    the model's context.
+    """
+    if len(content_type) <= _QUOTED:
+        return content_type
+    return f"{content_type[:_QUOTED]} (cut short)"
 
 
 def _sniffed(content: bytes, declared: str) -> str:
