@@ -291,13 +291,14 @@ fetched.** The list is required because the model chooses the URL, and a
 model reads email: one instruction hidden in a message could otherwise have
 the server fetch from anywhere it can reach, a document server on your own
 network included, and file what came back in your books. A link outside
-every prefix is refused before anything is sent, a redirect is not
-followed, the fetch gets 30 seconds, and the file is cut off at 5 MiB. A
-file served only as bytes, `application/octet-stream` or without a type, as
-a mail attachment often is, is taken by its first bytes, and only as one of
-the four types. The Lexware key is never sent along, and the log names a
-link's host, never its path or query, which is where a signed link keeps
-its key.
+every prefix is refused before anything is sent, a redirect is not followed,
+the fetch gets 30 seconds, and the file is cut off at 5 MiB. It is asked for
+uncompressed, an empty file is refused, and behind a proxy a service on this
+machine is fetched directly, since the proxy cannot reach it. A file served
+only as bytes, `application/octet-stream` or without a type, as a mail
+attachment often is, is taken by its first bytes, and only as one of the
+four types. The Lexware key is never sent along, and the log names a link's
+host, never its path or query, which is where a signed link keeps its key.
 
 **Each entry is a URL prefix, not a pattern.** A link is fetched when it
 starts with one: the same scheme, exactly the same host, the same port -
@@ -592,12 +593,11 @@ Reading one only ticks the boxes, and saving is still a separate press. A tool
 the file does not mention stays **off** and the page says how many those
 are, which is what `--tools sync` does on the command line.
 
-**Settings** (`Einstellungen`) — the twelve settings that are not secret, in
+**Settings** (`Einstellungen`) — the thirteen settings that are not secret, in
 four cards: the connection, the output, the files, and whether the client is
-offered the prompt that opens these pages. An empty field means the
-built-in default, which the placeholder shows. A setting a real environment
-variable holds is shown rather than offered, since saving over it would change
-nothing.
+offered the prompt that opens these pages. An empty field means the built-in
+default, which the placeholder shows. A setting a real environment variable
+holds is shown rather than offered, since saving over it would change nothing.
 
 Three things worth knowing. Every start makes a **start code**, and the
 address it prints carries it: `http://127.0.0.1:8771/?code=…`. Without a
