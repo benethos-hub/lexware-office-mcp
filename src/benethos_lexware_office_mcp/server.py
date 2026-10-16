@@ -16,6 +16,7 @@ import contextlib
 import functools
 import re
 import weakref
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -284,9 +285,14 @@ class PolicyServer(MCPServer):
         """The file this server answers to, for listing and for every call."""
         return self._policy
 
-    def _resources_enabled(self) -> bool:
-        """Whether any tool a download resource belongs to is enabled."""
-        allowed = self._policy.as_map()
+    def _resources_enabled(self, allowed: Mapping[str, bool] | None = None) -> bool:
+        """Whether any tool a download resource belongs to is enabled.
+
+        ``allowed`` is a reading of the policy file the caller holds already,
+        which spares the watcher a second one on every turn.
+        """
+        if allowed is None:
+            allowed = self._policy.as_map()
         return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
 
     async def list_resources(self) -> list[Resource]:
@@ -368,14 +374,23 @@ class PolicyServer(MCPServer):
         if self._watcher is not None and not self._watcher.done():
             return
         self._seen = self._policy.as_map()
-        self._seen_downloads = self._download_names()
         self._watcher = asyncio.create_task(self._watch())
 
-    def _download_names(self) -> tuple[str, ...]:
-        """The download list as the watcher remembers it: names, in order."""
-        if not self._resources_enabled():
+    async def _download_names(
+        self, allowed: Mapping[str, bool] | None = None
+    ) -> tuple[str, ...]:
+        """The download list as the watcher remembers it: names, in order.
+
+        Off the event loop. The scan looks at every file in the directory,
+        13 ms for a thousand and 68 ms for five thousand, measured
+        2026-10-16, every two seconds, and the directory may be a folder on
+        a network drive. ``allowed`` is as for :meth:`_resources_enabled`.
+        """
+        if not self._resources_enabled(allowed):
             return ()
-        return resources.names(self._downloads, self._listed_downloads)
+        return await asyncio.to_thread(
+            resources.names, self._downloads, self._listed_downloads
+        )
 
     async def _watch(self) -> None:
         """Notice a changed tool list or download list and say so.
@@ -387,21 +402,25 @@ class PolicyServer(MCPServer):
         would answer with, which is one scan of the directory and no stat
         beyond what the list itself takes.
         """
+        self._seen_downloads = await self._download_names(self._seen)
         while True:
             await asyncio.sleep(POLICY_POLL_SECONDS)
+            # One reading of the file and one scan of the directory a turn,
+            # each handed on rather than taken again.
             current = self._policy.as_map()
             if current != self._seen:
                 self._seen = current
                 await self._announce()
-            if self._download_names() != self._seen_downloads:
-                await self._downloads_changed()
+            names = await self._download_names(current)
+            if names != self._seen_downloads:
+                await self._downloads_changed(names)
 
     async def _announce(self) -> None:
         """The tool list is not what it was: tell every live connection."""
         told = await self._tell("notifications/tools/list_changed", ToolsListChanged())
         logbook.policy.list_changed(told)
 
-    async def _downloads_changed(self) -> None:
+    async def _downloads_changed(self, names: tuple[str, ...] | None = None) -> None:
         """The download list is not what it was: tell every live connection.
 
         From the call that wrote a download, at once, and from the watcher
@@ -409,9 +428,12 @@ class PolicyServer(MCPServer):
         its calls to a second server process, seen 2026-10-16, and the one
         answering the listing learns of a download only from the disk. The
         watcher's last sight is refreshed here, so a download told at once
-        is not told again two seconds later.
+        is not told again two seconds later. ``names`` is the list the
+        watcher has just scanned, so the directory is not scanned twice.
         """
-        self._seen_downloads = self._download_names()
+        self._seen_downloads = (
+            names if names is not None else await self._download_names()
+        )
         told = await self._tell(
             "notifications/resources/list_changed", ResourcesListChanged()
         )

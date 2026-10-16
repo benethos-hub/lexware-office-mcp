@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -370,6 +371,40 @@ async def test_a_file_written_by_another_hand_is_noticed(tmp_path: Path) -> None
         assert session.downloads == 1
     finally:
         await server.stop_watching()
+
+
+async def test_the_directory_is_scanned_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It may hold thousands of files, or sit on a network drive."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    threads: list[threading.Thread] = []
+    scan = server_module.resources.names
+
+    def names(*args: Any) -> tuple[str, ...]:
+        threads.append(threading.current_thread())
+        return scan(*args)
+
+    monkeypatch.setattr(server_module.resources, "names", names)
+
+    await server._download_names()
+
+    assert threads and threading.main_thread() not in threads
+
+
+async def test_a_reading_of_the_policy_in_hand_is_not_taken_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The watcher reads the file once a turn and hands the reading on."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    allowed = server.policy.as_map()
+
+    def read_again() -> dict[str, bool]:
+        raise AssertionError("the policy file was read a second time")
+
+    monkeypatch.setattr(server.policy, "as_map", read_again)
+
+    assert await server._download_names(allowed) == ()
 
 
 async def test_a_directory_that_stays_the_same_tells_nobody(tmp_path: Path) -> None:
