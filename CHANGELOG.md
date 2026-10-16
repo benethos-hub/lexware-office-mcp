@@ -17,10 +17,11 @@ housekeeping are out of scope here — design decisions live in
 
 - **A client is told when a download was added.** The server announces
   `resources.listChanged` and sends `notifications/resources/list_changed`
-  to every session after `download_file` or `download_document` saved a
-  file, so a client that listed the downloads once can ask again and
-  offer the new one. Nothing depends on it: the link and `read_download`
-  work as before.
+  to every client after `download_file` or `download_document` saved a
+  file, and within a few seconds of the download directory changing in
+  any other way, so a client that listed the downloads once can ask again
+  and offer the new one. Nothing depends on it: the link and
+  `read_download` work as before.
 
 ### Fixed
 

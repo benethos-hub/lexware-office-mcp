@@ -292,6 +292,57 @@ async def test_a_client_that_only_calls_is_told_as_well(tmp_path: Path) -> None:
     assert session.downloads == 1
 
 
+async def test_a_download_told_at_once_is_not_told_again(tmp_path: Path) -> None:
+    """The watcher saw the same change and keeps quiet about it."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    session = Session()
+    await server._handle_list_tools(Ctx(session), None)
+    try:
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+        await settle()
+
+        assert session.downloads == 1
+    finally:
+        await server.stop_watching()
+
+
+async def test_a_file_written_by_another_hand_is_noticed(tmp_path: Path) -> None:
+    """Claude Desktop downloads in a second process of the same server.
+
+    The one answering the listing never saw the call, so the directory
+    is what tells it. A client that listed the downloads is enough to
+    start the watcher.
+    """
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    session = Session()
+    await server._handle_list_resources(Ctx(session), None)
+    try:
+        await settle(3)
+        assert session.downloads == 0
+        (tmp_path / "by-another-process.pdf").write_bytes(b"%PDF-1.4")
+        await settle()
+
+        assert session.downloads == 1
+    finally:
+        await server.stop_watching()
+
+
+async def test_a_directory_that_stays_the_same_tells_nobody(tmp_path: Path) -> None:
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    session = Session()
+    await server._handle_call_tool(
+        Ctx(session),
+        CallToolRequestParams(name="download_file", arguments={"file_id": FILE_ID}),
+    )
+    try:
+        await settle()
+
+        assert session.downloads == 1
+        assert session.told == 0
+    finally:
+        await server.stop_watching()
+
+
 async def test_a_download_with_nobody_to_tell_is_still_a_download(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

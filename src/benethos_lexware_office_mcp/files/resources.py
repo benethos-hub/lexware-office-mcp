@@ -31,13 +31,15 @@ link still reads, and so does ``read_download``.
 
 **A client is told when the list grew.** ``PolicyServer`` announces
 ``resources.listChanged`` beside ``tools.listChanged`` and sends
-``notifications/resources/list_changed`` to every session after a tool
-answered with a link to a download, since 2026-10-16. The server is the
-one that wrote the file, so it knows the moment the list grew, and the
-protocol has a notification for exactly that: a client that listed once
-would otherwise keep the list from the start of its session. Whether a
-client asks again is its business, and ``read_download`` needs no list
-at all.
+``notifications/resources/list_changed`` to every client after a tool
+answered with a link to a download, and when the directory changed under
+another hand, since 2026-10-16. The server is the one writing, so it
+knows the moment the list grew, and where it was another process of the
+same server the names on disk say so within seconds, see :func:`names`.
+The protocol has a notification for exactly that: a client that listed
+once would otherwise keep the list from the start of its session.
+Whether a client asks again is its business, and ``read_download`` needs
+no list at all.
 """
 
 from __future__ import annotations
@@ -58,6 +60,7 @@ __all__ = [
     "link",
     "listed",
     "name_of",
+    "names",
     "read",
     "too_large",
 ]
@@ -125,6 +128,18 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
         )
         for path in storage.newest(directory)[:limit]
     ]
+
+
+def names(directory: Path | None, limit: int) -> tuple[str, ...]:
+    """The names ``listed`` would answer with, in their order, and no more.
+
+    Enough to tell that the list moved: a file added, removed or fetched
+    again changes it. For the watcher, which asks every few seconds and
+    has no use for the list itself.
+    """
+    if directory is None or limit <= 0 or not directory.is_dir():
+        return ()
+    return tuple(path.name for path in storage.newest(directory)[:limit])
 
 
 def _size(path: Path) -> int | None:

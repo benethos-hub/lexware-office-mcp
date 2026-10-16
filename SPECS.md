@@ -1932,7 +1932,7 @@ Three decisions in that watcher are worth stating:
 - **It compares the visible set, not the file.** The configuration interface
   rewrites the whole policy file on every save, so a timestamp would announce
   a change on every click that changed nothing.
-- **It starts when a session appears, not at construction.** Without a client
+- **It starts when a connection appears, not at construction.** Without a client
   there is nobody to tell, and a task polling in every process that merely
   builds a server — the test suite, `--tools show` — is a nuisance nobody
   asked for. The session comes from `_handle_list_tools`, the private hook,
@@ -2839,14 +2839,22 @@ every test in this repository. Section 14.3 says how to look.
   `notifications/resources/list_changed` to every session when a tool's
   answer carries a download link, which is the one moment the list grows.
   The answer decides rather than the tool's name, so a tool added later
-  that saves a file is covered by what it returns, and there is nothing to
-  poll: the server is the one writing. A list the server itself changed is
-  the server's to announce, and the protocol has the notification for it:
-  a client that listed once would otherwise keep the list from the start
-  of its session. Whether a given client asks again on it is **(to
-  verify)**, the way the tool notification was on 2026-08-22.
-  `read_download` stays either way, for a client that does not follow a
-  resource link, which Claude Desktop does not.
+  that saves a file is covered by what it returns. The watcher of section
+  9.2 looks at the directory as well, by the names the list would answer
+  with, because the process that wrote a download is not always the one
+  that answers the listing: Claude Desktop starts the server twice and
+  sends its calls to the second process, measured 2026-10-16, so the
+  first learned of a download only from the disk, and a file put there
+  by hand is a change of the list too. A download told at once is not
+  told again, since the watcher's last sight is refreshed with it. A list
+  the server itself changed is the server's to announce, and the
+  protocol has the notification for it: a client that listed once would
+  otherwise keep the list from the start of its session. Whether Claude
+  Desktop asks again on it is **(to verify)**: on 2026-10-16 the
+  notification had reached only its calling process, so the listing
+  process had not sent one yet. `read_download` stays either way, for a
+  client that does not follow a resource link, which Claude Desktop does
+  not.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be

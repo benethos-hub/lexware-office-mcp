@@ -132,8 +132,9 @@ class PolicyServer(MCPServer):
 
     The downloads it offers as resources are announced the same way:
     ``resources.listChanged`` is promised beside it, and every client is
-    told after a tool answered with a link to a download, which is the one
-    moment that list grows.
+    told after a tool answered with a link to a download, and by the same
+    watcher when the directory moved under another hand, since the process
+    that downloaded is not always the one that lists.
 
     What is told is the **connection**, never the session a request
     arrived on: the SDK builds a ``ServerSession`` for each request and
@@ -164,6 +165,7 @@ class PolicyServer(MCPServer):
         self._connections: weakref.WeakSet[Connection] = weakref.WeakSet()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
+        self._seen_downloads: tuple[str, ...] = ()
         # Bound once, here, rather than per transport: `run_stdio_async` and
         # its two HTTP siblings all call this same method with no arguments,
         # and its default leaves every listChanged flag false. Announcing the
@@ -303,15 +305,13 @@ class PolicyServer(MCPServer):
         it.
         """
         self._keep(ctx)
-        self._start_watching()
         return await super()._handle_list_tools(ctx, params)
 
     async def _handle_list_resources(self, ctx: Any, params: Any) -> Any:
         """Answer the request, and keep this connection as well.
 
         A client that listed the downloads is one to tell when the next is
-        added. The watcher is not started here: it compares the tool list,
-        and a client that never asked for one has nothing to compare.
+        added, whichever process adds it.
         """
         self._keep(ctx)
         return await super()._handle_list_resources(ctx, params)
@@ -327,7 +327,7 @@ class PolicyServer(MCPServer):
         return await super()._handle_call_tool(ctx, params)
 
     def _keep(self, ctx: Any) -> None:
-        """Remember the connection behind a request, to tell it later.
+        """Remember the connection behind a request, and start watching.
 
         The connection and not `ctx.session`: the SDK builds that session
         for the one request and lets it go with the answer, so a weak set
@@ -339,34 +339,45 @@ class PolicyServer(MCPServer):
         drives a real client through the SDK and holds it to that.
         """
         self._connections.add(ctx.session._connection)
+        self._start_watching()
 
     def _start_watching(self) -> None:
         """Begin polling, once there is somebody to tell.
 
-        Deliberately not started at construction. Without a session there is
+        Deliberately not started at construction. Without a client there is
         nobody to notify, and a task that outlives every test in a suite that
         never connects a client is a nuisance nobody asked for.
         """
         if self._watcher is not None and not self._watcher.done():
             return
         self._seen = self._policy.as_map()
+        self._seen_downloads = self._download_names()
         self._watcher = asyncio.create_task(self._watch())
 
+    def _download_names(self) -> tuple[str, ...]:
+        """The download list as the watcher remembers it: names, in order."""
+        if not self._resources_enabled():
+            return ()
+        return resources.names(self._downloads, self._listed_downloads)
+
     async def _watch(self) -> None:
-        """Notice a changed tool list and say so.
+        """Notice a changed tool list or download list and say so.
 
         **The comparison is the visible set, not the file.** The
         configuration interface rewrites the whole policy file on every save,
         so watching its timestamp would announce a change on every click that
-        changed nothing.
+        changed nothing. The download list is compared by the names it
+        would answer with, which is one scan of the directory and no stat
+        beyond what the list itself takes.
         """
         while True:
             await asyncio.sleep(POLICY_POLL_SECONDS)
             current = self._policy.as_map()
-            if current == self._seen:
-                continue
-            self._seen = current
-            await self._announce()
+            if current != self._seen:
+                self._seen = current
+                await self._announce()
+            if self._download_names() != self._seen_downloads:
+                await self._downloads_changed()
 
     async def _announce(self) -> None:
         """The tool list is not what it was: tell every live connection."""
@@ -374,11 +385,16 @@ class PolicyServer(MCPServer):
         logbook.policy.list_changed(told)
 
     async def _downloads_changed(self) -> None:
-        """A download was written, so the resource list is not what it was.
+        """The download list is not what it was: tell every live connection.
 
-        Sent from the call that wrote it rather than by a watcher, since the
-        server is the one writing: there is nothing to poll for.
+        From the call that wrote a download, at once, and from the watcher
+        when the directory moved under another hand: Claude Desktop sends
+        its calls to a second server process, seen 2026-10-16, and the one
+        answering the listing learns of a download only from the disk. The
+        watcher's last sight is refreshed here, so a download told at once
+        is not told again two seconds later.
         """
+        self._seen_downloads = self._download_names()
         told = await self._tell("notifications/resources/list_changed")
         logbook.files.list_changed(told)
 
