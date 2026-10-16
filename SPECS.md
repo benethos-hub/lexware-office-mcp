@@ -1940,9 +1940,20 @@ Three decisions in that watcher are worth stating:
   `list_tools()` is called without it. `_handle_list_resources` keeps it
   the same way, since a client that listed the downloads is one to tell
   about the next, see section 13.
-- **It notifies every session it has seen** and drops the ones that fail,
-  which is one client over stdio and will be several over HTTP. The same
-  round tells them about a new download.
+- **It notifies every connection it has seen** and drops the ones that
+  fail, which is one client over stdio and will be several over HTTP.
+  The same round tells them about a new download. The connection and
+  not the request's session: the SDK builds a `ServerSession` for each
+  request and lets it go with the answer, so a weak set of sessions was
+  empty whenever there was something to tell. Found 2026-10-16, when the
+  first download notification went to zero sessions over stdio, and the
+  log showed the tool notification had last reached one on 2026-10-03.
+  The tests had not noticed because they handed the server a session
+  they held themselves, so `tests/test_list_changed.py` now also
+  connects a real client through the SDK's runner and waits for the
+  notification to arrive. Claude Desktop, same day: it starts the server
+  twice, one process answers the listings and another the calls, so a
+  connection is kept from a call as well as from a listing.
 
 **Claude Desktop acts on it, verified 2026-08-22.** With the capability
 announced, a permission changed in the configuration interface reached the

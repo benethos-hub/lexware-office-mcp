@@ -16,15 +16,14 @@ import contextlib
 import functools
 import re
 import weakref
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from mcp.server.connection import Connection
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
-from mcp.server.session import ServerSession
 from mcp.types import CallToolResult, Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
@@ -132,9 +131,14 @@ class PolicyServer(MCPServer):
     on every call.
 
     The downloads it offers as resources are announced the same way:
-    ``resources.listChanged`` is promised beside it, and every session is
+    ``resources.listChanged`` is promised beside it, and every client is
     told after a tool answered with a link to a download, which is the one
     moment that list grows.
+
+    What is told is the **connection**, never the session a request
+    arrived on: the SDK builds a ``ServerSession`` for each request and
+    lets it go with the answer, so a set of sessions is empty by the time
+    there is something to say. Measured 2026-10-16, see section 9.2.
     """
 
     def __init__(
@@ -154,10 +158,10 @@ class PolicyServer(MCPServer):
         self._downloads = downloads
         self._listed_downloads = listed_downloads
         self._kept_downloads = kept_downloads
-        # Held weakly: a session that ended is gone from here with it. Over
-        # streamable HTTP every client that lists tools opens one, and a
-        # plain set kept each until a policy change failed to reach it.
-        self._sessions: weakref.WeakSet[ServerSession] = weakref.WeakSet()
+        # Held weakly: a connection that ended is gone from here with it.
+        # Over streamable HTTP every client opens one, and a plain set kept
+        # each until a policy change failed to reach it.
+        self._connections: weakref.WeakSet[Connection] = weakref.WeakSet()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
         # Bound once, here, rather than per transport: `run_stdio_async` and
@@ -291,25 +295,50 @@ class PolicyServer(MCPServer):
         return await super().read_resource(uri, context)
 
     async def _handle_list_tools(self, ctx: Any, params: Any) -> Any:
-        """Answer the request, and keep the session it arrived on.
+        """Answer the request, and keep the connection it arrived on.
 
-        The private hook rather than `list_tools`, because this is the only
-        place the session is offered for a listing: `_handle_list_tools`
-        receives the request context and calls `list_tools()` without it.
+        The private hooks rather than `list_tools` and its siblings,
+        because they are the only place the request context is offered:
+        `_handle_list_tools` receives it and calls `list_tools()` without
+        it.
         """
-        self._sessions.add(ctx.session)
+        self._keep(ctx)
         self._start_watching()
         return await super()._handle_list_tools(ctx, params)
 
     async def _handle_list_resources(self, ctx: Any, params: Any) -> Any:
-        """Answer the request, and keep this session as well.
+        """Answer the request, and keep this connection as well.
 
         A client that listed the downloads is one to tell when the next is
         added. The watcher is not started here: it compares the tool list,
         and a client that never asked for one has nothing to compare.
         """
-        self._sessions.add(ctx.session)
+        self._keep(ctx)
         return await super()._handle_list_resources(ctx, params)
+
+    async def _handle_call_tool(self, ctx: Any, params: Any) -> Any:
+        """Answer the call, and keep this connection too.
+
+        A client may call without ever having listed: Claude Desktop runs
+        a second process for its calls, seen 2026-10-16, and that one is
+        told through here or not at all.
+        """
+        self._keep(ctx)
+        return await super()._handle_call_tool(ctx, params)
+
+    def _keep(self, ctx: Any) -> None:
+        """Remember the connection behind a request, to tell it later.
+
+        The connection and not `ctx.session`: the SDK builds that session
+        for the one request and lets it go with the answer, so a weak set
+        of sessions was empty whenever there was something to tell -
+        every notification went to zero sessions, measured 2026-10-16
+        over stdio. The connection underneath is the client, and its own
+        channel is where a notification outside any request goes. The
+        attribute is the SDK's private one, so `tests/test_list_changed.py`
+        drives a real client through the SDK and holds it to that.
+        """
+        self._connections.add(ctx.session._connection)
 
     def _start_watching(self) -> None:
         """Begin polling, once there is somebody to tell.
@@ -340,8 +369,8 @@ class PolicyServer(MCPServer):
             await self._announce()
 
     async def _announce(self) -> None:
-        """The tool list is not what it was: tell every live session."""
-        told = await self._tell(lambda session: session.send_tool_list_changed())
+        """The tool list is not what it was: tell every live connection."""
+        told = await self._tell("notifications/tools/list_changed")
         logbook.policy.list_changed(told)
 
     async def _downloads_changed(self) -> None:
@@ -350,21 +379,26 @@ class PolicyServer(MCPServer):
         Sent from the call that wrote it rather than by a watcher, since the
         server is the one writing: there is nothing to poll for.
         """
-        told = await self._tell(lambda session: session.send_resource_list_changed())
+        told = await self._tell("notifications/resources/list_changed")
         logbook.files.list_changed(told)
 
-    async def _tell(self, send: Callable[[Any], Awaitable[None]]) -> int:
-        """Send to every session, forget the ones that fail, count the rest."""
+    async def _tell(self, method: str) -> int:
+        """Send a notification on every connection, drop the ones that fail.
+
+        On the connection's own channel, which is the one a server speaks
+        on when no request is open: stdout over stdio, the standalone
+        stream over streamable HTTP. Answers how many were told.
+        """
         told = 0
-        for session in list(self._sessions):
+        for connection in list(self._connections):
             try:
-                await send(session)
-            except Exception as exc:  # noqa: BLE001 - a dead session is normal
+                await connection.outbound.notify(method, None)
+            except Exception as exc:  # noqa: BLE001 - a dead client is normal
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
                 # the only trace it would leave.
                 logbook.policy.session_dropped(exc)
-                self._sessions.discard(session)
+                self._connections.discard(connection)
             else:
                 told += 1
         return told

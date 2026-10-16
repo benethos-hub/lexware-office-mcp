@@ -21,6 +21,15 @@ housekeeping are out of scope here — design decisions live in
   file, so a client that listed the downloads once can ask again and
   offer the new one. Nothing depends on it: the link and `read_download`
   work as before.
+
+### Fixed
+
+- **`notifications/tools/list_changed` reached nobody.** The server
+  remembered the session a listing arrived on, and the SDK builds one
+  per request and discards it with the answer, so a permission changed
+  in the configuration interface was announced to zero clients. It now
+  remembers the connection, which lasts as long as the client does, and
+  keeps one from a call as well as from a listing.
 - **An upload from a URL.** `upload_file` and `attach_file_to_voucher`
   fetch the file from a URL when the source starts with `https://` or
   `http://`, so a link another server issued - a mailbox server for an

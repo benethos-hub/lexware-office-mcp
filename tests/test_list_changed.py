@@ -2,15 +2,29 @@
 
 The tool list, when the policy file changed what it allows, and the
 download list, when a tool wrote a download.
+
+Two kinds of test. Most hand the server a fake connection and count what
+it was told, which is cheap and exact. The ones under *over the wire*
+connect a real client through the SDK's own runner, because that is the
+path that broke once without any of the others noticing: the runner
+builds a session per request, and a server that remembered sessions
+told nobody for as long as that had been so.
 """
 
 from __future__ import annotations
 
 import asyncio
 import gc
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
+import anyio
 import pytest
+from mcp import ClientSession
+from mcp.shared.memory import create_client_server_memory_streams
+from mcp.types import CallToolRequestParams
 
 from benethos_lexware_office_mcp import server as server_module
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
@@ -33,22 +47,30 @@ def quick_poll(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class Session:
-    """A client that counts how often it was told to ask again."""
+    """A request's session, over a client that counts what it was told.
+
+    Shaped like the SDK's: the session wraps a connection, and the
+    connection has the channel a notification outside a request goes on.
+    Here all three are this one object, which is what makes the count
+    simple.
+    """
 
     def __init__(self, fail: bool = False) -> None:
         self.told = 0
         self.downloads = 0
         self.fail = fail
+        self._connection = self
+        self.outbound = self
 
-    async def send_tool_list_changed(self) -> None:
+    async def notify(self, method: str, params: Any, opts: Any = None) -> None:
         if self.fail:
-            raise RuntimeError("this session is gone")
-        self.told += 1
-
-    async def send_resource_list_changed(self) -> None:
-        if self.fail:
-            raise RuntimeError("this session is gone")
-        self.downloads += 1
+            raise RuntimeError("this client is gone")
+        if method == "notifications/tools/list_changed":
+            self.told += 1
+        elif method == "notifications/resources/list_changed":
+            self.downloads += 1
+        else:
+            raise AssertionError(f"unexpected notification {method}")
 
 
 class Ctx:
@@ -169,7 +191,7 @@ async def test_a_session_that_is_gone_is_dropped(policy: Path) -> None:
         write_policy(policy, dict.fromkeys(known_tools(), True))
         await settle()
 
-        assert dead not in server._sessions
+        assert dead not in server._connections
         assert alive.told == 1
     finally:
         await server.stop_watching()
@@ -252,10 +274,22 @@ async def test_a_session_gone_by_the_download_is_dropped(tmp_path: Path) -> None
     try:
         await server.call_tool("download_file", {"file_id": FILE_ID})
 
-        assert dead not in server._sessions
+        assert dead not in server._connections
         assert alive.downloads == 1
     finally:
         await server.stop_watching()
+
+
+async def test_a_client_that_only_calls_is_told_as_well(tmp_path: Path) -> None:
+    """Claude Desktop calls from a second process that never lists."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    session = Session()
+    await server._handle_call_tool(
+        Ctx(session),
+        CallToolRequestParams(name="download_file", arguments={"file_id": FILE_ID}),
+    )
+
+    assert session.downloads == 1
 
 
 async def test_a_download_with_nobody_to_tell_is_still_a_download(
@@ -269,6 +303,71 @@ async def test_a_download_with_nobody_to_tell_is_still_a_download(
 
     assert result.is_error is not True
     assert "The download list changed, 0 sessions told" in lines.text
+
+
+# -- over the wire ----------------------------------------------------------
+
+
+@asynccontextmanager
+async def connected(server: Any, received: list[str]) -> AsyncIterator[ClientSession]:
+    """A real client on the server, through the SDK's runner, in memory.
+
+    Every notification the client is sent lands in ``received`` by its
+    method. The server runs as a task beside the client and is cancelled
+    when the client has left.
+    """
+
+    async def handler(message: Any) -> None:
+        method = getattr(getattr(message, "root", message), "method", None)
+        if method is not None:
+            received.append(method)
+
+    low = server._lowlevel_server
+    async with create_client_server_memory_streams() as (client_end, server_end):
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(low.run, *server_end, low.create_initialization_options())
+            async with ClientSession(*client_end, message_handler=handler) as client:
+                await client.initialize()
+                yield client
+            tasks.cancel_scope.cancel()
+
+
+async def arrived(received: list[str], method: str, within: float = 2.0) -> bool:
+    """Whether ``method`` reaches ``received`` in time."""
+    waited = 0.0
+    while method not in received and waited < within:
+        await asyncio.sleep(0.01)
+        waited += 0.01
+    return method in received
+
+
+async def test_the_wire_carries_the_tool_list_notification(policy: Path) -> None:
+    """A policy change reaches a client that listed the tools, as sent by the SDK."""
+    server = build_server(Settings(tool_policy_path=policy))
+    received: list[str] = []
+    try:
+        async with connected(server, received) as client:
+            await client.list_tools()
+            write_policy(policy, dict.fromkeys(known_tools(), True))
+
+            assert await arrived(received, "notifications/tools/list_changed")
+    finally:
+        await server.stop_watching()
+
+
+async def test_the_wire_carries_the_download_notification(tmp_path: Path) -> None:
+    """A download reaches a client that only ever called, before its result."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    received: list[str] = []
+    try:
+        async with connected(server, received) as client:
+            result = await client.call_tool("download_file", {"file_id": FILE_ID})
+
+            assert result.is_error is not True
+            assert await arrived(received, "notifications/resources/list_changed")
+            assert "notifications/tools/list_changed" not in received
+    finally:
+        await server.stop_watching()
 
 
 # -- what it does not do ----------------------------------------------------
@@ -304,6 +403,6 @@ async def test_a_session_that_ended_is_not_kept(policy: Path) -> None:
     try:
         gc.collect()
 
-        assert list(server._sessions) == [kept]
+        assert list(server._connections) == [kept]
     finally:
         await server.stop_watching()
