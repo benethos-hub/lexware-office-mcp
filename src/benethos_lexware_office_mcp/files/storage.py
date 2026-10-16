@@ -403,14 +403,17 @@ def not_accepted(found: str) -> ValidationError:
 def accepted(content: bytes, name: str, content_type: str, *, label: str) -> Upload:
     """The one check every upload passes, wherever its bytes came from.
 
-    The size, the type, and a name whose extension says that type: the API
-    is sent a file as what it is called, and a PNG named `.pdf` is refused
-    by it only after it has arrived. Each source checks what it can earlier
+    Something at all, the size, the type, and a name whose extension says
+    that type. An empty file is no receipt whatever the API makes of it.
+    The API is sent a file as what it is called, and a PNG named `.pdf` is
+    refused by it only after it has arrived. Each source checks what it can earlier
     as well - a file's size before it is read, a response's before it is
     streamed - so nothing is read that this would refuse, but this is the
     check that holds, written once. ``label`` is what a refusal calls the
     file: its name, or where it was fetched from.
     """
+    if not content:
+        raise ValidationError(f"{label} is empty, so it was not sent.")
     if len(content) > MAX_UPLOAD:
         raise too_large(label, len(content))
     if content_type not in _EXTENSION:

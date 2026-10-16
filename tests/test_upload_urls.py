@@ -427,6 +427,15 @@ async def test_a_type_the_api_does_not_take_is_refused(
     assert api.requests == []
 
 
+async def test_an_empty_body_is_refused_before_the_upload(tmp_path: Path) -> None:
+    api = lexware()
+
+    message = await refused(server(api, served(b""), INBOX, tmp_path=tmp_path), LINK)
+
+    assert "The file from files.example.com is empty" in message
+    assert api.requests == []
+
+
 async def test_a_type_is_quoted_back_only_so_far(tmp_path: Path) -> None:
     """The header is the other server's to fill, the answer the model's."""
     other = served(content_type="application/" + "x" * 10_000)

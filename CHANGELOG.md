@@ -53,6 +53,10 @@ housekeeping are out of scope here — design decisions live in
   fixes for quoted user directories on Linux and a buffer freed on a
   failed lookup on Windows. An installation from the index resolved it
   already. The configuration is found in the same directories.
+- **An empty file is refused before it is uploaded**, read from disk or
+  fetched. It is no receipt whatever the API makes of it, and a request
+  was spent on it. The answer says the file is empty and that nothing was
+  sent.
 
 ### Fixed
 

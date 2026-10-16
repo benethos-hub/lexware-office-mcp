@@ -256,6 +256,20 @@ async def test_exactly_five_mebibytes_is_still_offered(tmp_path: Path) -> None:
     assert len(handler.requests) == 1
 
 
+async def test_an_empty_file_is_refused_before_the_request(tmp_path: Path) -> None:
+    """It is no receipt, and a request would be spent on it."""
+    empty = tmp_path / "empty.pdf"
+    empty.write_bytes(b"")
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, download_path=tmp_path)
+
+    with pytest.raises(ToolError) as excinfo:
+        await server.call_tool("upload_file", {"source": str(empty)})
+
+    assert "empty.pdf is empty, so it was not sent." in str(excinfo.value)
+    assert handler.requests == []
+
+
 async def test_a_type_the_api_rejects_is_refused_here(tmp_path: Path) -> None:
     note = tmp_path / "note.txt"
     note.write_text("not a receipt", encoding="utf-8")

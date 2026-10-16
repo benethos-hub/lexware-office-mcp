@@ -1635,7 +1635,8 @@ file is not checked for being an XRechnung, as from disk: the API refuses
 one that is not, and a second check here could only disagree with it.
 
 **One check for both.** A file read from disk and one fetched end in
-`storage.accepted`, which holds the size, the type and the name's extension.
+`storage.accepted`, which holds the size, the type and the name's extension,
+and refuses an empty file, which is no receipt whatever the API makes of it.
 What each source checks earlier - a file's size before it is read, a
 response's before it is streamed - is an early way out, not a second rule.
 
