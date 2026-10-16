@@ -2849,12 +2849,15 @@ every test in this repository. Section 14.3 says how to look.
   told again, since the watcher's last sight is refreshed with it. A list
   the server itself changed is the server's to announce, and the
   protocol has the notification for it: a client that listed once would
-  otherwise keep the list from the start of its session. Whether Claude
-  Desktop asks again on it is **(to verify)**: on 2026-10-16 the
-  notification had reached only its calling process, so the listing
-  process had not sent one yet. `read_download` stays either way, for a
-  client that does not follow a resource link, which Claude Desktop does
-  not.
+  otherwise keep the list from the start of its session. **Claude Desktop
+  does not ask again, measured 2026-10-16:** its own log shows the
+  notification leaving the listing process two seconds after a download
+  made by the other one, the attach menu opened twice in the minutes
+  after still showed no file, and no `resources/list` followed. It acts
+  on `tools/list_changed` and not on this one, so there a download
+  appears in the menu at the next start. The server's half is done
+  either way, and `read_download` stays, for a client that does not
+  follow a resource link, which Claude Desktop does not.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be
