@@ -1055,7 +1055,7 @@ arriving.
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
 | `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. An `.xml` counts as a document there: any XML file the process can read is sent, and only the API refuses one that is not an XRechnung. | unset, anywhere |
-| `LXO_MCP_UPLOAD_URLS` | The addresses the same two tools may fetch a file from, comma separated: a scheme and a host, optionally a port and the start of a path. Unset, no URL is fetched. `https://` for any host, `http://` for `127.0.0.1`, `::1` and `localhost` alone - any other is a `ConfigError` at startup, and in the configuration interface before the file is written. See section 7.2. | unset, none |
+| `LXO_MCP_UPLOAD_URLS` | The URL prefixes the same two tools may fetch a file from, comma separated: a scheme and a host, optionally a port and the start of a path. A prefix, not a pattern, so no wildcard. Unset, no URL is fetched. `https://` for any host, `http://` for `127.0.0.1`, `::1` and `localhost` alone - any other is a `ConfigError` at startup, and in the configuration interface before the file is written. See section 7.2. | unset, none |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
 | `LXO_MCP_RATE` | Token bucket refill, requests per second, global. | `1.5` |
@@ -1559,6 +1559,14 @@ or percent-encoded, nor one with a backslash after decoding - a server that
 decodes before it routes would be reading another path than the one
 checked. All of it is decided before a connection is opened, so a URL
 outside the list is refused without a word about what is out there.
+
+**A prefix, not a pattern.** There is no wildcard, for the host or anywhere
+else: a host is written out in full, and to allow a whole host is to give it
+without a path. A `*` is read as what it stands in the text, a host name,
+and since no host is called that, `https://*` allows nothing. It is not
+refused at startup, decided 2026-10-16: the documentation says what a prefix
+is, and a wildcard that worked would hand the choice of host back to the
+model, which is what the list is there to take from it.
 
 **`http://` is for this machine alone.** It carries the file in the clear,
 so a prefix with it is taken for `127.0.0.1`, `::1` and `localhost` and for

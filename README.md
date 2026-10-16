@@ -284,6 +284,21 @@ followed, the fetch gets 30 seconds, and the file is cut off at 5 MiB. The
 Lexware key is never sent along, and the log names a link's host, never its
 path or query, which is where a signed link keeps its key.
 
+**Each entry is a URL prefix, not a pattern.** A link is fetched when it
+starts with one: the same scheme, exactly the same host, the same port -
+none given means 443 for `https` and 80 for `http` - and a path at or below
+the prefix's. What follows is free, the rest of the path and the query a
+signed link carries. With `https://files.example.com/inbox/`:
+
+- `https://files.example.com/inbox/9f3c?sig=abc` is fetched
+- `https://files.example.com/outbox/9f3c` is not, another path
+- `https://files.example.com.elsewhere.net/inbox/9f3c` is not, another host
+- `https://files.example.com:8443/inbox/9f3c` is not, another port
+
+`https://files.example.com/` allows every path on that host. There is no
+wildcard: a host is always written out in full, and a `*` is read as a host
+name that nothing is called, so `https://*` allows nothing at all.
+
 `https://` is the rule. `http://` is meant for a service on the same
 machine, and is accepted for `127.0.0.1`, `::1` and `localhost` alone: the
 server refuses to start with any other host, since the file would cross the
@@ -744,7 +759,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all, while the resource list still names the newest 100 | unset: `100` in the default directory, all in one you name |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
-| `LXO_MCP_UPLOAD_URLS` | Addresses the upload tools may fetch a file from, comma separated. `http://` only for `127.0.0.1`, `::1` and `localhost` | none |
+| `LXO_MCP_UPLOAD_URLS` | URL prefixes the upload tools may fetch a file from, comma separated, no wildcards. `http://` only for `127.0.0.1`, `::1` and `localhost` | none |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |
