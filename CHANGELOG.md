@@ -45,6 +45,10 @@ housekeeping are out of scope here — design decisions live in
   by name is refused until it lists the tools again, and a policy file
   needs no change: no tool is new. A `file:` URL is refused with the
   advice to give the path itself.
+- **platformdirs 4.13.3 in the lockfile the image is built from**, with
+  fixes for quoted user directories on Linux and a buffer freed on a
+  failed lookup on Windows. An installation from the index resolved it
+  already. The configuration is found in the same directories.
 
 ### Fixed
 
