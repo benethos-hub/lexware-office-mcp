@@ -16,14 +16,16 @@ import contextlib
 import functools
 import re
 import weakref
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from mcp.server.connection import Connection
+from mcp.server.connection import Connection, NotifyOnlyOutbound
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
+from mcp.server.subscriptions import ResourcesListChanged, ServerEvent, ToolsListChanged
 from mcp.types import CallToolResult, Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
@@ -48,6 +50,20 @@ def _links_a_download(result: Any) -> bool:
     return any(
         block.type == "resource_link" and resources.name_of(str(block.uri)) is not None
         for block in result.content
+    )
+
+
+def _reaches(connection: Connection) -> bool:
+    """Whether a list notification sent on ``connection``'s channel arrives.
+
+    Only on a handshake-era connection with a channel of its own. A
+    2026-07-28 connection drops one by design, since that era delivers it
+    on a ``subscriptions/listen`` stream alone, and one without a channel -
+    streamable HTTP with no GET stream open - drops it for want of one.
+    Neither raises, so both used to be counted as told.
+    """
+    return connection.has_standalone_channel and not isinstance(
+        connection.outbound, NotifyOnlyOutbound
     )
 
 
@@ -139,7 +155,9 @@ class PolicyServer(MCPServer):
     What is told is the **connection**, never the session a request
     arrived on: the SDK builds a ``ServerSession`` for each request and
     lets it go with the answer, so a set of sessions is empty by the time
-    there is something to say. Measured 2026-10-16, see section 9.2.
+    there is something to say. Measured 2026-10-16, see section 9.2. A
+    2026-07-28 client has no such channel and is told on the listen stream
+    it opened, through the bus the SDK serves those from.
     """
 
     def __init__(
@@ -267,9 +285,14 @@ class PolicyServer(MCPServer):
         """The file this server answers to, for listing and for every call."""
         return self._policy
 
-    def _resources_enabled(self) -> bool:
-        """Whether any tool a download resource belongs to is enabled."""
-        allowed = self._policy.as_map()
+    def _resources_enabled(self, allowed: Mapping[str, bool] | None = None) -> bool:
+        """Whether any tool a download resource belongs to is enabled.
+
+        ``allowed`` is a reading of the policy file the caller holds already,
+        which spares the watcher a second one on every turn.
+        """
+        if allowed is None:
+            allowed = self._policy.as_map()
         return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
 
     async def list_resources(self) -> list[Resource]:
@@ -351,14 +374,23 @@ class PolicyServer(MCPServer):
         if self._watcher is not None and not self._watcher.done():
             return
         self._seen = self._policy.as_map()
-        self._seen_downloads = self._download_names()
         self._watcher = asyncio.create_task(self._watch())
 
-    def _download_names(self) -> tuple[str, ...]:
-        """The download list as the watcher remembers it: names, in order."""
-        if not self._resources_enabled():
+    async def _download_names(
+        self, allowed: Mapping[str, bool] | None = None
+    ) -> tuple[str, ...]:
+        """The download list as the watcher remembers it: names, in order.
+
+        Off the event loop. The scan looks at every file in the directory,
+        13 ms for a thousand and 68 ms for five thousand, measured
+        2026-10-16, every two seconds, and the directory may be a folder on
+        a network drive. ``allowed`` is as for :meth:`_resources_enabled`.
+        """
+        if not self._resources_enabled(allowed):
             return ()
-        return resources.names(self._downloads, self._listed_downloads)
+        return await asyncio.to_thread(
+            resources.names, self._downloads, self._listed_downloads
+        )
 
     async def _watch(self) -> None:
         """Notice a changed tool list or download list and say so.
@@ -370,21 +402,25 @@ class PolicyServer(MCPServer):
         would answer with, which is one scan of the directory and no stat
         beyond what the list itself takes.
         """
+        self._seen_downloads = await self._download_names(self._seen)
         while True:
             await asyncio.sleep(POLICY_POLL_SECONDS)
+            # One reading of the file and one scan of the directory a turn,
+            # each handed on rather than taken again.
             current = self._policy.as_map()
             if current != self._seen:
                 self._seen = current
                 await self._announce()
-            if self._download_names() != self._seen_downloads:
-                await self._downloads_changed()
+            names = await self._download_names(current)
+            if names != self._seen_downloads:
+                await self._downloads_changed(names)
 
     async def _announce(self) -> None:
         """The tool list is not what it was: tell every live connection."""
-        told = await self._tell("notifications/tools/list_changed")
+        told = await self._tell("notifications/tools/list_changed", ToolsListChanged())
         logbook.policy.list_changed(told)
 
-    async def _downloads_changed(self) -> None:
+    async def _downloads_changed(self, names: tuple[str, ...] | None = None) -> None:
         """The download list is not what it was: tell every live connection.
 
         From the call that wrote a download, at once, and from the watcher
@@ -392,28 +428,47 @@ class PolicyServer(MCPServer):
         its calls to a second server process, seen 2026-10-16, and the one
         answering the listing learns of a download only from the disk. The
         watcher's last sight is refreshed here, so a download told at once
-        is not told again two seconds later.
+        is not told again two seconds later. ``names`` is the list the
+        watcher has just scanned, so the directory is not scanned twice.
         """
-        self._seen_downloads = self._download_names()
-        told = await self._tell("notifications/resources/list_changed")
+        self._seen_downloads = (
+            names if names is not None else await self._download_names()
+        )
+        told = await self._tell(
+            "notifications/resources/list_changed", ResourcesListChanged()
+        )
         logbook.files.list_changed(told)
 
-    async def _tell(self, method: str) -> int:
-        """Send a notification on every connection, drop the ones that fail.
+    async def _tell(self, method: str, event: ServerEvent) -> int:
+        """Tell every client, in the way its protocol era listens.
 
-        On the connection's own channel, which is the one a server speaks
-        on when no request is open: stdout over stdio, the standalone
-        stream over streamable HTTP. Answers how many were told.
+        A 2026-07-28 client opens a ``subscriptions/listen`` stream for the
+        kinds it wants, and is told through the bus the SDK serves those
+        streams from, which delivers to the ones that asked. A handshake-era
+        client is told on its connection's own channel, the one a server
+        speaks on when no request is open: stdout over stdio, the standalone
+        stream over streamable HTTP. One that fails there is dropped.
+
+        Answers how many were told on a channel. What the bus delivers it
+        does not count, and a connection the notification cannot reach is
+        not counted either, see :func:`_reaches`.
+
+        Not the SDK's ``send_tool_list_changed``: that goes through
+        ``Connection.notify``, which never raises, so a client that went
+        away would never be dropped.
         """
+        await self._subscriptions.publish(event)
         told = 0
         for connection in list(self._connections):
+            if not _reaches(connection):
+                continue
             try:
                 await connection.outbound.notify(method, None)
             except Exception as exc:  # noqa: BLE001 - a dead client is normal
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
                 # the only trace it would leave.
-                logbook.policy.session_dropped(exc)
+                logbook.policy.client_dropped(exc)
                 self._connections.discard(connection)
             else:
                 told += 1

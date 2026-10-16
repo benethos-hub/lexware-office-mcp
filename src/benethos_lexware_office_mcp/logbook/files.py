@@ -34,6 +34,9 @@ __all__ = [
 ]
 
 _log = logging.getLogger(f"{PACKAGE}.storage")
+# An upload's URL is not the download directory, and a person reading the
+# log for one should not have to read past the other.
+_fetch = logging.getLogger(f"{PACKAGE}.fetch")
 
 
 def reused(size: int) -> None:
@@ -44,25 +47,25 @@ def pruned(count: int, kept: int) -> None:
     _log.info("Deleted %d older downloads, the newest %d are kept", count, kept)
 
 
-def list_changed(sessions: int) -> None:
-    _log.info("The download list changed, %d sessions told", sessions)
+def list_changed(clients: int) -> None:
+    _log.info("The download list changed, %d clients told", clients)
 
 
 def fetched(scheme: str, host: str, size: int, ms: float) -> None:
-    _log.info(
+    _fetch.info(
         "Fetched %d bytes to upload from %s://%s in %.0f ms", size, scheme, host, ms
     )
 
 
 def none_allowed() -> None:
-    _log.warning(
+    _fetch.warning(
         "Refused to fetch an upload: LXO_MCP_UPLOAD_URLS allows no address, "
         "nothing was requested"
     )
 
 
 def not_a_url(scheme: str) -> None:
-    _log.warning(
+    _fetch.warning(
         "Refused to fetch an upload over %s: not a URL that can be fetched, "
         "nothing was requested",
         scheme,
@@ -70,7 +73,7 @@ def not_a_url(scheme: str) -> None:
 
 
 def not_allowed(scheme: str) -> None:
-    _log.warning(
+    _fetch.warning(
         "Refused to fetch an upload over %s: the address is outside "
         "LXO_MCP_UPLOAD_URLS, nothing was requested",
         scheme,
@@ -78,6 +81,6 @@ def not_allowed(scheme: str) -> None:
 
 
 def not_fetched(scheme: str, host: str, error: BaseException) -> None:
-    _log.warning(
+    _fetch.warning(
         "Fetching an upload from %s://%s failed: %s", scheme, host, describe(error)
     )

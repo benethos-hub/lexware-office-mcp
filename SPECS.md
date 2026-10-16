@@ -1993,6 +1993,17 @@ Three decisions in that watcher are worth stating:
   notification to arrive. Claude Desktop, same day: it starts the server
   twice, one process answers the listings and another the calls, so a
   connection is kept from a call as well as from a listing.
+- **A 2026-07-28 client is told on its listen stream.** The SDK serves
+  that protocol beside the handshake on the same transport, stdio
+  included, measured 2026-10-16 with mcp 2.0.0 and 2.3.0, and there a
+  change notification travels only on a `subscriptions/listen` stream the
+  client opened, fed from the bus `MCPServer` keeps. Sent on the
+  connection, it is dropped without an error. So every notification is
+  published on the bus as well, and only a connection whose own channel
+  carries it is counted as told. The same holds for a streamable HTTP
+  client with no GET stream open, which has no channel at all. Found in the
+  review of 2026-10-16. `tests/test_list_changed.py` opens a listen stream
+  through the SDK's runner and waits for the notification on it.
 
 **Claude Desktop acts on it, verified 2026-08-22.** With the capability
 announced, a permission changed in the configuration interface reached the
@@ -2552,14 +2563,14 @@ where it differs.
 |---|---|---|
 | `lifecycle` (`server`) | `INFO` | `0.5.4 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
-| `policy` | `DEBUG` | a session that could not be told about the change and was dropped, which a client that went away makes normal |
-| | `INFO` | `The tool list changed, 2 sessions told` |
+| `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
+| | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds |
 | `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
-| `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
+| `files` (`storage`, and `fetch` for an upload's URL) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `The download list changed, 2 clients told`, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
 | | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all |
 | | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
@@ -2868,6 +2879,10 @@ every test in this repository. Section 14.3 says how to look.
   - That version is never reached here. `initialize` negotiates down to
     `2025-11-25`, the newest handshake version, whatever the client asks for,
     and the modern `server/discover` is not reachable over stdio at all.
+    Measured again on 2026-10-16, and not so: over stdio, with mcp 2.0.0
+    and 2.3.0 alike, a client that sends `server/discover` instead of
+    `initialize` is served `2026-07-28` and promised `tools.listChanged`.
+    The notifications reach it on its listen stream, see section 9.2.
 
   **What that analysis missed is that `PolicyServer` is ours.** The default
   is what it is, but `create_initialization_options` takes the
@@ -2887,7 +2902,7 @@ every test in this repository. Section 14.3 says how to look.
 
   For **resources** the same binding announces `resources.listChanged`
   since 2026-10-16, and `PolicyServer.call_tool` sends
-  `notifications/resources/list_changed` to every session when a tool's
+  `notifications/resources/list_changed` to every client when a tool's
   answer carries a download link, which is the one moment the list grows.
   The answer decides rather than the tool's name, so a tool added later
   that saves a file is covered by what it returns. The watcher of section

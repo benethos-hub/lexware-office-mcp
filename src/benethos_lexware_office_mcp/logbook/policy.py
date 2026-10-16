@@ -9,10 +9,10 @@ from ._describe import describe
 from .output import PACKAGE
 
 __all__ = [
+    "client_dropped",
     "list_changed",
     "not_a_flag",
     "not_an_object",
-    "session_dropped",
     "unreadable",
 ]
 
@@ -49,10 +49,10 @@ def not_a_flag(source: str, tool: str, found: object) -> None:
     )
 
 
-def list_changed(sessions: int) -> None:
-    _log.info("The tool list changed, %d sessions told", sessions)
+def list_changed(clients: int) -> None:
+    _log.info("The tool list changed, %d clients told", clients)
 
 
-def session_dropped(error: BaseException) -> None:
+def client_dropped(error: BaseException) -> None:
     """Debug only: a client that went away is normal."""
-    _log.debug("A session could not be told and was dropped: %s", describe(error))
+    _log.debug("A client could not be told and was dropped: %s", describe(error))

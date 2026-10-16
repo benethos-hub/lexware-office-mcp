@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,6 +24,8 @@ from typing import Any
 import anyio
 import pytest
 from mcp import ClientSession
+from mcp.client.subscriptions import ResourcesListChanged, ToolsListChanged, listen
+from mcp.server.connection import NotifyOnlyOutbound
 from mcp.shared.memory import create_client_server_memory_streams
 from mcp.types import CallToolRequestParams
 
@@ -55,12 +58,14 @@ class Session:
     simple.
     """
 
+    has_standalone_channel = True
+
     def __init__(self, fail: bool = False) -> None:
         self.told = 0
         self.downloads = 0
         self.fail = fail
         self._connection = self
-        self.outbound = self
+        self.outbound: Any = self
 
     async def notify(self, method: str, params: Any, opts: Any = None) -> None:
         if self.fail:
@@ -229,6 +234,47 @@ async def test_stopping_never_started_is_harmless(policy: Path) -> None:
     await server.stop_watching()
 
 
+async def test_a_connection_the_notification_cannot_reach_is_not_counted(
+    policy: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Neither drops it with an error, so each was counted as told."""
+    lines = capture_lines(caplog, "INFO")
+    server = build_server(Settings(tool_policy_path=policy))
+    modern, without, handshake = Session(), Session(), Session()
+    modern.outbound = NotifyOnlyOutbound(modern)
+    without.has_standalone_channel = False  # type: ignore[misc]
+    for session in (modern, without, handshake):
+        await server._handle_list_tools(Ctx(session), None)
+    try:
+        write_policy(policy, dict.fromkeys(known_tools(), True))
+        await settle()
+
+        assert (modern.told, without.told, handshake.told) == (0, 0, 1)
+        assert "The tool list changed, 1 clients told" in lines.text
+    finally:
+        await server.stop_watching()
+
+
+async def test_the_bus_hears_of_both_lists(tmp_path: Path) -> None:
+    """The bus is what a 2026-07-28 listen stream is fed from."""
+    everything = dict.fromkeys(known_tools(), True)
+    policy = write_policy(tmp_path / "tools.json", {**everything, "get_profile": False})
+    server, _ = server_with(
+        recorder(), download_path=tmp_path / "downloads", tool_policy_path=policy
+    )
+    events: list[Any] = []
+    server._subscriptions.subscribe(events.append)
+    await server._handle_list_tools(Ctx(Session()), None)
+    try:
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+        write_policy(policy, everything)
+        await settle()
+
+        assert [type(e) for e in events] == [ResourcesListChanged, ToolsListChanged]
+    finally:
+        await server.stop_watching()
+
+
 # -- the download list ------------------------------------------------------
 
 
@@ -327,6 +373,40 @@ async def test_a_file_written_by_another_hand_is_noticed(tmp_path: Path) -> None
         await server.stop_watching()
 
 
+async def test_the_directory_is_scanned_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It may hold thousands of files, or sit on a network drive."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    threads: list[threading.Thread] = []
+    scan = server_module.resources.names
+
+    def names(*args: Any) -> tuple[str, ...]:
+        threads.append(threading.current_thread())
+        return scan(*args)
+
+    monkeypatch.setattr(server_module.resources, "names", names)
+
+    await server._download_names()
+
+    assert threads and threading.main_thread() not in threads
+
+
+async def test_a_reading_of_the_policy_in_hand_is_not_taken_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The watcher reads the file once a turn and hands the reading on."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    allowed = server.policy.as_map()
+
+    def read_again() -> dict[str, bool]:
+        raise AssertionError("the policy file was read a second time")
+
+    monkeypatch.setattr(server.policy, "as_map", read_again)
+
+    assert await server._download_names(allowed) == ()
+
+
 async def test_a_directory_that_stays_the_same_tells_nobody(tmp_path: Path) -> None:
     server, _ = server_with(recorder(), download_path=tmp_path)
     session = Session()
@@ -353,7 +433,7 @@ async def test_a_download_with_nobody_to_tell_is_still_a_download(
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
     assert result.is_error is not True
-    assert "The download list changed, 0 sessions told" in lines.text
+    assert "The download list changed, 0 clients told" in lines.text
 
 
 # -- over the wire ----------------------------------------------------------
@@ -455,5 +535,41 @@ async def test_a_session_that_ended_is_not_kept(policy: Path) -> None:
         gc.collect()
 
         assert list(server._connections) == [kept]
+    finally:
+        await server.stop_watching()
+
+
+@asynccontextmanager
+async def listening(server: Any, **kinds: bool) -> AsyncIterator[Any]:
+    """A 2026-07-28 client: no handshake, its notifications on a listen stream.
+
+    It lists the tools first, as a client does before it uses them, which
+    is what starts the watcher.
+    """
+    low = server._lowlevel_server
+    async with create_client_server_memory_streams() as (client_end, server_end):
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(low.run, *server_end, low.create_initialization_options())
+            async with ClientSession(*client_end) as client:
+                await client.discover()
+                await client.list_tools()
+                async with listen(client, **kinds) as subscription:
+                    yield subscription
+            tasks.cancel_scope.cancel()
+
+
+async def test_a_listen_stream_carries_the_tool_list_notification(
+    policy: Path,
+) -> None:
+    """The 2026-07-28 era has no channel outside a request but this one."""
+    server = build_server(Settings(tool_policy_path=policy))
+    try:
+        async with listening(server, tools_list_changed=True) as subscription:
+            write_policy(policy, dict.fromkeys(known_tools(), True))
+
+            with anyio.fail_after(2):
+                event = await anext(aiter(subscription))
+
+        assert isinstance(event, ToolsListChanged)
     finally:
         await server.stop_watching()
