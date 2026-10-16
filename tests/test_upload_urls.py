@@ -702,6 +702,33 @@ async def test_a_url_outside_the_setting_leaves_no_host_in_the_log(
     assert "mustermann" not in lines.text
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://files.example.com/inbox/a.pdf\r\nX-Injected: 1",
+        "https://xn--zz.files.example.com/inbox/a.pdf",
+        "https://files.example.com:99999/inbox/a.pdf",
+        "https://[files.example.com/inbox/a.pdf",
+    ],
+    ids=["line break", "punycode", "port", "bracket"],
+)
+async def test_what_is_no_url_is_refused_with_a_line_and_no_request(
+    url: str, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    lines = capture_lines(caplog, "DEBUG")
+    api, other = lexware(), served()
+
+    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), url)
+
+    assert message.endswith(": This is not a URL that can be fetched.")
+    assert (
+        "Refused to fetch an upload over https: not a URL that can be fetched, "
+        "nothing was requested"
+    ) in lines.text
+    assert "files.example.com" not in lines.text
+    assert other.requests == []
+
+
 async def test_without_the_setting_the_log_says_that_is_why(
     caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:

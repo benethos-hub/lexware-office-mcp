@@ -53,6 +53,8 @@ __all__ = ["TIMEOUT", "is_url", "upload_from"]
 TIMEOUT = 30.0
 
 _SCHEMES = ("https://", "http://")
+_NOT_A_URL = "This is not a URL that can be fetched."
+
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 
 # The XML type RFC 7303 names beside `application/xml`, and which many a
@@ -122,8 +124,6 @@ async def fetch(
         error.code = "timeout"
         logbook.files.not_fetched(scheme, host, error)
         raise error from None
-    except httpx.InvalidURL:
-        raise ValidationError("This is not a URL that can be fetched.") from None
     except httpx.HTTPError:
         error = _failed(f"The file could not be fetched from {host}: no connection")
         error.code = "connection"
@@ -214,6 +214,10 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
     scheme's - and the path has to be the prefix's or lie below it. A path
     that steps up with ``..``, written plainly or percent-encoded, is under
     no prefix, whatever it starts with.
+
+    A URL is read the way httpx will read it to send it, too, so what httpx
+    would refuse - a line break, a host that is no valid punycode - is
+    refused here, before anything is opened, and with a line.
     """
     if not allowed:
         logbook.files.none_allowed()
@@ -225,8 +229,12 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
     try:
         target = urlsplit(url)
         port = _port(target)
-    except ValueError:
-        raise ValidationError("This is not a URL that can be fetched.") from None
+        # `host` decodes punycode, and raises an IDNAError, a ValueError.
+        httpx.URL(url).host  # noqa: B018 - read for what it raises
+    except (ValueError, httpx.InvalidURL):
+        # By the scheme alone, as below: `is_url` held it to http or https.
+        logbook.files.not_a_url(url.split(":", 1)[0].lower())
+        raise ValidationError(_NOT_A_URL) from None
     if target.hostname and "@" not in target.netloc and _plain(target.path):
         for prefix in allowed:
             base = urlsplit(prefix)

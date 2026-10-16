@@ -26,6 +26,7 @@ __all__ = [
     "fetched",
     "list_changed",
     "none_allowed",
+    "not_a_url",
     "not_allowed",
     "not_fetched",
     "pruned",
@@ -57,6 +58,14 @@ def none_allowed() -> None:
     _log.warning(
         "Refused to fetch an upload: LXO_MCP_UPLOAD_URLS allows no address, "
         "nothing was requested"
+    )
+
+
+def not_a_url(scheme: str) -> None:
+    _log.warning(
+        "Refused to fetch an upload over %s: not a URL that can be fetched, "
+        "nothing was requested",
+        scheme,
     )
 
 
