@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -90,10 +90,18 @@ def policy(tmp_path: Path) -> Path:
     return path
 
 
-async def settle(times: int = 8) -> None:
-    """Give the watcher a few turns of its loop."""
-    for _ in range(times):
-        await asyncio.sleep(0.01)
+async def until(condition: Callable[[], bool], within: float = 2.0) -> bool:
+    """Whether ``condition`` comes true in time, looked at once a watcher turn."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + within
+    while not condition() and loop.time() < deadline:
+        await asyncio.sleep(server_module.POLICY_POLL_SECONDS)
+    return condition()
+
+
+async def turns(count: int = 8) -> None:
+    """Let the watcher take ``count`` turns, for a test that expects nothing."""
+    await asyncio.sleep(count * server_module.POLICY_POLL_SECONDS)
 
 
 # -- the announcement -------------------------------------------------------
@@ -146,9 +154,7 @@ async def test_a_changed_list_is_announced(policy: Path) -> None:
     await server._handle_list_tools(Ctx(session), None)
     try:
         write_policy(policy, dict.fromkeys(known_tools(), True))
-        await settle()
-
-        assert session.told == 1
+        assert await until(lambda: session.told == 1)
     finally:
         await server.stop_watching()
 
@@ -165,7 +171,7 @@ async def test_writing_the_same_flags_again_is_not_a_change(policy: Path) -> Non
     try:
         for _ in range(3):
             ToolPolicy(policy).save(preset("read-only"))
-            await settle(3)
+            await turns(3)
 
         assert session.told == 0
     finally:
@@ -180,9 +186,7 @@ async def test_every_session_is_told(policy: Path) -> None:
     await server._handle_list_tools(Ctx(second), None)
     try:
         write_policy(policy, dict.fromkeys(known_tools(), True))
-        await settle()
-
-        assert (first.told, second.told) == (1, 1)
+        assert await until(lambda: (first.told, second.told) == (1, 1))
     finally:
         await server.stop_watching()
 
@@ -194,10 +198,8 @@ async def test_a_session_that_is_gone_is_dropped(policy: Path) -> None:
     await server._handle_list_tools(Ctx(alive), None)
     try:
         write_policy(policy, dict.fromkeys(known_tools(), True))
-        await settle()
-
+        assert await until(lambda: alive.told == 1)
         assert dead not in server._connections
-        assert alive.told == 1
     finally:
         await server.stop_watching()
 
@@ -247,8 +249,7 @@ async def test_a_connection_the_notification_cannot_reach_is_not_counted(
         await server._handle_list_tools(Ctx(session), None)
     try:
         write_policy(policy, dict.fromkeys(known_tools(), True))
-        await settle()
-
+        assert await until(lambda: "The tool list changed" in lines.text)
         assert (modern.told, without.told, handshake.told) == (0, 0, 1)
         assert "The tool list changed, 1 clients told" in lines.text
     finally:
@@ -268,8 +269,7 @@ async def test_the_bus_hears_of_both_lists(tmp_path: Path) -> None:
     try:
         await server.call_tool("download_file", {"file_id": FILE_ID})
         write_policy(policy, everything)
-        await settle()
-
+        assert await until(lambda: len(events) == 2)
         assert [type(e) for e in events] == [ResourcesListChanged, ToolsListChanged]
     finally:
         await server.stop_watching()
@@ -345,7 +345,7 @@ async def test_a_download_told_at_once_is_not_told_again(tmp_path: Path) -> None
     await server._handle_list_tools(Ctx(session), None)
     try:
         await server.call_tool("download_file", {"file_id": FILE_ID})
-        await settle()
+        await turns()
 
         assert session.downloads == 1
     finally:
@@ -363,12 +363,32 @@ async def test_a_file_written_by_another_hand_is_noticed(tmp_path: Path) -> None
     session = Session()
     await server._handle_list_resources(Ctx(session), None)
     try:
-        await settle(3)
+        await turns(3)
         assert session.downloads == 0
         (tmp_path / "by-another-process.pdf").write_bytes(b"%PDF-1.4")
-        await settle()
 
-        assert session.downloads == 1
+        assert await until(lambda: session.downloads == 1)
+    finally:
+        await server.stop_watching()
+
+
+async def test_with_the_file_tools_off_a_new_file_tells_nobody(
+    tmp_path: Path,
+) -> None:
+    """No download is listed then, so none has joined the list."""
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    server, _ = server_with(
+        recorder(), download_path=downloads, tool_policy_path=policy
+    )
+    session = Session()
+    await server._handle_list_tools(Ctx(session), None)
+    try:
+        (downloads / "by-another-process.pdf").write_bytes(b"%PDF-1.4")
+        await turns()
+
+        assert session.downloads == 0
     finally:
         await server.stop_watching()
 
@@ -415,7 +435,7 @@ async def test_a_directory_that_stays_the_same_tells_nobody(tmp_path: Path) -> N
         CallToolRequestParams(name="download_file", arguments={"file_id": FILE_ID}),
     )
     try:
-        await settle()
+        await turns()
 
         assert session.downloads == 1
         assert session.told == 0
@@ -463,15 +483,6 @@ async def connected(server: Any, received: list[str]) -> AsyncIterator[ClientSes
             tasks.cancel_scope.cancel()
 
 
-async def arrived(received: list[str], method: str, within: float = 2.0) -> bool:
-    """Whether ``method`` reaches ``received`` in time."""
-    waited = 0.0
-    while method not in received and waited < within:
-        await asyncio.sleep(0.01)
-        waited += 0.01
-    return method in received
-
-
 async def test_the_wire_carries_the_tool_list_notification(policy: Path) -> None:
     """A policy change reaches a client that listed the tools, as sent by the SDK."""
     server = build_server(Settings(tool_policy_path=policy))
@@ -481,7 +492,7 @@ async def test_the_wire_carries_the_tool_list_notification(policy: Path) -> None
             await client.list_tools()
             write_policy(policy, dict.fromkeys(known_tools(), True))
 
-            assert await arrived(received, "notifications/tools/list_changed")
+            assert await until(lambda: "notifications/tools/list_changed" in received)
     finally:
         await server.stop_watching()
 
@@ -494,8 +505,9 @@ async def test_the_wire_carries_the_download_notification(tmp_path: Path) -> Non
         async with connected(server, received) as client:
             result = await client.call_tool("download_file", {"file_id": FILE_ID})
 
+            # Sent before the result, so here by the time the result is.
             assert result.is_error is not True
-            assert await arrived(received, "notifications/resources/list_changed")
+            assert "notifications/resources/list_changed" in received
             assert "notifications/tools/list_changed" not in received
     finally:
         await server.stop_watching()
