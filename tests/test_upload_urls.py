@@ -537,21 +537,6 @@ async def test_bytes_that_start_as_no_type_the_api_takes_are_refused(
     assert api.requests == []
 
 
-async def test_a_name_that_says_another_type_than_the_first_bytes_is_refused(
-    tmp_path: Path,
-) -> None:
-    api = lexware()
-    other = served(
-        content_type="application/octet-stream",
-        headers={"Content-Disposition": 'attachment; filename="photo.png"'},
-    )
-
-    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
-
-    assert "photo.png arrived as application/pdf" in message
-    assert api.requests == []
-
-
 # -- the name -------------------------------------------------------------
 
 
@@ -584,11 +569,20 @@ async def test_the_name_comes_from_the_header_then_the_url_then_the_type(
     assert b'filename="' + name + b'"' in api.last.content
 
 
+@pytest.mark.parametrize(
+    "content_type",
+    ["application/pdf", "application/octet-stream"],
+    ids=["declared", "by the first bytes"],
+)
 async def test_a_name_whose_extension_says_another_type_is_refused(
-    tmp_path: Path,
+    content_type: str, tmp_path: Path
 ) -> None:
+    """Whether the response said the type or its first bytes did."""
     api = lexware()
-    other = served(headers={"Content-Disposition": 'attachment; filename="photo.png"'})
+    other = served(
+        content_type=content_type,
+        headers={"Content-Disposition": 'attachment; filename="photo.png"'},
+    )
 
     message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
 

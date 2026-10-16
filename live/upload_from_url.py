@@ -31,7 +31,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import http.server
-import re
 import sys
 import tempfile
 import threading
@@ -42,47 +41,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from _common import mask, receipt_pdf  # noqa: E402
+
 from benethos_lexware_office_mcp.api.client import ClientProvider  # noqa: E402
 from benethos_lexware_office_mcp.logbook import configure  # noqa: E402
 from benethos_lexware_office_mcp.policy import ToolPolicy  # noqa: E402
 from benethos_lexware_office_mcp.server import build_server  # noqa: E402
 from benethos_lexware_office_mcp.settings import load_settings  # noqa: E402
-
-_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-
-
-def mask(value: Any) -> str:
-    return _UUID.sub("<id>", str(value))
-
-
-def receipt_pdf(text: str) -> bytes:
-    """A one-page PDF with a line of text, valid enough for the API to take."""
-    stream = f"BT /F1 14 Tf 60 760 Td ({text}) Tj ET".encode()
-    objects = [
-        b"<</Type/Catalog/Pages 2 0 R>>",
-        b"<</Type/Pages/Kids[4 0 R]/Count 1>>",
-        b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
-        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]"
-        b"/Resources<</Font<</F1 3 0 R>>>>/Contents 5 0 R>>",
-        b"<</Length "
-        + str(len(stream)).encode()
-        + b">>stream\n"
-        + stream
-        + b"\nendstream",
-    ]
-    out = bytearray(b"%PDF-1.4\n")
-    offsets = []
-    for number, body in enumerate(objects, start=1):
-        offsets.append(len(out))
-        out += f"{number} 0 obj".encode() + body + b"endobj\n"
-    start = len(out)
-    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
-    for offset in offsets:
-        out += f"{offset:010d} 00000 n \n".encode()
-    out += (
-        f"trailer<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{start}\n%%EOF\n"
-    ).encode()
-    return bytes(out)
 
 
 class Served:
