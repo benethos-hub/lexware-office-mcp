@@ -1557,7 +1557,13 @@ not `/inboxes/a.pdf`. A URL with a user name before its host is covered by
 nothing, and neither is one whose path steps up with `..`, written plainly
 or percent-encoded, nor one with a backslash after decoding - a server that
 decodes before it routes would be reading another path than the one
-checked. All of it is decided before a connection is opened, so a URL
+checked. For the same reason `..;` is refused, which a server in the Tomcat
+tradition reads as `..` once it has dropped the parameter, and so is a `%`
+still there after one decoding, which a server that decodes twice reads
+again: `%252e%252e` is `..` to it. Added in the review of 2026-10-16. The
+prefixes are held to the same rule, `settings.plain_path`, so a prefix no
+URL could be plain under stops the start rather than matching nothing.
+All of it is decided before a connection is opened, so a URL
 outside the list is refused without a word about what is out there.
 
 **A prefix, not a pattern.** There is no wildcard, for the host or anywhere
@@ -1588,13 +1594,25 @@ together, fixed rather than a setting: `LXO_MCP_TIMEOUT` bounds each request
 to Lexware, and a server sending a byte now and then would never trip a
 per-read limit.
 
+**A proxy is for other hosts.** A proxy the environment names, through
+`HTTP_PROXY` or `HTTPS_PROXY`, is used for a fetch as it is for Lexware,
+except from `127.0.0.1`, `::1` and `localhost`, which are fetched directly.
+httpx makes no such exception of its own, so behind a corporate proxy or in
+a container that sets one, a link to a service on this machine went to the
+proxy: it cannot reach that service, and it was handed the link with its
+key. Found in the review of 2026-10-16.
+
 **The response is held to what the API takes before it is read.** A status
 other than 200 is refused by its number, and the page that came with it is
 never passed on: an error page is the other service's business. A
 `Content-Length` above 5 MiB is refused unread. The body is then streamed
 and cut off at 5 MiB whether a length was declared or not, so a missing or
-false header changes nothing, and counted after decoding, so a compressed
-body cannot unpack into more. The `Content-Type` has to be one of the four
+false header changes nothing. **Nothing compressed is taken**: the request
+asks for `identity`, and a response with any other `Content-Encoding` is
+refused before its body is read. httpx inflates a chunk before a count can
+see it, so one 64 KiB chunk of gzip came to some 63 MB in memory before the
+ceiling stopped it, found in the review of 2026-10-16, and the four types
+the API takes are compressed formats already. The `Content-Type` has to be one of the four
 the API takes, read without its parameters, and `text/xml` counts as
 `application/xml`, which RFC 7303 says it is. Any other type is refused
 before the body is read.
@@ -1623,7 +1641,8 @@ file is not checked for being an XRechnung, as from disk: the API refuses
 one that is not, and a second check here could only disagree with it.
 
 **One check for both.** A file read from disk and one fetched end in
-`storage.accepted`, which holds the size, the type and the name's extension.
+`storage.accepted`, which holds the size, the type and the name's extension,
+and refuses an empty file, which is no receipt whatever the API makes of it.
 What each source checks earlier - a file's size before it is read, a
 response's before it is streamed - is an early way out, not a second rule.
 
@@ -2541,7 +2560,7 @@ where it differs.
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
-| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, and that no address is allowed at all |
+| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all |
 | | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
 | | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |

@@ -774,7 +774,7 @@ search — except under `setup`, which exists partly to create one.
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents land | user cache directory |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest first. Older ones are deleted, and fetched again when needed. Only in the default directory unless set, `0` keeps all, while the resource list still names the newest 100 | unset: `100` in the default directory, all in one you name |
 | `LXO_MCP_UPLOAD_DIR` | The only directory the upload tools may read from | anywhere |
-| `LXO_MCP_UPLOAD_URLS` | URL prefixes the upload tools may fetch a file from, comma separated, no wildcards. `http://` only for `127.0.0.1`, `::1` and `localhost` | none |
+| `LXO_MCP_UPLOAD_URLS` | URL prefixes the upload tools may fetch a file from, comma separated, no wildcards. `http://` only for `127.0.0.1`, `::1` and `localhost`, which are fetched without the proxy `HTTP_PROXY` names | none |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `LXO_MCP_RATE` | Requests per second, global across all endpoints | `1.5` |
 | `LXO_MCP_BURST` | Token bucket capacity. The account's own bucket holds 4 | `2` |

@@ -12,6 +12,7 @@ one the file comes from, ``lexware`` for the API.
 from __future__ import annotations
 
 import asyncio
+import gzip
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -144,6 +145,9 @@ async def test_a_url_under_an_allowed_prefix_is_fetched_and_uploaded(
         "https://files.example.com/inbox/%2e%2e/admin/9f3c",
         "https://files.example.com/inbox/..%2Fadmin",
         "https://files.example.com@elsewhere.net/inbox/9f3c",
+        "https://files.example.com/inbox/..;/admin/9f3c",
+        "https://files.example.com/inbox/%252e%252e/admin/9f3c",
+        "https://files.example.com/inbox/%5c..%5cadmin",
     ],
     ids=[
         "host",
@@ -155,6 +159,9 @@ async def test_a_url_under_an_allowed_prefix_is_fetched_and_uploaded(
         "encoded dots",
         "encoded slash",
         "user name",
+        "dots with a parameter",
+        "dots encoded twice",
+        "backslash",
     ],
 )
 async def test_a_url_outside_every_prefix_is_refused_before_a_request(
@@ -167,6 +174,22 @@ async def test_a_url_outside_every_prefix_is_refused_before_a_request(
     assert "outside the addresses" in message
     assert other.requests == []
     assert api.requests == []
+
+
+async def test_a_parameter_or_an_escape_that_steps_nowhere_is_fetched(
+    tmp_path: Path,
+) -> None:
+    """Only what a server could read as another place is refused."""
+    api, other = lexware(), served()
+    built = server(api, other, INBOX, tmp_path=tmp_path)
+
+    for url in (
+        f"{INBOX}a.pdf;jsessionid=1",
+        f"{INBOX}Rechnung%20M%C3%A4rz.pdf",
+    ):
+        await built.call_tool("upload_file", {"source": url})
+
+    assert len(other.requests) == 2
 
 
 async def test_a_prefix_without_a_slash_covers_its_segment_and_no_other(
@@ -245,6 +268,9 @@ def test_http_for_any_other_host_stops_the_start() -> None:
         "https://files.example.com/?sig=1",
         "https://files.example.com/#top",
         "https://files.example.com/inbox/../",
+        "https://files.example.com/inbox/%2e%2e/",
+        "https://files.example.com/inbox/..;x/",
+        "https://files.example.com/in%2525box/",
         "https://files.example.com:port/",
     ],
 )
@@ -361,6 +387,44 @@ async def test_a_declared_length_that_lies_is_cut_off_all_the_same(
     assert body.read == 6
 
 
+async def test_the_file_is_asked_for_uncompressed(tmp_path: Path) -> None:
+    api, other = lexware(), served()
+
+    await server(api, other, INBOX, tmp_path=tmp_path).call_tool(
+        "upload_file", {"source": LINK}
+    )
+
+    assert other.last.headers["accept-encoding"] == "identity"
+    assert api.requests
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate", "br", "GZIP"])
+async def test_a_compressed_response_is_refused_unread(
+    encoding: str, tmp_path: Path
+) -> None:
+    """One raw chunk of gzip inflates before the ceiling can count it."""
+    body = Trickle(gzip.compress(PDF))
+    api = lexware()
+    other = streamed(body, {"Content-Encoding": encoding})
+
+    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
+
+    assert "came compressed" in message
+    assert body.read == 0
+    assert api.requests == []
+
+
+async def test_a_response_that_says_identity_is_taken(tmp_path: Path) -> None:
+    api = lexware()
+    other = served(headers={"Content-Encoding": "identity"})
+
+    await server(api, other, INBOX, tmp_path=tmp_path).call_tool(
+        "upload_file", {"source": LINK}
+    )
+
+    assert api.requests
+
+
 async def test_a_body_of_exactly_five_mebibytes_without_a_length_is_sent(
     tmp_path: Path,
 ) -> None:
@@ -386,6 +450,25 @@ async def test_a_type_the_api_does_not_take_is_refused(
 
     assert "The API does not accept" in message
     assert api.requests == []
+
+
+async def test_an_empty_body_is_refused_before_the_upload(tmp_path: Path) -> None:
+    api = lexware()
+
+    message = await refused(server(api, served(b""), INBOX, tmp_path=tmp_path), LINK)
+
+    assert "The file from files.example.com is empty" in message
+    assert api.requests == []
+
+
+async def test_a_type_is_quoted_back_only_so_far(tmp_path: Path) -> None:
+    """The header is the other server's to fill, the answer the model's."""
+    other = served(content_type="application/" + "x" * 10_000)
+
+    message = await refused(server(lexware(), other, INBOX, tmp_path=tmp_path), LINK)
+
+    assert f"application/{'x' * 48} (cut short). It takes" in message
+    assert len(message) < 200
 
 
 @pytest.mark.parametrize(
@@ -557,6 +640,26 @@ async def test_the_key_goes_to_lexware_and_never_to_the_other_server(
     assert api.last.headers["authorization"] == f"Bearer {API_KEY}"
 
 
+@pytest.mark.parametrize(
+    ("host", "proxied"),
+    [
+        ("127.0.0.1", False),
+        ("::1", False),
+        ("localhost", False),
+        ("files.example.com", True),
+    ],
+)
+async def test_a_proxy_is_used_for_every_host_but_this_machines(
+    host: str, proxied: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """httpx sends a loopback address to the proxy unless told otherwise."""
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+
+    async with fetch._client(host, None) as client:
+        assert client.trust_env is proxied
+
+
 async def test_a_timeout_says_so(tmp_path: Path) -> None:
     api = lexware()
     other = Scripted(repeat=httpx.ReadTimeout("slow"))
@@ -577,7 +680,7 @@ async def test_the_time_limit_holds_for_the_whole_fetch(
 
     message = await refused(server(api, streamed(body), INBOX, tmp_path=tmp_path), LINK)
 
-    assert "longer than 30 seconds" in message
+    assert "longer than 0.2 seconds" in message
     assert body.read < 50
     assert api.requests == []
 
@@ -641,6 +744,33 @@ async def test_a_url_outside_the_setting_leaves_no_host_in_the_log(
     ) in lines.text
     assert "upload_file refused: ValidationError" in lines.text
     assert "mustermann" not in lines.text
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://files.example.com/inbox/a.pdf\r\nX-Injected: 1",
+        "https://xn--zz.files.example.com/inbox/a.pdf",
+        "https://files.example.com:99999/inbox/a.pdf",
+        "https://[files.example.com/inbox/a.pdf",
+    ],
+    ids=["line break", "punycode", "port", "bracket"],
+)
+async def test_what_is_no_url_is_refused_with_a_line_and_no_request(
+    url: str, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    lines = capture_lines(caplog, "DEBUG")
+    api, other = lexware(), served()
+
+    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), url)
+
+    assert message.endswith(": This is not a URL that can be fetched.")
+    assert (
+        "Refused to fetch an upload over https: not a URL that can be fetched, "
+        "nothing was requested"
+    ) in lines.text
+    assert "files.example.com" not in lines.text
+    assert other.requests == []
 
 
 async def test_without_the_setting_the_log_says_that_is_why(

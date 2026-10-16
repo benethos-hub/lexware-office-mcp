@@ -56,6 +56,17 @@ def test_an_encoded_filename_cannot_smuggle_a_path_either() -> None:
     assert name == "passwd"
 
 
+@pytest.mark.parametrize("charset", ["x-unknown", "idna"])
+def test_a_charset_that_cannot_decode_the_name_reads_it_as_utf_8(
+    charset: str,
+) -> None:
+    """``idna`` is a codec Python knows, and one that refuses to replace."""
+    name = storage.suggested_name(
+        response_with(f"attachment; filename*={charset}''a%20b.pdf"), "f.pdf"
+    )
+    assert name == "a_b.pdf"
+
+
 def test_a_filename_that_is_a_path_is_reduced_to_its_last_part() -> None:
     """Content-Disposition is written by the server, so it is untrusted."""
     name = storage.suggested_name(

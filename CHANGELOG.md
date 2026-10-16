@@ -30,15 +30,17 @@ housekeeping are out of scope here — design decisions live in
   comma separated, and without that setting no URL is fetched. A link
   outside it is refused before anything is sent, no redirect is followed,
   the fetch gets 30 seconds, the file is cut off at 5 MiB whether its size
-  was declared or not, and its type has to be one the API takes. A file
-  served as `application/octet-stream` or without a type, as a mail
-  attachment often is, is known by its first bytes instead. The
+  was declared or not, and is asked for uncompressed, a response that
+  compressed it anyway refused unread. Its type has to be one the API
+  takes. A file served as `application/octet-stream` or without a type, as
+  a mail attachment often is, is known by its first bytes instead. The
   Lexware key is never sent along, and the log names the scheme and the
   host of a link and nothing after them. A link outside the setting is a
   log line by its scheme alone, since the model chose its host. `http://`
   is taken for `127.0.0.1`, `::1` and `localhost` alone: any other host
-  stops the start. A field on the settings page, beside the upload
-  directory.
+  stops the start. Those three are fetched directly, past a proxy
+  `HTTP_PROXY` names, which is used for every other host. A field on the
+  settings page, beside the upload directory.
 
 ### Changed
 
@@ -51,6 +53,10 @@ housekeeping are out of scope here — design decisions live in
   fixes for quoted user directories on Linux and a buffer freed on a
   failed lookup on Windows. An installation from the index resolved it
   already. The configuration is found in the same directories.
+- **An empty file is refused before it is uploaded**, read from disk or
+  fetched. It is no receipt whatever the API makes of it, and a request
+  was spent on it. The answer says the file is empty and that nothing was
+  sent.
 
 ### Fixed
 
@@ -60,6 +66,12 @@ housekeeping are out of scope here — design decisions live in
   in the configuration interface was announced to zero clients. It now
   remembers the connection, which lasts as long as the client does, and
   keeps one from a call as well as from a listing.
+- **A file name in a charset that cannot be decoded with replacement no
+  longer ends the call in a bare error.** A `Content-Disposition` naming
+  `idna`, which Python knows and which refuses to replace a byte, failed
+  a download and a fetched upload with a message that named only the
+  tool. The name is read as UTF-8 then, as it is for a charset Python
+  does not know.
 
 ## [0.5.4] - 2026-10-15
 

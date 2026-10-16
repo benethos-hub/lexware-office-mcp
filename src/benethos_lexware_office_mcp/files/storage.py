@@ -201,13 +201,18 @@ def _header_name(header: str) -> str:
     reached the disk as `Rechnung_20M_C3_A4rz`. A charset Python does not
     know is read as UTF-8, and a byte that is no character in it is
     replaced, which the sanitizing then replaces again.
+
+    A charset Python knows but cannot decode with replacement is read as
+    UTF-8 too: ``idna`` is a codec, and raises ``UnicodeError`` rather than
+    replace a byte. The header comes from another server, so it may name
+    anything.
     """
     star = _FILENAME_STAR.search(header)
     if star:
         charset, encoded = star.group(1), star.group(2).strip()
         try:
             return unquote(encoded, encoding=charset, errors="replace")
-        except LookupError:
+        except (LookupError, UnicodeError):
             return unquote(encoded, errors="replace")
     plain = _FILENAME.search(header)
     return plain.group(1) if plain else ""
@@ -379,11 +384,14 @@ class Upload(NamedTuple):
 
 def too_large(label: str, size: int | None = None) -> ValidationError:
     """The refusal of a file above the ceiling, measured or only known to be."""
+    ceiling = f"{MAX_UPLOAD / 1024 / 1024:g} MiB"
     measured = (
-        "is larger than 5 MiB" if size is None else f"is {size / 1024 / 1024:.1f} MiB"
+        f"is larger than {ceiling}"
+        if size is None
+        else f"is {size / 1024 / 1024:.1f} MiB"
     )
     return ValidationError(
-        f"{label} {measured}. The API accepts at most 5 MiB, so this was not sent."
+        f"{label} {measured}. The API accepts at most {ceiling}, so this was not sent."
     )
 
 
@@ -398,14 +406,17 @@ def not_accepted(found: str) -> ValidationError:
 def accepted(content: bytes, name: str, content_type: str, *, label: str) -> Upload:
     """The one check every upload passes, wherever its bytes came from.
 
-    The size, the type, and a name whose extension says that type: the API
-    is sent a file as what it is called, and a PNG named `.pdf` is refused
-    by it only after it has arrived. Each source checks what it can earlier
+    Something at all, the size, the type, and a name whose extension says
+    that type. An empty file is no receipt whatever the API makes of it.
+    The API is sent a file as what it is called, and a PNG named `.pdf` is
+    refused by it only after it has arrived. Each source checks what it can earlier
     as well - a file's size before it is read, a response's before it is
     streamed - so nothing is read that this would refuse, but this is the
     check that holds, written once. ``label`` is what a refusal calls the
     file: its name, or where it was fetched from.
     """
+    if not content:
+        raise ValidationError(f"{label} is empty, so it was not sent.")
     if len(content) > MAX_UPLOAD:
         raise too_large(label, len(content))
     if content_type not in _EXTENSION:
