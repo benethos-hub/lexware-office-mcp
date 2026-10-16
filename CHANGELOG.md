@@ -13,6 +13,16 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-16
+
+A minor release, because an installation can trip over it: the two
+upload tools take `source` instead of `path`, and a client that passes
+`path` by name is refused until it lists the tools again. New: an
+upload fetched from a URL another server issued, under the addresses
+`LXO_MCP_UPLOAD_URLS` allows, and a client told when a download was
+added. The tool list notification reaches clients again, one of the
+2026-07-28 protocol included.
+
 ### Added
 
 - **A client is told when a download was added.** The server announces
@@ -1556,7 +1566,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.1...v0.5.2
