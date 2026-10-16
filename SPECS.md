@@ -1596,10 +1596,22 @@ and cut off at 5 MiB whether a length was declared or not, so a missing or
 false header changes nothing, and counted after decoding, so a compressed
 body cannot unpack into more. The `Content-Type` has to be one of the four
 the API takes, read without its parameters, and `text/xml` counts as
-`application/xml`, which RFC 7303 says it is. Anything else is refused,
-`application/octet-stream` among it: the type is taken from the response
-and not guessed from the bytes, the way a file on disk is taken by its
-extension.
+`application/xml`, which RFC 7303 says it is. Any other type is refused
+before the body is read.
+
+**A response that says only "bytes" is known by its first bytes**, decided
+2026-10-16. That is `application/octet-stream`, `binary/octet-stream` or no
+`Content-Type` at all. A mail program often attaches a PDF that way, a
+mailbox server hands on what the sender declared, and a file store serves
+whatever it holds as bytes, so refusing it refused the commonest receipt
+there is. The body is then read under the same ceiling, and its start has to
+be one of the four: `%PDF-`, the PNG and JPEG signatures, or `<?xml` with or
+without a byte order mark. Anything else is refused without a word of what it
+was. A type the response did declare is never second-guessed: a PDF served
+as `text/html` is still refused, since one of the two is wrong and the
+response said which it meant. The first bytes say what a file claims to be,
+not that it is whole, and the API refuses a broken one as it would from
+disk.
 
 **The name.** From `Content-Disposition`, else the last part of the URL's
 path, else `receipt`, each sanitized as a download's name is, because a

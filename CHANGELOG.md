@@ -30,7 +30,9 @@ housekeeping are out of scope here — design decisions live in
   comma separated, and without that setting no URL is fetched. A link
   outside it is refused before anything is sent, no redirect is followed,
   the fetch gets 30 seconds, the file is cut off at 5 MiB whether its size
-  was declared or not, and its type has to be one the API takes. The
+  was declared or not, and its type has to be one the API takes. A file
+  served as `application/octet-stream` or without a type, as a mail
+  attachment often is, is known by its first bytes instead. The
   Lexware key is never sent along, and the log names the scheme and the
   host of a link and nothing after them. A link outside the setting is a
   log line by its scheme alone, since the model chose its host. `http://`

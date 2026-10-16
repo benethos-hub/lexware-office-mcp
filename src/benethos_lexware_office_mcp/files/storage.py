@@ -342,9 +342,11 @@ def content_type_for(path: Path) -> str:
 # and parsed as an XRechnung — a file that is not one comes back as
 # `invalid_xrechnung`. The web app states the same four types.
 #
-# The type is guessed from the extension rather than sniffed. The API
+# A file on disk is typed by its extension rather than sniffed. The API
 # validates the content anyway and rejects a mislabelled or damaged file, so a
-# second opinion here would only be a second way to be wrong.
+# second opinion here would only be a second way to be wrong. A fetched file
+# that arrives saying only "bytes" has no other evidence, and is the one case
+# its first bytes decide, see `fetch._sniffed`.
 #
 # A subset of CONTENT_TYPES, taken from it rather than spelled again: an
 # extension has one content type here, whether it arrives or leaves.
@@ -410,7 +412,7 @@ def accepted(content: bytes, name: str, content_type: str, *, label: str) -> Upl
         raise not_accepted(content_type or "a file without a content type")
     if UPLOAD_TYPES.get(PurePosixPath(name).suffix.lower()) != content_type:
         raise ValidationError(
-            f"{name} was served as {content_type}, which its extension does not "
+            f"{name} arrived as {content_type}, which its extension does not "
             "say, so it was not sent."
         )
     return Upload(content, name, content_type)
