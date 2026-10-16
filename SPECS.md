@@ -1692,20 +1692,21 @@ rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
 **Annotations, and why they cost what they cost.** Every tool carries the MCP
 hints, derived in `tools/_base.py` from what `@classify` already recorded
 rather than written out per tool: a tool cannot then say one thing to the
-policy file and another to a client. `read_only_hint` follows `access`,
-which makes it true for `download_document` and `download_file` although
-both save a file. The protocol defines the hint as "does not modify its
-environment", and the only change they make is a new file in the download
-directory: nothing in Lexware, never an overwrite, and nowhere but the
-directory the settings name. Deriving the hint from somewhere else would
-mark the two as writing in the `read-only` preset they belong to, so the
-derivation stays and this sentence is the record of the decision.
-`destructive_hint` is false for a create, which only adds, and true for an
-update or a delete - this API replaces a record rather than patching it.
-`idempotent_hint` is the same distinction seen from the other side: a second
-create is a second record, since there is no idempotency key (question 2,
-section 16), while a repeated update spends a version it no longer has and a
-repeated delete finds nothing left, so neither changes the books twice.
+policy file and another to a client. `read_only_hint` follows `access`, which
+makes it true for `download_document` and `download_file` although both save
+a file. The protocol defines the hint as "does not modify its environment",
+and the only changes they make are a new file in the download directory and,
+in the default cache, the oldest downloads deleted past the bound of section
+13: nothing in Lexware, never an overwrite, and nowhere but the directory the
+settings name. Deriving the hint from somewhere else would mark the two as
+writing in the `read-only` preset they belong to, so the derivation stays and
+this sentence is the record of the decision. `destructive_hint` is false for
+a create, which only adds, and true for an update or a delete - this API
+replaces a record rather than patching it. `idempotent_hint` is the same
+distinction seen from the other side: a second create is a second record,
+since there is no idempotency key (question 2, section 16), while a repeated
+update spends a version it no longer has and a repeated delete finds nothing
+left, so neither changes the books twice.
 
 `open_world_hint` is the one stated only where it differs from the protocol's
 assumption, which is `get_deeplink` and `read_download` - the two tools that
