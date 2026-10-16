@@ -1557,7 +1557,13 @@ not `/inboxes/a.pdf`. A URL with a user name before its host is covered by
 nothing, and neither is one whose path steps up with `..`, written plainly
 or percent-encoded, nor one with a backslash after decoding - a server that
 decodes before it routes would be reading another path than the one
-checked. All of it is decided before a connection is opened, so a URL
+checked. For the same reason `..;` is refused, which a server in the Tomcat
+tradition reads as `..` once it has dropped the parameter, and so is a `%`
+still there after one decoding, which a server that decodes twice reads
+again: `%252e%252e` is `..` to it. Added in the review of 2026-10-16. The
+prefixes are held to the same rule, `settings.plain_path`, so a prefix no
+URL could be plain under stops the start rather than matching nothing.
+All of it is decided before a connection is opened, so a URL
 outside the list is refused without a word about what is out there.
 
 **A prefix, not a pattern.** There is no wildcard, for the host or anywhere

@@ -37,13 +37,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from urllib.parse import SplitResult, unquote, urlsplit
+from urllib.parse import SplitResult, urlsplit
 
 import httpx
 
 from .. import __version__, logbook
 from ..errors import ToolError, UpstreamError, ValidationError
-from ..settings import LOOPBACK_NAMES, Settings
+from ..settings import LOOPBACK_NAMES, Settings, plain_path
 from . import storage
 
 __all__ = ["TIMEOUT", "is_url", "upload_from"]
@@ -216,8 +216,8 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
     ``https://files.example.com.elsewhere.net`` as well. The scheme, the
     host and the port have to be the prefix's own - no port means the
     scheme's - and the path has to be the prefix's or lie below it. A path
-    that steps up with ``..``, written plainly or percent-encoded, is under
-    no prefix, whatever it starts with.
+    that is not plain, see :func:`.settings.plain_path`, is under no
+    prefix, whatever it starts with.
 
     A URL is read the way httpx will read it to send it, too, so what httpx
     would refuse - a line break, a host that is no valid punycode - is
@@ -239,7 +239,7 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
         # By the scheme alone, as below: `is_url` held it to http or https.
         logbook.files.not_a_url(url.split(":", 1)[0].lower())
         raise ValidationError(_NOT_A_URL) from None
-    if target.hostname and "@" not in target.netloc and _plain(target.path):
+    if target.hostname and "@" not in target.netloc and plain_path(target.path):
         for prefix in allowed:
             base = urlsplit(prefix)
             if (target.scheme, target.hostname, port) == (
@@ -260,14 +260,6 @@ def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:
 
 def _port(parts: SplitResult) -> int:
     return parts.port or _DEFAULT_PORTS.get(parts.scheme, 0)
-
-
-def _plain(path: str) -> bool:
-    """Whether ``path`` stays where it says, decoded as a server might decode it."""
-    decoded = unquote(path)
-    return "\\" not in decoded and not any(
-        segment in (".", "..") for segment in decoded.split("/")
-    )
 
 
 def _under(path: str, base: str) -> bool:

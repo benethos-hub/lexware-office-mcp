@@ -23,6 +23,7 @@ from .parse import (
     csv_tuple,
     flag,
     https_url,
+    plain_path,
     url_prefixes,
     user_path,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "TRANSPORTS",
     "Settings",
     "load_settings",
+    "plain_path",
 ]
 
 LOG_LEVELS: tuple[str, ...] = (

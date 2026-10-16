@@ -145,6 +145,9 @@ async def test_a_url_under_an_allowed_prefix_is_fetched_and_uploaded(
         "https://files.example.com/inbox/%2e%2e/admin/9f3c",
         "https://files.example.com/inbox/..%2Fadmin",
         "https://files.example.com@elsewhere.net/inbox/9f3c",
+        "https://files.example.com/inbox/..;/admin/9f3c",
+        "https://files.example.com/inbox/%252e%252e/admin/9f3c",
+        "https://files.example.com/inbox/%5c..%5cadmin",
     ],
     ids=[
         "host",
@@ -156,6 +159,9 @@ async def test_a_url_under_an_allowed_prefix_is_fetched_and_uploaded(
         "encoded dots",
         "encoded slash",
         "user name",
+        "dots with a parameter",
+        "dots encoded twice",
+        "backslash",
     ],
 )
 async def test_a_url_outside_every_prefix_is_refused_before_a_request(
@@ -168,6 +174,22 @@ async def test_a_url_outside_every_prefix_is_refused_before_a_request(
     assert "outside the addresses" in message
     assert other.requests == []
     assert api.requests == []
+
+
+async def test_a_parameter_or_an_escape_that_steps_nowhere_is_fetched(
+    tmp_path: Path,
+) -> None:
+    """Only what a server could read as another place is refused."""
+    api, other = lexware(), served()
+    built = server(api, other, INBOX, tmp_path=tmp_path)
+
+    for url in (
+        f"{INBOX}a.pdf;jsessionid=1",
+        f"{INBOX}Rechnung%20M%C3%A4rz.pdf",
+    ):
+        await built.call_tool("upload_file", {"source": url})
+
+    assert len(other.requests) == 2
 
 
 async def test_a_prefix_without_a_slash_covers_its_segment_and_no_other(
@@ -246,6 +268,9 @@ def test_http_for_any_other_host_stops_the_start() -> None:
         "https://files.example.com/?sig=1",
         "https://files.example.com/#top",
         "https://files.example.com/inbox/../",
+        "https://files.example.com/inbox/%2e%2e/",
+        "https://files.example.com/inbox/..;x/",
+        "https://files.example.com/in%2525box/",
         "https://files.example.com:port/",
     ],
 )

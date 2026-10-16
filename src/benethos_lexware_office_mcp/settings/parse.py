@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from ..errors import ConfigError
 
@@ -19,6 +19,7 @@ __all__ = [
     "csv_tuple",
     "flag",
     "https_url",
+    "plain_path",
     "url_prefixes",
     "user_path",
 ]
@@ -108,8 +109,9 @@ def url_prefixes(
     Each is a scheme, a host, and optionally a port and the start of a path.
     Nothing else: a query or a fragment is no part of an address, and a user
     name before the host is the oldest way to make one URL read as another.
-    A ``.`` or ``..`` segment is refused too, since a prefix that climbs out
-    of its own path names some other one.
+    A path that is not plain is refused too, see :func:`plain_path`: a
+    prefix that climbs out of its own path names some other one, and one
+    that no URL can be plain under would match nothing.
 
     ``https://`` is the rule. ``http://`` carries the file in the clear, so
     it is taken for a service on this machine alone, a host in ``loopback``,
@@ -136,7 +138,7 @@ def url_prefixes(
             or "@" in parsed.netloc
             or "?" in entry
             or "#" in entry
-            or any(segment in (".", "..") for segment in parsed.path.split("/"))
+            or not plain_path(parsed.path)
         ):
             raise refused
         if parsed.scheme == "http" and host not in loopback:
@@ -147,6 +149,25 @@ def url_prefixes(
             )
         prefixes.append(entry)
     return tuple(prefixes)
+
+
+def plain_path(path: str) -> bool:
+    """Whether a URL's ``path`` names the place it seems to, however it is read.
+
+    The one rule for an upload's URL and for the prefixes that allow it.
+    Decoded once, as every server decodes it: no backslash, which some read
+    as a separator, and no ``.`` or ``..`` segment, which steps sideways or
+    up. A segment's ``;`` parameters are left out of that comparison, since
+    a server in the Tomcat tradition drops them before it normalises, and
+    ``..;`` steps up there. And no ``%`` left after the one decoding, since
+    a server that decodes twice reads ``%252e%252e`` as ``..``.
+    """
+    decoded = unquote(path)
+    if "\\" in decoded or "%" in decoded:
+        return False
+    return not any(
+        segment.split(";")[0] in (".", "..") for segment in decoded.split("/")
+    )
 
 
 def user_path(raw: str | None, *, name: str) -> Path | None:
