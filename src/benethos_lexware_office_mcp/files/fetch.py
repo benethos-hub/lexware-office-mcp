@@ -18,6 +18,7 @@ talking to. The rules, in the order they apply:
 - the address is checked against the setting before anything is sent, so a
   URL outside it is refused without a word about what is out there
 - no redirect is followed: one leads off the address that was allowed
+- a proxy the environment names is used for every host but this machine's
 - 30 seconds for the whole of it, connecting and reading together
 - a ``Content-Length`` above 5 MiB is refused before the body is read, and
   the body is cut off at 5 MiB whether one was sent or not
@@ -40,7 +41,7 @@ import httpx
 
 from .. import __version__, logbook
 from ..errors import ToolError, UpstreamError, ValidationError
-from ..settings import Settings
+from ..settings import LOOPBACK_NAMES, Settings
 from . import storage
 
 __all__ = ["TIMEOUT", "is_url", "upload_from"]
@@ -138,12 +139,7 @@ async def _get(
     """The response, refused at the first rule it breaks, body read last."""
     label = f"The file from {host}"
     async with (
-        httpx.AsyncClient(
-            transport=transport,
-            timeout=TIMEOUT,
-            follow_redirects=False,
-            headers={"User-Agent": f"benethos-lexware-office-mcp/{__version__}"},
-        ) as client,
+        _client(host, transport) as client,
         client.stream("GET", url) as response,
     ):
         # Nothing of the body is read before these, and none of it is ever
@@ -172,6 +168,24 @@ async def _get(
             response.headers.get("content-disposition", ""), path, content_type
         )
     return storage.accepted(content, name, content_type, label=label)
+
+
+def _client(host: str, transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
+    """The client one fetch from ``host`` is made with.
+
+    The environment's proxy is honoured for any host but this machine's.
+    httpx makes no exception for loopback of its own, so with ``HTTP_PROXY``
+    set a link to ``127.0.0.1`` went to the proxy, which cannot reach a
+    service on this machine and was handed the link, key and all. Every
+    other host is fetched as the environment says, as Lexware is.
+    """
+    return httpx.AsyncClient(
+        transport=transport,
+        timeout=TIMEOUT,
+        follow_redirects=False,
+        trust_env=host not in LOOPBACK_NAMES,
+        headers={"User-Agent": f"benethos-lexware-office-mcp/{__version__}"},
+    )
 
 
 def _within(url: str, allowed: tuple[str, ...]) -> SplitResult:

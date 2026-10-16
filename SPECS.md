@@ -1588,6 +1588,14 @@ together, fixed rather than a setting: `LXO_MCP_TIMEOUT` bounds each request
 to Lexware, and a server sending a byte now and then would never trip a
 per-read limit.
 
+**A proxy is for other hosts.** A proxy the environment names, through
+`HTTP_PROXY` or `HTTPS_PROXY`, is used for a fetch as it is for Lexware,
+except from `127.0.0.1`, `::1` and `localhost`, which are fetched directly.
+httpx makes no such exception of its own, so behind a corporate proxy or in
+a container that sets one, a link to a service on this machine went to the
+proxy: it cannot reach that service, and it was handed the link with its
+key. Found in the review of 2026-10-16.
+
 **The response is held to what the API takes before it is read.** A status
 other than 200 is refused by its number, and the page that came with it is
 never passed on: an error page is the other service's business. A

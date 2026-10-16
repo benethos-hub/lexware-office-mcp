@@ -37,7 +37,8 @@ housekeeping are out of scope here — design decisions live in
   host of a link and nothing after them. A link outside the setting is a
   log line by its scheme alone, since the model chose its host. `http://`
   is taken for `127.0.0.1`, `::1` and `localhost` alone: any other host
-  stops the start. A field on the settings page, beside the upload
+  stops the start. Those three are fetched directly, past a proxy
+  `HTTP_PROXY` names, which is used for every other host. A field on the settings page, beside the upload
   directory.
 
 ### Changed

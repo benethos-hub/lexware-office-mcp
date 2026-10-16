@@ -557,6 +557,26 @@ async def test_the_key_goes_to_lexware_and_never_to_the_other_server(
     assert api.last.headers["authorization"] == f"Bearer {API_KEY}"
 
 
+@pytest.mark.parametrize(
+    ("host", "proxied"),
+    [
+        ("127.0.0.1", False),
+        ("::1", False),
+        ("localhost", False),
+        ("files.example.com", True),
+    ],
+)
+async def test_a_proxy_is_used_for_every_host_but_this_machines(
+    host: str, proxied: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """httpx sends a loopback address to the proxy unless told otherwise."""
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+
+    async with fetch._client(host, None) as client:
+        assert client.trust_env is proxied
+
+
 async def test_a_timeout_says_so(tmp_path: Path) -> None:
     api = lexware()
     other = Scripted(repeat=httpx.ReadTimeout("slow"))
