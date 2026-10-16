@@ -320,6 +320,23 @@ def test_every_gating_tool_is_a_tool() -> None:
     assert set(resources.GATING_TOOLS) <= set(known_tools())
 
 
+def test_the_names_are_the_list_in_its_order(tmp_path: Path) -> None:
+    """What the watcher compares is exactly what the list would answer."""
+    for name, age in (("old.pdf", 30), ("new.pdf", 10), ("middle.xml", 20)):
+        path = tmp_path / name
+        path.write_bytes(b"x")
+        stamp = path.stat().st_mtime - age
+        os.utime(path, (stamp, stamp))
+
+    assert resources.names(tmp_path, 2) == ("new.pdf", "middle.xml")
+    assert resources.names(tmp_path, 2) == tuple(
+        r.name for r in resources.listed(tmp_path, 2)
+    )
+    assert resources.names(tmp_path, 0) == ()
+    assert resources.names(None, 2) == ()
+    assert resources.names(tmp_path / "absent", 2) == ()
+
+
 def test_a_listed_download_carries_its_size_and_one_name(tmp_path: Path) -> None:
     """`size` lets a client weigh a file before reading it.
 

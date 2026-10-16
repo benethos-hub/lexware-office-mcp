@@ -19,12 +19,12 @@ import weakref
 from pathlib import Path
 from typing import Any
 
+from mcp.server.connection import Connection
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
-from mcp.server.session import ServerSession
-from mcp.types import Icon, Resource, Tool
+from mcp.types import CallToolResult, Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook
@@ -34,6 +34,22 @@ from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .tools import register_tools
+
+
+def _links_a_download(result: Any) -> bool:
+    """Whether a tool's answer carries a link to a download of this server.
+
+    The download tools answer with one and nothing else does. The answer
+    decides rather than the tool's name, so a tool added later that saves a
+    file is covered by the shape of what it returns.
+    """
+    if not isinstance(result, CallToolResult):
+        return False
+    return any(
+        block.type == "resource_link" and resources.name_of(str(block.uri)) is not None
+        for block in result.content
+    )
+
 
 # How often the watcher looks at the policy file. Short enough that a change
 # made in the browser feels immediate, long enough that reading a few hundred
@@ -113,6 +129,17 @@ class PolicyServer(MCPServer):
     actually differs. Whether a given client acts on it is the client's
     business - enforcement never relies on it, because the file is read again
     on every call.
+
+    The downloads it offers as resources are announced the same way:
+    ``resources.listChanged`` is promised beside it, and every client is
+    told after a tool answered with a link to a download, and by the same
+    watcher when the directory moved under another hand, since the process
+    that downloaded is not always the one that lists.
+
+    What is told is the **connection**, never the session a request
+    arrived on: the SDK builds a ``ServerSession`` for each request and
+    lets it go with the answer, so a set of sessions is empty by the time
+    there is something to say. Measured 2026-10-16, see section 9.2.
     """
 
     def __init__(
@@ -132,21 +159,23 @@ class PolicyServer(MCPServer):
         self._downloads = downloads
         self._listed_downloads = listed_downloads
         self._kept_downloads = kept_downloads
-        # Held weakly: a session that ended is gone from here with it. Over
-        # streamable HTTP every client that lists tools opens one, and a
-        # plain set kept each until a policy change failed to reach it.
-        self._sessions: weakref.WeakSet[ServerSession] = weakref.WeakSet()
+        # Held weakly: a connection that ended is gone from here with it.
+        # Over streamable HTTP every client opens one, and a plain set kept
+        # each until a policy change failed to reach it.
+        self._connections: weakref.WeakSet[Connection] = weakref.WeakSet()
         self._watcher: asyncio.Task[None] | None = None
         self._seen: dict[str, bool] | None = None
+        self._seen_downloads: tuple[str, ...] = ()
         # Bound once, here, rather than per transport: `run_stdio_async` and
         # its two HTTP siblings all call this same method with no arguments,
         # and its default leaves every listChanged flag false. Announcing the
         # capability is what makes the notification mean anything - a client
-        # is entitled to ignore one it was never promised.
+        # is entitled to ignore one it was never promised. Prompts are the
+        # one list that never changes.
         low = self._lowlevel_server
         low.create_initialization_options = functools.partial(  # type: ignore[method-assign]
             low.create_initialization_options,
-            NotificationOptions(tools_changed=True),
+            NotificationOptions(tools_changed=True, resources_changed=True),
         )
 
     async def list_tools(self) -> list[Tool]:
@@ -199,7 +228,7 @@ class PolicyServer(MCPServer):
                 "was sent. The tool list says which arguments it takes."
             )
         try:
-            return await super().call_tool(name, arguments, context)
+            result = await super().call_tool(name, arguments, context)
         except SDKToolError as exc:
             cause = exc.__cause__
             if isinstance(cause, ArgumentError):
@@ -208,6 +237,9 @@ class PolicyServer(MCPServer):
                 )
                 logbook.calls.arguments_refused(name, fields)
             raise
+        if _links_a_download(result):
+            await self._downloads_changed()
+        return result
 
     async def _unknown_arguments(
         self, name: str, arguments: dict[str, Any]
@@ -265,59 +297,127 @@ class PolicyServer(MCPServer):
         return await super().read_resource(uri, context)
 
     async def _handle_list_tools(self, ctx: Any, params: Any) -> Any:
-        """Answer the request, and keep the session it arrived on.
+        """Answer the request, and keep the connection it arrived on.
 
-        The private hook rather than `list_tools`, because this is the only
-        place the session is offered for a listing: `_handle_list_tools`
-        receives the request context and calls `list_tools()` without it.
+        The private hooks rather than `list_tools` and its siblings,
+        because they are the only place the request context is offered:
+        `_handle_list_tools` receives it and calls `list_tools()` without
+        it.
         """
-        self._sessions.add(ctx.session)
-        self._start_watching()
+        self._keep(ctx)
         return await super()._handle_list_tools(ctx, params)
+
+    async def _handle_list_resources(self, ctx: Any, params: Any) -> Any:
+        """Answer the request, and keep this connection as well.
+
+        A client that listed the downloads is one to tell when the next is
+        added, whichever process adds it.
+        """
+        self._keep(ctx)
+        return await super()._handle_list_resources(ctx, params)
+
+    async def _handle_call_tool(self, ctx: Any, params: Any) -> Any:
+        """Answer the call, and keep this connection too.
+
+        A client may call without ever having listed: Claude Desktop runs
+        a second process for its calls, seen 2026-10-16, and that one is
+        told through here or not at all.
+        """
+        self._keep(ctx)
+        return await super()._handle_call_tool(ctx, params)
+
+    def _keep(self, ctx: Any) -> None:
+        """Remember the connection behind a request, and start watching.
+
+        The connection and not `ctx.session`: the SDK builds that session
+        for the one request and lets it go with the answer, so a weak set
+        of sessions was empty whenever there was something to tell -
+        every notification went to zero sessions, measured 2026-10-16
+        over stdio. The connection underneath is the client, and its own
+        channel is where a notification outside any request goes. The
+        attribute is the SDK's private one, so `tests/test_list_changed.py`
+        drives a real client through the SDK and holds it to that.
+        """
+        self._connections.add(ctx.session._connection)
+        self._start_watching()
 
     def _start_watching(self) -> None:
         """Begin polling, once there is somebody to tell.
 
-        Deliberately not started at construction. Without a session there is
+        Deliberately not started at construction. Without a client there is
         nobody to notify, and a task that outlives every test in a suite that
         never connects a client is a nuisance nobody asked for.
         """
         if self._watcher is not None and not self._watcher.done():
             return
         self._seen = self._policy.as_map()
+        self._seen_downloads = self._download_names()
         self._watcher = asyncio.create_task(self._watch())
 
+    def _download_names(self) -> tuple[str, ...]:
+        """The download list as the watcher remembers it: names, in order."""
+        if not self._resources_enabled():
+            return ()
+        return resources.names(self._downloads, self._listed_downloads)
+
     async def _watch(self) -> None:
-        """Notice a changed tool list and say so.
+        """Notice a changed tool list or download list and say so.
 
         **The comparison is the visible set, not the file.** The
         configuration interface rewrites the whole policy file on every save,
         so watching its timestamp would announce a change on every click that
-        changed nothing.
+        changed nothing. The download list is compared by the names it
+        would answer with, which is one scan of the directory and no stat
+        beyond what the list itself takes.
         """
         while True:
             await asyncio.sleep(POLICY_POLL_SECONDS)
             current = self._policy.as_map()
-            if current == self._seen:
-                continue
-            self._seen = current
-            await self._announce()
+            if current != self._seen:
+                self._seen = current
+                await self._announce()
+            if self._download_names() != self._seen_downloads:
+                await self._downloads_changed()
 
     async def _announce(self) -> None:
-        """Tell every live session, and forget the ones that are not."""
+        """The tool list is not what it was: tell every live connection."""
+        told = await self._tell("notifications/tools/list_changed")
+        logbook.policy.list_changed(told)
+
+    async def _downloads_changed(self) -> None:
+        """The download list is not what it was: tell every live connection.
+
+        From the call that wrote a download, at once, and from the watcher
+        when the directory moved under another hand: Claude Desktop sends
+        its calls to a second server process, seen 2026-10-16, and the one
+        answering the listing learns of a download only from the disk. The
+        watcher's last sight is refreshed here, so a download told at once
+        is not told again two seconds later.
+        """
+        self._seen_downloads = self._download_names()
+        told = await self._tell("notifications/resources/list_changed")
+        logbook.files.list_changed(told)
+
+    async def _tell(self, method: str) -> int:
+        """Send a notification on every connection, drop the ones that fail.
+
+        On the connection's own channel, which is the one a server speaks
+        on when no request is open: stdout over stdio, the standalone
+        stream over streamable HTTP. Answers how many were told.
+        """
         told = 0
-        for session in list(self._sessions):
+        for connection in list(self._connections):
             try:
-                await session.send_tool_list_changed()
-            except Exception as exc:  # noqa: BLE001 - a dead session is normal
+                await connection.outbound.notify(method, None)
+            except Exception as exc:  # noqa: BLE001 - a dead client is normal
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
                 # the only trace it would leave.
                 logbook.policy.session_dropped(exc)
-                self._sessions.discard(session)
+                self._connections.discard(connection)
             else:
                 told += 1
-        logbook.policy.list_changed(told)
+        return told
 
     async def stop_watching(self) -> None:
         """Cancel the watcher. For tests, which run many servers in one loop.
