@@ -384,11 +384,14 @@ class Upload(NamedTuple):
 
 def too_large(label: str, size: int | None = None) -> ValidationError:
     """The refusal of a file above the ceiling, measured or only known to be."""
+    ceiling = f"{MAX_UPLOAD / 1024 / 1024:g} MiB"
     measured = (
-        "is larger than 5 MiB" if size is None else f"is {size / 1024 / 1024:.1f} MiB"
+        f"is larger than {ceiling}"
+        if size is None
+        else f"is {size / 1024 / 1024:.1f} MiB"
     )
     return ValidationError(
-        f"{label} {measured}. The API accepts at most 5 MiB, so this was not sent."
+        f"{label} {measured}. The API accepts at most {ceiling}, so this was not sent."
     )
 
 

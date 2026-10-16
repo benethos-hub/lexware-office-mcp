@@ -79,17 +79,20 @@ _SIGNATURES = (
 
 
 def is_url(source: str) -> bool:
-    """Whether ``source`` names a URL to fetch rather than a path to read.
+    """Whether ``source`` names a URL to fetch rather than a path to read."""
+    return source.strip().lower().startswith(_SCHEMES)
 
-    A ``file:`` URL is neither, and is refused: it would be a path in
-    disguise, read past ``LXO_MCP_UPLOAD_DIR`` by whatever opened it.
+
+def _refuse_file_url(source: str) -> None:
+    """Refuse a ``file:`` URL, which is neither a URL to fetch nor a path.
+
+    It would be a path in disguise, read past ``LXO_MCP_UPLOAD_DIR`` by
+    whatever opened it.
     """
-    lowered = source.strip().lower()
-    if lowered.startswith("file:"):
+    if source.strip().lower().startswith("file:"):
         raise ValidationError(
             "A file: URL is not fetched. Give the path on this machine itself."
         )
-    return lowered.startswith(_SCHEMES)
 
 
 async def upload_from(
@@ -102,6 +105,7 @@ async def upload_from(
 
     ``transport`` is for the test suite, as the API client's is.
     """
+    _refuse_file_url(source)
     if is_url(source):
         return await fetch(source.strip(), settings.upload_urls, transport=transport)
     return await asyncio.to_thread(storage.read_upload, source, settings.upload_path)
@@ -124,7 +128,9 @@ async def fetch(
         logbook.files.not_fetched(scheme, host, exc)
         raise
     except (TimeoutError, httpx.TimeoutException):
-        error = _failed(f"Fetching the file from {host} took longer than 30 seconds")
+        error = _failed(
+            f"Fetching the file from {host} took longer than {TIMEOUT:g} seconds"
+        )
         error.code = "timeout"
         logbook.files.not_fetched(scheme, host, error)
         raise error from None
@@ -195,7 +201,8 @@ def _client(host: str, transport: httpx.AsyncBaseTransport | None) -> httpx.Asyn
     """
     return httpx.AsyncClient(
         transport=transport,
-        timeout=TIMEOUT,
+        # `fetch` bounds the whole of it with TIMEOUT, so one rule, not two.
+        timeout=None,
         follow_redirects=False,
         trust_env=host not in LOOPBACK_NAMES,
         # Not compressed: httpx inflates a chunk before the ceiling counts

@@ -680,7 +680,7 @@ async def test_the_time_limit_holds_for_the_whole_fetch(
 
     message = await refused(server(api, streamed(body), INBOX, tmp_path=tmp_path), LINK)
 
-    assert "longer than 30 seconds" in message
+    assert "longer than 0.2 seconds" in message
     assert body.read < 50
     assert api.requests == []
 

@@ -142,9 +142,10 @@ def url_prefixes(
         ):
             raise refused
         if parsed.scheme == "http" and host not in loopback:
+            *others, last = sorted(loopback)
             raise ConfigError(
                 f"{name} allows http:// only for a service on this machine - "
-                f"127.0.0.1, ::1 or localhost - since it carries the file "
+                f"{', '.join(others)} or {last} - since it carries the file "
                 f"unencrypted. Use https:// for {host}."
             )
         prefixes.append(entry)
