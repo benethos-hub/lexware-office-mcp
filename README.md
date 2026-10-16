@@ -226,14 +226,15 @@ with `LXO_MCP_DOWNLOAD_DIR` is left alone unless you set it there too, and
 even then only files named the way a download is named are deleted: a
 space, an umlaut or an extension such as `.docx` keeps a file out of it. The
 resource list is read from the directory each time a client asks, names the
-same newest downloads, and survives a restart. What the server does not do
-is announce a *new* download. It tells a client when the tool list changes,
-but sends no list-changed notification for resources, so a client that lists
-once at startup will not see anything fetched later in the session.
+same newest downloads, and survives a restart. A new download is announced
+the way a changed tool list is: the server sends
+`notifications/resources/list_changed`, so a client that listed the
+downloads once can ask again rather than keep the list from the start of
+its session. Whether it does is the client's business.
 
-Between that and Claude Desktop not following resource links at all,
-`read_download` is the route that always works. It takes the same URI and puts
-the content into the answer. What arrives depends on the file:
+Claude Desktop does not follow a resource link at all, so `read_download`
+is the route that always works. It takes the same URI and puts the content
+into the answer. What arrives depends on the file:
 
 | File | Arrives as |
 |---|---|

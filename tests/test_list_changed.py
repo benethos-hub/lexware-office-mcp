@@ -1,4 +1,8 @@
-"""Telling a client that the tool list moved, and only when it did."""
+"""Telling a client that a list moved, and only when it did.
+
+The tool list, when the policy file changed what it allows, and the
+download list, when a tool wrote a download.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +16,7 @@ from benethos_lexware_office_mcp import server as server_module
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
-from helpers import write_policy
+from helpers import FILE_ID, capture_lines, recorder, server_with, write_policy
 
 pytestmark = pytest.mark.anyio
 
@@ -33,12 +37,18 @@ class Session:
 
     def __init__(self, fail: bool = False) -> None:
         self.told = 0
+        self.downloads = 0
         self.fail = fail
 
     async def send_tool_list_changed(self) -> None:
         if self.fail:
             raise RuntimeError("this session is gone")
         self.told += 1
+
+    async def send_resource_list_changed(self) -> None:
+        if self.fail:
+            raise RuntimeError("this session is gone")
+        self.downloads += 1
 
 
 class Ctx:
@@ -74,6 +84,21 @@ async def test_the_capability_is_announced(policy: Path) -> None:
 
     assert options.capabilities.tools is not None
     assert options.capabilities.tools.list_changed is True
+
+
+async def test_the_download_list_is_promised_as_well(policy: Path) -> None:
+    """The same binding, so a client is promised both lists it may ask for.
+
+    Not `subscribe`: a download is never overwritten, so no resource has a
+    content that changes.
+    """
+    server = build_server(Settings(tool_policy_path=policy))
+
+    options = server._lowlevel_server.create_initialization_options()
+
+    assert options.capabilities.resources is not None
+    assert options.capabilities.resources.list_changed is True
+    assert options.capabilities.resources.subscribe is False
 
 
 # -- the watcher ------------------------------------------------------------
@@ -180,6 +205,70 @@ async def test_stopping_never_started_is_harmless(policy: Path) -> None:
     server = build_server(Settings(tool_policy_path=policy))
 
     await server.stop_watching()
+
+
+# -- the download list ------------------------------------------------------
+
+
+async def test_a_download_tells_every_session(tmp_path: Path) -> None:
+    """The server wrote the file, so it is the one that knows the list grew.
+
+    Whoever listed either the tools or the resources is told, and about
+    the download list alone: the tool list did not move.
+    """
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    first, second = Session(), Session()
+    await server._handle_list_tools(Ctx(first), None)
+    await server._handle_list_resources(Ctx(second), None)
+    try:
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+
+        assert (first.downloads, second.downloads) == (1, 1)
+        assert (first.told, second.told) == (0, 0)
+    finally:
+        await server.stop_watching()
+
+
+async def test_reading_a_download_back_tells_nobody(tmp_path: Path) -> None:
+    """Only an answer that links a download has changed the list."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    session = Session()
+    await server._handle_list_tools(Ctx(session), None)
+    try:
+        result = await server.call_tool("download_file", {"file_id": FILE_ID})
+        uri = (result.structured_content or {})["uri"]
+        await server.call_tool("read_download", {"uri": uri})
+
+        assert session.downloads == 1
+    finally:
+        await server.stop_watching()
+
+
+async def test_a_session_gone_by_the_download_is_dropped(tmp_path: Path) -> None:
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    dead, alive = Session(fail=True), Session()
+    await server._handle_list_tools(Ctx(dead), None)
+    await server._handle_list_tools(Ctx(alive), None)
+    try:
+        await server.call_tool("download_file", {"file_id": FILE_ID})
+
+        assert dead not in server._sessions
+        assert alive.downloads == 1
+    finally:
+        await server.stop_watching()
+
+
+async def test_a_download_with_nobody_to_tell_is_still_a_download(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The suite calls tools without a session, and so may a script."""
+    server, _ = server_with(recorder(), download_path=tmp_path)
+    lines = capture_lines(caplog, "INFO")
+
+    result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert result.is_error is not True
+    assert "The download list changed, 0 sessions told" in lines.text
 
 
 # -- what it does not do ----------------------------------------------------

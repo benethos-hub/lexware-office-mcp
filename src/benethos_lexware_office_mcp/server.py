@@ -16,6 +16,7 @@ import contextlib
 import functools
 import re
 import weakref
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
 from mcp.server.session import ServerSession
-from mcp.types import Icon, Resource, Tool
+from mcp.types import CallToolResult, Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook
@@ -34,6 +35,22 @@ from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .tools import register_tools
+
+
+def _links_a_download(result: Any) -> bool:
+    """Whether a tool's answer carries a link to a download of this server.
+
+    The download tools answer with one and nothing else does. The answer
+    decides rather than the tool's name, so a tool added later that saves a
+    file is covered by the shape of what it returns.
+    """
+    if not isinstance(result, CallToolResult):
+        return False
+    return any(
+        block.type == "resource_link" and resources.name_of(str(block.uri)) is not None
+        for block in result.content
+    )
+
 
 # How often the watcher looks at the policy file. Short enough that a change
 # made in the browser feels immediate, long enough that reading a few hundred
@@ -113,6 +130,11 @@ class PolicyServer(MCPServer):
     actually differs. Whether a given client acts on it is the client's
     business - enforcement never relies on it, because the file is read again
     on every call.
+
+    The downloads it offers as resources are announced the same way:
+    ``resources.listChanged`` is promised beside it, and every session is
+    told after a tool answered with a link to a download, which is the one
+    moment that list grows.
     """
 
     def __init__(
@@ -142,11 +164,12 @@ class PolicyServer(MCPServer):
         # its two HTTP siblings all call this same method with no arguments,
         # and its default leaves every listChanged flag false. Announcing the
         # capability is what makes the notification mean anything - a client
-        # is entitled to ignore one it was never promised.
+        # is entitled to ignore one it was never promised. Prompts are the
+        # one list that never changes.
         low = self._lowlevel_server
         low.create_initialization_options = functools.partial(  # type: ignore[method-assign]
             low.create_initialization_options,
-            NotificationOptions(tools_changed=True),
+            NotificationOptions(tools_changed=True, resources_changed=True),
         )
 
     async def list_tools(self) -> list[Tool]:
@@ -199,7 +222,7 @@ class PolicyServer(MCPServer):
                 "was sent. The tool list says which arguments it takes."
             )
         try:
-            return await super().call_tool(name, arguments, context)
+            result = await super().call_tool(name, arguments, context)
         except SDKToolError as exc:
             cause = exc.__cause__
             if isinstance(cause, ArgumentError):
@@ -208,6 +231,9 @@ class PolicyServer(MCPServer):
                 )
                 logbook.calls.arguments_refused(name, fields)
             raise
+        if _links_a_download(result):
+            await self._downloads_changed()
+        return result
 
     async def _unknown_arguments(
         self, name: str, arguments: dict[str, Any]
@@ -275,6 +301,16 @@ class PolicyServer(MCPServer):
         self._start_watching()
         return await super()._handle_list_tools(ctx, params)
 
+    async def _handle_list_resources(self, ctx: Any, params: Any) -> Any:
+        """Answer the request, and keep this session as well.
+
+        A client that listed the downloads is one to tell when the next is
+        added. The watcher is not started here: it compares the tool list,
+        and a client that never asked for one has nothing to compare.
+        """
+        self._sessions.add(ctx.session)
+        return await super()._handle_list_resources(ctx, params)
+
     def _start_watching(self) -> None:
         """Begin polling, once there is somebody to tell.
 
@@ -304,11 +340,25 @@ class PolicyServer(MCPServer):
             await self._announce()
 
     async def _announce(self) -> None:
-        """Tell every live session, and forget the ones that are not."""
+        """The tool list is not what it was: tell every live session."""
+        told = await self._tell(lambda session: session.send_tool_list_changed())
+        logbook.policy.list_changed(told)
+
+    async def _downloads_changed(self) -> None:
+        """A download was written, so the resource list is not what it was.
+
+        Sent from the call that wrote it rather than by a watcher, since the
+        server is the one writing: there is nothing to poll for.
+        """
+        told = await self._tell(lambda session: session.send_resource_list_changed())
+        logbook.files.list_changed(told)
+
+    async def _tell(self, send: Callable[[Any], Awaitable[None]]) -> int:
+        """Send to every session, forget the ones that fail, count the rest."""
         told = 0
         for session in list(self._sessions):
             try:
-                await session.send_tool_list_changed()
+                await send(session)
             except Exception as exc:  # noqa: BLE001 - a dead session is normal
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
@@ -317,7 +367,7 @@ class PolicyServer(MCPServer):
                 self._sessions.discard(session)
             else:
                 told += 1
-        logbook.policy.list_changed(told)
+        return told
 
     async def stop_watching(self) -> None:
         """Cancel the watcher. For tests, which run many servers in one loop.

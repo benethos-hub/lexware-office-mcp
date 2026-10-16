@@ -29,13 +29,15 @@ is cleaned to the same number, which is the cache directory by default, the
 list is the directory. Where it is not, an older file is only unlisted - its
 link still reads, and so does ``read_download``.
 
-**What this does not do** is tell a client that the list has changed.
-``PolicyServer`` binds the notification options itself and announces
-``tools.listChanged`` with them, but not ``resources.listChanged``, and no
-``notifications/resources/list_changed`` is sent after a download. A client
-that lists once at startup — Claude Desktop does — sees what was on disk
-when it started and nothing downloaded since. That is what
-``read_download`` is for.
+**A client is told when the list grew.** ``PolicyServer`` announces
+``resources.listChanged`` beside ``tools.listChanged`` and sends
+``notifications/resources/list_changed`` to every session after a tool
+answered with a link to a download, since 2026-10-16. The server is the
+one that wrote the file, so it knows the moment the list grew, and the
+protocol has a notification for exactly that: a client that listed once
+would otherwise keep the list from the start of its session. Whether a
+client asks again is its business, and ``read_download`` needs no list
+at all.
 """
 
 from __future__ import annotations

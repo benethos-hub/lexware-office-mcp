@@ -1937,9 +1937,12 @@ Three decisions in that watcher are worth stating:
   builds a server — the test suite, `--tools show` — is a nuisance nobody
   asked for. The session comes from `_handle_list_tools`, the private hook,
   because that is the only place it is offered for a listing: the public
-  `list_tools()` is called without it.
+  `list_tools()` is called without it. `_handle_list_resources` keeps it
+  the same way, since a client that listed the downloads is one to tell
+  about the next, see section 13.
 - **It notifies every session it has seen** and drops the ones that fail,
-  which is one client over stdio and will be several over HTTP.
+  which is one client over stdio and will be several over HTTP. The same
+  round tells them about a new download.
 
 **Claude Desktop acts on it, verified 2026-08-22.** With the capability
 announced, a permission changed in the configuration interface reached the
@@ -2786,9 +2789,10 @@ every test in this repository. Section 14.3 says how to look.
     since then, so a thousand downloads made a list of about 220 KB. Where
     nothing is deleted, an older file is unlisted but still readable by its
     link and through `read_download`.
-- **A client is told when the tool list changes, since 2026-08-22.** For
-  resources it still is not, and the measurement below explains why the
-  default is what it is. Measured against mcp 2.0.0 on 2026-08-21:
+- **A client is told when the tool list changes, since 2026-08-22, and
+  when the download list does, since 2026-10-16.** The measurement below
+  explains why neither happened by default. Measured against mcp 2.0.0 on
+  2026-08-21:
   - Under the handshake protocols, capabilities come from `NotificationOptions`,
     whose three flags all default to `False`. `MCPServer` has no parameter for
     them and calls `create_initialization_options()` with no arguments, so
@@ -2819,9 +2823,19 @@ every test in this repository. Section 14.3 says how to look.
   the notification without announcing the capability leaves a conforming
   client free to ignore it, and whether any client did was never established.
 
-  For **resources** the finding stands unchanged: nothing announces or sends
-  anything, which is the second reason `read_download` exists, the first
-  being that Claude Desktop does not follow a resource link.
+  For **resources** the same binding announces `resources.listChanged`
+  since 2026-10-16, and `PolicyServer.call_tool` sends
+  `notifications/resources/list_changed` to every session when a tool's
+  answer carries a download link, which is the one moment the list grows.
+  The answer decides rather than the tool's name, so a tool added later
+  that saves a file is covered by what it returns, and there is nothing to
+  poll: the server is the one writing. A list the server itself changed is
+  the server's to announce, and the protocol has the notification for it:
+  a client that listed once would otherwise keep the list from the start
+  of its session. Whether a given client asks again on it is **(to
+  verify)**, the way the tool notification was on 2026-08-22.
+  `read_download` stays either way, for a client that does not follow a
+  resource link, which Claude Desktop does not.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be
@@ -3026,7 +3040,10 @@ Built, tested offline and exercised against a live test account:
 - **a client told when that list changes**: `tools.listChanged` announced and
   `notifications/tools/list_changed` sent when the set of enabled tools
   differs, which Claude Desktop acts on without a restart — measured
-  2026-08-22, see section 9.2
+  2026-08-22, see section 9.2. The same for the downloads since
+  2026-10-16: `resources.listChanged` announced and
+  `notifications/resources/list_changed` sent after each one, see
+  section 13
 - **a configuration interface in the browser**, `setup`, four pages: where
   the installation stands and which files are in effect, the API key checked
   before it is written, one checkbox per tool with what it costs the model

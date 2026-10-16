@@ -4,7 +4,8 @@ The tool line already says what was downloaded and how large it was. What it
 cannot say is that nothing new was written, or that older downloads were
 deleted to keep the directory at its bound. A download's name is the
 document's own and often the customer's, and its path is this machine's, so
-neither is in a line.
+neither is in a line. Nor can it say that the clients were told the list of
+downloads grew, which a line here does by their number.
 
 Nor can it say where an upload was fetched from. A line here does, by scheme
 and host alone: a signed link carries its key in the path or the query, and
@@ -23,6 +24,7 @@ from .output import PACKAGE
 
 __all__ = [
     "fetched",
+    "list_changed",
     "none_allowed",
     "not_allowed",
     "not_fetched",
@@ -39,6 +41,10 @@ def reused(size: int) -> None:
 
 def pruned(count: int, kept: int) -> None:
     _log.info("Deleted %d older downloads, the newest %d are kept", count, kept)
+
+
+def list_changed(sessions: int) -> None:
+    _log.info("The download list changed, %d sessions told", sessions)
 
 
 def fetched(scheme: str, host: str, size: int, ms: float) -> None:

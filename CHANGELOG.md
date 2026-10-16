@@ -15,6 +15,12 @@ housekeeping are out of scope here — design decisions live in
 
 ### Added
 
+- **A client is told when a download was added.** The server announces
+  `resources.listChanged` and sends `notifications/resources/list_changed`
+  to every session after `download_file` or `download_document` saved a
+  file, so a client that listed the downloads once can ask again and
+  offer the new one. Nothing depends on it: the link and `read_download`
+  work as before.
 - **An upload from a URL.** `upload_file` and `attach_file_to_voucher`
   fetch the file from a URL when the source starts with `https://` or
   `http://`, so a link another server issued - a mailbox server for an
