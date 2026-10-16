@@ -1601,8 +1601,12 @@ other than 200 is refused by its number, and the page that came with it is
 never passed on: an error page is the other service's business. A
 `Content-Length` above 5 MiB is refused unread. The body is then streamed
 and cut off at 5 MiB whether a length was declared or not, so a missing or
-false header changes nothing, and counted after decoding, so a compressed
-body cannot unpack into more. The `Content-Type` has to be one of the four
+false header changes nothing. **Nothing compressed is taken**: the request
+asks for `identity`, and a response with any other `Content-Encoding` is
+refused before its body is read. httpx inflates a chunk before a count can
+see it, so one 64 KiB chunk of gzip came to some 63 MB in memory before the
+ceiling stopped it, found in the review of 2026-10-16, and the four types
+the API takes are compressed formats already. The `Content-Type` has to be one of the four
 the API takes, read without its parameters, and `text/xml` counts as
 `application/xml`, which RFC 7303 says it is. Any other type is refused
 before the body is read.

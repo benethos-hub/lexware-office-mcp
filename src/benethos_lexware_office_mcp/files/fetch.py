@@ -20,6 +20,8 @@ talking to. The rules, in the order they apply:
 - no redirect is followed: one leads off the address that was allowed
 - a proxy the environment names is used for every host but this machine's
 - 30 seconds for the whole of it, connecting and reading together
+- the file is asked for as it is, and a response that compressed it anyway
+  is refused unread
 - a ``Content-Length`` above 5 MiB is refused before the body is read, and
   the body is cut off at 5 MiB whether one was sent or not
 - the ``Content-Type`` has to be one the API takes, or say no more than
@@ -154,6 +156,14 @@ async def _get(
             )
             error.status = status
             raise error
+        encoding = response.headers.get("content-encoding", "").strip().lower()
+        if encoding not in ("", "identity"):
+            error = _failed(
+                f"The file from {host} came compressed although it was asked for "
+                "as it is"
+            )
+            error.code = "encoding"
+            raise error
         declared = _declared_length(response)
         if declared is not None and declared > storage.MAX_UPLOAD:
             raise storage.too_large(label, declared)
@@ -184,7 +194,13 @@ def _client(host: str, transport: httpx.AsyncBaseTransport | None) -> httpx.Asyn
         timeout=TIMEOUT,
         follow_redirects=False,
         trust_env=host not in LOOPBACK_NAMES,
-        headers={"User-Agent": f"benethos-lexware-office-mcp/{__version__}"},
+        # Not compressed: httpx inflates a chunk before the ceiling counts
+        # it, and one 64 KiB chunk of gzip can come to tens of megabytes.
+        # The four types the API takes are compressed formats already.
+        headers={
+            "User-Agent": f"benethos-lexware-office-mcp/{__version__}",
+            "Accept-Encoding": "identity",
+        },
     )
 
 
@@ -286,8 +302,8 @@ def _sniffed(content: bytes, declared: str) -> str:
 async def _capped(response: httpx.Response, label: str) -> bytes:
     """The body, read until it passes the ceiling and not a byte longer.
 
-    Counted after decoding, which is what is uploaded, so a compressed
-    response cannot unpack into more than it was allowed.
+    Nothing is inflated on the way, since a compressed response was refused
+    before this, so the bytes counted are the bytes uploaded.
     """
     chunks: list[bytes] = []
     total = 0

@@ -12,6 +12,7 @@ one the file comes from, ``lexware`` for the API.
 from __future__ import annotations
 
 import asyncio
+import gzip
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -359,6 +360,44 @@ async def test_a_declared_length_that_lies_is_cut_off_all_the_same(
 
     assert "larger than 5 MiB" in message
     assert body.read == 6
+
+
+async def test_the_file_is_asked_for_uncompressed(tmp_path: Path) -> None:
+    api, other = lexware(), served()
+
+    await server(api, other, INBOX, tmp_path=tmp_path).call_tool(
+        "upload_file", {"source": LINK}
+    )
+
+    assert other.last.headers["accept-encoding"] == "identity"
+    assert api.requests
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate", "br", "GZIP"])
+async def test_a_compressed_response_is_refused_unread(
+    encoding: str, tmp_path: Path
+) -> None:
+    """One raw chunk of gzip inflates before the ceiling can count it."""
+    body = Trickle(gzip.compress(PDF))
+    api = lexware()
+    other = streamed(body, {"Content-Encoding": encoding})
+
+    message = await refused(server(api, other, INBOX, tmp_path=tmp_path), LINK)
+
+    assert "came compressed" in message
+    assert body.read == 0
+    assert api.requests == []
+
+
+async def test_a_response_that_says_identity_is_taken(tmp_path: Path) -> None:
+    api = lexware()
+    other = served(headers={"Content-Encoding": "identity"})
+
+    await server(api, other, INBOX, tmp_path=tmp_path).call_tool(
+        "upload_file", {"source": LINK}
+    )
+
+    assert api.requests
 
 
 async def test_a_body_of_exactly_five_mebibytes_without_a_length_is_sent(

@@ -30,16 +30,17 @@ housekeeping are out of scope here — design decisions live in
   comma separated, and without that setting no URL is fetched. A link
   outside it is refused before anything is sent, no redirect is followed,
   the fetch gets 30 seconds, the file is cut off at 5 MiB whether its size
-  was declared or not, and its type has to be one the API takes. A file
-  served as `application/octet-stream` or without a type, as a mail
-  attachment often is, is known by its first bytes instead. The
+  was declared or not, and is asked for uncompressed, a response that
+  compressed it anyway refused unread. Its type has to be one the API
+  takes. A file served as `application/octet-stream` or without a type, as
+  a mail attachment often is, is known by its first bytes instead. The
   Lexware key is never sent along, and the log names the scheme and the
   host of a link and nothing after them. A link outside the setting is a
   log line by its scheme alone, since the model chose its host. `http://`
   is taken for `127.0.0.1`, `::1` and `localhost` alone: any other host
   stops the start. Those three are fetched directly, past a proxy
-  `HTTP_PROXY` names, which is used for every other host. A field on the settings page, beside the upload
-  directory.
+  `HTTP_PROXY` names, which is used for every other host. A field on the
+  settings page, beside the upload directory.
 
 ### Changed
 
