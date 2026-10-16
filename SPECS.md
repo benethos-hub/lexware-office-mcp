@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.5.4.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.6.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -2561,7 +2561,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.5.4 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.6.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3515,6 +3515,7 @@ suggested they were.
 | 0.5.2 | What a client receives, and the image on current dependencies | **released 2026-10-12** - a patch, because no installation trips over it. The twenty-two record tools publish no output schema, which shortens the tool list by 1,773 characters while their answers stay byte-identical, the handshake carries the description, website and icons of the registry entry, and a listed download carries its size. The image moves to platformdirs 4.13.0 and pydantic 2.14.1. The README that PyPI shows catches up with the extension's six steps and the redrawn diagram. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.1's |
 | 0.5.3 | The image on Python 3.15 | **released 2026-10-14** - no change to what a client receives but the address of the icons, which moved to `assets/brand/` while the old one keeps working. The image is built on `python:3.15-slim` with uv 0.13.1 and starlette 1.8.0, and was checked inside before the release: Python 3.15.0, every compiled dependency, a page rendered by pypdfium2, stdio, and HTTP with and without the token. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.2's |
 | 0.5.4 | The review of 2026-10-15 | **released 2026-10-15** - a patch, because an installation that runs as before sees nothing new: the tool list and every answer over stdio are byte for byte those of 0.5.3. What changed shows in edge cases - a redirect, a withheld tool called with bad arguments, a resource above 5 MiB, a settings file that is not UTF-8, a mistake in the policy file named once - plus `LXO_MCP_SETUP_PROMPT` to withhold the setup prompt and a browser code that works once. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.3's |
+| 0.6.0 | Uploads from a URL, a client told about downloads, and the review of 2026-10-16 | **released 2026-10-16** - a minor, because an installation can trip over it: the two upload tools take `source` instead of `path`, and a client that passes `path` by name is refused until it lists the tools again. New: `upload_file` and `attach_file_to_voucher` fetch a file from a URL `LXO_MCP_UPLOAD_URLS` allows, so a mailbox server's link to an attachment reaches Lexware from server to server, see section 7.2, and a client is told when a download was added. The tool list notification reaches clients again, one of the 2026-07-28 protocol on its listen stream. Verified live against the second test account: `live/smoke.py` 13 of 13, a shape capture identical to 0.5.4's, and the mailbox flow end to end from Claude Desktop with 17 receipts |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
