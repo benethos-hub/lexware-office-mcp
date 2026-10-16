@@ -232,6 +232,18 @@ the way a changed tool list is: the server sends
 downloads once can ask again rather than keep the list from the start of
 its session. Whether it does is the client's business.
 
+**The resource list is not part of the prompt.** The tool list goes to the
+model with every request. The resource list is sent only when a client asks
+for it, and what the client does with it is up to the client. Claude Desktop
+offers it in its attachment menu, under **Add from** the server, and a file
+reaches the conversation when somebody picks it. A client that hands the
+whole list to the model pays for it instead: an entry carries the
+`lexware://` URI, the file name, the type and the size - never a path of
+this machine - and comes to about 230 characters, so the default 100 make
+roughly 23,000, around 6,000 to 7,000 tokens. For such a client, set
+`LXO_MCP_KEPT_DOWNLOADS` lower, which shortens the list and the cache
+together.
+
 Claude Desktop does not follow a resource link at all, so `read_download`
 is the route that always works. It takes the same URI and puts the content
 into the answer. What arrives depends on the file:
