@@ -60,6 +60,12 @@ housekeeping are out of scope here — design decisions live in
   in the configuration interface was announced to zero clients. It now
   remembers the connection, which lasts as long as the client does, and
   keeps one from a call as well as from a listing.
+- **A file name in a charset that cannot be decoded with replacement no
+  longer ends the call in a bare error.** A `Content-Disposition` naming
+  `idna`, which Python knows and which refuses to replace a byte, failed
+  a download and a fetched upload with a message that named only the
+  tool. The name is read as UTF-8 then, as it is for a charset Python
+  does not know.
 
 ## [0.5.4] - 2026-10-15
 

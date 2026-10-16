@@ -201,13 +201,18 @@ def _header_name(header: str) -> str:
     reached the disk as `Rechnung_20M_C3_A4rz`. A charset Python does not
     know is read as UTF-8, and a byte that is no character in it is
     replaced, which the sanitizing then replaces again.
+
+    A charset Python knows but cannot decode with replacement is read as
+    UTF-8 too: ``idna`` is a codec, and raises ``UnicodeError`` rather than
+    replace a byte. The header comes from another server, so it may name
+    anything.
     """
     star = _FILENAME_STAR.search(header)
     if star:
         charset, encoded = star.group(1), star.group(2).strip()
         try:
             return unquote(encoded, encoding=charset, errors="replace")
-        except LookupError:
+        except (LookupError, UnicodeError):
             return unquote(encoded, errors="replace")
     plain = _FILENAME.search(header)
     return plain.group(1) if plain else ""
