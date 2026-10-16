@@ -124,6 +124,7 @@ live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
   upload_from_url.py # writes: one upload fetched from 127.0.0.1, test account only
+  _common.py      # what the scripts share: masked ids, a receipt to upload
   shapes/         # one timestamped capture per run
 assets/
   brand/          # the organisation's brand rules, checked by the brand job:
