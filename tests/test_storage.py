@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
+from benethos_lexware_office_mcp.errors import ValidationError
 from benethos_lexware_office_mcp.files import storage
 from benethos_lexware_office_mcp.settings import Settings
 from helpers import (
@@ -181,3 +182,36 @@ def test_resolve_never_leaves_the_directory(tmp_path: Path, name: str) -> None:
     (tmp_path / "outside.pdf").write_bytes(PDF)
 
     assert storage.resolve(name, inside) is None
+
+
+# -- the check every upload passes ------------------------------------------
+#
+# Both sources refuse a large file or a foreign type before they get here,
+# so these hold `accepted` to its own word: it is the check that holds if a
+# source someday forgets its early one.
+
+
+def test_the_upload_check_refuses_more_than_five_mebibytes() -> None:
+    with pytest.raises(ValidationError, match="is 5.0 MiB"):
+        storage.accepted(
+            b"x" * (storage.MAX_UPLOAD + 1),
+            "big.pdf",
+            "application/pdf",
+            label="big.pdf",
+        )
+
+
+def test_the_upload_check_takes_exactly_five_mebibytes() -> None:
+    content = b"x" * storage.MAX_UPLOAD
+
+    upload = storage.accepted(content, "edge.pdf", "application/pdf", label="edge.pdf")
+
+    assert upload.content is content
+
+
+@pytest.mark.parametrize("content_type", ["image/gif", "text/html", ""])
+def test_the_upload_check_refuses_a_type_the_api_does_not_take(
+    content_type: str,
+) -> None:
+    with pytest.raises(ValidationError, match="The API does not accept"):
+        storage.accepted(PDF, "a.pdf", content_type, label="a.pdf")
