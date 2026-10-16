@@ -2988,7 +2988,11 @@ The consequences are the point of writing this down.
   argument and stops before anything is written when `get_profile` reports
   another. The check golden rule 1 asks for is then done by the script rather
   than remembered by whoever runs it. Its server enables `get_profile` and
-  `upload_file` alone.
+  `upload_file` alone. Since the review of 2026-10-16 it takes the company
+  name and the `organizationId` both, since a test account may carry the
+  real one's name, and it requires `--env-file`: left to look, it read the
+  configuration the server runs with every day, which is the real
+  account's.
 - **A check that could not run is reported as skipped, never as passed.** An
   empty account has no article to read and no rendered document to download,
   and a live check that reported those as successes would be the same hole as
