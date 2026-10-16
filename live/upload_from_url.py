@@ -3,12 +3,17 @@
 **Run by hand. Never a gate, never in CI, never collected by pytest**, see
 SPECS.md section 14.1. Unlike `smoke.py` this one **writes**: the upload
 creates an `unchecked` voucher, and the API cannot delete a voucher - only
-the web app can, while nothing has bound it. So it refuses to run unless
-`--expect-company` names the organization `get_profile` reports, which is
-the check golden rule 1 asks for before any write, done by the script rather
-than remembered by the person running it.
+the web app can, while nothing has bound it. So it refuses to write unless
+`--expect-company` and `--expect-organization` both name what `get_profile`
+reports, which is the check golden rule 1 asks for before any write, done by
+the script rather than remembered by the person running it. The id as well
+as the name, since a test account may carry the same company name as the
+real one. And it reads the `.env` that `--env-file` names and no other: left
+to look, the server finds the configuration it runs with every day, which is
+the real account's.
 
-    uv run python live/upload_from_url.py --expect-company "Test Inc"
+    uv run python live/upload_from_url.py --env-file test.env
+        --expect-company "Test Inc" --expect-organization <organizationId>
 
 What it does: a `http.server` on 127.0.0.1 serves a small PDF out of a
 temporary directory, `LXO_MCP_UPLOAD_URLS` is set to that address alone,
@@ -111,7 +116,7 @@ class Served:
         self.httpd.server_close()
 
 
-async def run(env_file: Path | None, company: str) -> int:
+async def run(env_file: Path, company: str, organization: str) -> int:
     settings = load_settings(env_file=env_file)
     if not settings.api_key:
         print("No API key. This script needs a live test account.", file=sys.stderr)
@@ -137,24 +142,28 @@ async def run(env_file: Path | None, company: str) -> int:
         provider = ClientProvider(settings)
         server = build_server(settings, provider)
         try:
-            return await _steps(server, served, company, prefix, name)
+            return await _steps(server, served, (company, organization), prefix, name)
         finally:
             await provider.aclose()
 
 
 async def _steps(
-    server: Any, served: Served, company: str, prefix: str, name: str
+    server: Any,
+    served: Served,
+    expected: tuple[str, str],
+    prefix: str,
+    name: str,
 ) -> int:
     tools = sorted(tool.name for tool in await server.list_tools())
     print(f"\nTools offered: {', '.join(tools)}")
 
     profile = (await server.call_tool("get_profile", {})).structured_content or {}
-    found = profile.get("companyName")
-    print(f"Account: {found!r}")
-    if found != company:
+    found = (profile.get("companyName"), profile.get("organizationId"))
+    print(f"Account: {found[0]!r}, organization {mask(found[1])}")
+    if found != expected:
         print(
-            f"Not the account named by --expect-company ({company!r}). "
-            "Nothing was written.",
+            "Not the account named by --expect-company and "
+            "--expect-organization. Nothing was written.",
             file=sys.stderr,
         )
         return 1
@@ -200,14 +209,23 @@ def main(argv: list[str] | None = None) -> int:
         help="the companyName get_profile must report, or nothing is written",
     )
     parser.add_argument(
-        "--env-file", metavar="PATH", help="which .env to read instead of looking"
+        "--expect-organization",
+        required=True,
+        metavar="ID",
+        help="the organizationId get_profile must report, or nothing is written",
+    )
+    parser.add_argument(
+        "--env-file",
+        required=True,
+        metavar="PATH",
+        help="the test account's .env, read instead of looking for one",
     )
     args = parser.parse_args(argv)
-    env_file = Path(args.env_file).expanduser() if args.env_file else None
-    if env_file is not None and not env_file.is_file():
+    env_file = Path(args.env_file).expanduser()
+    if not env_file.is_file():
         print(f"Not a file: {env_file}", file=sys.stderr)
         return 2
-    return asyncio.run(run(env_file, args.expect_company))
+    return asyncio.run(run(env_file, args.expect_company, args.expect_organization))
 
 
 if __name__ == "__main__":
