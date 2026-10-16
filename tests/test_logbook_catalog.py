@@ -73,7 +73,7 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "route": ("the URL path this server serves", "/mcp"),
     "rows": ("how many rows a list answered with", 12),
     "scheme": ("a fetched URL's scheme, https or http", "https"),
-    "sessions": ("a count of client sessions", 2),
+    "clients": ("a count of clients told", 2),
     "size": ("a download's or a fetched upload's size in bytes", 151_552),
     "source": ("where a policy was read from", "tools.json"),
     "status": ("an HTTP status", 503),

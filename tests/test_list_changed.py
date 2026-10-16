@@ -250,7 +250,7 @@ async def test_a_connection_the_notification_cannot_reach_is_not_counted(
         await settle()
 
         assert (modern.told, without.told, handshake.told) == (0, 0, 1)
-        assert "The tool list changed, 1 sessions told" in lines.text
+        assert "The tool list changed, 1 clients told" in lines.text
     finally:
         await server.stop_watching()
 
@@ -433,7 +433,7 @@ async def test_a_download_with_nobody_to_tell_is_still_a_download(
     result = await server.call_tool("download_file", {"file_id": FILE_ID})
 
     assert result.is_error is not True
-    assert "The download list changed, 0 sessions told" in lines.text
+    assert "The download list changed, 0 clients told" in lines.text
 
 
 # -- over the wire ----------------------------------------------------------

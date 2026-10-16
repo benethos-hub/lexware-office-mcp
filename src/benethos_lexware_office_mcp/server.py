@@ -468,7 +468,7 @@ class PolicyServer(MCPServer):
                 # On stderr rather than swallowed: a client that never
                 # refreshes is a thing to be able to look into, and this is
                 # the only trace it would leave.
-                logbook.policy.session_dropped(exc)
+                logbook.policy.client_dropped(exc)
                 self._connections.discard(connection)
             else:
                 told += 1
