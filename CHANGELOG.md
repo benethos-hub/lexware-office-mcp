@@ -72,6 +72,12 @@ housekeeping are out of scope here — design decisions live in
   a download and a fetched upload with a message that named only the
   tool. The name is read as UTF-8 then, as it is for a charset Python
   does not know.
+- **A client of the 2026-07-28 protocol is told when a list changes.**
+  It was promised the tool and the download list notifications, and they
+  were sent where that protocol drops them without an error, while the
+  log counted it as told. They now go out on the `subscriptions/listen`
+  stream such a client opens, and the log counts only the clients a
+  notification reached on their own channel.
 
 ## [0.5.4] - 2026-10-15
 

@@ -1993,6 +1993,17 @@ Three decisions in that watcher are worth stating:
   notification to arrive. Claude Desktop, same day: it starts the server
   twice, one process answers the listings and another the calls, so a
   connection is kept from a call as well as from a listing.
+- **A 2026-07-28 client is told on its listen stream.** The SDK serves
+  that protocol beside the handshake on the same transport, stdio
+  included, measured 2026-10-16 with mcp 2.0.0 and 2.3.0, and there a
+  change notification travels only on a `subscriptions/listen` stream the
+  client opened, fed from the bus `MCPServer` keeps. Sent on the
+  connection, it is dropped without an error. So every notification is
+  published on the bus as well, and only a connection whose own channel
+  carries it is counted as told. The same holds for a streamable HTTP
+  client with no GET stream open, which has no channel at all. Found in the
+  review of 2026-10-16. `tests/test_list_changed.py` opens a listen stream
+  through the SDK's runner and waits for the notification on it.
 
 **Claude Desktop acts on it, verified 2026-08-22.** With the capability
 announced, a permission changed in the configuration interface reached the
@@ -2868,6 +2879,10 @@ every test in this repository. Section 14.3 says how to look.
   - That version is never reached here. `initialize` negotiates down to
     `2025-11-25`, the newest handshake version, whatever the client asks for,
     and the modern `server/discover` is not reachable over stdio at all.
+    Measured again on 2026-10-16, and not so: over stdio, with mcp 2.0.0
+    and 2.3.0 alike, a client that sends `server/discover` instead of
+    `initialize` is served `2026-07-28` and promised `tools.listChanged`.
+    The notifications reach it on its listen stream, see section 9.2.
 
   **What that analysis missed is that `PolicyServer` is ours.** The default
   is what it is, but `create_initialization_options` takes the

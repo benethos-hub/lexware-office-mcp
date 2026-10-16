@@ -19,11 +19,12 @@ import weakref
 from pathlib import Path
 from typing import Any
 
-from mcp.server.connection import Connection
+from mcp.server.connection import Connection, NotifyOnlyOutbound
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
+from mcp.server.subscriptions import ResourcesListChanged, ServerEvent, ToolsListChanged
 from mcp.types import CallToolResult, Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
@@ -48,6 +49,20 @@ def _links_a_download(result: Any) -> bool:
     return any(
         block.type == "resource_link" and resources.name_of(str(block.uri)) is not None
         for block in result.content
+    )
+
+
+def _reaches(connection: Connection) -> bool:
+    """Whether a list notification sent on ``connection``'s channel arrives.
+
+    Only on a handshake-era connection with a channel of its own. A
+    2026-07-28 connection drops one by design, since that era delivers it
+    on a ``subscriptions/listen`` stream alone, and one without a channel -
+    streamable HTTP with no GET stream open - drops it for want of one.
+    Neither raises, so both used to be counted as told.
+    """
+    return connection.has_standalone_channel and not isinstance(
+        connection.outbound, NotifyOnlyOutbound
     )
 
 
@@ -139,7 +154,9 @@ class PolicyServer(MCPServer):
     What is told is the **connection**, never the session a request
     arrived on: the SDK builds a ``ServerSession`` for each request and
     lets it go with the answer, so a set of sessions is empty by the time
-    there is something to say. Measured 2026-10-16, see section 9.2.
+    there is something to say. Measured 2026-10-16, see section 9.2. A
+    2026-07-28 client has no such channel and is told on the listen stream
+    it opened, through the bus the SDK serves those from.
     """
 
     def __init__(
@@ -381,7 +398,7 @@ class PolicyServer(MCPServer):
 
     async def _announce(self) -> None:
         """The tool list is not what it was: tell every live connection."""
-        told = await self._tell("notifications/tools/list_changed")
+        told = await self._tell("notifications/tools/list_changed", ToolsListChanged())
         logbook.policy.list_changed(told)
 
     async def _downloads_changed(self) -> None:
@@ -395,18 +412,34 @@ class PolicyServer(MCPServer):
         is not told again two seconds later.
         """
         self._seen_downloads = self._download_names()
-        told = await self._tell("notifications/resources/list_changed")
+        told = await self._tell(
+            "notifications/resources/list_changed", ResourcesListChanged()
+        )
         logbook.files.list_changed(told)
 
-    async def _tell(self, method: str) -> int:
-        """Send a notification on every connection, drop the ones that fail.
+    async def _tell(self, method: str, event: ServerEvent) -> int:
+        """Tell every client, in the way its protocol era listens.
 
-        On the connection's own channel, which is the one a server speaks
-        on when no request is open: stdout over stdio, the standalone
-        stream over streamable HTTP. Answers how many were told.
+        A 2026-07-28 client opens a ``subscriptions/listen`` stream for the
+        kinds it wants, and is told through the bus the SDK serves those
+        streams from, which delivers to the ones that asked. A handshake-era
+        client is told on its connection's own channel, the one a server
+        speaks on when no request is open: stdout over stdio, the standalone
+        stream over streamable HTTP. One that fails there is dropped.
+
+        Answers how many were told on a channel. What the bus delivers it
+        does not count, and a connection the notification cannot reach is
+        not counted either, see :func:`_reaches`.
+
+        Not the SDK's ``send_tool_list_changed``: that goes through
+        ``Connection.notify``, which never raises, so a client that went
+        away would never be dropped.
         """
+        await self._subscriptions.publish(event)
         told = 0
         for connection in list(self._connections):
+            if not _reaches(connection):
+                continue
             try:
                 await connection.outbound.notify(method, None)
             except Exception as exc:  # noqa: BLE001 - a dead client is normal
