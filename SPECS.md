@@ -2649,13 +2649,15 @@ sets for a 5xx or a 429. A line names the class and those two, then what
 the call cost, as in
 `update_voucher refused: ConflictError 406 version: invalid_value, after 1 API call, 230 ms`.
 
-**What a crash sends depends on the SDK version, and the floor stays at
-2.0.0.** A traceback never travels on either, but on 2.0.0 an unanticipated
-exception's own message does, and from 2.1 it does not. The declaration
-remains `mcp>=2.0.0,<3` rather than being raised to close that: the
-difference is a message this server never composed, in a path it does not
-expect to reach, and narrowing what an installation may resolve to costs
-more than it buys.
+**What a crash sends depended on the SDK version.** A traceback never
+travels on either, but on 2.0.0 an unanticipated exception's own message
+does, and from 2.1 it does not. That alone was not reason enough to raise
+the floor: the difference is a message this server never composed, in a
+path it does not expect to reach. The floor moved to 2.2.0 on 2026-10-19
+for a different reason, GHSA-84m7-p3x7-pcfv: before 2.2.0 a stateful
+Streamable HTTP server never reclaimed its sessions, and this server
+serves that transport in stateful mode. The 2.0.0 behaviour is no longer
+installable.
 
 ### 12.1 Why `ToolError` derives from the SDK's
 

@@ -22,6 +22,18 @@ housekeeping are out of scope here — design decisions live in
   already. A session over streamable HTTP answers as before, the bearer
   and host checks included.
 
+### Security
+
+- **The lowest allowed `mcp` is 2.2.0 instead of 2.0.0**, for the runtime
+  and for `mcp[cli]` in `dev`. Before 2.2.0 a stateful Streamable HTTP
+  server never reclaimed its sessions, so a client holding the bearer
+  token could grow its memory without bound (GHSA-84m7-p3x7-pcfv), and
+  `--transport streamable-http` serves exactly that. The container image
+  and every fresh install already had a fixed version, 2.3.0. Only an
+  environment that pins an older `mcp` was affected. Found by a
+  vulnerability audit of the lowest versions, and the tests pass against
+  them.
+
 ## [0.6.0] - 2026-10-16
 
 A minor release, because an installation can trip over it: the two
