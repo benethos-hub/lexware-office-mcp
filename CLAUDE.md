@@ -145,21 +145,18 @@ containers/       # README.md says which folder is for what
   publish/
     mcp-registry/
       server.json # the MCP Registry entry, sent by publish.yml at a release
-      fill_bundle_checksum.py # the bundle's hash, written in at the release
     mcpb/         # the Claude Desktop bundle: manifest.json as it ships,
-                  # server.py that uv starts, build.py that stages it,
-                  # check_packed.py that holds the packed bundle to it
-  scripts/
-    tag_matches_version.py  # a release tag has to be the package version
+                  # server.py that uv starts, build.py that stages it
   workflows/
-    ci.yml        # lint, test (coverage on 3.15 alone), lowest-versions
-                  # (the oldest allowed dependencies, audited), audit (the
-                  # locked versions) and brand, all the organisation's
-                  # reusable workflows, and this project's own
-                  # fresh-install and docker
+    ci.yml        # brand, lint, test (coverage on 3.15 alone, and the
+                  # badge), coverage-badge, lowest-versions (the oldest
+                  # allowed dependencies, audited) and audit (the locked
+                  # versions), all the organisation's reusable workflows,
+                  # and this project's own fresh-install and docker
     publish.yml   # a published release -> PyPI, the container image, the
-                  # Claude Desktop bundle, and the MCP Registry entry, all
-                  # behind ci-passed, the organisation's gate
+                  # Claude Desktop bundle, and the MCP Registry entry,
+                  # behind ci-passed, each through the organisation's
+                  # actions. A manual run tries PyPI and pushes edge
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -386,12 +383,13 @@ fallen behind, so the list is short on purpose. In this order:
    lockfile. **The minor line** (`:0.6` in the README, and in the comment
    of `.env.example`) changes only with a minor release - the image tag
    itself follows the release tag when the image is built.
-4. **`MCP_PUBLISHER_VERSION`** in `publish.yml`, against the newest
-   release of `modelcontextprotocol/registry`. Dependabot does not see a
-   download, and a publisher the registry has outgrown fails the entry
-   with `invalid audience`. Raise the version and the checksum together,
-   the checksum from the release's own checksums file. The same for
-   **`MCPB_VERSION`**, against the newest `@anthropic-ai/mcpb` on npm.
+4. **A trial run.** The publishing actions follow the organisation's main
+   and may have changed since the last release, so start `publish.yml` by
+   hand on main before tagging: `pypi-trial` builds and
+   checks the wheel and asks PyPI whether it would take it, and the image
+   goes out as `edge`. A warning that the version is on PyPI already is
+   expected before step 3 is merged. The pins of `mcp-publisher` and of the
+   mcpb packer live in the organisation's actions, not here.
 5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
    which fires `publish.yml`. Its first job, `ci-passed` (the
    organisation's `python-release-ci-passed` workflow), waits for the CI
@@ -399,9 +397,10 @@ fallen behind, so the list is short on purpose. In this order:
    unless that run succeeded, so a tag on a commit that never reached main,
    or on one whose CI is red, publishes nothing. It also audits `uv.lock`
    once more, and a waiver in `ignore-vulns` belongs there as well as in
-   `ci.yml`. Each job after it stops when the tag is not `v` plus the
-   version in `pyproject.toml`, so a tag ahead of step 3 publishes nothing
-   rather than an image with the old code.
+   `ci.yml`. Each action after it stops when the tag is not `v` plus the
+   version in its file, `pyproject.toml`, `manifest.json` or
+   `server.json`, so a tag ahead of step 3 publishes nothing rather than an
+   image with the old code.
 6. **Verify the delivered artefacts, not the build.** The PyPI simple index
    with a cache-busting query - the JSON API lags for minutes after an upload
    and has reported a finished release as missing. The ghcr index manifest
