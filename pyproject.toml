@@ -40,7 +40,9 @@ dependencies = [
     # Plain `mcp`, not `mcp[cli]`. The extra only adds the `mcp` command and
     # pulls typer, rich and pygments with it. This package defines its own
     # entry point and never imports them, so the extra lives in `dev`.
-    "mcp>=2.0.0,<3",
+    # 2.2.0 fixes GHSA-84m7-p3x7-pcfv: a stateful Streamable HTTP server never
+    # reclaimed its sessions, and this server offers that transport.
+    "mcp>=2.2.0,<3",
     "httpx>=0.28",
     # Resolves the per-user config and cache directories, so nothing is read
     # from or written to the working directory of the spawning client.
@@ -70,7 +72,7 @@ dev = [
     "mypy>=2.1.0",
     # Gives back the `mcp` command, whose `mcp dev` runs a server against the
     # MCP Inspector. A development tool, so it belongs here.
-    "mcp[cli]>=2.0.0,<3",
+    "mcp[cli]>=2.2.0,<3",
 ]
 
 [project.scripts]
