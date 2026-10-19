@@ -21,6 +21,12 @@ housekeeping are out of scope here — design decisions live in
   and platformdirs 4.13.5. An installation from the index resolved them
   already. A session over streamable HTTP answers as before, the bearer
   and host checks included.
+- **The image on the current build of `python:3.15-slim`.** The tag was
+  rebuilt with the same Debian 13.7, Python 3.15.0 and OpenSSL 3.5.7, and
+  one package more, `libmpdec4`: Python's `decimal` now runs on Debian's
+  libmpdec 4.0.1 instead of the copy it carried, with the same results.
+  This server does not use `decimal`. An installation from the index is
+  not affected.
 
 ### Security
 
