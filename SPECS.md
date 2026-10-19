@@ -3290,6 +3290,24 @@ described in section 7.1. Nothing on the API side is outstanding.
    `.github/scripts/tag_matches_version.py`: a tag ahead of the version has
    PyPI refuse the upload, and without the check the image job would still
    push the tag's version, its minor line and `latest` with the old code.
+   **Since 2026-10-19 nothing is built before the CI run of the release
+   commit on main has succeeded.** The first job, `ci-passed`, calls the
+   organisation's `python-release-ci-passed` workflow, which looks for the
+   run of `ci.yml` that the commit's push to main started, waits up to 30
+   minutes while it is still going, and stops the release when it failed,
+   or after five minutes when there is none, as for a commit that only ever
+   lived on a pull request branch. Until then only the release procedure
+   made sure the tagged commit had been tested, and a version on PyPI
+   cannot be replaced. It checks that run rather than testing again,
+   because the run is the full CI with every required check, and it costs
+   seconds. With `audit: true` it also audits `uv.lock` once more, for a
+   vulnerability that became known between the merge and the release. The
+   PyPI, image and bundle jobs need it, and the registry job needs those
+   three. A manual run on main goes through it as well, and on another
+   branch it does not run, since nothing would be built there. Measured
+   against this repository the same day, read-only: the merge commit of
+   #134 passed, a commit only ever on a pull request branch stopped with
+   "No CI run on main", and a wrong workflow name with GitHub's 404.
 5. **Publication of the image**, so that running this server in a container
    does not require cloning the repository first. The same workflow gained a
    second job that pushes the image, under the repository's name then and

@@ -7,6 +7,13 @@ name: Publish
 #   * the entry in the MCP Registry, which points at all three, through the
 #     workflow's OIDC identity
 #
+# Nothing is built before `ci-passed` has seen the CI run that the release
+# commit's push to main started, and seen it succeed. A version on PyPI
+# cannot be replaced, so a tag on a commit that never reached main, or on one
+# whose CI is red, publishes nothing. The gate waits for a run still going,
+# and audits uv.lock once more for a vulnerability that became known between
+# the merge and the release.
+#
 # The package jobs and the bundle are independent, so a broken image push
 # does not withhold the upload to PyPI and none waits on another. The registry
 # job waits on all three, because the registry checks every package the
@@ -58,10 +65,26 @@ permissions:
   contents: read
 
 jobs:
+  # The organisation's gate, followed at main like the workflows in ci.yml.
+  # It waits up to 30 minutes for the CI run of ci.yml on main for this
+  # commit, and stops the release when that run failed, or after five
+  # minutes when there is none. A manual run on main goes through it as
+  # well. On any other branch nothing would be built, so it does not run.
+  # A waiver in ignore-vulns belongs here and in ci.yml alike.
+  ci-passed:
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    uses: benethos-hub/.github/.github/workflows/python-release-ci-passed.yml@main
+    permissions:
+      actions: read # list the CI runs of this commit
+      contents: read
+    with:
+      audit: true
+
   pypi-publish:
     name: Build and publish to PyPI
     # A manual run has no version to publish, and PyPI refuses a re-upload.
     if: github.event_name == 'release'
+    needs: ci-passed
     runs-on: ubuntu-latest
     environment:
       name: pypi-benethos-lexware-office-mcp
@@ -116,6 +139,7 @@ jobs:
     name: Build and publish the image
     # A release, or a manual run on main. See the header.
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    needs: ci-passed
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -223,6 +247,7 @@ jobs:
     # The bundle goes onto the release it is built for, and a manual run has
     # no release to attach it to.
     if: github.event_name == 'release'
+    needs: ci-passed
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

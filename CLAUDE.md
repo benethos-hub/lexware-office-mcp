@@ -158,7 +158,8 @@ containers/       # README.md says which folder is for what
                   # reusable workflows, and this project's own
                   # fresh-install and docker
     publish.yml   # a published release -> PyPI, the container image, the
-                  # Claude Desktop bundle, and the MCP Registry entry
+                  # Claude Desktop bundle, and the MCP Registry entry, all
+                  # behind ci-passed, the organisation's gate
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -392,9 +393,15 @@ fallen behind, so the list is short on purpose. In this order:
    the checksum from the release's own checksums file. The same for
    **`MCPB_VERSION`**, against the newest `@anthropic-ai/mcpb` on npm.
 6. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
-   which fires `publish.yml`. Each of its jobs stops when the tag is not
-   `v` plus the version in `pyproject.toml`, so a tag ahead of step 3
-   publishes nothing rather than an image with the old code.
+   which fires `publish.yml`. Its first job, `ci-passed` (the
+   organisation's `python-release-ci-passed` workflow), waits for the CI
+   run the merge commit's push to main started and lets nothing be built
+   unless that run succeeded, so a tag on a commit that never reached main,
+   or on one whose CI is red, publishes nothing. It also audits `uv.lock`
+   once more, and a waiver in `ignore-vulns` belongs there as well as in
+   `ci.yml`. Each job after it stops when the tag is not `v` plus the
+   version in `pyproject.toml`, so a tag ahead of step 3 publishes nothing
+   rather than an image with the old code.
 7. **Verify the delivered artefacts, not the build.** The PyPI simple index
    with a cache-busting query - the JSON API lags for minutes after an upload
    and has reported a finished release as missing. The ghcr index manifest
