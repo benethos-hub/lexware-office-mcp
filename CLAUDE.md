@@ -152,9 +152,11 @@ containers/       # README.md says which folder is for what
   scripts/
     tag_matches_version.py  # a release tag has to be the package version
   workflows/
-    ci.yml        # lint, test (coverage on 3.15 alone), fresh-install,
-                  # docker, lowest-versions: the oldest allowed
-                  # dependencies, and brand, the organisation's check
+    ci.yml        # lint, test (coverage on 3.15 alone), lowest-versions
+                  # (the oldest allowed dependencies, audited), audit (the
+                  # locked versions) and brand, all the organisation's
+                  # reusable workflows, and this project's own
+                  # fresh-install and docker
     publish.yml   # a published release -> PyPI, the container image, the
                   # Claude Desktop bundle, and the MCP Registry entry
 ```
@@ -454,8 +456,13 @@ fallen behind, so the list is short on purpose. In this order:
   commit defeats the point of branching. Once a remote exists, the merge goes
   through a pull request instead and `main` is no longer written directly.
 - **Every CI job has to pass before a merge**, and each one is a required
-  check on `main`, `lowest-versions` and `brand / Brand assets` included
-  since 2026-10-13. When `lowest-versions` goes red, the lower bound it
-  names has become untrue: raise it on a branch of its own, and merge that
-  first. When `brand` goes red, render the PNGs again with
-  `uv run assets/render_icon.py` and commit them with the SVG.
+  check on `main`. A job calling a reusable workflow is named after both,
+  `lint / lint`, `test / Python 3.11` and so on, and a renamed check has to
+  be swapped in the branch protection before the pull request that renames
+  it can merge. When `lowest-versions` goes red, a lower bound has become
+  untrue or allows a version with a known vulnerability: raise it on a
+  branch of its own, and merge that first. When `audit` goes red, a locked
+  version has one: refresh the lockfile, or waive the ID with
+  `ignore-vulns` in both jobs while no fixed version exists. When `brand`
+  goes red, render the PNGs again with `uv run assets/render_icon.py` and
+  commit them with the SVG.

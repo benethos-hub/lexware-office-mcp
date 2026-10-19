@@ -154,12 +154,28 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
 # A new Python is named in several places, and each of them is one line, so
 # adding it to some and forgetting the rest is easy and fails nothing: the
 # classifiers say what PyPI shows, the matrix what is tested, the coverage
-# step where the floor is held, the lowest-versions job and requires-python
-# where support begins, and CLAUDE.md what a developer sets up.
+# version where the floor is held, the lowest-versions job and requires-python
+# where support begins, and CLAUDE.md what a developer sets up. The test and
+# lowest-versions jobs call the organisation's reusable workflows, whose
+# defaults could move on their own, so ci.yml passes the versions explicitly
+# and these checks read them there.
 
 
 def _versions(text: str) -> list[str]:
     return sorted(set(re.findall(r"3\.\d+", text)), key=lambda v: int(v[2:]))
+
+
+def _job_input(ci: str, workflow: str, name: str) -> str | None:
+    """The value ci.yml passes as ``name`` to the job that calls ``workflow``."""
+    block = re.search(
+        rf"uses: benethos-hub/\.github/\.github/workflows/{re.escape(workflow)}"
+        r"@\S+\n {4}with:\n((?: {6}.*\n)+)",
+        ci,
+    )
+    if block is None:
+        return None
+    value = re.search(rf"^ {{6}}{re.escape(name)}: (.+)$", block.group(1), re.M)
+    return value.group(1).strip().strip("'\"") if value else None
 
 
 def _python_claims(pyproject: str, ci: str, claude: str) -> list[str]:
@@ -171,10 +187,10 @@ def _python_claims(pyproject: str, ci: str, claude: str) -> list[str]:
     import tomllib
 
     project = tomllib.loads(pyproject)["project"]
-    matrix = re.search(r"\n {8}python-version: \[([^\]]*)\]", ci)
+    matrix = _job_input(ci, "python-tests.yml", "python-versions")
     if matrix is None:
-        return ["ci.yml no longer has a python-version matrix"]
-    tested = _versions(matrix.group(1))
+        return ["ci.yml no longer passes python-versions to the test job"]
+    tested = _versions(matrix)
     oldest, newest = tested[0], tested[-1]
 
     problems = []
@@ -192,18 +208,13 @@ def _python_claims(pyproject: str, ci: str, claude: str) -> list[str]:
             f"requires-python is {project['requires-python']!r}, "
             f"the oldest tested is {oldest}"
         )
-    plain = re.findall(r"if: matrix\.python-version != '([\d.]+)'\n", ci)
-    measured = re.findall(
-        r"if: matrix\.python-version == '([\d.]+)'\n {8}run: [^\n]*--cov-fail-under",
-        ci,
-    )
-    if plain != [newest] or measured != [newest]:
+    measured = _job_input(ci, "python-tests.yml", "coverage-python")
+    if measured != newest:
         problems.append(
-            f"coverage is measured on {measured} and skipped on all but {plain}, "
-            f"the newest tested is {newest}"
+            f"coverage is measured on {measured}, the newest tested is {newest}"
         )
-    lowest = re.findall(r"uv venv -p ([\d.]+) /tmp/lowest", ci)
-    if lowest != [oldest]:
+    lowest = _job_input(ci, "python-lowest-versions.yml", "python-version")
+    if lowest != oldest:
         problems.append(
             f"lowest-versions runs on {lowest}, the oldest tested is {oldest}"
         )
@@ -211,6 +222,19 @@ def _python_claims(pyproject: str, ci: str, claude: str) -> list[str]:
     if environment != [(oldest, newest)]:
         problems.append(f"CLAUDE.md names {environment}, the matrix {oldest}-{newest}")
     return problems
+
+
+def test_coverage_measures_this_package_against_its_floor() -> None:
+    """What CLAUDE.md promises for the coverage run, passed to the workflow.
+
+    Left empty, the workflow would measure whatever the coverage
+    configuration says, and its default floor could move in another
+    repository.
+    """
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert _job_input(ci, "python-tests.yml", "cov") == "benethos_lexware_office_mcp"
+    assert _job_input(ci, "python-tests.yml", "cov-fail-under") == "80"
 
 
 def _python_files() -> tuple[str, str, str]:
@@ -228,9 +252,9 @@ def test_every_place_names_the_python_versions_the_matrix_tests() -> None:
 def test_the_python_check_would_notice_a_version_added_halfway() -> None:
     """A new Python in the matrix alone trips every other place."""
     pyproject, ci, claude = _python_files()
-    newest = _versions(re.findall(r"python-version: \[([^\]]*)\]", ci)[0])[-1]
+    newest = _versions(_job_input(ci, "python-tests.yml", "python-versions") or "")[-1]
     following = f"3.{int(newest[2:]) + 1}"
-    halfway = ci.replace(f'"{newest}"]', f'"{newest}", "{following}"]', 1)
+    halfway = ci.replace(f'"{newest}"]\'', f'"{newest}", "{following}"]\'', 1)
 
     assert halfway != ci
     problems = _python_claims(pyproject, halfway, claude)
@@ -344,17 +368,29 @@ def test_a_manual_run_pushes_the_image_from_main_only() -> None:
 def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     """A tag is a pointer its publisher can move, a commit is not.
 
-    The version comment is what Dependabot reads to raise the pin. The one
-    exception is the organisation's own brand check, a reusable workflow
-    whose rules are meant to move with the organisation, see ci.yml.
+    The version comment is what Dependabot reads to raise the pin. The
+    exceptions are the organisation's own reusable workflows, whose rules
+    are meant to move with the organisation, see ci.yml. They are named one
+    by one, so a new unpinned reference still has to be added here.
     """
     pinned = re.compile(r"uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
-    organisation = "uses: benethos-hub/.github/.github/workflows/brand.yml@main"
+    organisation = {
+        f"uses: benethos-hub/.github/.github/workflows/{name}.yml@main"
+        for name in (
+            "brand",
+            "python-lint",
+            "python-tests",
+            "python-lowest-versions",
+            "python-dependency-audit",
+        )
+    }
     loose = [
         f"{workflow.name}: {line.strip()}"
         for workflow in (REPO / ".github" / "workflows").glob("*.yml")
         for line in workflow.read_text(encoding="utf-8").splitlines()
-        if "uses:" in line and not pinned.search(line) and line.strip() != organisation
+        if "uses:" in line
+        and not pinned.search(line)
+        and line.strip() not in organisation
     ]
 
     assert loose == []

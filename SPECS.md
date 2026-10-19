@@ -3227,7 +3227,7 @@ described in section 7.1. Nothing on the API side is outstanding.
    reusable workflow, which wants `assets/brand/` to hold `icon.svg` and,
    rendered from it, a 512x512 `icon.png` and a 1280x640
    `social-preview.png`, neither committed before the last change to the
-   SVG. It is the one workflow not pinned to a commit: the rules are the
+   SVG. It was the first workflow not pinned to a commit: the rules are the
    organisation's and are meant to reach every repository as they change.
    Since 2026-10-10 only the newest Python of the matrix measures coverage
    and holds the floor, `test (3.15)` once 3.15 joined the same day, where
@@ -3241,18 +3241,36 @@ described in section 7.1. Nothing on the API side is outstanding.
    `.github/dependabot.yml` asks weekly about the dependency ranges, the
    pinned actions and the container base image.
 
+   **Since 2026-10-19 `lint`, `test` and `lowest-versions` call the
+   organisation's reusable workflows** in `benethos-hub/.github`, as `brand`
+   already did, and a seventh job, `audit`, checks every version in
+   `uv.lock` against PyPI and OSV. `lowest-versions` audits the versions it
+   has just tested as well. Its first run against this repository found
+   `mcp>=2.0.0` allowing GHSA-84m7-p3x7-pcfv, and the floor went to 2.2.0
+   before the move. `fresh-install` and `docker` stay here, they are this
+   project's own. The steps are the ones the jobs had, and `ci.yml` names
+   the tested Pythons, the coverage one, the oldest one and the coverage
+   floor explicitly rather than relying on the workflows' defaults, so
+   `tests/test_packaging.py` can hold them to the classifiers,
+   `requires-python` and CLAUDE.md. The workflows follow `main` there,
+   unpinned like `brand`, for the reason given above.
+
    **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
    where a parameter description had silently disappeared from a tool schema.
    See section 6 for what changed in Python and why the workaround it broke
    was there.
 
    **A new job is not required by itself.** The jobs that block a merge are
-   listed in the branch protection, all ten since 2026-10-13: `lint`, the
-   five `test` jobs, `fresh-install`, `docker`, `lowest-versions` and
-   `brand / Brand assets`. A job added later - `docker` with 0.2.0, or a
-   Python version added to the matrix - runs, may fail, and still lets the
-   merge through until it is added to that list as well, which needs one run
-   of it first.
+   listed in the branch protection, all eleven since 2026-10-19:
+   `lint / lint`, `test / Python 3.11` to `test / Python 3.15`,
+   `lowest-versions / Python 3.11`, `audit / Dependency audit`,
+   `fresh-install`, `docker` and `brand / Brand assets`. A job added later -
+   `docker` with 0.2.0, or a Python version added to the matrix - runs, may
+   fail, and still lets the merge through until it is added to that list as
+   well, which needs one run of it first. A job that moves into a reusable
+   workflow changes its name the same way, so the list is swapped while the
+   pull request that moves it waits, and the old names show as expected and
+   never reported until then.
 3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
    sample moved into the package as `env.sample`, so it is installed with the
    code instead of sitting beside it, and `--settings-sample` prints it.
