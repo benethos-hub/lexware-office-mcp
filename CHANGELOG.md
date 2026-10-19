@@ -15,11 +15,10 @@ housekeeping are out of scope here — design decisions live in
 
 ## [0.6.1] - 2026-10-19
 
-A patch release. Nothing a client receives changed: the tool list
-and every answer are those of 0.6.0. The image is built from a
-refreshed lockfile on the current build of `python:3.15-slim`, and the
-lowest allowed `mcp` closes a
-vulnerability for an environment that pins an older one.
+A patch release. Nothing a client receives changed: the tool list and every
+answer are those of 0.6.0. The image is built from a refreshed lockfile on
+the current build of `python:3.15-slim`, and the lowest allowed `mcp` closes
+a vulnerability for an environment that pins an older one.
 
 ### Changed
 
