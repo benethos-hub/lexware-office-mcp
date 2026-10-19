@@ -365,6 +365,43 @@ def test_a_manual_run_pushes_the_image_from_main_only() -> None:
     )
 
 
+def _publish_job(name: str) -> str:
+    """One job of publish.yml up to its steps, or all of it for a call."""
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    rest = workflow.split(f"\n  {name}:\n", 1)[1]
+    job = re.split(r"\n  [a-z-]+:\n", rest, maxsplit=1)[0]
+    return job.split("steps:", 1)[0]
+
+
+@pytest.mark.parametrize("job", ["pypi-publish", "ghcr-publish", "mcpb-bundle"])
+def test_nothing_is_built_before_the_ci_gate(job: str) -> None:
+    """A version on PyPI cannot be replaced, so every upload waits for it.
+
+    The registry entry needs these three, so it waits as well.
+    """
+    assert "\n    needs: ci-passed\n" in _publish_job(job)
+
+
+def test_the_ci_gate_is_the_organisations_and_may_read_the_runs() -> None:
+    """A reusable workflow never gets more rights than its caller grants."""
+    gate = _publish_job("ci-passed")
+
+    assert (
+        "uses: benethos-hub/.github/.github/workflows/python-release-ci-passed.yml@main"
+        in gate
+    )
+    assert "      actions: read" in gate
+    assert "      contents: read" in gate
+    assert "\n      audit: true" in gate
+    # The same condition as the image job, so a manual run on main is gated
+    # and one on any other branch, which builds nothing, does not wait.
+    assert (
+        "if: github.event_name == 'release' || github.ref == 'refs/heads/main'" in gate
+    )
+
+
 def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     """A tag is a pointer its publisher can move, a commit is not.
 
@@ -382,6 +419,7 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
             "python-tests",
             "python-lowest-versions",
             "python-dependency-audit",
+            "python-release-ci-passed",
         )
     }
     loose = [
