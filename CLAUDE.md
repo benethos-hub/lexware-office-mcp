@@ -367,7 +367,12 @@ fallen behind, so the list is short on purpose. In this order:
    its own. If the dry run lists anything, refresh on its own branch first,
    with the suite and a look at the notes of whatever sits in the transport
    or under the SDK. A security fix does not wait for this step: the bot's
-   security updates cover transitive packages too.
+   security updates cover transitive packages too. **The base images as
+   well**: the digest each `FROM` line pins against the one its tag points
+   to now. A rebuild under the same tag moves the digest only, and
+   Dependabot asks about it once a week. If one moved, raise it on the
+   same branch as a lockfile refresh, and compare the packages of the old
+   and the new image before the merge.
 2. **Live checks while an account exists.** `live/smoke.py` and
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
