@@ -235,6 +235,26 @@ def test_coverage_measures_this_package_against_its_floor() -> None:
 
     assert _job_input(ci, "python-tests.yml", "cov") == "benethos_lexware_office_mcp"
     assert _job_input(ci, "python-tests.yml", "cov-fail-under") == "80"
+    assert _job_input(ci, "python-tests.yml", "badge") == "true"
+
+
+def test_the_coverage_badge_is_published_from_main_alone() -> None:
+    """The README's badge reads the badges branch, which a push to main fills.
+
+    A pull request never runs the job, so it can be no required check, and
+    without contents: write it cannot push the badge.
+    """
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    job = ci.split("\n  coverage-badge:\n", 1)[1].split("\n\n", 1)[0]
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+
+    assert "if: github.event_name == 'push'" in job
+    assert "needs: test" in job
+    assert "contents: write" in job
+    assert (
+        "raw.githubusercontent.com/benethos-hub/lexware-office-mcp/badges/coverage.json"
+        in readme
+    )
 
 
 def _python_files() -> tuple[str, str, str]:
@@ -420,6 +440,7 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
             "python-lowest-versions",
             "python-dependency-audit",
             "python-release-ci-passed",
+            "coverage-badge",
         )
     }
     loose = [

@@ -3101,8 +3101,7 @@ asserts that decision directly, in a form that costs nothing to run.
 - Virtual environment only, never the global interpreter. `uv sync --extra dev`
   is the recommended setup.
 - `CHANGELOG.md` gets an entry under `[Unreleased]` in the same commit as the
-  change it describes, and the static coverage badge in the README is
-  re-checked whenever the number moves.
+  change it describes.
 - No semicolons in prose.
 - The commit identity is configured repo-locally rather than documented here,
   so a clone cannot silently inherit a different one from a global git config.
@@ -3253,7 +3252,11 @@ described in section 7.1. Nothing on the API side is outstanding.
    floor explicitly rather than relying on the workflows' defaults, so
    `tests/test_packaging.py` can hold them to the classifiers,
    `requires-python` and CLAUDE.md. The workflows follow `main` there,
-   unpinned like `brand`, for the reason given above.
+   unpinned like `brand`, for the reason given above. The same day the
+   static coverage badge in the README gave way to one the coverage run
+   writes: `test` passes `badge: true`, and `coverage-badge` publishes the
+   percentage as `coverage.json` on the `badges` branch after a push to
+   main. It never runs for a pull request, so it is no required check.
 
    **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
    where a parameter description had silently disappeared from a tool schema.

@@ -277,8 +277,9 @@ measurement of what the whole list costs.
   (CI checks `ruff format --check`).
 - Types: `uv run mypy`.
 - Lockfile in step with `pyproject.toml`: `uv lock --check`.
-- The coverage badge in the README is **static** on purpose, so nothing
-  updates it. Re-read the percentage below and adjust it whenever it moves.
+- The coverage badge in the README follows main by itself: the coverage run
+  of `test` writes it, and `coverage-badge` publishes it on the `badges`
+  branch after a push.
 - Coverage floor 80%:
   `uv run pytest --cov=benethos_lexware_office_mcp --cov-fail-under=80`.
   Add `--no-sync` while a client is running this server from the checkout:
@@ -385,14 +386,13 @@ fallen behind, so the list is short on purpose. In this order:
    lockfile. **The minor line** (`:0.6` in the README, and in the comment
    of `.env.example`) changes only with a minor release - the image tag
    itself follows the release tag when the image is built.
-4. **The coverage percentage**, re-read against the static badge.
-5. **`MCP_PUBLISHER_VERSION`** in `publish.yml`, against the newest
+4. **`MCP_PUBLISHER_VERSION`** in `publish.yml`, against the newest
    release of `modelcontextprotocol/registry`. Dependabot does not see a
    download, and a publisher the registry has outgrown fails the entry
    with `invalid audience`. Raise the version and the checksum together,
    the checksum from the release's own checksums file. The same for
    **`MCPB_VERSION`**, against the newest `@anthropic-ai/mcpb` on npm.
-6. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
+5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
    which fires `publish.yml`. Its first job, `ci-passed` (the
    organisation's `python-release-ci-passed` workflow), waits for the CI
    run the merge commit's push to main started and lets nothing be built
@@ -402,7 +402,7 @@ fallen behind, so the list is short on purpose. In this order:
    `ci.yml`. Each job after it stops when the tag is not `v` plus the
    version in `pyproject.toml`, so a tag ahead of step 3 publishes nothing
    rather than an image with the old code.
-7. **Verify the delivered artefacts, not the build.** The PyPI simple index
+6. **Verify the delivered artefacts, not the build.** The PyPI simple index
    with a cache-busting query - the JSON API lags for minutes after an upload
    and has reported a finished release as missing. The ghcr index manifest
    for the exact tag, the minor line and `latest`, all three on the same
