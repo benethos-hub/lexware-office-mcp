@@ -13,6 +13,10 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- The container image is built with uv 0.13.2 (was 0.13.1).
+
 ## [0.6.1] - 2026-10-19
 
 A patch release. Nothing a client receives changed: the tool list and every
