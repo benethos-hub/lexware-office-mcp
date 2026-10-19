@@ -1,12 +1,17 @@
 # <img src="https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/brand/icon.svg" alt="" width="40" height="40"> Unofficial Lexware Office MCP Server
 
 [![CI](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
-[![PyPI benethos-lexware-office-mcp](https://img.shields.io/pypi/v/benethos-lexware-office-mcp?label=PyPI%20benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
-[![Container benethos-lexware-office-mcp](https://img.shields.io/badge/ghcr.io-benethos--lexware--office--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/pkgs/container/benethos-lexware-office-mcp)
-[![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp)](https://pypi.org/project/benethos-lexware-office-mcp/)
-[![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/badges/coverage.json&logo=githubactions&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/benethos-hub/lexware-office-mcp?logo=opensourceinitiative&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/blob/main/LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/benethos-lexware-office-mcp?logo=python&logoColor=white)](https://pypi.org/project/benethos-lexware-office-mcp/)
 
+[![PyPI benethos-lexware-office-mcp](https://img.shields.io/pypi/v/benethos-lexware-office-mcp?label=PyPI%20benethos-lexware-office-mcp&logo=pypi&logoColor=white)](https://pypi.org/project/benethos-lexware-office-mcp/)
+[![Container benethos-lexware-office-mcp](https://img.shields.io/badge/ghcr.io-benethos--lexware--office--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/benethos-hub/lexware-office-mcp/pkgs/container/benethos-lexware-office-mcp)
+
+[![Sponsor](https://raw.githubusercontent.com/benethos-hub/.github/main/profile/badges/sponsor.svg)](https://github.com/sponsors/BeneODev)
+[![PayPal](https://raw.githubusercontent.com/benethos-hub/.github/main/profile/badges/paypal.svg)](https://paypal.me/BeneODev)
+
+<!-- The MCP Registry looks for this line in the README on PyPI to accept the package as the one in server.json. -->
 <!-- mcp-name: io.github.benethos-hub/benethos-lexware-office-mcp -->
 
 > **Disclaimer**

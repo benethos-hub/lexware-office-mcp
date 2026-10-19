@@ -1,60 +1,22 @@
 name: Publish
 
-# Publishes the release artefacts when a GitHub release is published:
-#   * the sdist and the wheel to PyPI, through Trusted Publishing
-#   * the container image to ghcr.io, through the automatic GITHUB_TOKEN
-#   * the Claude Desktop bundle (.mcpb), attached to the release itself
-#   * the entry in the MCP Registry, which points at all three, through the
-#     workflow's OIDC identity
+# Publishes a release: the package to PyPI, the image to ghcr.io, the Claude
+# Desktop bundle onto the release, and the entry in the MCP Registry. Each
+# upload is done by an action of the organisation in benethos-hub/.github
+# (actions/publish), followed at main like the CI workflows. Its README
+# describes the gate, the trial run, the release tags and the one-time
+# setup. What follows is what this project adds.
 #
-# Nothing is built before `ci-passed` has seen the CI run that the release
-# commit's push to main started, and seen it succeed. A version on PyPI
-# cannot be replaced, so a tag on a commit that never reached main, or on one
-# whose CI is red, publishes nothing. The gate waits for a run still going,
-# and audits uv.lock once more for a vulnerability that became known between
-# the merge and the release.
+# PyPI trusts this file, publish.yml, together with the environment
+# pypi-benethos-lexware-office-mcp. Renaming either has PyPI refuse the next
+# upload.
 #
-# The package jobs and the bundle are independent, so a broken image push
-# does not withhold the upload to PyPI and none waits on another. The registry
-# job waits on all three, because the registry checks every package the
-# moment it accepts the entry, the bundle's download and checksum included.
+# The image carries the package's name. The repository's name carried it
+# until 0.4 and got the 0.4 patch releases, and nothing from 0.5.0 on.
 #
-# `workflow_dispatch` runs the image half alone and tags the result `edge`,
-# from `main` only: `edge` is public, and the form offers every branch.
-# PyPI is skipped there: a version may be uploaded to PyPI exactly once, and a
-# manual run carries no release tag it could legitimately claim a version from.
-#
-# Authentication is Trusted Publishing, which exchanges the workflow's OIDC
-# identity for a short-lived token. **No API token is stored anywhere in this
-# repository**, which matters for a project whose whole subject is not
-# leaving credentials lying around.
-#
-# One-time setup on PyPI, by the account that will own the project. Under
-# "Publishing" add a pending publisher with exactly:
-#
-#     PyPI project name: benethos-lexware-office-mcp
-#     Owner:             benethos-hub
-#     Repository:        lexware-office-mcp
-#     Workflow filename: publish.yml
-#     Environment:       pypi-benethos-lexware-office-mcp
-#
-# All five have to match or the upload is refused, and the environment below
-# is the one it names: pypi- and the package's name. On GitHub it is under
-# Settings -> Environments. For a project that exists already, the publisher
-# is added the same way, without the project name.
-#
-# The registry needed no setup, measured on 2026-08-22 with the first push:
-# the package came out public and was pulled with no login and no account,
-# even though the documented behaviour is that a new package is private until
-# switched. If a pull ever does come back unauthorized, that switch is under
-# Packages -> Package settings -> Change visibility.
-#
-# Every action is pinned to a commit, its version beside it for the reader
-# and for Dependabot, which raises both. This job holds the identity PyPI
-# trusts and the right to push the image, and a tag is a pointer its
-# publisher can move.
-#
-# The release process itself is in SPECS.md section 16.
+# No API token is stored anywhere in this repository. PyPI and the MCP
+# Registry take the workflow's OIDC identity, ghcr.io the automatic
+# GITHUB_TOKEN.
 
 on:
   release:
@@ -65,12 +27,11 @@ permissions:
   contents: read
 
 jobs:
-  # The organisation's gate, followed at main like the workflows in ci.yml.
-  # It waits up to 30 minutes for the CI run of ci.yml on main for this
-  # commit, and stops the release when that run failed, or after five
-  # minutes when there is none. A manual run on main goes through it as
-  # well. On any other branch nothing would be built, so it does not run.
-  # A waiver in ignore-vulns belongs here and in ci.yml alike.
+  # Waits up to 30 minutes for the CI run of ci.yml on main for this commit,
+  # and stops the release when that run failed, or after five minutes when
+  # there is none. On a branch other than main nothing would be built, so it
+  # does not run there. A waiver in ignore-vulns belongs here and in ci.yml
+  # alike.
   ci-passed:
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     uses: benethos-hub/.github/.github/workflows/python-release-ci-passed.yml@main
@@ -82,165 +43,81 @@ jobs:
 
   pypi-publish:
     name: Build and publish to PyPI
-    # A manual run has no version to publish, and PyPI refuses a re-upload.
+    # A version may be uploaded once only, so never by hand. The trial is
+    # pypi-trial.
     if: github.event_name == 'release'
     needs: ci-passed
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: pypi-benethos-lexware-office-mcp
       url: https://pypi.org/p/benethos-lexware-office-mcp
     # A job's permissions replace the workflow's, so contents: read is
-    # repeated here or checkout would rely on the repository being public.
+    # repeated here for the checkout.
     permissions:
       contents: read
       id-token: write # Trusted Publishing, in place of a stored token
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Before anything is built: a tag that is not the version in
-      # pyproject.toml has PyPI refuse the upload, while the image job would
-      # push the tag's version with the old code.
-      - name: The release tag is the package version
-        run: python3 .github/scripts/tag_matches_version.py
+      # The settings sample lived beside the package once and was never
+      # packed, and the PEP 561 marker decides whether a type checker looks
+      # at the installed package at all. Neither would fail a test or the
+      # build.
+      - uses: benethos-hub/.github/actions/publish/pypi@main
+        with:
+          wheel-contains: |
+            benethos_lexware_office_mcp/env.sample
+            benethos_lexware_office_mcp/py.typed
+            benethos_lexware_office_mcp/server.py
 
-      # No `enable-cache` on purpose. The action's default disables the cache
-      # for a `release` event, which is exactly this job: it holds the OIDC
-      # identity that uploads to PyPI, and a restored cache is one more thing
-      # that would have to be trusted. It installs almost nothing anyway.
-      - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+  # The PyPI half of a manual run, without the environment and without an
+  # OIDC token, since nothing is uploaded.
+  pypi-trial:
+    name: Build and check for PyPI (trial)
+    if: github.event_name == 'workflow_dispatch'
+    needs: ci-passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Build sdist and wheel
-        run: uv build
-
-      # The wheel is what a user installs, and it has been wrong before: the
-      # settings sample lived beside the package and was never packed. Assert
-      # it is in there rather than finding out from a bug report.
-      - name: The wheel carries what it is supposed to
-        run: |
-          python - <<'PY'
-          import pathlib, zipfile
-          wheel = next(pathlib.Path("dist").glob("*.whl"))
-          names = zipfile.ZipFile(wheel).namelist()
-          expected = [
-              "benethos_lexware_office_mcp/env.sample",
-              "benethos_lexware_office_mcp/py.typed",
-              "benethos_lexware_office_mcp/server.py",
-          ]
-          missing = [n for n in expected if n not in names]
-          assert not missing, f"{wheel.name} is missing {missing}"
-          print(f"OK: {wheel.name}, {len(names)} files")
-          PY
-
-      - name: Publish to PyPI (Trusted Publishing)
-        run: uv publish --trusted-publishing always
+      - uses: benethos-hub/.github/actions/publish/pypi@main
+        with:
+          dry-run: true
+          wheel-contains: |
+            benethos_lexware_office_mcp/env.sample
+            benethos_lexware_office_mcp/py.typed
+            benethos_lexware_office_mcp/server.py
 
   ghcr-publish:
     name: Build and publish the image
-    # A release, or a manual run on main. See the header.
+    # A release, or a manual run on main, which pushes edge. edge is public,
+    # and the form offers every branch.
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     needs: ci-passed
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write # push to ghcr.io as the GITHUB_TOKEN identity
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The same check as the PyPI job. The two jobs are independent, so
-      # each has to refuse on its own. A manual run carries no tag.
-      - name: The release tag is the package version
-        if: github.event_name == 'release'
-        run: python3 .github/scripts/tag_matches_version.py
-
-      # arm64 is emulated on an amd64 runner. Nothing in this image is compiled
-      # from source - pypdfium2 ships a prebuilt PDFium for aarch64 and the rest
-      # is pure Python - so the emulation only has to run an unpack.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      # arm64 is emulated on the amd64 runner. Nothing in this image is
+      # compiled from source, pypdfium2 ships a prebuilt PDFium for aarch64
+      # and the rest is pure Python. The arm64 build of the docker job in
+      # ci.yml writes its layers to the cache scope buildkit, and the release
+      # reads them from there.
+      - uses: benethos-hub/.github/actions/publish/ghcr@main
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Derive image tags, labels and annotations
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        env:
-          # Annotate the index as well as the individual manifests. The default
-          # is manifests only, and for a multi-architecture image the package
-          # page reads the index - the manifest list above the per-architecture
-          # manifests. Labels sitting in the image configuration are then
-          # perfectly present and read by nothing, which is exactly how a
-          # package page ends up saying "No description provided".
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest
-        with:
-          # The package's name, which is what the readback below inspects.
-          # The repository's name carried the image until 0.4 and got its
-          # patch releases, and none from 0.5.0 on.
-          images: |
-            ghcr.io/${{ github.repository_owner }}/benethos-lexware-office-mcp
-          flavor: latest=false
-          # `latest` is what a pull without a tag gets, so a pre-release never
-          # becomes it. Its own version tag is still pushed.
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
-            type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
-
-      - name: Build and push
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: containers/images/lexware-office-mcp/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Read the published index back. Setting the annotations above and
-      # trusting them is what produced a description nobody could see, and the
-      # cost of finding out is a release that has already happened.
-      - name: The published index carries what the package page reads
-        run: |
-          ref=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -1)
-          echo "inspecting $ref"
-          docker buildx imagetools inspect "$ref" --raw > /tmp/index.json
-          python3 - <<'PY'
-          import json
-
-          index = json.load(open("/tmp/index.json"))
-          annotations = index.get("annotations") or {}
-          platforms = sorted(
-              f"{m['platform']['os']}/{m['platform']['architecture']}"
-              for m in index.get("manifests", [])
-              if m.get("platform", {}).get("architecture") != "unknown"
-          )
-          missing = [
-              key
-              for key in (
-                  "org.opencontainers.image.description",
-                  "org.opencontainers.image.source",
-                  "org.opencontainers.image.version",
-              )
-              if not annotations.get(key)
-          ]
-          assert not missing, f"the index carries no {missing} - the package page shows nothing"
-          assert "linux/amd64" in platforms, f"amd64 is missing, index holds {platforms}"
-          assert "linux/arm64" in platforms, f"arm64 is missing, index holds {platforms}"
-          print("OK:", ", ".join(platforms))
-          print("   ", annotations["org.opencontainers.image.description"])
-          PY
+          image: benethos-lexware-office-mcp
+          dockerfile: containers/images/lexware-office-mcp/Dockerfile
+          version-scheme: pep440
+          version-file: pyproject.toml
+          cache-scope: buildkit
 
   mcpb-bundle:
     name: Attach the Claude Desktop bundle
@@ -252,114 +129,41 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # upload the bundle as a release asset
-    env:
-      # Pinned like everything else here. Dependabot does not see a package
-      # npx fetches, so the release checklist in CLAUDE.md raises it.
-      MCPB_VERSION: 2.1.2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The write token is for the upload, nothing here pushes.
           persist-credentials: false
 
-      - name: The release tag is the package version
-        run: python3 .github/scripts/tag_matches_version.py
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Stage the bundle
-        run: python3 .github/publish/mcpb/build.py "$RUNNER_TEMP/bundle"
+        run: uv run --no-project .github/publish/mcpb/build.py "$RUNNER_TEMP/bundle"
 
-      - name: Validate and pack
-        run: |
-          set -euo pipefail
-          npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" validate "$RUNNER_TEMP/bundle/manifest.json"
-          npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" pack "$RUNNER_TEMP/bundle" \
-            "benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
+      # Attached twice, under its version and without, which gives the README
+      # a link that always reaches the newest full release
+      # (releases/latest/download/benethos-lexware-office-mcp.mcpb).
+      - uses: benethos-hub/.github/actions/publish/mcpb@main
+        with:
+          staged: ${{ runner.temp }}/bundle
+          name: benethos-lexware-office-mcp
 
-      # The packer's own dependencies are resolved afresh at every release,
-      # in a job that can write to it, and the registry entry vouches for
-      # the result by its hash. So the result is unpacked and held to the
-      # staged tree, byte for byte, before anything leaves this job.
-      - name: The bundle is the staged tree
-        run: >-
-          python3 .github/publish/mcpb/check_packed.py "$RUNNER_TEMP/bundle"
-          "benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
-
-      # Twice: under its version, and without one, which gives the README a
-      # link that always reaches the newest full release.
-      - name: Attach it to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          versioned="benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
-          cp "$versioned" benethos-lexware-office-mcp.mcpb
-          gh release upload "$GITHUB_REF_NAME" "$versioned" benethos-lexware-office-mcp.mcpb
-
-  mcp-registry-publish:
+  mcp-registry:
     name: Publish to the MCP Registry
-    # An entry cannot be taken back, so a pre-release never gets one.
+    # The registry checks every package when it takes the entry: the README
+    # of this version on PyPI must carry the mcp-name line, the image the
+    # label, and the bundle must be downloadable and match its checksum. So
+    # it runs only once all three are out. An entry cannot be taken back, so
+    # a pre-release never gets one.
     if: github.event_name == 'release' && !github.event.release.prerelease
     needs: [pypi-publish, ghcr-publish, mcpb-bundle]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write # the registry grants io.github.<owner>/* to this identity
-    # Pinned with its checksum, from the release's own checksums file.
-    # Dependabot does not see a download, so the release checklist in
-    # CLAUDE.md raises it by hand.
-    env:
-      MCP_PUBLISHER_VERSION: v1.8.1
-      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+      id-token: write # the registry grants io.github.benethos-hub/* to this token
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: The release tag is the package version
-        run: python3 .github/scripts/tag_matches_version.py
-
-      - name: Install mcp-publisher
-        run: |
-          set -euo pipefail
-          curl -fsSL -o mcp-publisher.tar.gz \
-            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
-          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
-          tar xzf mcp-publisher.tar.gz mcp-publisher
-
-      # The bundle's hash exists only now. The entry holds a placeholder,
-      # and the hash is taken from the very file the release carries.
-      - name: Fill in the bundle's checksum
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          bundle="benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"
-          gh release download "$GITHUB_REF_NAME" --pattern "$bundle" --dir "$RUNNER_TEMP"
-          python3 .github/publish/mcp-registry/fill_bundle_checksum.py \
-            .github/publish/mcp-registry/server.json "$RUNNER_TEMP/$bundle"
-
-      - name: Log in with the workflow's OIDC token
-        run: ./mcp-publisher login github-oidc
-
-      # The registry reads the PyPI version through PyPI's JSON API, which
-      # has reported a fresh upload as missing for minutes. Six tries a
-      # minute apart outlast that. The registry takes an entry whole or not
-      # at all, so a refusal that outlasts them falls back to the entry
-      # without the bundle, the newest of its packages: the version is
-      # listed at least with PyPI and the image, and the job still fails, so
-      # the refusal is looked at.
-      - name: Publish server.json
-        run: |
-          set -euo pipefail
-          entry=.github/publish/mcp-registry/server.json
-          for attempt in 1 2 3 4 5 6; do
-            if ./mcp-publisher publish "$entry"; then
-              exit 0
-            fi
-            echo "attempt ${attempt} refused, trying again in 60 s"
-            sleep 60
-          done
-          echo "::warning::The registry refused the entry with the bundle, publishing it without"
-          python3 .github/publish/mcp-registry/fill_bundle_checksum.py --drop "$entry"
-          ./mcp-publisher publish "$entry"
-          echo "::error::Listed without the bundle. The refusals above say why."
-          exit 1
+      - uses: benethos-hub/.github/actions/publish/mcp-registry@main

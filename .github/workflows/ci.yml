@@ -18,12 +18,25 @@ permissions:
   contents: read
 
 jobs:
-  # lint, test, lowest-versions, audit and brand are the organisation's
-  # reusable workflows in benethos-hub/.github, the same for every Python
-  # project there. Each one explains itself in its file. They are followed at
-  # main on purpose, so a rule changed there applies here on the next run,
-  # and Dependabot in that repository keeps the actions they pin current.
-  # What stays here is what only this project has: fresh-install and docker.
+  # brand, lint, test, coverage-badge, lowest-versions and audit are the
+  # organisation's reusable workflows in benethos-hub/.github, the same for
+  # every Python project there. Each one explains itself in its file. What
+  # stays here is what only this project has: fresh-install and docker.
+  #
+  # They are followed at main, unpinned, and all but coverage-badge are
+  # required checks, so whoever writes that repository's main decides
+  # whether a merge here is green. A change there can turn every open pull
+  # request red, or run other code in these jobs, without a commit in this
+  # repository. Kept on main deliberately, decided 2026-10-15 for brand and
+  # 2026-10-19 for the rest: both repositories have the same owner, and a
+  # pin would only trail the rules it exists to apply. Dependabot in that
+  # repository keeps the actions they pin current.
+
+  # assets/brand/icon.svg, and a 512x512 icon.png and a 1280x640
+  # social-preview.png rendered from it, neither older than the SVG.
+  # assets/render_icon.py writes both PNGs.
+  brand:
+    uses: benethos-hub/.github/.github/workflows/brand.yml@main
 
   # uv.lock in step with pyproject.toml, ruff, the formatting and mypy.
   lint:
@@ -50,6 +63,9 @@ jobs:
   # tests/test_packaging.py ties these lines to the classifiers,
   # requires-python and CLAUDE.md. A default changed in the organisation's
   # repository would otherwise move the tests away from them without a word.
+  #
+  # badge: true has the coverage run write the measured percentage as a
+  # badge, which coverage-badge below publishes.
   test:
     uses: benethos-hub/.github/.github/workflows/python-tests.yml@main
     with:
@@ -58,6 +74,17 @@ jobs:
       sync-args: --extra dev
       cov: benethos_lexware_office_mcp
       cov-fail-under: 80
+      badge: true
+
+  # The coverage badge in the README, as coverage.json on the badges branch.
+  # It runs on a push to main only, so the badge shows main's coverage, and a
+  # pull request never runs it. That is why it is no required check.
+  coverage-badge:
+    if: github.event_name == 'push'
+    needs: test
+    uses: benethos-hub/.github/.github/workflows/coverage-badge.yml@main
+    permissions:
+      contents: write # push coverage.json to the badges branch
 
   # Every other job installs from uv.lock, which pins dependencies to a set
   # known to work. Reproducibility needs that, but it hides a broken *declared*
@@ -292,20 +319,3 @@ jobs:
       - name: What it said
         if: always()
         run: docker logs lxo-ci || true
-
-  # The organisation's brand rules: assets/brand/ holds icon.svg and, rendered
-  # from it, a 512x512 icon.png and a 1280x640 social-preview.png, neither
-  # older than the SVG. It reads only assets/brand and has nothing but read
-  # access.
-  #
-  # Like the four Python workflows above, unpinned and a required check, so
-  # whoever writes that repository's main decides whether a merge here is
-  # green - a change there can turn every open pull request red, or run
-  # other code in these jobs, without a commit in this repository. Kept on
-  # main deliberately, decided again 2026-10-15 for brand and 2026-10-19 for
-  # the Python workflows: both repositories have the same owner, and a pin
-  # would only trail the rules it exists to apply. Pinning is a commit SHA
-  # here with the version beside it, which Dependabot's github-actions group
-  # would then raise.
-  brand:
-    uses: benethos-hub/.github/.github/workflows/brand.yml@main

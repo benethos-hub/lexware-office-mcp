@@ -3101,8 +3101,7 @@ asserts that decision directly, in a form that costs nothing to run.
 - Virtual environment only, never the global interpreter. `uv sync --extra dev`
   is the recommended setup.
 - `CHANGELOG.md` gets an entry under `[Unreleased]` in the same commit as the
-  change it describes, and the static coverage badge in the README is
-  re-checked whenever the number moves.
+  change it describes.
 - No semicolons in prose.
 - The commit identity is configured repo-locally rather than documented here,
   so a clone cannot silently inherit a different one from a global git config.
@@ -3253,7 +3252,11 @@ described in section 7.1. Nothing on the API side is outstanding.
    floor explicitly rather than relying on the workflows' defaults, so
    `tests/test_packaging.py` can hold them to the classifiers,
    `requires-python` and CLAUDE.md. The workflows follow `main` there,
-   unpinned like `brand`, for the reason given above.
+   unpinned like `brand`, for the reason given above. The same day the
+   static coverage badge in the README gave way to one the coverage run
+   writes: `test` passes `badge: true`, and `coverage-badge` publishes the
+   percentage as `coverage.json` on the `badges` branch after a push to
+   main. It never runs for a pull request, so it is no required check.
 
    **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
    where a parameter description had silently disappeared from a tool schema.
@@ -3280,16 +3283,26 @@ described in section 7.1. Nothing on the API side is outstanding.
    repository.
    `.github/workflows/publish.yml` does it from a published release over
    Trusted Publishing, so no token is stored here. It needs a pending
-   publisher on PyPI first, whose five fields the workflow header spells out.
+   publisher on PyPI first, for `publish.yml` and the environment
+   `pypi-benethos-lexware-office-mcp`.
    **The release itself:** a `release/X.Y.Z` branch that moves the CHANGELOG
    `[Unreleased]` section to a numbered one with its compare links, bumps the
    version pin in the README's client example, and brings the installation
    instructions in line, then a tag and a GitHub release on the merged commit,
-   which is what triggers the upload. **Both jobs first check that the tag is
-   the version in `pyproject.toml`**, with
-   `.github/scripts/tag_matches_version.py`: a tag ahead of the version has
-   PyPI refuse the upload, and without the check the image job would still
-   push the tag's version, its minor line and `latest` with the old code.
+   which is what triggers the upload. **Every job first checks that the tag
+   is the version in its file**: a tag ahead of the version has PyPI refuse
+   the upload, and without the check the image job would still push the
+   tag's version, its minor line and `latest` with the old code.
+   **Since 2026-10-19 every upload is an action of the organisation**,
+   `publish/pypi`, `publish/ghcr`, `publish/mcpb` and
+   `publish/mcp-registry` in `benethos-hub/.github`, followed at `main`
+   like the CI workflows. The jobs stay in `publish.yml`, because PyPI and
+   the registry trust the workflow of the job that uploads. The actions do
+   the tag check against `pyproject.toml`, `manifest.json` and
+   `server.json`, which replaced this project's own script, and a manual
+   run gained `pypi-trial`, which builds and checks the wheel and asks PyPI
+   whether it would take it, without the environment and without an OIDC
+   token.
    **Since 2026-10-19 nothing is built before the CI run of the release
    commit on main has succeeded.** The first job, `ci-passed`, calls the
    organisation's `python-release-ci-passed` workflow, which looks for the
@@ -3329,7 +3342,9 @@ described in section 7.1. Nothing on the API side is outstanding.
    in both places, and the job then reads the published index back and fails
    if the description, the source or the version is not on it - a release is a
    poor moment to discover that setting a value and it arriving are different
-   things.
+   things. Since 2026-10-19 the organisation's `publish/ghcr` action does
+   all of it, the annotations, the readback and the tags, and reuses the
+   arm64 layers the CI build caches in the scope `buildkit`.
 
    **Measured on 2026-08-22 by running it**, which is the only way the
    metadata could be believed. `workflow_dispatch` pushed `edge`, the readback
@@ -3461,21 +3476,19 @@ described in section 7.1. Nothing on the API side is outstanding.
    The registry wants its SHA-256, which exists only once the release has
    built the bundle, so the committed entry holds zeros and the job, which
    waits for the bundle as well, downloads the file the release carries and
-   writes its hash in with `fill_bundle_checksum.py` before publishing. The
-   script refuses another file name and an entry that holds anything but
-   the zeros, so a hash is never written twice or for the wrong file.
-   **The registry takes an entry whole or not at all**, so a refusal that
-   outlasts the retries falls back to the entry without the bundle, the
-   newest of its packages, which `fill_bundle_checksum.py --drop` writes:
-   the version is listed at least with PyPI and the image, and the job
-   still fails, so the refusal is looked at.
+   writes its hash in before publishing. **The registry takes an entry
+   whole or not at all**, so a refusal that outlasts the retries falls back
+   to the entry without the bundle, the newest of its packages: the version
+   is listed at least with PyPI and the image, and the job still fails, so
+   the refusal is looked at. Since 2026-10-19 both are done by the
+   organisation's `publish/mcp-registry` action, which also pins
+   `mcp-publisher` by version and checksum, in place of this project's
+   `fill_bundle_checksum.py` and its own pin.
 
-   `mcp-publisher` is a download rather than an action, pinned by version
-   and checksum, so Dependabot does not see it and the release checklist
-   in `CLAUDE.md` raises it by hand. `tests/test_packaging.py` holds the
-   entry against the package: the versions, the description, the package
-   names, the namespace, both ownership proofs, the volumes, the icons and
-   the job's order.
+   `tests/test_packaging.py` holds the entry against the package: the
+   versions, the description, the package names, the namespace, both
+   ownership proofs, the volumes, the icons, the placeholder, and the job
+   that waits for all three packages.
 8. **A Claude Desktop extension**, attached to every release since 0.5.1
    of 2026-10-10, whose job built and attached it at its first run.
    `.github/publish/mcpb/` holds the
@@ -3484,16 +3497,16 @@ described in section 7.1. Nothing on the API side is outstanding.
    `uv` bundle: it carries `pyproject.toml`, `uv.lock` and the source, and
    Claude Desktop installs Python and the dependencies itself, from the
    lockfile because the manifest says `--frozen`. A job in `publish.yml`
-   packs it with a pinned mcpb CLI and attaches it to the release twice,
-   under its version and under a name without one for a link that always
-   reaches the newest release. Between the two, since 2026-10-15,
-   `check_packed.py` unpacks the result and holds it to the staged tree,
-   the same files byte for byte and no other: the CLI's own version is
-   pinned, but npx resolves everything beneath it afresh at every release,
-   in a job that can write to the release, and the registry entry vouches
-   for the bundle by its hash. Comparing costs a standard-library script,
-   where a lockfile for the CLI would be a second package manager's file to
-   keep current.
+   stages it with `build.py` through `uv run`, and the organisation's
+   `publish/mcpb` action checks its version against the tag, validates and
+   packs it, holds the packed file to the staged tree byte for byte, and
+   attaches it to the release twice, under its version and under a name
+   without one for a link that always reaches the newest release. The
+   comparison matters because the registry entry vouches for the bundle by
+   its hash. Until 2026-10-19 this project packed with an mcpb CLI pinned
+   in the workflow, whose dependencies npx resolved afresh at every
+   release, and compared with its own `check_packed.py`. The action locks
+   the packer and everything beneath it in a `package-lock.json`.
 
    **Tried before anything was built**, in a Windows Sandbox with Claude
    Desktop from the Store and no uv or Python on the machine. Claude
@@ -3521,8 +3534,8 @@ described in section 7.1. Nothing on the API side is outstanding.
 
    macOS is not measured, in particular whether Claude Desktop there keeps
    an extension from the per-user directory `setup` writes **(to verify)**.
-   The mcpb CLI is fetched by npx, so Dependabot does not see it and the
-   release checklist raises it. `tests/test_mcpb.py` holds the manifest to
+   The mcpb CLI is locked in the organisation's `publish/mcpb` action,
+   where Dependabot keeps it current. `tests/test_mcpb.py` holds the manifest to
    the package: the version, the metadata, every tool with the first
    sentence of its description, the prompt as the server answers it, no
    settings asked for, and a staged bundle that holds the tracked source

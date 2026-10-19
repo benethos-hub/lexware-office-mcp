@@ -7,15 +7,9 @@ move at release time.
 
 from __future__ import annotations
 
-import hashlib
-import importlib.util
 import json
-import os
 import re
-import subprocess
-import sys
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 import pytest
@@ -235,6 +229,26 @@ def test_coverage_measures_this_package_against_its_floor() -> None:
 
     assert _job_input(ci, "python-tests.yml", "cov") == "benethos_lexware_office_mcp"
     assert _job_input(ci, "python-tests.yml", "cov-fail-under") == "80"
+    assert _job_input(ci, "python-tests.yml", "badge") == "true"
+
+
+def test_the_coverage_badge_is_published_from_main_alone() -> None:
+    """The README's badge reads the badges branch, which a push to main fills.
+
+    A pull request never runs the job, so it can be no required check, and
+    without contents: write it cannot push the badge.
+    """
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    job = ci.split("\n  coverage-badge:\n", 1)[1].split("\n\n", 1)[0]
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+
+    assert "if: github.event_name == 'push'" in job
+    assert "needs: test" in job
+    assert "contents: write" in job
+    assert (
+        "raw.githubusercontent.com/benethos-hub/lexware-office-mcp/badges/coverage.json"
+        in readme
+    )
 
 
 def _python_files() -> tuple[str, str, str]:
@@ -276,93 +290,96 @@ COMPOSE_FILES = (
 )
 
 
-def _tag_check(tag: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
-    pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text('[project]\nversion = "0.3.0"\n', encoding="utf-8")
-    return subprocess.run(
-        [sys.executable, str(REPO / ".github" / "scripts" / "tag_matches_version.py")],
-        env={**os.environ, "GITHUB_REF_NAME": tag, "PYPROJECT": str(pyproject)},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def test_a_release_tag_that_is_the_version_passes(tmp_path: Path) -> None:
-    assert _tag_check("v0.3.0", tmp_path).returncode == 0
-
-
-def test_a_release_tag_ahead_of_the_version_fails(tmp_path: Path) -> None:
-    """PyPI would refuse it, and the image would go out under it anyway."""
-    done = _tag_check("v0.4.0", tmp_path)
-
-    assert done.returncode == 1
-    assert "::error::" in done.stdout
-
-
 def test_the_publishing_environment_is_named_for_the_package() -> None:
     """pypi- and the package's name, the one PyPI's publisher is bound to.
 
-    A renamed environment is refused by PyPI at the next release, not before,
-    so the name in the header the publisher is set up from and the name the
-    job uses have to be the same one.
+    A renamed environment is refused by PyPI at the next release, not before.
     """
     import tomllib
 
     project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
     environment = f"pypi-{project['project']['name']}"
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
 
-    assert f"\n      name: {environment}\n" in workflow
-    assert f"#     Environment:       {environment}\n" in workflow
+    assert f"\n      name: {environment}\n" in _publish_job("pypi-publish")
+    assert environment in _publish_header()
 
 
 def test_the_image_is_pushed_under_the_package_name_alone() -> None:
     """The repository's name got the 0.4 patch releases and none after."""
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
-    block = workflow.split("          images: |\n", 1)[1].split("\n          flavor:")[
-        0
-    ]
-    images = [line.strip() for line in block.splitlines()]
+    steps = _publish_steps("ghcr-publish")
 
-    assert images == [
-        "ghcr.io/${{ github.repository_owner }}/benethos-lexware-office-mcp",
-    ]
+    assert "uses: benethos-hub/.github/actions/publish/ghcr@main" in steps
+    assert "\n          image: benethos-lexware-office-mcp\n" in steps
+    assert "\n          version-scheme: pep440\n" in steps
+    assert "\n          version-file: pyproject.toml\n" in steps
 
 
-def test_every_publish_job_checks_the_tag() -> None:
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
+def test_the_release_reuses_the_arm64_layers_ci_builds() -> None:
+    """ci.yml's arm64 build caches without a scope, which buildx calls buildkit."""
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
-    assert workflow.count("run: python3 .github/scripts/tag_matches_version.py") == 4
-
-
-def test_latest_never_follows_a_pre_release() -> None:
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
-    latest = [line for line in workflow.splitlines() if "value=latest" in line]
-
-    assert latest
-    assert all("!github.event.release.prerelease" in line for line in latest)
+    assert "cache-to: type=gha,mode=max\n" in ci
+    assert "\n          cache-scope: buildkit\n" in _publish_steps("ghcr-publish")
 
 
 def test_a_manual_run_pushes_the_image_from_main_only() -> None:
     """`edge` is public, and a manual run can be started on any branch."""
+    assert (
+        "if: github.event_name == 'release' || github.ref == 'refs/heads/main'"
+        in _publish_job("ghcr-publish")
+    )
+
+
+def test_the_upload_and_the_trial_check_the_same_wheel() -> None:
+    """The trial runs on a manual run, without the environment and OIDC."""
+    upload, trial = _publish_job("pypi-publish"), _publish_job("pypi-trial")
+
+    assert "if: github.event_name == 'release'" in upload
+    assert "id-token: write" in upload
+    assert "if: github.event_name == 'workflow_dispatch'" in trial
+    assert "environment:" not in trial
+    assert "id-token" not in trial
+    contents = [
+        steps.split("wheel-contains: |\n", 1)[1].rstrip()
+        for steps in (_publish_steps("pypi-publish"), _publish_steps("pypi-trial"))
+    ]
+    assert contents[0] == contents[1]
+    assert "benethos_lexware_office_mcp/env.sample" in contents[0]
+    assert "\n          dry-run: true\n" in _publish_steps("pypi-trial")
+
+
+@pytest.mark.parametrize(
+    ("job", "action"),
+    [
+        ("pypi-publish", "pypi"),
+        ("pypi-trial", "pypi"),
+        ("ghcr-publish", "ghcr"),
+        ("mcpb-bundle", "mcpb"),
+        ("mcp-registry", "mcp-registry"),
+    ],
+)
+def test_every_upload_is_the_organisations_action(job: str, action: str) -> None:
+    """Each action checks the release tag against its version file first."""
+    assert f"uses: benethos-hub/.github/actions/publish/{action}@main" in (
+        _publish_steps(job)
+    )
+
+
+def _publish_header() -> str:
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"
     )
-    job = workflow.split("  ghcr-publish:", 1)[1]
+    return workflow.split("\non:\n", 1)[0]
 
-    assert (
-        "if: github.event_name == 'release' || github.ref == 'refs/heads/main'"
-        in job.split("steps:", 1)[0]
+
+def _publish_steps(name: str) -> str:
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
     )
+    rest = workflow.split(f"\n  {name}:\n", 1)[1]
+    job = re.split(r"\n  [a-z-]+:\n", rest, maxsplit=1)[0]
+    # The comment above the next job is not part of this one.
+    return job.split("steps:", 1)[1].split("\n\n  #", 1)[0]
 
 
 def _publish_job(name: str) -> str:
@@ -375,7 +392,9 @@ def _publish_job(name: str) -> str:
     return job.split("steps:", 1)[0]
 
 
-@pytest.mark.parametrize("job", ["pypi-publish", "ghcr-publish", "mcpb-bundle"])
+@pytest.mark.parametrize(
+    "job", ["pypi-publish", "pypi-trial", "ghcr-publish", "mcpb-bundle"]
+)
 def test_nothing_is_built_before_the_ci_gate(job: str) -> None:
     """A version on PyPI cannot be replaced, so every upload waits for it.
 
@@ -406,7 +425,8 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     """A tag is a pointer its publisher can move, a commit is not.
 
     The version comment is what Dependabot reads to raise the pin. The
-    exceptions are the organisation's own reusable workflows, whose rules
+    exceptions are the organisation's own reusable workflows and publishing
+    actions, whose rules
     are meant to move with the organisation, see ci.yml. They are named one
     by one, so a new unpinned reference still has to be added here.
     """
@@ -420,7 +440,11 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
             "python-lowest-versions",
             "python-dependency-audit",
             "python-release-ci-passed",
+            "coverage-badge",
         )
+    } | {
+        f"- uses: benethos-hub/.github/actions/publish/{name}@main"
+        for name in ("pypi", "ghcr", "mcpb", "mcp-registry")
     }
     loose = [
         f"{workflow.name}: {line.strip()}"
@@ -475,7 +499,7 @@ def test_every_build_and_dependabot_name_the_dockerfile() -> None:
 
     assert ci.count(f"-f {relative} ") == 1
     assert ci.count(f"file: {relative}\n") == 1
-    assert publish.count(f"file: {relative}\n") == 1
+    assert publish.count(f"dockerfile: {relative}\n") == 1
     assert f'directory: "/{folder}"' in dependabot
 
 
@@ -796,20 +820,14 @@ def test_the_registry_entry_asks_for_no_environment_variables() -> None:
     assert all("environmentVariables" not in p for p in _entry()["packages"])
 
 
-def test_the_registry_job_publishes_after_both_packages() -> None:
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
-    job = workflow.split("  mcp-registry-publish:", 1)[1]
-    head = job.split("steps:", 1)[0]
+def test_the_registry_job_publishes_after_every_package() -> None:
+    """The registry checks each package of the entry when it takes it."""
+    head = _publish_job("mcp-registry")
 
     assert "needs: [pypi-publish, ghcr-publish, mcpb-bundle]" in head
     assert "!github.event.release.prerelease" in head
     assert "      contents: read\n      id-token: write" in head
-    assert re.search(r"MCP_PUBLISHER_VERSION: v\d+\.\d+\.\d+\n", head)
-    assert re.search(r"MCP_PUBLISHER_SHA256: [0-9a-f]{64}\n", head)
-    assert f"entry={REGISTRY_ENTRY.relative_to(REPO).as_posix()}\n" in job
-    assert './mcp-publisher publish "$entry"; then' in job
+    assert {p["registryType"] for p in _entry()["packages"]} == {"pypi", "oci", "mcpb"}
 
 
 def test_the_registry_icons_are_files_in_this_repository() -> None:
@@ -835,17 +853,9 @@ def test_the_registry_icons_are_files_in_this_repository() -> None:
 # The bundle is a release asset, and the registry accepts only the GitHub
 # pattern /owner/repo/releases/download/<tag>/<file> for it, so the entry
 # names the file of this very release. Its hash exists only once the release
-# has built it: the committed entry holds zeros, and the publish workflow
-# writes the real one with fill_bundle_checksum.py.
-FILL = REPO / ".github" / "publish" / "mcp-registry" / "fill_bundle_checksum.py"
-
-
-def _fill_script() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("fill_bundle_checksum", FILL)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+# has built it: the committed entry holds zeros, and the organisation's
+# mcp-registry action writes the real one.
+PLACEHOLDER = "0" * 64
 
 
 def test_the_bundle_entry_is_this_releases_asset() -> None:
@@ -862,77 +872,12 @@ def test_the_bundle_entry_is_this_releases_asset() -> None:
 
 def test_the_bundle_entry_holds_the_placeholder() -> None:
     """A real hash in the committed file would be the previous release's."""
-    assert _package("mcpb")["fileSha256"] == _fill_script().PLACEHOLDER
+    assert _package("mcpb")["fileSha256"] == PLACEHOLDER
 
 
 def test_the_bundle_file_name_is_the_one_the_workflow_uploads() -> None:
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
-    named = 'versioned="benethos-lexware-office-mcp-${GITHUB_REF_NAME#v}.mcpb"'
-
-    assert named in workflow
-
-
-def test_the_bundle_checksum_is_filled_in_before_publishing() -> None:
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
-    job = workflow.split("  mcp-registry-publish:", 1)[1]
-
-    assert job.index("fill_bundle_checksum.py") < job.index("mcp-publisher publish")
-
-
-def test_the_checksum_is_written_for_the_named_file_only(tmp_path: Path) -> None:
+    """The mcpb action attaches <name>-<version>.mcpb, the entry names it."""
+    name = _publish_steps("mcpb-bundle").split("\n          name: ", 1)[1].split()[0]
     version = benethos_lexware_office_mcp.__version__
-    entry = tmp_path / "server.json"
-    entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
-    bundle = tmp_path / f"benethos-lexware-office-mcp-{version}.mcpb"
-    bundle.write_bytes(b"bundle bytes")
 
-    digest = _fill_script().fill(entry, bundle)
-
-    written = json.loads(entry.read_text(encoding="utf-8"))
-    [package] = [p for p in written["packages"] if p["registryType"] == "mcpb"]
-    assert (
-        package["fileSha256"] == digest == hashlib.sha256(b"bundle bytes").hexdigest()
-    )
-    # The rest of the entry survives the rewrite, the dash included.
-    assert written["description"] == _entry()["description"]
-    with pytest.raises(SystemExit, match="placeholder"):
-        _fill_script().fill(entry, bundle)
-    other = tmp_path / "benethos-lexware-office-mcp-0.0.1.mcpb"
-    other.write_bytes(b"x")
-    entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
-    with pytest.raises(SystemExit, match="not the file"):
-        _fill_script().fill(entry, other)
-
-
-def test_dropping_the_bundle_keeps_pypi_and_the_image(tmp_path: Path) -> None:
-    entry = tmp_path / "server.json"
-    entry.write_text(REGISTRY_ENTRY.read_text(encoding="utf-8"), encoding="utf-8")
-
-    _fill_script().drop(entry)
-
-    kept = json.loads(entry.read_text(encoding="utf-8"))
-    assert [p["registryType"] for p in kept["packages"]] == ["pypi", "oci"]
-    assert kept["description"] == _entry()["description"]
-    with pytest.raises(SystemExit, match="no bundle"):
-        _fill_script().drop(entry)
-
-
-def test_a_refused_bundle_still_leaves_the_version_listed() -> None:
-    """The registry takes an entry whole or not at all.
-
-    After the retries the bundle is dropped and the rest published, and the
-    job still fails, so the refusal is looked at.
-    """
-    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
-    step = workflow.split("- name: Publish server.json", 1)[1]
-    retries = step.index("done")
-    dropped = step.index("--drop")
-    republished = step.index('./mcp-publisher publish "$entry"', dropped)
-
-    assert retries < dropped < republished < step.index("exit 1", republished)
+    assert _package("mcpb")["identifier"].endswith(f"/{name}-{version}.mcpb")
