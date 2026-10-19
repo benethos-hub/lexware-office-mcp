@@ -15,12 +15,9 @@ import json
 import re
 import subprocess
 import tomllib
-import zipfile
 from pathlib import Path
 from types import ModuleType
 from typing import Any
-
-import pytest
 
 import benethos_lexware_office_mcp
 from benethos_lexware_office_mcp.errors import SETUP_PROMPT_TITLE
@@ -160,66 +157,6 @@ def _build_script() -> ModuleType:
     return _script("build")
 
 
-def _packed(root: Path, bundle: Path, extra: dict[str, bytes] | None = None) -> Path:
-    """What a packer that does its job writes, plus whatever ``extra`` adds."""
-    with zipfile.ZipFile(bundle, "w") as packed:
-        for path in sorted(root.rglob("*")):
-            if path.is_file():
-                packed.write(path, path.relative_to(root).as_posix())
-        for name, content in (extra or {}).items():
-            packed.writestr(name, content)
-    return bundle
-
-
-def test_a_bundle_packed_as_staged_passes(tmp_path: Path) -> None:
-    root = tmp_path / "bundle"
-    _build_script().stage(root)
-    bundle = _packed(root, tmp_path / "ok.mcpb")
-
-    assert _script("check_packed").main([str(root), str(bundle)]) == 0
-
-
-@pytest.mark.parametrize(
-    ("extra", "said"),
-    [
-        ({"postinstall.js": b"x"}, "added by the packer: postinstall.js"),
-        ({"server.py": b"changed"}, "server.py"),
-    ],
-)
-def test_a_bundle_the_packer_changed_is_refused(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    extra: dict[str, bytes],
-    said: str,
-) -> None:
-    """The registry vouches for its hash, so it has to be what was staged."""
-    root = tmp_path / "bundle"
-    (root / "src").mkdir(parents=True)
-    (root / "server.py").write_bytes(b"staged")
-    (root / "src" / "a.py").write_bytes(b"a")
-    bundle = tmp_path / "bad.mcpb"
-    with zipfile.ZipFile(bundle, "w") as packed:
-        packed.writestr("src/a.py", b"a")
-        packed.writestr("server.py", extra.pop("server.py", b"staged"))
-        for name, content in extra.items():
-            packed.writestr(name, content)
-
-    assert _script("check_packed").main([str(root), str(bundle)]) == 1
-    assert said in capsys.readouterr().err
-
-
-def test_a_file_the_packer_left_out_is_refused(tmp_path: Path) -> None:
-    root = tmp_path / "bundle"
-    root.mkdir()
-    (root / "icon.png").write_bytes(b"png")
-    bundle = tmp_path / "empty.mcpb"
-    zipfile.ZipFile(bundle, "w").close()
-
-    assert _script("check_packed").differences(root, bundle) == [
-        "missing from the bundle: icon.png"
-    ]
-
-
 def test_the_staged_bundle_holds_what_uv_needs_and_no_more(tmp_path: Path) -> None:
     """The source as git tracks it, so no stray file, no .env, no config/."""
     target = tmp_path / "bundle"
@@ -264,23 +201,24 @@ def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
 # -- the release job ------------------------------------------------------------
 
 
-def test_the_job_checks_the_tag_and_attaches_both_names() -> None:
-    """The name without a version is the README's link to the newest release."""
+def test_the_job_stages_here_and_lets_the_organisation_pack_and_attach() -> None:
+    """Staging is this project's, packing, checking and attaching the action's.
+
+    The name without a version is the README's link to the newest release.
+    """
     workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
         encoding="utf-8"
     )
-    job = workflow.split("  mcpb-bundle:", 1)[1].split("\n  mcp-registry-publish:")[0]
+    job = workflow.split("\n  mcpb-bundle:\n", 1)[1].split("\n  mcp-registry:\n")[0]
     head, steps = job.split("steps:", 1)
 
     assert "if: github.event_name == 'release'" in head
     assert "      contents: write" in head
-    assert re.search(r"MCPB_VERSION: \d+\.\d+\.\d+\n", head)
     assert "persist-credentials: false" in steps
-    assert steps.index("tag_matches_version.py") < steps.index("build.py")
-    assert (
-        steps.index(" pack ")
-        < steps.index("check_packed.py")
-        < steps.index("gh release upload")
+    staging = (
+        'run: uv run --no-project .github/publish/mcpb/build.py "$RUNNER_TEMP/bundle"'
     )
-    assert 'gh release upload "$GITHUB_REF_NAME" "$versioned" ' in steps
-    assert "benethos-lexware-office-mcp.mcpb" in steps
+    action = "uses: benethos-hub/.github/actions/publish/mcpb@main"
+    assert steps.index(staging) < steps.index(action)
+    assert "staged: ${{ runner.temp }}/bundle" in steps
+    assert "name: benethos-lexware-office-mcp\n" in steps
