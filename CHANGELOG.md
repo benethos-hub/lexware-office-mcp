@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-19
+
+A patch release. Nothing a client receives changed: the tool list
+and every answer are those of 0.6.0. The image is built from a
+refreshed lockfile, and the lowest allowed `mcp` closes a
+vulnerability for an environment that pins an older one.
+
 ### Changed
 
 - **A refreshed lockfile for the image**: starlette 1.9.0 under the HTTP
@@ -1593,7 +1600,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.2...v0.5.3
