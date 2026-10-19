@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **A refreshed lockfile for the image**: starlette 1.9.0 under the HTTP
+  transports, httpx2 and httpcore2 2.14.0 under the SDK, certifi
+  2026.10.18 with the current CA bundle for the connection to Lexware,
+  and platformdirs 4.13.5. An installation from the index resolved them
+  already. A session over streamable HTTP answers as before, the bearer
+  and host checks included.
+
 ## [0.6.0] - 2026-10-16
 
 A minor release, because an installation can trip over it: the two
