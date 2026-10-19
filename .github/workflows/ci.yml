@@ -18,75 +18,51 @@ permissions:
   contents: read
 
 jobs:
+  # lint, test, lowest-versions, audit and brand are the organisation's
+  # reusable workflows in benethos-hub/.github, the same for every Python
+  # project there. Each one explains itself in its file. They are followed at
+  # main on purpose, so a rule changed there applies here on the next run,
+  # and Dependabot in that repository keeps the actions they pin current.
+  # What stays here is what only this project has: fresh-install and docker.
+
+  # uv.lock in step with pyproject.toml, ruff, the formatting and mypy.
   lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    uses: benethos-hub/.github/.github/workflows/python-lint.yml@main
+    with:
+      sync-args: --extra dev
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies (locked)
-        run: uv sync --extra dev --frozen
-
-      - name: Lockfile is in step with pyproject.toml
-        run: uv lock --check
-
-      - name: Ruff (lint)
-        run: uv run ruff check .
-
-      - name: Ruff (format check)
-        run: uv run ruff format --check .
-
-      - name: Mypy (type check)
-        run: uv run mypy
-
+  # pytest on every supported Python against uv.lock, and on the newest alone
+  # the coverage with its floor of 80 %, so test / Python 3.15 being a
+  # required check is what makes the floor block a merge. httpx is mocked at
+  # the transport, so the suite never opens a socket. Nothing that talks to
+  # Lexware is reachable from here: `testpaths` is tests/, and both live
+  # checks sit in live/.
+  #
+  # Coverage on the newest Python alone, because branch coverage runs on
+  # coverage.py's older C tracer under 3.11 to 3.13. Measured on the last
+  # three runs that measured everywhere, 2026-10-08 and -09: the test step
+  # took 42 to 46 s on 3.14, 48 to 67 s on 3.13, about 70 s on 3.11 and 97
+  # to 112 s on 3.12, and 30 to 43 s on 3.11 to 3.13 without coverage. A
+  # line only an older Python runs is not counted.
+  #
+  # The versions are named here although the workflow has the same defaults.
+  # Which Pythons this project supports is its own decision, and
+  # tests/test_packaging.py ties these lines to the classifiers,
+  # requires-python and CLAUDE.md. A default changed in the organisation's
+  # repository would otherwise move the tests away from them without a word.
   test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-        with:
-          enable-cache: true
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies (locked)
-        run: uv sync --extra dev --frozen
-
-      # httpx is mocked at the transport, so the suite never opens a socket.
-      # Nothing that talks to Lexware is reachable from here: `testpaths` is
-      # tests/, and both live checks sit in live/.
-      #
-      # Coverage is measured on the newest Python alone, by this job under
-      # its usual name, so the floor stays a required check. With branch
-      # coverage on, coverage.py 7.16 runs on sys.monitoring from 3.14 on and
-      # on its older C tracer under 3.11 to 3.13. Measured on the last three
-      # runs that measured everywhere, 2026-10-08 and -09: the test step took
-      # 42 to 46 s on 3.14, 48 to 67 s on 3.13, about 70 s on 3.11 and 97 to
-      # 112 s on 3.12, and 30 to 43 s on 3.11 to 3.13 without coverage. On
-      # 2026-10-10, locally, coverage added 8 % on 3.14 and 1 % on 3.15. A
-      # line only an older Python runs is not counted.
-      - name: Run tests
-        if: matrix.python-version != '3.15'
-        run: uv run pytest -q
-
-      - name: Run tests with coverage
-        if: matrix.python-version == '3.15'
-        run: uv run pytest -q --cov=benethos_lexware_office_mcp --cov-fail-under=80
+    uses: benethos-hub/.github/.github/workflows/python-tests.yml@main
+    with:
+      python-versions: '["3.11", "3.12", "3.13", "3.14", "3.15"]'
+      coverage-python: "3.15"
+      sync-args: --extra dev
+      cov: benethos_lexware_office_mcp
+      cov-fail-under: 80
 
   # Every other job installs from uv.lock, which pins dependencies to a set
   # known to work. Reproducibility needs that, but it hides a broken *declared*
   # range: someone installing from PyPI resolves the ranges in pyproject.toml
-  # instead, so `mcp>=2.0.0,<3` is a promise nothing else here tests. This job
+  # instead, so `mcp>=2.2.0,<3` is a promise nothing else here tests. This job
   # resolves the way that person does, with no lockfile involved.
   #
   # It also guards the rule the server is built around, which no offline test
@@ -155,33 +131,30 @@ jobs:
   # most people get. The other end of each range is a promise too: `>=0.28`
   # says 0.28 works, and nothing else here installs it. This job does, with
   # the oldest allowed version of every direct dependency on the oldest
-  # supported Python, and runs the suite on that.
+  # supported Python (named here for the same reason as in test), without
+  # the lockfile, and runs the suite on that. pytest and pytest-asyncio get
+  # the lower bounds their configuration needs, the same ones the dev extra
+  # names. The audit checks those versions for known vulnerabilities as well.
   #
-  # A required check on main since 2026-10-13. A red run means a lower bound
-  # in pyproject.toml has become untrue, and raising it is the fix.
+  # A red run means a lower bound in pyproject.toml has become untrue, or
+  # allows a version with a known vulnerability, and raising it is the fix.
   lowest-versions:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    uses: benethos-hub/.github/.github/workflows/python-lowest-versions.yml@main
+    with:
+      python-version: "3.11"
+      requirements: |
+        pytest>=9.1.1
+        pytest-asyncio>=1.0
+      audit: true
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-
-      # No `uv sync` and no lockfile. pytest and pytest-asyncio get the lower
-      # bounds their configuration needs, the same ones the dev extra names.
-      - name: Install the oldest allowed versions
-        run: |
-          set -euo pipefail
-          uv venv -p 3.11 /tmp/lowest
-          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct \
-            -e . "pytest>=9.1.1" "pytest-asyncio>=1.0"
-          echo "--- resolved dependency versions ---"
-          uv pip list --python /tmp/lowest/bin/python
-
-      - name: Run tests
-        run: |
-          set -euo pipefail
-          /tmp/lowest/bin/python -m pytest -q -p no:cacheprovider
+  # Every version pinned in uv.lock, for every platform and Python version,
+  # development tools included, checked against PyPI and OSV for known
+  # vulnerabilities. GitHub's dependency graph does not read uv.lock, so
+  # nothing else covers the packages that land in the image. A vulnerability
+  # without a fix yet is waived with ignore-vulns, here and in
+  # lowest-versions alike.
+  audit:
+    uses: benethos-hub/.github/.github/workflows/python-dependency-audit.yml@main
 
   # The image and the Compose files are the only part of this repository that no
   # test touches: the suite is offline Python, and a Dockerfile is neither.
@@ -322,17 +295,17 @@ jobs:
 
   # The organisation's brand rules: assets/brand/ holds icon.svg and, rendered
   # from it, a 512x512 icon.png and a 1280x640 social-preview.png, neither
-  # older than the SVG. The rules live in the organisation's own repository and
-  # move with it, so this one reusable workflow follows main rather than a
-  # commit. It reads only assets/brand and has nothing but read access.
+  # older than the SVG. It reads only assets/brand and has nothing but read
+  # access.
   #
-  # The one unpinned reference here, and a required check, so whoever writes
-  # that repository's main decides whether a merge here is green - a change
-  # there can turn every open pull request red, or run other code in this
-  # job, without a commit in this repository. Kept on main deliberately,
-  # decided again 2026-10-15: both repositories have the same owner, and a
-  # pin would only trail the rules it exists to apply. Pinning is a commit
-  # SHA here with the version beside it, which Dependabot's github-actions
-  # group would then raise.
+  # Like the four Python workflows above, unpinned and a required check, so
+  # whoever writes that repository's main decides whether a merge here is
+  # green - a change there can turn every open pull request red, or run
+  # other code in these jobs, without a commit in this repository. Kept on
+  # main deliberately, decided again 2026-10-15 for brand and 2026-10-19 for
+  # the Python workflows: both repositories have the same owner, and a pin
+  # would only trail the rules it exists to apply. Pinning is a commit SHA
+  # here with the version beside it, which Dependabot's github-actions group
+  # would then raise.
   brand:
     uses: benethos-hub/.github/.github/workflows/brand.yml@main
