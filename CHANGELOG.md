@@ -16,6 +16,12 @@ housekeeping are out of scope here — design decisions live in
 ### Changed
 
 - The container image is built with uv 0.13.2 (was 0.13.1).
+- **A refreshed lockfile for the image**: certifi 2026.10.19 for the
+  connection to Lexware, which trusts three emSign roots again that
+  2026.10.18 had removed along with the compromised
+  `emSign ECC Root CA - G3`. That one stays out. httpx2 and httpcore2
+  2.16.0 under the SDK, with a faster cookie lookup. An installation from the index resolved them
+  already. The read-only live check answers as before.
 
 ## [0.6.1] - 2026-10-19
 
