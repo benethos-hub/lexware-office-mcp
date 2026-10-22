@@ -388,11 +388,13 @@ fallen behind, so the list is short on purpose. In this order:
    lockfile. **The minor line** (`:0.6` in the README, and in the comment
    of `.env.example`) changes only with a minor release - the image tag
    itself follows the release tag when the image is built.
-4. **A trial run.** The publishing actions follow the organisation's main
-   and may have changed since the last release, so start `publish.yml` by
-   hand on main before tagging: `pypi-trial` builds and
-   checks the wheel and asks PyPI whether it would take it, and the image
-   goes out as `edge`. A warning that the version is on PyPI already is
+4. **A trial run, only when asked for.** It is there to test the publishing
+   machinery after a change to it, such as the move onto the
+   organisation's actions, and is never started on its own. When it is
+   asked for, start `publish.yml` by hand on main before tagging:
+   `pypi-trial` builds and checks the wheel and asks PyPI whether it would
+   take it, and the image goes out as `edge`, which has to be deleted by
+   hand afterwards. A warning that the version is on PyPI already is
    expected before step 3 is merged. The pins of `mcp-publisher` and of the
    mcpb packer live in the organisation's actions, not here.
 5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
