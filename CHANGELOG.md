@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-22
+
+A patch release for the container image. Nothing a client receives
+changed: the tool list and every answer are those of 0.6.1. The image runs
+Python 3.15.1, the security release, and is built with uv 0.13.5 from a
+refreshed lockfile. An installation from the index resolved the same Python
+packages already.
+
 ### Changed
 
 - The container image is built with uv 0.13.5 (was 0.13.1).
@@ -1617,7 +1625,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...v0.5.4
