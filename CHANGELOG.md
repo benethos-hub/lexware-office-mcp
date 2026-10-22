@@ -15,7 +15,7 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
-- The container image is built with uv 0.13.2 (was 0.13.1).
+- The container image is built with uv 0.13.5 (was 0.13.1).
 - **A refreshed lockfile for the image**: certifi 2026.10.19 for the
   connection to Lexware, which trusts three emSign roots again that
   2026.10.18 had removed along with the compromised
