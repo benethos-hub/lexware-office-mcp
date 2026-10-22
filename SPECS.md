@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.6.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.6.2.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -2562,7 +2562,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.6.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.6.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3149,7 +3149,7 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  178 MB on 2026-10-14, on Python 3.15. The server on a loopback-published
+  179 MB on 2026-10-22, on Python 3.15.1. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -3569,6 +3569,7 @@ suggested they were.
 | 0.5.4 | The review of 2026-10-15 | **released 2026-10-15** - a patch, because an installation that runs as before sees nothing new: the tool list and every answer over stdio are byte for byte those of 0.5.3. What changed shows in edge cases - a redirect, a withheld tool called with bad arguments, a resource above 5 MiB, a settings file that is not UTF-8, a mistake in the policy file named once - plus `LXO_MCP_SETUP_PROMPT` to withhold the setup prompt and a browser code that works once. Verified live against the second test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.5.3's |
 | 0.6.0 | Uploads from a URL, a client told about downloads, and the review of 2026-10-16 | **released 2026-10-16** - a minor, because an installation can trip over it: the two upload tools take `source` instead of `path`, and a client that passes `path` by name is refused until it lists the tools again. New: `upload_file` and `attach_file_to_voucher` fetch a file from a URL `LXO_MCP_UPLOAD_URLS` allows, so a mailbox server's link to an attachment reaches Lexware from server to server, see section 7.2, and a client is told when a download was added. The tool list notification reaches clients again, one of the 2026-07-28 protocol on its listen stream. Verified live against the second test account: `live/smoke.py` 13 of 13, a shape capture identical to 0.5.4's, and the mailbox flow end to end from Claude Desktop with 17 receipts |
 | 0.6.1 | The image on current dependencies, and the lowest `mcp` raised to 2.2.0 | **released 2026-10-19** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.6.0. The lockfile the image is built from carries starlette 1.9.0, httpx2 and httpcore2 2.14.0, certifi 2026.10.18 and platformdirs 4.13.5, on the current build of `python:3.15-slim`, and `mcp>=2.2.0` keeps an environment that pins an older SDK from serving Streamable HTTP with sessions that are never reclaimed (GHSA-84m7-p3x7-pcfv). The first release through the organisation's publishing actions, behind the gate that waits for main's CI. Verified live read-only against the test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.6.0's apart from its timestamp |
+| 0.6.2 | The image on Python 3.15.1 | **released 2026-10-22** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.6.1. The image is built on the current `python:3.15-slim` with Python 3.15.1, the security release, and its `ca-certificates` 20250419+deb13u1, with uv 0.13.5 and a lockfile that carries certifi 2026.10.19 and httpx2 and httpcore2 2.16.0. Old and new image were compared before the merge: the packages differ only there, and an HTTP session answers the same, the bearer check and a TLS connection to Lexware included. Verified live read-only against the test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.6.1's apart from its timestamp |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

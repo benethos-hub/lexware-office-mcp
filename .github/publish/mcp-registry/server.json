@@ -6,7 +6,7 @@
     "url": "https://github.com/benethos-hub/lexware-office-mcp",
     "source": "github"
   },
-  "version": "0.6.1",
+  "version": "0.6.2",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/benethos-hub/lexware-office-mcp/main/assets/brand/icon.svg",
@@ -24,13 +24,13 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "benethos-lexware-office-mcp",
-      "version": "0.6.1",
+      "version": "0.6.2",
       "runtimeHint": "uvx",
       "transport": { "type": "stdio" }
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/benethos-hub/benethos-lexware-office-mcp:0.6.1",
+      "identifier": "ghcr.io/benethos-hub/benethos-lexware-office-mcp:0.6.2",
       "runtimeHint": "docker",
       "transport": { "type": "stdio" },
       "runtimeArguments": [
@@ -50,7 +50,7 @@
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/benethos-hub/lexware-office-mcp/releases/download/v0.6.1/benethos-lexware-office-mcp-0.6.1.mcpb",
+      "identifier": "https://github.com/benethos-hub/lexware-office-mcp/releases/download/v0.6.2/benethos-lexware-office-mcp-0.6.2.mcpb",
       "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "transport": { "type": "stdio" }
     }

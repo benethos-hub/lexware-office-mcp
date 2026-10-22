@@ -13,22 +13,32 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-22
+
+A patch release for the container image. Nothing a client receives
+changed: the tool list and every answer are those of 0.6.1. The image runs
+Python 3.15.1, the security release, and is built with uv 0.13.5 from a
+refreshed lockfile. An installation from the index resolved the same Python
+packages already.
+
 ### Changed
 
-- The container image is built with uv 0.13.5 (was 0.13.1).
-- **A refreshed lockfile for the image**: certifi 2026.10.19 for the
-  connection to Lexware, which trusts three emSign roots again that
-  2026.10.18 had removed along with the compromised
-  `emSign ECC Root CA - G3`. That one stays out. httpx2 and httpcore2
-  2.16.0 under the SDK, with a faster cookie lookup. An installation from
-  the index resolved them already. The read-only live check answers as
-  before.
 - **The image on Python 3.15.1**, the security release, from the current
   build of `python:3.15-slim`. Debian 13.7 stays, and its
   `ca-certificates` 20250419+deb13u1 drops `emSign ECC Root CA - G3` from
   the system store as certifi does. An HTTP session answers as before, the
   bearer check and a TLS connection to Lexware included. An installation
   from the index is not affected.
+- **A refreshed lockfile for the image**: certifi 2026.10.19 for the
+  connection to Lexware, which trusts three emSign roots again that
+  2026.10.18 had removed along with the compromised
+  `emSign ECC Root CA - G3`. That one stays out. httpx2 and httpcore2
+  2.16.0 under the SDK, with a faster cookie lookup. An installation from
+  the index resolved them already. The read-only live check answers as
+  before. ruff 0.17.2 moved in the development environment only.
+- **uv 0.13.5 builds the image**, instead of 0.13.1. It installs the
+  same lockfile the same way. An installation from the index is not
+  affected.
 
 ## [0.6.1] - 2026-10-19
 
@@ -1617,7 +1627,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.3...v0.5.4
