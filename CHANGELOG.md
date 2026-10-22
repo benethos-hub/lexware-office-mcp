@@ -23,7 +23,12 @@ packages already.
 
 ### Changed
 
-- The container image is built with uv 0.13.5 (was 0.13.1).
+- **The image on Python 3.15.1**, the security release, from the current
+  build of `python:3.15-slim`. Debian 13.7 stays, and its
+  `ca-certificates` 20250419+deb13u1 drops `emSign ECC Root CA - G3` from
+  the system store as certifi does. An HTTP session answers as before, the
+  bearer check and a TLS connection to Lexware included. An installation
+  from the index is not affected.
 - **A refreshed lockfile for the image**: certifi 2026.10.19 for the
   connection to Lexware, which trusts three emSign roots again that
   2026.10.18 had removed along with the compromised
@@ -31,12 +36,9 @@ packages already.
   2.16.0 under the SDK, with a faster cookie lookup. An installation from
   the index resolved them already. The read-only live check answers as
   before. ruff 0.17.2 moved in the development environment only.
-- **The image on Python 3.15.1**, the security release, from the current
-  build of `python:3.15-slim`. Debian 13.7 stays, and its
-  `ca-certificates` 20250419+deb13u1 drops `emSign ECC Root CA - G3` from
-  the system store as certifi does. An HTTP session answers as before, the
-  bearer check and a TLS connection to Lexware included. An installation
-  from the index is not affected.
+- **uv 0.13.5 builds the image**, instead of 0.13.1. It installs the
+  same lockfile the same way. An installation from the index is not
+  affected.
 
 ## [0.6.1] - 2026-10-19
 

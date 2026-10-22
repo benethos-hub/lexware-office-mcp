@@ -3149,7 +3149,7 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  178 MB on 2026-10-14, on Python 3.15. The server on a loopback-published
+  179 MB on 2026-10-22, on Python 3.15.1. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
