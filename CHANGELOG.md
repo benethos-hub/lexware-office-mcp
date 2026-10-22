@@ -20,8 +20,9 @@ housekeeping are out of scope here — design decisions live in
   connection to Lexware, which trusts three emSign roots again that
   2026.10.18 had removed along with the compromised
   `emSign ECC Root CA - G3`. That one stays out. httpx2 and httpcore2
-  2.16.0 under the SDK, with a faster cookie lookup. An installation from the index resolved them
-  already. The read-only live check answers as before.
+  2.16.0 under the SDK, with a faster cookie lookup. An installation from
+  the index resolved them already. The read-only live check answers as
+  before.
 - **The image on Python 3.15.1**, the security release, from the current
   build of `python:3.15-slim`. Debian 13.7 stays, and its
   `ca-certificates` 20250419+deb13u1 drops `emSign ECC Root CA - G3` from
