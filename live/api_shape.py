@@ -205,10 +205,20 @@ async def collect(client: LexwareClient, capture: Capture) -> None:
     capture.add("GET /v1/voucherlist", listing)
     vrows = listing.get("content") or []
 
-    voucher = next((r for r in vrows if r.get("voucherType") in BOOKKEEPING), None)
+    # A receipt still `unchecked` after an upload has no lines and no payment
+    # information yet, and the payments endpoint refuses it outright.
+    voucher = next(
+        (
+            r
+            for r in vrows
+            if r.get("voucherType") in BOOKKEEPING
+            and r.get("voucherStatus") != "unchecked"
+        ),
+        None,
+    )
     if voucher is None:
-        capture.skip("GET /v1/vouchers/{id}", "no bookkeeping voucher")
-        capture.skip("GET /v1/payments/{id}", "no bookkeeping voucher")
+        capture.skip("GET /v1/vouchers/{id}", "no booked bookkeeping voucher")
+        capture.skip("GET /v1/payments/{id}", "no booked bookkeeping voucher")
     else:
         capture.add(
             "GET /v1/vouchers/{id}", await _get(f"/v1/vouchers/{voucher['id']}")
