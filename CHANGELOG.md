@@ -15,6 +15,17 @@ housekeeping are out of scope here — design decisions live in
 
 ### Changed
 
+- **The image on Python 3.15.2**, the expedited security release, from
+  the current build of `python:3.15-slim`. Its `ssl` module refuses the
+  compromised eMudhra intermediate CA keys (CVE-2026-115557), and
+  `tarfile` rejects a link that replaces its own destination
+  (CVE-2026-114583). Debian 13.7 stays, with tzdata 2026e. An HTTP session
+  answers as before, the bearer check and a TLS connection to Lexware
+  included. An installation from the index runs on its own Python and is
+  not affected.
+- **uv 0.13.6 builds the image**, instead of 0.13.5. It installs the
+  same lockfile the same way. An installation from the index is not
+  affected.
 - **A refreshed lockfile for the image**: starlette 1.10.0 and
   sse-starlette 3.6.0 under the HTTP transports, the latter closing an
   event stream whose send was interrupted and no longer streaming in
