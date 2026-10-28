@@ -351,7 +351,9 @@ def load_settings(
         log_level=log_level,
         transport=transport,
         http_host=get("HTTP_HOST") or DEFAULT_HTTP_HOST,
-        http_port=as_int(get("HTTP_PORT"), DEFAULT_HTTP_PORT, name="LXO_MCP_HTTP_PORT"),
+        http_port=as_int(
+            get("HTTP_PORT"), DEFAULT_HTTP_PORT, name="LXO_MCP_HTTP_PORT", maximum=65535
+        ),
         http_path=get("HTTP_PATH") or DEFAULT_HTTP_PATH,
         bearer_token=bearer_token,
         allowed_hosts=allowed_hosts,

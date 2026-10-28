@@ -154,6 +154,21 @@ settings and the API key:
   the file, so a client can change one value without editing anything."""
 
 
+def _port(raw: str) -> int:
+    """A port number, refused by argparse rather than by the socket.
+
+    Past 65535 the bind raises OverflowError, which is neither the OSError
+    a taken port is caught as nor a ConfigError, so it ended in a traceback.
+    """
+    try:
+        value = int(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a whole number: {raw!r}") from None
+    if not 1 <= value <= 65535:
+        raise argparse.ArgumentTypeError(f"not a port from 1 to 65535: {value}")
+    return value
+
+
 def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="benethos-lexware-office-mcp",
@@ -234,7 +249,7 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--port",
-        type=int,
+        type=_port,
         metavar="N",
         help=(
             f"port to bind (default: {defaults.http_port} for a transport, "
@@ -271,7 +286,7 @@ def _parse_args(argv: list[str] | None, defaults: Settings) -> argparse.Namespac
     )
     parser.add_argument(
         "--public-port",
-        type=int,
+        type=_port,
         help=(
             "setup only: the port the address it prints and opens names, "
             "where a container publishes setup under another one "

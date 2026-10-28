@@ -366,6 +366,28 @@ async def test_something_far_too_large_is_refused_rather_than_inlined(
     assert "MiB" in str(excinfo.value)
 
 
+async def test_a_file_over_the_ceiling_is_refused_without_being_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Any file in the directory is listed, so it may be any size."""
+    with (tmp_path / "huge.pdf").open("wb") as handle:
+        handle.truncate(5 * 1024 * 1024 + 1)
+    server, provider = server_with(recorder(), download_path=tmp_path)
+    read: list[Path] = []
+    real = Path.read_bytes
+
+    def spy(self: Path) -> bytes:
+        read.append(self)
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_bytes", spy)
+
+    with pytest.raises(ToolError, match=r"5\.0 MiB, too much"):
+        await server.call_tool("read_download", {"uri": "lexware://download/huge.pdf"})
+
+    assert not [path for path in read if path.name == "huge.pdf"]
+
+
 async def test_the_description_says_which_form_to_expect() -> None:
     """Every kind is named, so the model knows what it is about to receive.
 

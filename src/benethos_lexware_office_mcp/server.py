@@ -230,7 +230,19 @@ class PolicyServer(MCPServer):
         keeps from the caller. The answer is the one the guard each tool is
         wrapped in gives a valid call.
         """
-        enabled = self._policy.enabled(name)
+        try:
+            enabled = self._policy.enabled(name)
+        except SDKToolError:
+            raise
+        except Exception as exc:
+            # Outside any tool, so the SDK would answer with the error's own
+            # text, and an error about a file names its path.
+            if self._policy.path is not None:
+                logbook.policy.unreadable(self._policy.path, exc)
+            raise ToolError(
+                f"{name} could not be checked against the tool policy. The "
+                "server's log says why."
+            ) from None
         if not enabled and name in known_tools():
             refused = withheld(name)
             logbook.calls.ended(name, refused, 0, 0.0)
@@ -256,7 +268,13 @@ class PolicyServer(MCPServer):
                 logbook.calls.arguments_refused(name, fields)
             raise
         if _links_a_download(result):
-            await self._downloads_changed()
+            # The file is on disk and the answer names it. Telling the clients
+            # is a courtesy on top, and its failure must not replace the
+            # answer with an error that carries the directory's path.
+            try:
+                await self._downloads_changed()
+            except Exception as exc:
+                logbook.files.not_announced(exc)
         return result
 
     async def _unknown_arguments(
@@ -302,10 +320,11 @@ class PolicyServer(MCPServer):
         if not self._resources_enabled():
             return []
         registered = await super().list_resources()
-        return [
-            *registered,
-            *resources.listed(self._downloads, self._listed_downloads),
-        ]
+        # Off the event loop, as the watcher's scan of the same directory.
+        listed = await asyncio.to_thread(
+            resources.listed, self._downloads, self._listed_downloads
+        )
+        return [*registered, *listed]
 
     async def read_resource(self, uri: Any, context: Any = None) -> Any:
         if not self._resources_enabled():
@@ -405,15 +424,25 @@ class PolicyServer(MCPServer):
         self._seen_downloads = await self._download_names(self._seen)
         while True:
             await asyncio.sleep(POLICY_POLL_SECONDS)
-            # One reading of the file and one scan of the directory a turn,
-            # each handed on rather than taken again.
-            current = self._policy.as_map()
-            if current != self._seen:
-                self._seen = current
-                await self._announce()
-            names = await self._download_names(current)
-            if names != self._seen_downloads:
-                await self._downloads_changed(names)
+            # A failed turn costs that turn. Unguarded it ended the task,
+            # with nobody waiting on it to hear why, and nothing was told
+            # until a client happened to list again.
+            try:
+                await self._turn()
+            except Exception as exc:
+                logbook.policy.watch_failed(exc)
+
+    async def _turn(self) -> None:
+        """One look at the policy file and the download directory."""
+        # One reading of the file and one scan of the directory a turn,
+        # each handed on rather than taken again.
+        current = self._policy.as_map()
+        if current != self._seen:
+            self._seen = current
+            await self._announce()
+        names = await self._download_names(current)
+        if names != self._seen_downloads:
+            await self._downloads_changed(names)
 
     async def _announce(self) -> None:
         """The tool list is not what it was: tell every live connection."""

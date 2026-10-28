@@ -130,6 +130,50 @@ def test_a_mistake_in_the_file_is_named_once_not_on_every_read(
     assert len(caplog.records) == 1
 
 
+def test_a_file_whose_directory_refuses_a_look_enables_nothing_and_says_so_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Before 3.14 ``is_file`` raises that, and every call asks it."""
+    policy = write_policy(tmp_path / "tools.json", {"get_profile": True})
+    original = Path.is_file
+
+    def refused(self: Path, *args: object, **kwargs: object) -> bool:
+        if self == policy:
+            raise PermissionError(13, "Permission denied", str(self))
+        return original(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "is_file", refused)
+    store = ToolPolicy(policy)
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            assert store.exists() is False
+            assert store.enabled("get_profile") is False
+
+    assert len(caplog.records) == 1
+    assert "unreadable tool policy" in caplog.text.lower()
+
+
+async def test_a_policy_that_fails_to_answer_refuses_the_call_without_its_path(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check runs outside every tool, where the SDK quotes an error whole."""
+    server = server_obeying(tmp_path, {"get_profile": True})
+    secret = str(tmp_path / "tools.json")
+
+    def broken(self: ToolPolicy, name: str) -> bool:
+        raise PermissionError(13, "Permission denied", secret)
+
+    monkeypatch.setattr(ToolPolicy, "enabled", broken)
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ToolError, match="could not be checked") as excinfo:
+            await server.call_tool("get_profile", {})
+
+    assert secret not in str(excinfo.value)
+    assert "unreadable tool policy" in caplog.text.lower()
+
+
 def test_a_mistake_is_named_again_once_the_file_says_something_else(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

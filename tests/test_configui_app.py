@@ -923,12 +923,15 @@ def test_a_key_is_verified_before_it_is_written(
 
 
 def test_a_key_that_could_not_be_written_does_not_name_its_account(
-    browser: Browser, installation: Installation
+    browser: Browser, installation: Installation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The chip says whose records the permissions are about. A key that
     was checked and then not saved is not this installation's key."""
-    installation.env_path.unlink()
-    installation.env_path.mkdir()
+
+    def refused(path: Path, content: bytes) -> None:
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(envfile, "write_atomically", refused)
 
     _, body, _ = browser.post("/credentials", {"api_key": "a-new-key"})
 

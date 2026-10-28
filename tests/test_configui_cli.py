@@ -129,3 +129,24 @@ def test_setup_can_name_the_port_its_address_is_reached_on(
     assert started[0]["port"] == configui.DEFAULT_PORT
     assert started[0]["public_port"] == 8781
     assert started[1]["public_port"] is None
+
+
+@pytest.mark.parametrize("option", ["--port", "--public-port"])
+@pytest.mark.parametrize("value", ["70000", "0", "-1", "eighty"])
+def test_a_port_that_cannot_be_bound_ends_with_a_usage_line(
+    started: list[dict[str, Any]],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    option: str,
+    value: str,
+) -> None:
+    """argparse refuses it, rather than the socket with a traceback."""
+    env = tmp_path / ".env"
+    env.write_text("", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["setup", "--env-file", str(env), "--no-browser", option, value])
+
+    assert excinfo.value.code == 2
+    assert option in capsys.readouterr().err
+    assert started == []

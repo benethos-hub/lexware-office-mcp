@@ -242,10 +242,11 @@ class LexwareClient(Connection):
         refused with 400 ``voucherNumber parameter is required`` rather than
         answered with some other voucher.
         """
-        return await self._get_object(
-            "/v1/vouchers",
-            params={"voucherNumber": voucher_number},
-            endpoint="vouchers",
+        return _expect_page(
+            await self.get_json(
+                "/v1/vouchers", params={"voucherNumber": voucher_number}
+            ),
+            "vouchers",
         )
 
     async def payments(self, voucher_id: str) -> dict[str, Any]:

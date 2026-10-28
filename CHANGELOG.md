@@ -57,6 +57,48 @@ housekeeping are out of scope here — design decisions live in
   container. A new volume starts with mode 600. An existing one keeps the
   mode it has until it is changed once:
   `docker compose exec benethos-lexware-office-mcp chmod 600 /config/.env`.
+- **A tool policy file the server may not look at no longer reaches the
+  model with its path.** On Python 3.11 to 3.13, a policy file in a
+  directory without the right to look into it, or on a share that went
+  away, made every tool call answer with the operating system's error and
+  the file's full path. Such a file now enables nothing, like an unreadable
+  one, and stderr names it once. Any other failure to check a call against
+  the file refuses that call with one sentence, and stderr says why.
+- **A download directory the server may not look at no longer ends the
+  start in a traceback.** On Python 3.11 to 3.13 the cleanup at the start
+  failed on such a directory, and the resource list failed with it. Now
+  nothing is pruned and the list is empty, as for a directory that is not
+  there.
+- **A download is answered with its link even when the clients cannot be
+  told about it.** When telling them that the list of downloads changed
+  failed, the file was on disk, but the answer was replaced by an error
+  carrying the directory's path. The answer now arrives as usual, and
+  stderr says the clients were not told.
+- **One failed look no longer stops the notifications.** The server looks
+  every two seconds for a changed tool policy or a new download, and a
+  single error on the way ended that for good, until a client happened to
+  list again. Now the error is named on stderr and the next look follows
+  as usual.
+- **A download that fails while it is written leaves nothing behind.** A
+  full disk or a share that went away left half a file under the
+  document's name, offered as a download, read back broken, and the next
+  download of the same document went to a new name every time. Now the
+  name holds the whole file or no file.
+- **A long document name keeps its extension.** A name over 120
+  characters was cut at the end, so a PDF lost its `.pdf`, came back from
+  `read_download` as an opaque blob instead of pages, and was never
+  cleaned up. It is now shortened before the extension. Every name up to
+  120 characters is saved exactly as before.
+- **`get_voucher` by number says when the API answers in an unexpected
+  shape**, as every other list does, rather than failing without a reason.
+- **A port past 65535 is refused with one line.** `LXO_MCP_HTTP_PORT`,
+  `--port` and `--public-port` accepted any number, and one too large
+  ended the start in a traceback from the socket.
+- **A settings file that is there but cannot be read stops the start with
+  one line.** It was read as empty, so the server started without its key
+  and its settings, and the configuration interface could have saved the
+  new values alone over the rest. A file that is not there is still no
+  error.
 
 ## [0.6.2] - 2026-10-22
 

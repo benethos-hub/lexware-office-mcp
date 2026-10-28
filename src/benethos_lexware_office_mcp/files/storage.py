@@ -100,7 +100,12 @@ def prune(directory: Path, keep: int) -> int:
     :func:`_could_be_a_download`. The directory can be named in the
     configuration interface, and a folder of somebody's own is not a cache.
     """
-    if keep <= 0 or not directory.is_dir():
+    try:
+        if keep <= 0 or not directory.is_dir():
+            return 0
+    except OSError:
+        # Before Python 3.14 a refused look raises, and pruning is no reason
+        # to fail the call or the start that asked for it.
         return 0
     removed = 0
     for path in newest(directory, downloads_only=True)[keep:]:
@@ -229,7 +234,14 @@ def _safe_name(raw: str) -> str:
     cleaned = _UNSAFE.sub("_", without_path).strip("._")
     if cleaned in {"", ".", ".."}:
         return ""
-    cleaned = cleaned[:MAX_NAME]
+    if len(cleaned) > MAX_NAME:
+        # Shortened before the extension, which decides the content type a
+        # download is listed and read back with, and whether it is pruned.
+        stem, dot, suffix = cleaned.rpartition(".")
+        if dot and stem and len(suffix) <= 10:
+            cleaned = f"{stem[: MAX_NAME - len(suffix) - 1]}.{suffix}"
+        else:
+            cleaned = cleaned[:MAX_NAME]
     # On Windows `CON.pdf` is the console, whatever the extension, and
     # writing to it writes nowhere a file can be found again.
     if cleaned.split(".")[0].upper() in _DEVICES:
@@ -256,11 +268,20 @@ def save(content: bytes, name: str, directory: Path) -> Path:
         # downloads at once - the tools run concurrently - could otherwise
         # both find a name free and the second overwrite the first.
         try:
-            with candidate.open("xb") as out:
-                out.write(content)
-            return candidate
+            out = candidate.open("xb")
         except FileExistsError:
             pass
+        else:
+            # A name holds the whole file or nothing. Half a file under it
+            # would be listed, read back broken, and keep the next download
+            # of the same bytes from ever reusing the name.
+            try:
+                with out:
+                    out.write(content)
+            except OSError:
+                candidate.unlink(missing_ok=True)
+                raise
+            return candidate
         if candidate.is_file() and candidate.read_bytes() == content:
             logbook.files.reused(len(content))
             candidate.touch()

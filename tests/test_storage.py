@@ -112,6 +112,29 @@ def test_a_windows_device_name_is_not_used_as_is(name: str) -> None:
     assert cleaned.endswith(name)
 
 
+def test_a_long_name_is_shortened_before_its_extension() -> None:
+    """The extension decides how the file is listed, read back and pruned."""
+    title = "Rechnung_" + "x" * 117
+    name = storage.suggested_name(
+        response_with(f'attachment; filename="{title}.pdf"'), "f.pdf"
+    )
+
+    assert name.endswith(".pdf")
+    assert len(name) == storage.MAX_NAME
+    assert name.startswith("Rechnung_xxx")
+
+
+@pytest.mark.parametrize(
+    "name", ["a" * 120, "b" * 116 + ".pdf", "c" * 130, "d" * 100 + "." + "e" * 30]
+)
+def test_a_name_without_a_short_extension_is_cut_as_before(name: str) -> None:
+    cleaned = storage.suggested_name(
+        response_with(f'attachment; filename="{name}"'), "f.pdf"
+    )
+
+    assert cleaned == name[: storage.MAX_NAME]
+
+
 def test_a_name_that_merely_starts_like_a_device_is_left_alone() -> None:
     name = storage.suggested_name(
         response_with('attachment; filename="CONTRACT.pdf"'), "f.pdf"
@@ -162,6 +185,39 @@ def test_a_name_taken_between_the_check_and_the_write_is_not_overwritten(
     assert saved.name == "invoice-2.pdf"
     assert (tmp_path / "invoice.pdf").read_bytes() == b"the other download"
     assert saved.read_bytes() == b"this download"
+
+
+def test_a_write_that_fails_halfway_leaves_no_file_behind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Half a file under the name would be listed and block its reuse."""
+    real_open = Path.open
+
+    class Full:
+        def __init__(self, handle: Any) -> None:
+            self.handle = handle
+
+        def __enter__(self) -> Full:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            self.handle.close()
+
+        def write(self, content: bytes) -> int:
+            self.handle.write(content[:512])
+            raise OSError(28, "No space left on device")
+
+    def full_disk(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        handle = real_open(self, mode, *args, **kwargs)
+        return Full(handle) if "x" in mode else handle
+
+    monkeypatch.setattr(Path, "open", full_disk)
+    with pytest.raises(OSError, match="No space left"):
+        storage.save(PDF * 100, "invoice.pdf", tmp_path)
+    monkeypatch.undo()
+
+    assert not (tmp_path / "invoice.pdf").exists()
+    assert storage.save(PDF, "invoice.pdf", tmp_path).name == "invoice.pdf"
 
 
 def test_reusing_a_copy_that_already_carries_a_counter(tmp_path: Path) -> None:

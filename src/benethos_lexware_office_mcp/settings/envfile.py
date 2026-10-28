@@ -150,11 +150,20 @@ def _read_text(path: Path) -> str:
     alike in a traceback. Decoding it with replacement characters instead
     would turn a ``ü`` in a directory into a path that does not exist, and
     an update would write the replacement back over the original bytes.
+
+    **Nor is a file that is there but cannot be read taken for no file.**
+    Read as empty, it started the server without its key and settings, and
+    an update would have written the new values alone over the rest.
     """
     try:
         return path.read_text(encoding="utf-8-sig")
-    except OSError:
+    except FileNotFoundError:
         return ""
+    except OSError as exc:
+        raise ConfigError(
+            f"{path} could not be read: {exc.strerror or type(exc).__name__}. "
+            "Check the file and its permissions, and start again."
+        ) from None
     except UnicodeDecodeError as exc:
         raise ConfigError(
             f"{path} is not UTF-8 text (byte {exc.start}). Save it as UTF-8, "
