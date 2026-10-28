@@ -520,13 +520,14 @@ def _read_upload(raw_path: str, allowed: Path | None) -> Upload:
     is on the disk where it may not upload from.
     """
     _refuse_another_share(raw_path, allowed)
+    missing = ValidationError(
+        f"No file at {raw_path}. Give the path to an existing receipt."
+    )
     try:
         path = Path(raw_path).expanduser()
     except RuntimeError:
         # `~` with no home directory to expand it to.
-        raise ValidationError(
-            f"No file at {raw_path}. Give the path to an existing receipt."
-        ) from None
+        raise missing from None
     if allowed is not None:
         try:
             path.resolve().relative_to(allowed.expanduser().resolve())
@@ -539,9 +540,7 @@ def _read_upload(raw_path: str, allowed: Path | None) -> Upload:
                 "LXO_MCP_UPLOAD_DIR."
             ) from None
     if not path.is_file():
-        raise ValidationError(
-            f"No file at {raw_path}. Give the path to an existing receipt."
-        )
+        raise missing
 
     size = path.stat().st_size
     if size > MAX_UPLOAD:
