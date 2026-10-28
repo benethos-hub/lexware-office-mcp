@@ -33,11 +33,11 @@ from helpers import (
     capture_lines,
     recorder,
     server_with,
+    upload_arguments,
 )
 
 INBOX = "https://files.example.com/inbox/"
 LINK = "https://files.example.com/inbox/9f3c?sig=SECRET-QUERY"
-VOUCHER = "PLACEHOLDER-VOUCHER-1"
 
 TOOLS = ["upload_file", "attach_file_to_voucher"]
 
@@ -90,15 +90,9 @@ def server(
     return built
 
 
-def arguments(tool: str, source: str) -> dict[str, str]:
-    if tool == "attach_file_to_voucher":
-        return {"voucher_id": VOUCHER, "source": source}
-    return {"source": source}
-
-
 async def refused(server: PolicyServer, source: str, tool: str = "upload_file") -> str:
     with pytest.raises(ToolError) as excinfo:
-        await server.call_tool(tool, arguments(tool, source))
+        await server.call_tool(tool, upload_arguments(tool, source))
     return str(excinfo.value)
 
 
@@ -124,7 +118,7 @@ async def test_a_url_under_an_allowed_prefix_is_fetched_and_uploaded(
     api, other = lexware(), served()
 
     await server(api, other, INBOX, tmp_path=tmp_path).call_tool(
-        tool, arguments(tool, LINK)
+        tool, upload_arguments(tool, LINK)
     )
 
     assert str(other.last.url) == LINK
