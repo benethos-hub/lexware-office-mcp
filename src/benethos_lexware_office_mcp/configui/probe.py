@@ -22,7 +22,7 @@ from ..api.client import ClientProvider
 from ..errors import AuthError, ToolError, redact, register_secret
 from ..settings import Settings
 
-__all__ = ["Account", "check", "last_account", "remember"]
+__all__ = ["Account", "check", "forget", "last_account", "remember"]
 
 _lock = threading.Lock()
 _last: Account | None = None
@@ -52,6 +52,13 @@ def remember(account: Account) -> None:
     global _last
     with _lock:
         _last = account
+
+
+def forget() -> None:
+    """Show no account until the next successful check."""
+    global _last
+    with _lock:
+        _last = None
 
 
 def check(
