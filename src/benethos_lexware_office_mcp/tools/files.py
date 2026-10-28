@@ -25,7 +25,14 @@ from ..records.types import RESOURCES, Delivered, Download, Format
 from ..settings import MAX_PDF_PAGES, Settings
 from ._base import DocumentIdField, DocumentTypeField, UploadSource, register_tool
 
-__all__ = ["register"]
+__all__ = ["DOWNLOAD_TOOLS", "register"]
+
+# The tools a download resource belongs to. A resource is a way of handing out
+# a file one of them produced, so it is reachable exactly while at least one of
+# them is enabled - never as a side door that outlives the policy switching
+# them all off. Named here, beside the tools, so a renamed one cannot leave
+# the resources gated on a name that is no tool.
+DOWNLOAD_TOOLS = ("download_file", "download_document", "read_download")
 
 
 # What to ask the API for, per format a download offers. Taken from the
@@ -110,8 +117,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         response = await provider.get().file(file_id, MIME[file_format])
         return await delivery.deliver(
-            response,
-            settings,
+            response.content,
+            content_type=response.headers.get("content-type", resources.DEFAULT_TYPE),
+            disposition=response.headers.get("content-disposition", ""),
+            settings=settings,
             fallback=f"{file_id}.{file_format}",
         )
 
@@ -135,8 +144,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             RESOURCES[document_type], document_id, MIME[file_format]
         )
         return await delivery.deliver(
-            response,
-            settings,
+            response.content,
+            content_type=response.headers.get("content-type", resources.DEFAULT_TYPE),
+            disposition=response.headers.get("content-disposition", ""),
+            settings=settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
         )
 

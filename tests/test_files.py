@@ -18,6 +18,7 @@ from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.settings import locations as L
+from benethos_lexware_office_mcp.tools import DOWNLOAD_TOOLS
 from helpers import (
     API_KEY,
     FILE_ID,
@@ -339,7 +340,7 @@ async def test_downloads_are_not_resources_while_no_download_tool_is_on(
 
 def test_every_gating_tool_is_a_tool() -> None:
     """A misspelt name here would quietly keep the resources off for good."""
-    assert set(resources.GATING_TOOLS) <= set(known_tools())
+    assert set(DOWNLOAD_TOOLS) <= set(known_tools())
 
 
 def test_the_names_are_the_list_in_its_order(tmp_path: Path) -> None:

@@ -25,25 +25,29 @@ import benethos_lexware_office_mcp
 PACKAGE = "benethos_lexware_office_mcp"
 _SOURCE = Path(benethos_lexware_office_mcp.__file__).parent
 
-# Everything else stands on these, and they stand on nothing but each other.
+# Everything else stands on these. Among them, errors stands on nothing,
+# logbook on errors, and settings on both.
 FOUNDATION = frozenset({"errors", "settings", "logbook"})
 
 # Which layers a layer may import, besides itself and the package root, which
-# every module may read `__version__` from.
+# every module may read `__version__` from. Each row allows what the layer
+# uses and no more: a row that allows more says no decision, and a change
+# that needs another layer adds it on purpose.
 MAY_IMPORT: dict[str, frozenset[str]] = {
-    "errors": FOUNDATION,
-    "settings": FOUNDATION,
-    "logbook": FOUNDATION,
+    "errors": frozenset(),
+    "logbook": frozenset({"errors"}),
+    "settings": frozenset({"errors", "logbook"}),
     "records": frozenset({"errors"}),
-    "api": FOUNDATION | {"records"},
+    "api": FOUNDATION,
     "files": FOUNDATION,
-    "policy": frozenset({"errors", "logbook", "settings"}),
+    "policy": FOUNDATION,
     "tools": FOUNDATION | {"records", "api", "files", "policy"},
     "server": FOUNDATION | {"tools", "policy", "api", "files"},
-    "transport": FOUNDATION | {"server"},
+    # Every MCPServer in it is the SDK's type, not this server.
+    "transport": FOUNDATION,
     # The configuration interface builds a server to measure what the tools
     # cost, and is started by the command line alone.
-    "configui": FOUNDATION | {"records", "api", "files", "policy", "tools", "server"},
+    "configui": FOUNDATION | {"api", "policy", "server"},
     # The top: anything below it, and imported by nothing but `python -m`.
     "cli": FOUNDATION
     | {"records", "api", "files", "policy", "tools", "server", "transport", "configui"},
@@ -118,12 +122,50 @@ def test_every_layer_has_a_row() -> None:
     assert layers == set(MAY_IMPORT)
 
 
-# A dependency some modules may import and no other: the one module that is
-# its interface to the rest of the package.
-CONFINED: dict[str, str] = {
+def test_no_layer_below_the_tools_names_a_tool() -> None:
+    """A tool's name lives with the tool. Held as a string further down, it
+    cannot be checked against the registry there, and a renamed tool would
+    leave it pointing at nothing."""
+    from benethos_lexware_office_mcp.policy import known_tools
+    from benethos_lexware_office_mcp.server import build_server
+    from benethos_lexware_office_mcp.settings import Settings
+
+    build_server(Settings())  # the registry fills as the tools register
+    names = set(known_tools())
+    below = MAY_IMPORT["tools"]
+    found = [
+        f"{path.relative_to(_SOURCE).as_posix()} line {node.lineno}: {node.value}"
+        for path in _modules()
+        if path.relative_to(_SOURCE).parts[0].removesuffix(".py") in below
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Constant) and node.value in names
+    ]
+    assert names
+    assert found == []
+
+
+# A dependency some modules may import and no other: the modules that are
+# its interface to the rest of the package, see SPECS.md section 4.
+CONFINED: dict[str, frozenset[str]] = {
     # The configuration interface's templates. The server never renders a
     # page, so nothing but `setup` has a reason to load it.
-    "jinja2": "configui/templates.py",
+    "jinja2": frozenset({"configui/templates.py"}),
+    # PDF pages as pictures, for read_download.
+    "pypdfium2": frozenset({"files/rendering.py"}),
+    # Where configuration lives on each platform.
+    "platformdirs": frozenset({"settings/locations.py"}),
+    # The HTTP transports.
+    "uvicorn": frozenset({"transport/http.py"}),
+    "starlette": frozenset({"transport/http.py"}),
+    # Lexware, and the one other server an upload may be fetched from.
+    "httpx": frozenset(
+        {
+            "api/connection.py",
+            "api/client.py",
+            "api/refusal.py",
+            "files/fetch.py",
+        }
+    ),
 }
 
 
@@ -138,16 +180,16 @@ def _third_party(path: Path) -> set[str]:
     return found
 
 
-@pytest.mark.parametrize(("dependency", "home"), CONFINED.items())
-def test_a_confined_dependency_is_imported_in_one_module(
-    dependency: str, home: str
+@pytest.mark.parametrize(("dependency", "homes"), CONFINED.items())
+def test_a_confined_dependency_is_imported_in_its_homes_alone(
+    dependency: str, homes: frozenset[str]
 ) -> None:
     importers = [
         path.relative_to(_SOURCE).as_posix()
         for path in _modules()
         if dependency in _third_party(path)
     ]
-    assert importers == [home]
+    assert set(importers) == homes
 
 
 def test_the_server_starts_without_the_template_engine() -> None:

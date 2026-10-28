@@ -144,19 +144,22 @@ through a tool function.
 
 **Import rule.** The package is layered, and `tests/test_layers.py` reads
 every import statement to hold it there. A layer imports only what sits
-below it:
+below it, and a row allows what the layer uses and no more, so a change
+that needs another layer adds it on purpose:
 
 | Layer | May import |
 |-------|------------|
-| `errors`, `settings`, `logbook` | each other, nothing else |
+| `errors` | nothing |
+| `logbook` | `errors` |
+| `settings` | `errors`, `logbook` |
 | `records` | `errors` |
-| `api` | the three above, `records` |
-| `files` | the three above |
+| `api` | `errors`, `logbook`, `settings` |
+| `files` | `errors`, `logbook`, `settings` |
 | `policy` | `errors`, `logbook`, `settings` |
 | `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
-| `server` | `tools`, `policy`, `api`, `files` and the three above |
-| `transport` | `server` and the three above |
-| `configui` | everything but `transport` and `cli`, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
+| `server` | `tools`, `policy`, `api`, `files` and the three of the foundation |
+| `transport` | the three of the foundation, and the SDK's server type rather than this one |
+| `configui` | `api`, `policy`, `server` and the three of the foundation, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
 | `cli` | everything, imported by nothing but `python -m` |
 | `__main__` | `cli` |
 

@@ -21,8 +21,6 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import NamedTuple
 from urllib.parse import unquote
 
-import httpx
-
 from .. import logbook
 from ..errors import ConfigError, LocalFileError, ValidationError
 from ..settings import Settings
@@ -184,16 +182,15 @@ def prune_for(settings: Settings) -> int:
     return removed
 
 
-def suggested_name(response: httpx.Response, fallback: str) -> str:
-    """The filename to save a response under, made safe first.
+def suggested_name(disposition: str, fallback: str) -> str:
+    """The filename to save a download under, made safe first.
 
     ``Content-Disposition`` is written by the API, so it is sanitized the way
     any other remote input would be: the directory part is discarded, unusual
     characters are replaced, and a name that survives none of that falls back
     to the caller's own.
     """
-    header = response.headers.get("content-disposition", "")
-    cleaned = _safe_name(_header_name(header))
+    cleaned = _safe_name(_header_name(disposition))
     if cleaned:
         return cleaned
     return _safe_name(fallback) or "download"

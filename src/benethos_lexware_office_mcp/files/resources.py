@@ -53,7 +53,6 @@ from mcp.types import Resource, ResourceLink
 from . import storage
 
 __all__ = [
-    "GATING_TOOLS",
     "MAX_INLINE",
     "SCHEME",
     "gone",
@@ -72,12 +71,6 @@ SCHEME = "lexware://download/"
 # accepts for an upload, so there is one number to remember. It bounds both
 # ways a download's bytes reach a client: `read_download` and a resource read.
 MAX_INLINE = 5 * 1024 * 1024
-
-# The tools a download resource belongs to. A resource is a way of handing out
-# a file one of them produced, so it is reachable exactly while at least one of
-# them is enabled - never as a side door that outlives the policy switching
-# them all off.
-GATING_TOOLS = ("download_file", "download_document", "read_download")
 
 DEFAULT_TYPE = "application/octet-stream"
 
