@@ -144,12 +144,28 @@ def test_no_layer_below_the_tools_names_a_tool() -> None:
     assert found == []
 
 
-# A dependency some modules may import and no other: the one module that is
-# its interface to the rest of the package.
-CONFINED: dict[str, str] = {
+# A dependency some modules may import and no other: the modules that are
+# its interface to the rest of the package, see SPECS.md section 4.
+CONFINED: dict[str, frozenset[str]] = {
     # The configuration interface's templates. The server never renders a
     # page, so nothing but `setup` has a reason to load it.
-    "jinja2": "configui/templates.py",
+    "jinja2": frozenset({"configui/templates.py"}),
+    # PDF pages as pictures, for read_download.
+    "pypdfium2": frozenset({"files/rendering.py"}),
+    # Where configuration lives on each platform.
+    "platformdirs": frozenset({"settings/locations.py"}),
+    # The HTTP transports.
+    "uvicorn": frozenset({"transport/http.py"}),
+    "starlette": frozenset({"transport/http.py"}),
+    # Lexware, and the one other server an upload may be fetched from.
+    "httpx": frozenset(
+        {
+            "api/connection.py",
+            "api/client.py",
+            "api/refusal.py",
+            "files/fetch.py",
+        }
+    ),
 }
 
 
@@ -164,16 +180,16 @@ def _third_party(path: Path) -> set[str]:
     return found
 
 
-@pytest.mark.parametrize(("dependency", "home"), CONFINED.items())
-def test_a_confined_dependency_is_imported_in_one_module(
-    dependency: str, home: str
+@pytest.mark.parametrize(("dependency", "homes"), CONFINED.items())
+def test_a_confined_dependency_is_imported_in_its_homes_alone(
+    dependency: str, homes: frozenset[str]
 ) -> None:
     importers = [
         path.relative_to(_SOURCE).as_posix()
         for path in _modules()
         if dependency in _third_party(path)
     ]
-    assert importers == [home]
+    assert set(importers) == homes
 
 
 def test_the_server_starts_without_the_template_engine() -> None:
