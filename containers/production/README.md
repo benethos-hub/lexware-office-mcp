@@ -67,7 +67,7 @@ server's own:
 | `COMPOSE_PROFILES` | empty | `https` starts Caddy with a plain `up` |
 | `LXO_DOMAIN` | none, required with `https` | the name clients use, e.g. `lexware.lan` |
 | `LXO_TLS` | `internal` | where the certificate comes from: `internal`, `files` or `acme` |
-| `LXO_HTTPS_PORT` | `443` | Caddy's port on the host, on every address |
+| `LXO_HTTPS_PORT` | `443` | Caddy's port on the host, on every address, and with `acme` the one the router forwards 443 to, since a public CA always connects to 443 |
 
 The server's settings - the API key, the token, the limits - and the
 tools it offers live in the volume `config`, and the configuration
