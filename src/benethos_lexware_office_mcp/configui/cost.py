@@ -19,6 +19,7 @@ import json
 
 from mcp.server.mcpserver import MCPServer
 
+from ..server import build_server
 from ..settings import Settings
 
 __all__ = ["CHARS_PER_TOKEN", "estimate_tokens", "tool_costs"]
@@ -51,11 +52,6 @@ def estimate_tokens(characters: int) -> int:
 
 
 async def _measure(settings: Settings) -> dict[str, int]:
-    # Imported here rather than at the top: `server` reaches back for this
-    # package to offer the setup command, and a module-level import would
-    # close the circle.
-    from ..server import build_server
-
     server = build_server(settings)
     # Deliberately the unfiltered listing. `PolicyServer.list_tools` answers
     # with what this installation has switched on, and the cost of a tool has
