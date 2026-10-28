@@ -104,6 +104,33 @@ def test_a_missing_file_is_empty_rather_than_an_error(tmp_path: Path) -> None:
     assert read_env_file(tmp_path / "absent.env") == {}
 
 
+def test_a_file_that_is_there_but_unreadable_is_refused(tmp_path: Path) -> None:
+    """Read as empty, the server started without its key and settings."""
+    blocked = tmp_path / ".env"
+    blocked.mkdir()
+
+    with pytest.raises(ConfigError, match="could not be read"):
+        read_env_file(blocked)
+    with pytest.raises(ConfigError, match="could not be read"):
+        update_env_file(blocked, {"LXO_MCP_PAGE_SIZE": "40"})
+    assert blocked.is_dir()
+
+
+def test_a_file_whose_read_is_refused_names_the_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / ".env"
+    path.write_text("LXO_MCP_PAGE_SIZE=40\n", encoding="utf-8")
+
+    def refused(self: Path, *args: object, **kwargs: object) -> str:
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr(Path, "read_text", refused)
+
+    with pytest.raises(ConfigError, match="could not be read: Permission denied"):
+        read_env_file(path)
+
+
 def test_an_update_keeps_comments_ordering_and_strangers(tmp_path: Path) -> None:
     """The file belongs to the user. Only the named keys may change."""
     path = tmp_path / ".env"

@@ -94,6 +94,11 @@ housekeeping are out of scope here — design decisions live in
 - **A port past 65535 is refused with one line.** `LXO_MCP_HTTP_PORT`,
   `--port` and `--public-port` accepted any number, and one too large
   ended the start in a traceback from the socket.
+- **A settings file that is there but cannot be read stops the start with
+  one line.** It was read as empty, so the server started without its key
+  and its settings, and the configuration interface could have saved the
+  new values alone over the rest. A file that is not there is still no
+  error.
 
 ## [0.6.2] - 2026-10-22
 
