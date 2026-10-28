@@ -822,7 +822,8 @@ token** every request must carry as `Authorization: Bearer <token>` — without
 because anyone who can reach the port could otherwise spend your Lexware
 credentials. And the SDK's **DNS-rebinding guard**, which checks `Host` and
 `Origin` against an allowlist of the loopback names, extended by
-`--allowed-hosts` where a container or a proxy puts another name in front.
+`--allowed-hosts` where a container or a proxy puts another name in front,
+or a client running in a browser sends its own domain as `Origin`.
 
 Neither makes the port safe to publish on a network. They make it survivable
 on a machine shared with other processes. `--host` binds somewhere other than

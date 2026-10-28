@@ -121,6 +121,18 @@ claude mcp add --transport http lexware https://lexware.lan/mcp \
   --header "Authorization: Bearer <bearer token>"
 ```
 
+A client that runs in a browser and calls `/mcp` itself sends an `Origin`
+header, and the server refuses every origin that `LXO_MCP_ALLOWED_HOSTS` does
+not name. That check is the protocol's guard against DNS rebinding: a page
+from elsewhere must not reach a server on the local network through a name it
+controls. For such a client, set `LXO_MCP_ALLOWED_HOSTS` in `compose.yaml`,
+under `environment:`, to
+`benethos-lexware-office-mcp:8770,lexware.lan,lexware.lan:*` with your own
+domain, once without and once with `:*`, since the SDK matches `:*` only
+against a name that carries a port. From these the server allows
+`https://lexware.lan` and `https://lexware.lan:*` as origins. A client that
+is not a web page, the usual case, sends no `Origin` and needs none of this.
+
 `LXO_TLS=files` takes a certificate of your own instead, a company CA's
 for instance, as `secrets/tls/cert.pem` with its chain and
 `secrets/tls/key.pem` in this folder. `acme` asks a public CA and needs
