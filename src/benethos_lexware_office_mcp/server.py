@@ -35,7 +35,7 @@ from .errors import SETUP_PROMPT_TITLE, ConfigError, ToolError
 from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
-from .tools import register_tools
+from .tools import DOWNLOAD_TOOLS, register_tools
 
 
 def _links_a_download(result: Any) -> bool:
@@ -311,7 +311,7 @@ class PolicyServer(MCPServer):
         """
         if allowed is None:
             allowed = self._policy.as_map()
-        return any(allowed.get(name, False) for name in resources.GATING_TOOLS)
+        return any(allowed.get(name, False) for name in DOWNLOAD_TOOLS)
 
     async def list_resources(self) -> list[Resource]:
         # Read from the download directory as it is now, but offered only

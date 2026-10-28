@@ -118,6 +118,28 @@ def test_every_layer_has_a_row() -> None:
     assert layers == set(MAY_IMPORT)
 
 
+def test_no_layer_below_the_tools_names_a_tool() -> None:
+    """A tool's name lives with the tool. Held as a string further down, it
+    cannot be checked against the registry there, and a renamed tool would
+    leave it pointing at nothing."""
+    from benethos_lexware_office_mcp.policy import known_tools
+    from benethos_lexware_office_mcp.server import build_server
+    from benethos_lexware_office_mcp.settings import Settings
+
+    build_server(Settings())  # the registry fills as the tools register
+    names = set(known_tools())
+    below = MAY_IMPORT["tools"]
+    found = [
+        f"{path.relative_to(_SOURCE).as_posix()} line {node.lineno}: {node.value}"
+        for path in _modules()
+        if path.relative_to(_SOURCE).parts[0].removesuffix(".py") in below
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Constant) and node.value in names
+    ]
+    assert names
+    assert found == []
+
+
 # A dependency some modules may import and no other: the one module that is
 # its interface to the rest of the package.
 CONFINED: dict[str, str] = {

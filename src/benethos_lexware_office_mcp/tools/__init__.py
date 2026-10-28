@@ -25,8 +25,9 @@ from . import (
     vouchers,
 )
 from ._base import register_tool
+from .files import DOWNLOAD_TOOLS
 
-__all__ = ["register_tool", "register_tools"]
+__all__ = ["DOWNLOAD_TOOLS", "register_tool", "register_tools"]
 
 Registrar = Callable[[MCPServer, Settings, ClientProvider], None]
 
