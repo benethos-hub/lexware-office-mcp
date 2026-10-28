@@ -24,6 +24,7 @@ from helpers import (
     Scripted,
     recorder,
     server_with,
+    upload_arguments,
 )
 
 
@@ -79,11 +80,8 @@ async def test_an_upload_outside_the_upload_directory_is_refused(
     handler = recorder(status=202, json_body=UPLOADED)
     server, provider = upload_server(handler, tmp_path, inbox)
 
-    arguments = {"source": str(elsewhere), "voucher_id": "PLACEHOLDER-VOUCHER-1"}
-    if tool == "upload_file":
-        del arguments["voucher_id"]
     with pytest.raises(ToolError, match="LXO_MCP_UPLOAD_DIR") as excinfo:
-        await server.call_tool(tool, arguments)
+        await server.call_tool(tool, upload_arguments(tool, str(elsewhere)))
 
     assert str(inbox) not in str(excinfo.value)
     assert handler.requests == []
@@ -392,10 +390,7 @@ async def test_a_network_path_is_refused_before_the_share_is_reached(
     server, provider = server_with(handler, **fields)
     never_touch_the_share(monkeypatch)
 
-    arguments = {"source": source, "voucher_id": "PLACEHOLDER-VOUCHER-1"}
-    if tool == "upload_file":
-        del arguments["voucher_id"]
     with pytest.raises(ToolError, match="A network path is read only when"):
-        await server.call_tool(tool, arguments)
+        await server.call_tool(tool, upload_arguments(tool, source))
 
     assert handler.requests == []

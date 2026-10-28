@@ -15,14 +15,7 @@ from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 from helpers import server_obeying, write_policy
 
-pytestmark = pytest.mark.anyio
-
 API_KEY = "test-key"
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
 
 
 # -- silence is a refusal -------------------------------------------------

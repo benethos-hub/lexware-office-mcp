@@ -58,13 +58,13 @@ async def providers_closed() -> AsyncIterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def no_account_from_another_test(monkeypatch: pytest.MonkeyPatch) -> None:
+def no_account_from_another_test() -> None:
     """The account the last connection test found is held by the process.
 
     Every page of the configuration interface names it, so one test's check
     would otherwise be on the next test's pages.
     """
-    monkeypatch.setattr(probe, "_last", None)
+    probe.forget()
 
 
 @pytest.fixture

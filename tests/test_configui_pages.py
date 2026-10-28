@@ -368,12 +368,8 @@ def test_nothing_red_means_no_next_step(inst: Installation) -> None:
     assert '<span class="tag">nicht getestet</span>' in body
 
 
-def test_the_stand_names_the_account_once_it_is_known(
-    inst: Installation, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        probe, "_last", probe.Account(company="Test Inc.", tax_type="net")
-    )
+def test_the_stand_names_the_account_once_it_is_known(inst: Installation) -> None:
+    probe.remember(probe.Account(company="Test Inc.", tax_type="net"))
 
     body = text(pages.overview(inst))
 
@@ -773,10 +769,10 @@ def test_nothing_but_the_policy_file_travels(inst: Installation) -> None:
 
 
 def test_the_account_appears_on_every_page_once_it_is_known(
-    inst: Installation, monkeypatch: pytest.MonkeyPatch
+    inst: Installation,
 ) -> None:
     """Which records these permissions apply to has to stay in view."""
-    monkeypatch.setattr(probe, "_last", probe.Account(company="Test Inc."))
+    probe.remember(probe.Account(company="Test Inc."))
 
     for render in (
         pages.overview,
@@ -903,13 +899,11 @@ def test_a_token_the_environment_holds_is_shown_as_held(
 
 
 def test_the_connection_card_says_what_the_last_test_found(
-    inst: Installation, monkeypatch: pytest.MonkeyPatch
+    inst: Installation,
 ) -> None:
     assert "noch nicht getestet" in text(pages.credentials(inst))
 
-    monkeypatch.setattr(
-        probe, "_last", probe.Account(company="Test Inc.", small_business=True)
-    )
+    probe.remember(probe.Account(company="Test Inc.", small_business=True))
     body = text(pages.credentials(inst))
 
     assert (

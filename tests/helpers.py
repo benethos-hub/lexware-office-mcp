@@ -330,6 +330,14 @@ PDF = make_pdf()
 UPLOADED = {"id": "PLACEHOLDER-FILE-2", "voucherId": "PLACEHOLDER-VOUCHER-9"}
 
 
+def upload_arguments(tool: str, source: str) -> dict[str, str]:
+    """A call of either upload tool with ``source``, a voucher to hang it on
+    where the tool takes one."""
+    if tool == "attach_file_to_voucher":
+        return {"voucher_id": "PLACEHOLDER-VOUCHER-1", "source": source}
+    return {"source": source}
+
+
 def recorder(
     content: bytes = PDF,
     status: int = 200,
