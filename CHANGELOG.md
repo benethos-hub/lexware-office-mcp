@@ -48,6 +48,16 @@ housekeeping are out of scope here — design decisions live in
   on it. A drive letter mapped to a share is a local path and works as
   before.
 
+### Fixed
+
+- **The settings file in the image is readable by its owner alone.**
+  `/config/.env` was created world-readable, and a save keeps the mode of
+  the file it replaces, so the bearer token and an API key saved through
+  the configuration interface stayed readable to every user in the
+  container. A new volume starts with mode 600. An existing one keeps the
+  mode it has until it is changed once:
+  `docker compose exec benethos-lexware-office-mcp chmod 600 /config/.env`.
+
 ## [0.6.2] - 2026-10-22
 
 A patch release for the container image. Nothing a client receives
