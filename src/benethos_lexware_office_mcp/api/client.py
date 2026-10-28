@@ -46,10 +46,15 @@ def _page_params(page: int, size: int, **filters: Any) -> dict[str, Any]:
     return params
 
 
+def _unexpected(endpoint: str) -> UpstreamError:
+    """The one answer for a response that is not the shape it is documented as."""
+    return UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+
+
 def _expect_object(payload: Any, endpoint: str) -> dict[str, Any]:
     """Insist that an endpoint documented to return an object returned one."""
     if not isinstance(payload, dict):
-        raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+        raise _unexpected(endpoint)
     return payload
 
 
@@ -65,14 +70,14 @@ def _expect_page(payload: Any, endpoint: str) -> dict[str, Any]:
     if not isinstance(content, list) or not all(
         isinstance(row, dict) for row in content
     ):
-        raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+        raise _unexpected(endpoint)
     return page
 
 
 def _expect_list(payload: Any, endpoint: str) -> list[Any]:
     """Insist that an endpoint documented to return a bare list returned one."""
     if not isinstance(payload, list):
-        raise UpstreamError(f"The {endpoint} endpoint returned an unexpected shape.")
+        raise _unexpected(endpoint)
     return payload
 
 
