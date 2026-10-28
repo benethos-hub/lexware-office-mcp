@@ -365,9 +365,11 @@ def never_touch_the_share(monkeypatch: pytest.MonkeyPatch) -> None:
     for method in ("resolve", "is_file", "stat"):
         original = getattr(Path, method)
 
-        def guarded(self: Path, *args: Any, _original: Any = original) -> Any:
+        def guarded(
+            self: Path, *args: Any, _original: Any = original, **kwargs: Any
+        ) -> Any:
             assert "server" not in str(self), f"the share was touched: {self}"
-            return _original(self, *args)
+            return _original(self, *args, **kwargs)
 
         monkeypatch.setattr(Path, method, guarded)
 
