@@ -516,6 +516,15 @@ async def test_a_number_that_matches_nothing_is_a_not_found() -> None:
     assert str(excinfo.value).endswith(": No voucher with the number NOPE.")
 
 
+async def test_a_page_of_something_else_than_vouchers_says_so() -> None:
+    """Every other paged endpoint is held to its shape, and so is this one."""
+    handler = Scripted((200, {**PAGE, "content": ["MCP-0001"]}))
+    server, provider = server_with(handler)
+
+    with pytest.raises(ToolError, match="vouchers endpoint returned an unexpected"):
+        await server.call_tool("get_voucher", {"voucher_number": "MCP-0001"})
+
+
 async def test_an_ambiguous_number_names_the_candidates() -> None:
     """Numbers are unique by convention, not by constraint. Seen live."""
     second = {**VOUCHER, "id": "PLACEHOLDER-VOUCHER-2"}

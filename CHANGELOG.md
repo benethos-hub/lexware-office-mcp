@@ -89,6 +89,8 @@ housekeeping are out of scope here — design decisions live in
   `read_download` as an opaque blob instead of pages, and was never
   cleaned up. It is now shortened before the extension. Every name up to
   120 characters is saved exactly as before.
+- **`get_voucher` by number says when the API answers in an unexpected
+  shape**, as every other list does, rather than failing without a reason.
 
 ## [0.6.2] - 2026-10-22
 
