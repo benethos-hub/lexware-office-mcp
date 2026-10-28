@@ -30,6 +30,7 @@ from ..errors import ConfigError
 from ..policy import known_tools, writing
 from ..settings import LOG_LEVELS, load_settings
 from ..settings.envfile import update_env_file
+from ..settings.locations import TOOL_POLICY_NAME
 from ..settings.parse import credential
 from . import pages, probe, transfer
 from .pages import Message, Page
@@ -52,9 +53,6 @@ __all__ = [
 # A parsed form: every field a list, because `parse_qs` allows repeats and the
 # checkbox per tool relies on that.
 Form = dict[str, list[str]]
-
-# The name the file has on disk, so a download can simply replace one.
-_EXPORT_NAME = "tools.json"
 
 # Where each form sends the browser once it went through.
 _CREDENTIALS = "/credentials"
@@ -360,7 +358,8 @@ def export(inst: Installation) -> Reply:
     """
     return Reply(
         body=transfer.dumps(inst.policy.as_map()).encode("utf-8"),
-        download=_EXPORT_NAME,
+        # The name the file has on disk, so a download can simply replace one.
+        download=TOOL_POLICY_NAME,
     )
 
 
