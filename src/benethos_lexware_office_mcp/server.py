@@ -423,15 +423,25 @@ class PolicyServer(MCPServer):
         self._seen_downloads = await self._download_names(self._seen)
         while True:
             await asyncio.sleep(POLICY_POLL_SECONDS)
-            # One reading of the file and one scan of the directory a turn,
-            # each handed on rather than taken again.
-            current = self._policy.as_map()
-            if current != self._seen:
-                self._seen = current
-                await self._announce()
-            names = await self._download_names(current)
-            if names != self._seen_downloads:
-                await self._downloads_changed(names)
+            # A failed turn costs that turn. Unguarded it ended the task,
+            # with nobody waiting on it to hear why, and nothing was told
+            # until a client happened to list again.
+            try:
+                await self._turn()
+            except Exception as exc:
+                logbook.policy.watch_failed(exc)
+
+    async def _turn(self) -> None:
+        """One look at the policy file and the download directory."""
+        # One reading of the file and one scan of the directory a turn,
+        # each handed on rather than taken again.
+        current = self._policy.as_map()
+        if current != self._seen:
+            self._seen = current
+            await self._announce()
+        names = await self._download_names(current)
+        if names != self._seen_downloads:
+            await self._downloads_changed(names)
 
     async def _announce(self) -> None:
         """The tool list is not what it was: tell every live connection."""

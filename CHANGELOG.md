@@ -74,6 +74,11 @@ housekeeping are out of scope here — design decisions live in
   failed, the file was on disk, but the answer was replaced by an error
   carrying the directory's path. The answer now arrives as usual, and
   stderr says the clients were not told.
+- **One failed look no longer stops the notifications.** The server looks
+  every two seconds for a changed tool policy or a new download, and a
+  single error on the way ended that for good, until a client happened to
+  list again. Now the error is named on stderr and the next look follows
+  as usual.
 
 ## [0.6.2] - 2026-10-22
 

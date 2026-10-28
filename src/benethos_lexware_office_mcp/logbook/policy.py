@@ -14,6 +14,7 @@ __all__ = [
     "not_a_flag",
     "not_an_object",
     "unreadable",
+    "watch_failed",
 ]
 
 _log = logging.getLogger(f"{PACKAGE}.policy")
@@ -51,6 +52,13 @@ def not_a_flag(source: str, tool: str, found: object) -> None:
 
 def list_changed(clients: int) -> None:
     _log.info("The tool list changed, %d clients told", clients)
+
+
+def watch_failed(error: BaseException) -> None:
+    _log.warning(
+        "A look for a changed tool or download list failed, trying again: %s",
+        describe(error),
+    )
 
 
 def client_dropped(error: BaseException) -> None:
