@@ -320,10 +320,11 @@ class PolicyServer(MCPServer):
         if not self._resources_enabled():
             return []
         registered = await super().list_resources()
-        return [
-            *registered,
-            *resources.listed(self._downloads, self._listed_downloads),
-        ]
+        # Off the event loop, as the watcher's scan of the same directory.
+        listed = await asyncio.to_thread(
+            resources.listed, self._downloads, self._listed_downloads
+        )
+        return [*registered, *listed]
 
     async def read_resource(self, uri: Any, context: Any = None) -> Any:
         if not self._resources_enabled():
