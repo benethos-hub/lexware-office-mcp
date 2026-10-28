@@ -57,6 +57,12 @@ housekeeping are out of scope here — design decisions live in
   container. A new volume starts with mode 600. An existing one keeps the
   mode it has until it is changed once:
   `docker compose exec benethos-lexware-office-mcp chmod 600 /config/.env`.
+- **A tool policy file the server may not look at no longer reaches the
+  model with its path.** On Python 3.11 to 3.13, a policy file in a
+  directory without the right to look into it, or on a share that went
+  away, made every tool call answer with the operating system's error and
+  the file's full path. Such a file now enables nothing, like an unreadable
+  one, and stderr names it once.
 
 ## [0.6.2] - 2026-10-22
 

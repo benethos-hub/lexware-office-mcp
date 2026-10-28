@@ -219,7 +219,24 @@ class ToolPolicy:
 
     def exists(self) -> bool:
         """Whether there is a file at all. Nothing is enabled without one."""
-        return self._path is not None and self._path.is_file()
+        return self._is_file() is True
+
+    def _is_file(self) -> bool | None:
+        """Whether the file is there, or ``None`` when that cannot be told.
+
+        Before Python 3.14 ``is_file`` raises what the directory refuses,
+        a permission or a share that went away, and every call reads this.
+        Such a file enables nothing, as an unreadable one does, and is named
+        on stderr once rather than reaching a client with its path.
+        """
+        if self._path is None:
+            return False
+        try:
+            return self._path.is_file()
+        except OSError as exc:
+            if self._news(("unreadable", type(exc).__name__, str(exc))):
+                logbook.policy.unreadable(self._path, exc)
+            return None
 
     def _news(self, complaint: tuple[object, ...]) -> bool:
         """Whether ``complaint`` is not what the last read found wrong.
@@ -234,8 +251,10 @@ class ToolPolicy:
         return new and bool(complaint)
 
     def _stored(self) -> dict[str, bool]:
-        if not self.exists():
-            self._complaint = ()
+        present = self._is_file()
+        if not present:
+            if present is False:
+                self._complaint = ()
             return {}
         assert self._path is not None
         try:
