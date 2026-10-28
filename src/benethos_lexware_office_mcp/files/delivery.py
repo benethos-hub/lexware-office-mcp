@@ -147,7 +147,7 @@ def _rendered(
     """A PDF as pictures of its pages."""
     try:
         pages, total = rendering.pdf_pages_as_png(payload, max_pages=max_pages)
-    except Exception as exc:  # pypdfium2 raises its own errors
+    except rendering.RenderError as exc:
         # Its messages end in a full stop of their own.
         reason = str(exc).rstrip(".")
         raise ValidationError(

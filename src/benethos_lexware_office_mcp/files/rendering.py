@@ -32,7 +32,13 @@ from dataclasses import dataclass
 
 import pypdfium2
 
-__all__ = ["MAX_EDGE", "RenderedPage", "pdf_pages_as_png"]
+__all__ = ["MAX_EDGE", "RenderError", "RenderedPage", "pdf_pages_as_png"]
+
+# What PDFium raises for a document it cannot open or render, measured
+# 2026-10-28 for one that is empty, not a PDF, cut short or a header alone.
+# Named here so the caller catches it without importing the library this
+# module confines.
+RenderError = pypdfium2.PdfiumError
 
 # Claude resizes anything larger before it looks at it, so rendering past this
 # spends bytes on pixels that get thrown away. 1400 sits under that ceiling
@@ -71,7 +77,7 @@ def pdf_pages_as_png(
     ``read_download`` always passes a number, at most ``MAX_PDF_PAGES``, so
     a call asking for null pages gets that many and not every page.
 
-    Raises ``pypdfium2`` errors for a document that cannot be opened, which
+    Raises :data:`RenderError` for a document that cannot be opened, which
     the caller turns into something a person can act on.
     """
     document = pypdfium2.PdfDocument(data)
