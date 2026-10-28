@@ -230,7 +230,19 @@ class PolicyServer(MCPServer):
         keeps from the caller. The answer is the one the guard each tool is
         wrapped in gives a valid call.
         """
-        enabled = self._policy.enabled(name)
+        try:
+            enabled = self._policy.enabled(name)
+        except SDKToolError:
+            raise
+        except Exception as exc:
+            # Outside any tool, so the SDK would answer with the error's own
+            # text, and an error about a file names its path.
+            if self._policy.path is not None:
+                logbook.policy.unreadable(self._policy.path, exc)
+            raise ToolError(
+                f"{name} could not be checked against the tool policy. The "
+                "server's log says why."
+            ) from None
         if not enabled and name in known_tools():
             refused = withheld(name)
             logbook.calls.ended(name, refused, 0, 0.0)

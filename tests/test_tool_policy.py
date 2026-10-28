@@ -154,6 +154,26 @@ def test_a_file_whose_directory_refuses_a_look_enables_nothing_and_says_so_once(
     assert "unreadable tool policy" in caplog.text.lower()
 
 
+async def test_a_policy_that_fails_to_answer_refuses_the_call_without_its_path(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check runs outside every tool, where the SDK quotes an error whole."""
+    server = server_obeying(tmp_path, {"get_profile": True})
+    secret = str(tmp_path / "tools.json")
+
+    def broken(self: ToolPolicy, name: str) -> bool:
+        raise PermissionError(13, "Permission denied", secret)
+
+    monkeypatch.setattr(ToolPolicy, "enabled", broken)
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ToolError, match="could not be checked") as excinfo:
+            await server.call_tool("get_profile", {})
+
+    assert secret not in str(excinfo.value)
+    assert "unreadable tool policy" in caplog.text.lower()
+
+
 def test_a_mistake_is_named_again_once_the_file_says_something_else(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
