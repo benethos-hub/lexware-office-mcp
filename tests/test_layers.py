@@ -25,25 +25,29 @@ import benethos_lexware_office_mcp
 PACKAGE = "benethos_lexware_office_mcp"
 _SOURCE = Path(benethos_lexware_office_mcp.__file__).parent
 
-# Everything else stands on these, and they stand on nothing but each other.
+# Everything else stands on these. Among them, errors stands on nothing,
+# logbook on errors, and settings on both.
 FOUNDATION = frozenset({"errors", "settings", "logbook"})
 
 # Which layers a layer may import, besides itself and the package root, which
-# every module may read `__version__` from.
+# every module may read `__version__` from. Each row allows what the layer
+# uses and no more: a row that allows more says no decision, and a change
+# that needs another layer adds it on purpose.
 MAY_IMPORT: dict[str, frozenset[str]] = {
-    "errors": FOUNDATION,
-    "settings": FOUNDATION,
-    "logbook": FOUNDATION,
+    "errors": frozenset(),
+    "logbook": frozenset({"errors"}),
+    "settings": frozenset({"errors", "logbook"}),
     "records": frozenset({"errors"}),
-    "api": FOUNDATION | {"records"},
+    "api": FOUNDATION,
     "files": FOUNDATION,
-    "policy": frozenset({"errors", "logbook", "settings"}),
+    "policy": FOUNDATION,
     "tools": FOUNDATION | {"records", "api", "files", "policy"},
     "server": FOUNDATION | {"tools", "policy", "api", "files"},
-    "transport": FOUNDATION | {"server"},
+    # Every MCPServer in it is the SDK's type, not this server.
+    "transport": FOUNDATION,
     # The configuration interface builds a server to measure what the tools
     # cost, and is started by the command line alone.
-    "configui": FOUNDATION | {"records", "api", "files", "policy", "tools", "server"},
+    "configui": FOUNDATION | {"api", "policy", "server"},
     # The top: anything below it, and imported by nothing but `python -m`.
     "cli": FOUNDATION
     | {"records", "api", "files", "policy", "tools", "server", "transport", "configui"},
