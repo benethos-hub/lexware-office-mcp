@@ -35,13 +35,6 @@ from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
 from helpers import FILE_ID, capture_lines, recorder, server_with, write_policy
 
-pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
 
 @pytest.fixture(autouse=True)
 def quick_poll(monkeypatch: pytest.MonkeyPatch) -> None:

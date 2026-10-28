@@ -23,13 +23,6 @@ from benethos_lexware_office_mcp.policy import (
     known_tools,
 )
 
-pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
 
 @pytest.fixture(autouse=True)
 def registry_left_as_found() -> Iterator[None]:
