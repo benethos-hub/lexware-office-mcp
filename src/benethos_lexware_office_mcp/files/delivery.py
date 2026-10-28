@@ -75,10 +75,14 @@ def load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult:
             raise NotFoundError(
                 "download", uri, hint=resources.gone(settings.downloads_kept())
             )
+        # Measured before it is read, as resources/read does: a file in the
+        # directory may be any size, and reading it whole to refuse it is
+        # the cost the ceiling is there to spare.
+        size = found.stat().st_size
+        if size > resources.MAX_INLINE:
+            raise ValidationError(resources.too_large(uri, size))
         payload = found.read_bytes()
     mime = storage.content_type_for(found)
-    if len(payload) > resources.MAX_INLINE:
-        raise ValidationError(resources.too_large(uri, len(payload)))
     return inline(uri, payload, mime, max_pages)
 
 
