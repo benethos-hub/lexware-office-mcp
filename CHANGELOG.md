@@ -34,6 +34,20 @@ housekeeping are out of scope here — design decisions live in
   `emSign Root CA - C1` from the CA bundle for the connection to Lexware.
   An installation from the index resolved them already.
 
+### Security
+
+- **A network path is no longer an upload source of its own.**
+  `upload_file` and `attach_file_to_voucher` refuse a path such as
+  `\\host\share\receipt.pdf` or `//host/share/receipt.pdf` unless
+  `LXO_MCP_UPLOAD_DIR` names the same share. On Windows the first look at
+  such a path connects to the host with the signed-in user's credentials,
+  before any check could refuse it, so a path in a prompt could send the
+  server to a host of its choosing, which `LXO_MCP_UPLOAD_URLS` exists to
+  prevent. The refusal now comes before anything reaches the file system.
+  Whoever uploads from a share today sets `LXO_MCP_UPLOAD_DIR` to a folder
+  on it. A drive letter mapped to a share is a local path and works as
+  before.
+
 ## [0.6.2] - 2026-10-22
 
 A patch release for the container image. Nothing a client receives
