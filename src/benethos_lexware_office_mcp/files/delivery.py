@@ -20,7 +20,6 @@ import base64
 from pathlib import Path
 from typing import Any
 
-import httpx
 from mcp.types import (
     BlobResourceContents,
     CallToolResult,
@@ -43,15 +42,24 @@ TEXT_TYPES = ("application/xml", "text/xml", "application/json")
 
 
 async def deliver(
-    response: httpx.Response, settings: Settings, *, fallback: str
+    content: bytes,
+    *,
+    content_type: str,
+    disposition: str,
+    settings: Settings,
+    fallback: str,
 ) -> CallToolResult:
-    """Save a download and hand it to the client both ways."""
-    name = storage.suggested_name(response, fallback)
+    """Save a download and hand it to the client both ways.
+
+    The response comes apart in the tool, which holds it: what is read of it
+    is the body and two headers, and nothing in ``files`` but the fetch of
+    an upload speaks HTTP.
+    """
+    name = storage.suggested_name(disposition, fallback)
     with storage.on_disk("save the download"):
-        written = await asyncio.to_thread(_save, response.content, name, settings)
-        mime = response.headers.get("content-type", resources.DEFAULT_TYPE)
-        link = resources.link(written, mime)
-    return saved(written, link, len(response.content))
+        written = await asyncio.to_thread(_save, content, name, settings)
+        link = resources.link(written, content_type)
+    return saved(written, link, len(content))
 
 
 def _save(content: bytes, name: str, settings: Settings) -> Path:

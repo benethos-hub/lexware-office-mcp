@@ -110,8 +110,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """
         response = await provider.get().file(file_id, MIME[file_format])
         return await delivery.deliver(
-            response,
-            settings,
+            response.content,
+            content_type=response.headers.get("content-type", resources.DEFAULT_TYPE),
+            disposition=response.headers.get("content-disposition", ""),
+            settings=settings,
             fallback=f"{file_id}.{file_format}",
         )
 
@@ -135,8 +137,10 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
             RESOURCES[document_type], document_id, MIME[file_format]
         )
         return await delivery.deliver(
-            response,
-            settings,
+            response.content,
+            content_type=response.headers.get("content-type", resources.DEFAULT_TYPE),
+            disposition=response.headers.get("content-disposition", ""),
+            settings=settings,
             fallback=f"{document_type}-{document_id}.{file_format}",
         )
 

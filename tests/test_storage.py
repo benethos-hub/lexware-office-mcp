@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import httpx
 import pytest
 
 from benethos_lexware_office_mcp.errors import ValidationError
@@ -16,15 +15,9 @@ from helpers import (
 )
 
 
-def response_with(disposition: str) -> httpx.Response:
-    return httpx.Response(
-        200, content=PDF, headers={"content-disposition": disposition}
-    )
-
-
 def test_the_servers_filename_is_used_when_it_is_ordinary() -> None:
     name = storage.suggested_name(
-        response_with("inline; filename=invoice-2026-014.pdf;"), "fallback.pdf"
+        "inline; filename=invoice-2026-014.pdf;", "fallback.pdf"
     )
     assert name == "invoice-2026-014.pdf"
 
@@ -32,7 +25,7 @@ def test_the_servers_filename_is_used_when_it_is_ordinary() -> None:
 def test_the_encoded_filename_is_decoded_before_it_is_made_safe() -> None:
     """Read as it stood, every percent sign became an underscore."""
     name = storage.suggested_name(
-        response_with("attachment; filename*=UTF-8''Rechnung%20RE-1%2B2.pdf"),
+        "attachment; filename*=UTF-8''Rechnung%20RE-1%2B2.pdf",
         "fallback.pdf",
     )
     assert name == "Rechnung_RE-1_2.pdf"
@@ -41,9 +34,7 @@ def test_the_encoded_filename_is_decoded_before_it_is_made_safe() -> None:
 def test_the_encoded_filename_wins_over_the_plain_one() -> None:
     """RFC 6266: the plain one is there for clients that cannot decode."""
     name = storage.suggested_name(
-        response_with(
-            "attachment; filename=\"plain.pdf\"; filename*=UTF-8''encoded.pdf"
-        ),
+        "attachment; filename=\"plain.pdf\"; filename*=UTF-8''encoded.pdf",
         "fallback.pdf",
     )
     assert name == "encoded.pdf"
@@ -51,7 +42,7 @@ def test_the_encoded_filename_wins_over_the_plain_one() -> None:
 
 def test_an_encoded_filename_cannot_smuggle_a_path_either() -> None:
     name = storage.suggested_name(
-        response_with("attachment; filename*=UTF-8''..%2F..%2Fetc%2Fpasswd"),
+        "attachment; filename*=UTF-8''..%2F..%2Fetc%2Fpasswd",
         "fallback.pdf",
     )
     assert name == "passwd"
@@ -63,7 +54,7 @@ def test_a_charset_that_cannot_decode_the_name_reads_it_as_utf_8(
 ) -> None:
     """``idna`` is a codec Python knows, and one that refuses to replace."""
     name = storage.suggested_name(
-        response_with(f"attachment; filename*={charset}''a%20b.pdf"), "f.pdf"
+        f"attachment; filename*={charset}''a%20b.pdf", "f.pdf"
     )
     assert name == "a_b.pdf"
 
@@ -71,7 +62,7 @@ def test_a_charset_that_cannot_decode_the_name_reads_it_as_utf_8(
 def test_a_filename_that_is_a_path_is_reduced_to_its_last_part() -> None:
     """Content-Disposition is written by the server, so it is untrusted."""
     name = storage.suggested_name(
-        response_with('attachment; filename="../../../etc/passwd"'), "fallback.pdf"
+        'attachment; filename="../../../etc/passwd"', "fallback.pdf"
     )
     assert name == "passwd"
     assert "/" not in name
@@ -80,9 +71,7 @@ def test_a_filename_that_is_a_path_is_reduced_to_its_last_part() -> None:
 def test_a_windows_path_is_stripped_too() -> None:
     """The separator that matters is not always the platform's own."""
     name = storage.suggested_name(
-        response_with(
-            'attachment; filename="..\\\\..\\\\windows\\\\system32\\\\x.pdf"'
-        ),
+        'attachment; filename="..\\\\..\\\\windows\\\\system32\\\\x.pdf"',
         "fallback.pdf",
     )
     assert name == "x.pdf"
@@ -92,7 +81,7 @@ def test_a_windows_path_is_stripped_too() -> None:
 def test_unusual_characters_are_replaced() -> None:
     """A filename that reaches the disk should be boring."""
     name = storage.suggested_name(
-        response_with('attachment; filename="Rechnung 2026 (final) & copy.pdf"'),
+        'attachment; filename="Rechnung 2026 (final) & copy.pdf"',
         "f.pdf",
     )
     assert all(c.isalnum() or c in "._-" for c in name), name
@@ -104,9 +93,7 @@ def test_unusual_characters_are_replaced() -> None:
 )
 def test_a_windows_device_name_is_not_used_as_is(name: str) -> None:
     """On Windows `CON.pdf` is the console, not a file."""
-    cleaned = storage.suggested_name(
-        response_with(f'attachment; filename="{name}"'), "f.pdf"
-    )
+    cleaned = storage.suggested_name(f'attachment; filename="{name}"', "f.pdf")
 
     assert cleaned.split(".")[0].upper() not in storage._DEVICES
     assert cleaned.endswith(name)
@@ -115,9 +102,7 @@ def test_a_windows_device_name_is_not_used_as_is(name: str) -> None:
 def test_a_long_name_is_shortened_before_its_extension() -> None:
     """The extension decides how the file is listed, read back and pruned."""
     title = "Rechnung_" + "x" * 117
-    name = storage.suggested_name(
-        response_with(f'attachment; filename="{title}.pdf"'), "f.pdf"
-    )
+    name = storage.suggested_name(f'attachment; filename="{title}.pdf"', "f.pdf")
 
     assert name.endswith(".pdf")
     assert len(name) == storage.MAX_NAME
@@ -128,25 +113,19 @@ def test_a_long_name_is_shortened_before_its_extension() -> None:
     "name", ["a" * 120, "b" * 116 + ".pdf", "c" * 130, "d" * 100 + "." + "e" * 30]
 )
 def test_a_name_without_a_short_extension_is_cut_as_before(name: str) -> None:
-    cleaned = storage.suggested_name(
-        response_with(f'attachment; filename="{name}"'), "f.pdf"
-    )
+    cleaned = storage.suggested_name(f'attachment; filename="{name}"', "f.pdf")
 
     assert cleaned == name[: storage.MAX_NAME]
 
 
 def test_a_name_that_merely_starts_like_a_device_is_left_alone() -> None:
-    name = storage.suggested_name(
-        response_with('attachment; filename="CONTRACT.pdf"'), "f.pdf"
-    )
+    name = storage.suggested_name('attachment; filename="CONTRACT.pdf"', "f.pdf")
     assert name == "CONTRACT.pdf"
 
 
 def test_a_useless_filename_falls_back_to_the_callers_own() -> None:
-    assert storage.suggested_name(
-        response_with('attachment; filename=".."'), "f.pdf"
-    ) == ("f.pdf")
-    assert storage.suggested_name(httpx.Response(200, content=PDF), "f.pdf") == "f.pdf"
+    assert storage.suggested_name('attachment; filename=".."', "f.pdf") == ("f.pdf")
+    assert storage.suggested_name("", "f.pdf") == "f.pdf"
 
 
 def test_a_download_never_replaces_an_existing_file(tmp_path: Path) -> None:
