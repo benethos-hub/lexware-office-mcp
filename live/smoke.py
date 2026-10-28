@@ -223,6 +223,8 @@ async def _checks(server: Any) -> int:
             row
             for row in vouchers.get("vouchers") or []
             if row.get("voucherType") in ("salesinvoice", "purchaseinvoice")
+            # An upload still unchecked has no lines yet.
+            and row.get("voucherStatus") != "unchecked"
         ]
         if not rows:
             return None
