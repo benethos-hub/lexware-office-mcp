@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.6.2.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.7.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -1106,13 +1106,17 @@ traceback.
 **A `.env` is UTF-8, with or without a byte order mark.** A file in another
 encoding, Windows-1252 from an older editor for instance, is refused with a
 `ConfigError` naming the file and the first byte that is not UTF-8: in one
-line on stderr, and on the page of the configuration interface, which
-cannot write it either. Decoding it with replacement characters instead
-would turn a `ü` in a directory into a path that does not exist, and an
-update would write the replacement back over the original bytes. The
-policy file and its profiles are read with a byte order mark allowed as
-well, since 2026-10-08: read as plain UTF-8, a `tools.json` saved by a
-Windows editor was broken JSON, and every tool was off.
+line on stderr, and on the page of the configuration interface, which cannot
+write it either. Decoding it with replacement characters instead would turn a
+`ü` in a directory into a path that does not exist, and an update would write
+the replacement back over the original bytes. A `.env` that is there but
+cannot be read, a permission refused or a directory in its place, is refused
+the same way, since 2026-10-28: read as empty, it started the server without
+its key and its settings, and an update would have written the new values
+alone over the rest. Only a file that is not there is no error. The policy
+file and its profiles are read with a byte order mark allowed as well, since
+2026-10-08: read as plain UTF-8, a `tools.json` saved by a Windows editor was
+broken JSON, and every tool was off.
 
 No secret is ever read from a versioned file. `config/.env` is gitignored,
 and the settings sample, which is committed and ships inside the package,
@@ -1538,20 +1542,23 @@ local server was asked once and saw no `Authorization` header, and the log
 line named `http://127.0.0.1` and nothing after it.
 
 **One parameter, `source`, replaced `path`.** A value that starts with
-`https://` or `http://`, in any case, is a URL. A `file:` URL is refused
-with the advice to give the path itself, since it would be a path read past
+`https://` or `http://`, in any case, is a URL. A `file:` URL is refused with
+the advice to give the path itself, since it would be a path read past
 `LXO_MCP_UPLOAD_DIR` in disguise. Anything else is a path, read as before,
-with one exception: a network path - two separators of either kind at the
-start, `\\host\share` or `//host/share` - is refused unless
-`LXO_MCP_UPLOAD_DIR` names the same share. Windows connects to the host on
-the first call that touches such a path, `resolve()` included, and signs in
-as the user running the server: 21 seconds against an address that did not
-answer, measured 2026-10-28, before the directory check had refused
-anything. So the share is compared as text before the file system is
-asked, the same way on every platform. Two parameters would have needed a rule for which wins when both are given,
-and a caller would have had to learn it. The cost is a renamed argument: a
-caller that passed `path` by name is refused until it lists the tools again.
-No tool is new, so a policy file reads exactly as it did.
+with the one exception below. Two parameters would have needed a rule for
+which wins when both are given, and a caller would have had to learn it. The
+cost is a renamed argument: a caller that passed `path` by name is refused
+until it lists the tools again. No tool is new, so a policy file reads
+exactly as it did.
+
+**A network path is read only from the upload directory's share.** Two
+separators of either kind at the start, `\\host\share` or `//host/share`,
+make a path that is refused unless `LXO_MCP_UPLOAD_DIR` names the same share.
+Windows connects to the host on the first call that touches such a path,
+`resolve()` included, and signs in as the user running the server: 21 seconds
+against an address that did not answer, measured 2026-10-28, before the
+directory check had refused anything. So the share is compared as text before
+the file system is asked, the same way on every platform.
 
 **No URL without the setting.** The model chooses the URL, and a model reads
 email. Without a list, one prompt in a message could have this server fetch
@@ -2572,17 +2579,17 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.6.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.7.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
-| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds |
+| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds, and a turn of the watcher that failed, by the error's class, before the next one follows |
 | `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`, and `fetch` for an upload's URL) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `The download list changed, 2 clients told`, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
-| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all |
+| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all, and a download answered while the clients could not be told the list changed, by the error's class |
 | | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
 | | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
@@ -3159,7 +3166,7 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  179 MB on 2026-10-22, on Python 3.15.1. The server on a loopback-published
+  179 MB on 2026-10-28, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -3580,6 +3587,7 @@ suggested they were.
 | 0.6.0 | Uploads from a URL, a client told about downloads, and the review of 2026-10-16 | **released 2026-10-16** - a minor, because an installation can trip over it: the two upload tools take `source` instead of `path`, and a client that passes `path` by name is refused until it lists the tools again. New: `upload_file` and `attach_file_to_voucher` fetch a file from a URL `LXO_MCP_UPLOAD_URLS` allows, so a mailbox server's link to an attachment reaches Lexware from server to server, see section 7.2, and a client is told when a download was added. The tool list notification reaches clients again, one of the 2026-07-28 protocol on its listen stream. Verified live against the second test account: `live/smoke.py` 13 of 13, a shape capture identical to 0.5.4's, and the mailbox flow end to end from Claude Desktop with 17 receipts |
 | 0.6.1 | The image on current dependencies, and the lowest `mcp` raised to 2.2.0 | **released 2026-10-19** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.6.0. The lockfile the image is built from carries starlette 1.9.0, httpx2 and httpcore2 2.14.0, certifi 2026.10.18 and platformdirs 4.13.5, on the current build of `python:3.15-slim`, and `mcp>=2.2.0` keeps an environment that pins an older SDK from serving Streamable HTTP with sessions that are never reclaimed (GHSA-84m7-p3x7-pcfv). The first release through the organisation's publishing actions, behind the gate that waits for main's CI. Verified live read-only against the test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.6.0's apart from its timestamp |
 | 0.6.2 | The image on Python 3.15.1 | **released 2026-10-22** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.6.1. The image is built on the current `python:3.15-slim` with Python 3.15.1, the security release, and its `ca-certificates` 20250419+deb13u1, with uv 0.13.5 and a lockfile that carries certifi 2026.10.19 and httpx2 and httpcore2 2.16.0. Old and new image were compared before the merge: the packages differ only there, and an HTTP session answers the same, the bearer check and a TLS connection to Lexware included. Verified live read-only against the test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.6.1's apart from its timestamp |
+| 0.7.0 | The review of 2026-10-28, and the image on Python 3.15.2 | **released 2026-10-28** - a minor, because an installation can trip over it: `upload_file` and `attach_file_to_voucher` refuse a network path unless `LXO_MCP_UPLOAD_DIR` names the same share, since Windows connects to the host on the first look at such a path, and a settings file that is there but cannot be read stops the start instead of being read as empty. The rest of the review's findings show in edge cases, the tool list is byte for byte that of 0.6.2. The image runs Python 3.15.2, the expedited security release, built with uv 0.13.6, and its `/config/.env` is readable by its owner alone. Verified live read-only against the third test account: `live/smoke.py` 13 of 13 on the reviewed code, and a shape capture that differs from 0.6.2's only where the account holds different records |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

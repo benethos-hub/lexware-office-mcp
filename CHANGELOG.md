@@ -13,6 +13,18 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-28
+
+A minor release, because an installation can trip over it: `upload_file`
+and `attach_file_to_voucher` refuse a network path unless
+`LXO_MCP_UPLOAD_DIR` names the same share, and a settings file that is
+there but cannot be read stops the start instead of being read as empty.
+The other findings of the review of 2026-10-28 show in edge cases: the
+tool list and every ordinary answer are those of 0.6.2. The image runs
+Python 3.15.2, the expedited security release. An image that follows the
+minor line `0.6` stays on 0.6.2, so the Python fix takes a move to
+`0.7`.
+
 ### Changed
 
 - **The image on Python 3.15.2**, the expedited security release, from
@@ -1714,7 +1726,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.5.4...v0.6.0
