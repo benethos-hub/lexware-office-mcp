@@ -80,7 +80,7 @@ def load_inline(uri: str, settings: Settings, max_pages: int) -> CallToolResult:
         # the cost the ceiling is there to spare.
         size = found.stat().st_size
         if size > resources.MAX_INLINE:
-            raise ValidationError(resources.too_large(uri, size))
+            raise ValidationError(resources.too_large_to_inline(uri, size))
         payload = found.read_bytes()
     mime = storage.content_type_for(found)
     return inline(uri, payload, mime, max_pages)

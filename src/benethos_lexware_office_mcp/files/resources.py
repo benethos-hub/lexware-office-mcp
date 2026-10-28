@@ -62,7 +62,7 @@ __all__ = [
     "name_of",
     "names",
     "read",
-    "too_large",
+    "too_large_to_inline",
 ]
 
 SCHEME = "lexware://download/"
@@ -179,7 +179,7 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
     try:
         size = found.stat().st_size
         if size > MAX_INLINE:
-            raise ResourceError(too_large(uri, size))
+            raise ResourceError(too_large_to_inline(uri, size))
         content = found.read_bytes()
     except OSError as exc:
         # The reason and never the path, as everywhere a local file fails.
@@ -193,7 +193,7 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
     ]
 
 
-def too_large(uri: str, size: int) -> str:
+def too_large_to_inline(uri: str, size: int) -> str:
     """Why a download is not put in an answer whole, and where it is instead."""
     return (
         f"{uri} is {size / 1024 / 1024:.1f} MiB, too much to put in an answer. "
