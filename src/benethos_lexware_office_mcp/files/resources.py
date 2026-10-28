@@ -62,7 +62,7 @@ __all__ = [
     "name_of",
     "names",
     "read",
-    "too_large",
+    "too_large_to_inline",
 ]
 
 SCHEME = "lexware://download/"
@@ -116,8 +116,6 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
     The directory is not created: a server that has never downloaded anything
     lists nothing.
     """
-    if directory is None or limit <= 0 or not _is_dir(directory):
-        return []
     return [
         Resource(
             uri=uri_for(path.name),
@@ -126,7 +124,7 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
             mime_type=_plain(storage.content_type_for(path)),
             size=_size(path),
         )
-        for path in storage.newest(directory)[:limit]
+        for path in _newest(directory, limit)
     ]
 
 
@@ -137,21 +135,24 @@ def names(directory: Path | None, limit: int) -> tuple[str, ...]:
     again changes it. For the watcher, which asks every few seconds and
     has no use for the list itself.
     """
-    if directory is None or limit <= 0 or not _is_dir(directory):
-        return ()
-    return tuple(path.name for path in storage.newest(directory)[:limit])
+    return tuple(path.name for path in _newest(directory, limit))
 
 
-def _is_dir(directory: Path) -> bool:
-    """Whether ``directory`` can be listed, a refusal read as nothing to list.
+def _newest(directory: Path | None, limit: int) -> list[Path]:
+    """The newest ``limit`` files in ``directory``, the one scan both lists take.
 
     Before Python 3.14 ``is_dir`` raises what the parent refuses, and a list
-    of downloads is no reason to fail a call or end the watcher.
+    of downloads is no reason to fail a call or end the watcher, so such a
+    directory lists nothing.
     """
+    if directory is None or limit <= 0:
+        return []
     try:
-        return directory.is_dir()
+        if not directory.is_dir():
+            return []
     except OSError:
-        return False
+        return []
+    return storage.newest(directory)[:limit]
 
 
 def _size(path: Path) -> int | None:
@@ -178,7 +179,7 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
     try:
         size = found.stat().st_size
         if size > MAX_INLINE:
-            raise ResourceError(too_large(uri, size))
+            raise ResourceError(too_large_to_inline(uri, size))
         content = found.read_bytes()
     except OSError as exc:
         # The reason and never the path, as everywhere a local file fails.
@@ -192,7 +193,7 @@ def read(directory: Path | None, uri: str) -> list[ReadResourceContents] | None:
     ]
 
 
-def too_large(uri: str, size: int) -> str:
+def too_large_to_inline(uri: str, size: int) -> str:
     """Why a download is not put in an answer whole, and where it is instead."""
     return (
         f"{uri} is {size / 1024 / 1024:.1f} MiB, too much to put in an answer. "

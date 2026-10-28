@@ -37,6 +37,7 @@ __all__ = [
     "contact_body",
     "require_one_contact",
     "require_type_fields",
+    "require_unchecked",
     "sales_document_body",
     "voucher_body",
 ]
@@ -272,6 +273,19 @@ def require_one_contact(
             "use_collective_contact=false on its own names no contact, and "
             "the API refuses a voucher without one. Pass contact_id to move "
             "it to a named contact, or leave both out to keep its contact."
+        )
+
+
+def require_unchecked(current: dict[str, Any], finalize: bool | None) -> None:
+    """Refuse to book a voucher that is not ``unchecked``, before anything is sent.
+
+    ``current`` is the voucher as read for the update.
+    """
+    status = current.get("voucherStatus")
+    if finalize and status != "unchecked":
+        raise ValidationError(
+            f"finalize only books an unchecked voucher, and this one is "
+            f"{status}. Nothing was written."
         )
 
 

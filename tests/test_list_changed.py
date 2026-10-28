@@ -383,11 +383,12 @@ async def test_a_failed_look_costs_one_turn_not_the_watcher(
     failures = [PermissionError(13, "Permission denied")]
 
     def names(*args: Any) -> tuple[str, ...]:
-        # Only once the file is there, so the first look to see it fails:
-        # patched before the watcher starts, no turn in flight can miss it.
-        if failures and arrived.exists():
+        # The first scan whose answer holds the file fails, whenever it ran:
+        # patched before the watcher starts, no turn can see it otherwise.
+        found = scan(*args)
+        if failures and arrived.name in found:
             raise failures.pop()
-        return scan(*args)
+        return found
 
     monkeypatch.setattr(server_module.resources, "names", names)
     await server._handle_list_resources(Ctx(session), None)

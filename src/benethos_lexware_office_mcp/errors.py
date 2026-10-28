@@ -123,11 +123,11 @@ class AuthError(ToolError):
 
 
 class PermissionDeniedError(ToolError):
-    """The tool exists but the active permission tier does not allow it."""
+    """The tool exists, but the policy file does not enable it."""
 
 
 class ValidationError(ToolError):
-    """The API rejected the request as invalid (HTTP 400 or 406)."""
+    """A request refused before it is sent, or by the API as invalid (400, 406)."""
 
 
 class NotFoundError(ToolError):
@@ -159,7 +159,7 @@ class NotFoundError(ToolError):
 
 
 class ConflictError(ToolError):
-    """Version mismatch or locked state (HTTP 409)."""
+    """A stale version, found here or by the API (406 naming it), or a 409."""
 
 
 class RateLimitError(ToolError):

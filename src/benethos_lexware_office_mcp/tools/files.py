@@ -215,7 +215,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         Confirm the organization with `get_profile` first. One API call,
         never retried.
 
-        Takes PDF, JPEG, PNG or XML, at most 5 MiB, from a path or a URL. An
+        Takes PDF, JPEG, PNG or XML, at most {limit}, from a path or a URL. An
         XML file is treated as an XRechnung. The voucher starts `unchecked`:
         `update_voucher` fills it in, and its `finalize` books it.
         """
@@ -250,7 +250,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         is no call that detaches a file. Confirm the organization with
         `get_profile` first. One API call, never retried.
 
-        Takes PDF, JPEG, PNG or XML, at most 5 MiB, from a path or a URL. The
+        Takes PDF, JPEG, PNG or XML, at most {limit}, from a path or a URL. The
         answer is the new file id, which `download_file` reads back.
         """
         content, name, content_type = await fetch.upload_from(
@@ -259,6 +259,11 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         return formatting.compact_object(
             await provider.get().attach_file(voucher_id, content, name, content_type)
         )
+
+    # The ceiling from the one place that enforces it, as for read_download.
+    upload_limit = f"{storage.MAX_UPLOAD // (1024 * 1024)} MiB"
+    for upload in (upload_file, attach_file_to_voucher):
+        upload.__doc__ = (upload.__doc__ or "").replace("{limit}", upload_limit)
 
     register_tool(server, download_file)
     register_tool(server, download_document)
