@@ -234,7 +234,14 @@ def _safe_name(raw: str) -> str:
     cleaned = _UNSAFE.sub("_", without_path).strip("._")
     if cleaned in {"", ".", ".."}:
         return ""
-    cleaned = cleaned[:MAX_NAME]
+    if len(cleaned) > MAX_NAME:
+        # Shortened before the extension, which decides the content type a
+        # download is listed and read back with, and whether it is pruned.
+        stem, dot, suffix = cleaned.rpartition(".")
+        if dot and stem and len(suffix) <= 10:
+            cleaned = f"{stem[: MAX_NAME - len(suffix) - 1]}.{suffix}"
+        else:
+            cleaned = cleaned[:MAX_NAME]
     # On Windows `CON.pdf` is the console, whatever the extension, and
     # writing to it writes nowhere a file can be found again.
     if cleaned.split(".")[0].upper() in _DEVICES:

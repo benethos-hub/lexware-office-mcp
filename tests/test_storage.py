@@ -112,6 +112,29 @@ def test_a_windows_device_name_is_not_used_as_is(name: str) -> None:
     assert cleaned.endswith(name)
 
 
+def test_a_long_name_is_shortened_before_its_extension() -> None:
+    """The extension decides how the file is listed, read back and pruned."""
+    title = "Rechnung_" + "x" * 117
+    name = storage.suggested_name(
+        response_with(f'attachment; filename="{title}.pdf"'), "f.pdf"
+    )
+
+    assert name.endswith(".pdf")
+    assert len(name) == storage.MAX_NAME
+    assert name.startswith("Rechnung_xxx")
+
+
+@pytest.mark.parametrize(
+    "name", ["a" * 120, "b" * 116 + ".pdf", "c" * 130, "d" * 100 + "." + "e" * 30]
+)
+def test_a_name_without_a_short_extension_is_cut_as_before(name: str) -> None:
+    cleaned = storage.suggested_name(
+        response_with(f'attachment; filename="{name}"'), "f.pdf"
+    )
+
+    assert cleaned == name[: storage.MAX_NAME]
+
+
 def test_a_name_that_merely_starts_like_a_device_is_left_alone() -> None:
     name = storage.suggested_name(
         response_with('attachment; filename="CONTRACT.pdf"'), "f.pdf"

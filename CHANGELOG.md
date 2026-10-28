@@ -84,6 +84,11 @@ housekeeping are out of scope here — design decisions live in
   document's name, offered as a download, read back broken, and the next
   download of the same document went to a new name every time. Now the
   name holds the whole file or no file.
+- **A long document name keeps its extension.** A name over 120
+  characters was cut at the end, so a PDF lost its `.pdf`, came back from
+  `read_download` as an opaque blob instead of pages, and was never
+  cleaned up. It is now shortened before the extension. Every name up to
+  120 characters is saved exactly as before.
 
 ## [0.6.2] - 2026-10-22
 
