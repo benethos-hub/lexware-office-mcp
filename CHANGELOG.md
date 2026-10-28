@@ -16,11 +16,12 @@ housekeeping are out of scope here — design decisions live in
 ### Changed
 
 - **A refreshed lockfile for the image**: starlette 1.10.0 and
-  sse-starlette 3.5.1 under the HTTP transports, the latter closing an
-  event stream whose send was interrupted, and certifi 2026.10.23, which
-  removes `emSign ECC Root CA - C3` and `emSign Root CA - C1` from the CA
-  bundle for the connection to Lexware. An installation from the index
-  resolved them already. The read-only live check answers as before.
+  sse-starlette 3.6.0 under the HTTP transports, the latter closing an
+  event stream whose send was interrupted and no longer streaming in
+  answer to a `HEAD` request, platformdirs 4.13.7, and certifi
+  2026.10.23, which removes `emSign ECC Root CA - C3` and
+  `emSign Root CA - C1` from the CA bundle for the connection to Lexware.
+  An installation from the index resolved them already.
 
 ## [0.6.2] - 2026-10-22
 
