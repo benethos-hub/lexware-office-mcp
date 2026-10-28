@@ -1106,13 +1106,17 @@ traceback.
 **A `.env` is UTF-8, with or without a byte order mark.** A file in another
 encoding, Windows-1252 from an older editor for instance, is refused with a
 `ConfigError` naming the file and the first byte that is not UTF-8: in one
-line on stderr, and on the page of the configuration interface, which
-cannot write it either. Decoding it with replacement characters instead
-would turn a `ü` in a directory into a path that does not exist, and an
-update would write the replacement back over the original bytes. The
-policy file and its profiles are read with a byte order mark allowed as
-well, since 2026-10-08: read as plain UTF-8, a `tools.json` saved by a
-Windows editor was broken JSON, and every tool was off.
+line on stderr, and on the page of the configuration interface, which cannot
+write it either. Decoding it with replacement characters instead would turn a
+`ü` in a directory into a path that does not exist, and an update would write
+the replacement back over the original bytes. A `.env` that is there but
+cannot be read, a permission refused or a directory in its place, is refused
+the same way, since 2026-10-28: read as empty, it started the server without
+its key and its settings, and an update would have written the new values
+alone over the rest. Only a file that is not there is no error. The policy
+file and its profiles are read with a byte order mark allowed as well, since
+2026-10-08: read as plain UTF-8, a `tools.json` saved by a Windows editor was
+broken JSON, and every tool was off.
 
 No secret is ever read from a versioned file. `config/.env` is gitignored,
 and the settings sample, which is committed and ships inside the package,
@@ -1538,20 +1542,23 @@ local server was asked once and saw no `Authorization` header, and the log
 line named `http://127.0.0.1` and nothing after it.
 
 **One parameter, `source`, replaced `path`.** A value that starts with
-`https://` or `http://`, in any case, is a URL. A `file:` URL is refused
-with the advice to give the path itself, since it would be a path read past
+`https://` or `http://`, in any case, is a URL. A `file:` URL is refused with
+the advice to give the path itself, since it would be a path read past
 `LXO_MCP_UPLOAD_DIR` in disguise. Anything else is a path, read as before,
-with one exception: a network path - two separators of either kind at the
-start, `\\host\share` or `//host/share` - is refused unless
-`LXO_MCP_UPLOAD_DIR` names the same share. Windows connects to the host on
-the first call that touches such a path, `resolve()` included, and signs in
-as the user running the server: 21 seconds against an address that did not
-answer, measured 2026-10-28, before the directory check had refused
-anything. So the share is compared as text before the file system is
-asked, the same way on every platform. Two parameters would have needed a rule for which wins when both are given,
-and a caller would have had to learn it. The cost is a renamed argument: a
-caller that passed `path` by name is refused until it lists the tools again.
-No tool is new, so a policy file reads exactly as it did.
+with the one exception below. Two parameters would have needed a rule for
+which wins when both are given, and a caller would have had to learn it. The
+cost is a renamed argument: a caller that passed `path` by name is refused
+until it lists the tools again. No tool is new, so a policy file reads
+exactly as it did.
+
+**A network path is read only from the upload directory's share.** Two
+separators of either kind at the start, `\\host\share` or `//host/share`,
+make a path that is refused unless `LXO_MCP_UPLOAD_DIR` names the same share.
+Windows connects to the host on the first call that touches such a path,
+`resolve()` included, and signs in as the user running the server: 21 seconds
+against an address that did not answer, measured 2026-10-28, before the
+directory check had refused anything. So the share is compared as text before
+the file system is asked, the same way on every platform.
 
 **No URL without the setting.** The model chooses the URL, and a model reads
 email. Without a list, one prompt in a message could have this server fetch
@@ -2576,13 +2583,13 @@ where it differs.
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
-| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds |
+| | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds, and a turn of the watcher that failed, by the error's class, before the next one follows |
 | `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
 | `files` (`storage`, and `fetch` for an upload's URL) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `The download list changed, 2 clients told`, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
-| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all |
+| | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all, and a download answered while the clients could not be told the list changed, by the error's class |
 | | `DEBUG` | a download that reused an identical file, by size |
 | `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
 | | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
