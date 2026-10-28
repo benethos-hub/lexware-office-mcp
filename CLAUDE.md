@@ -76,7 +76,8 @@ src/benethos_lexware_office_mcp/
   settings/       # settings resolution, credential lookup
     __init__.py   # Settings, load_settings, the defaults
     locations.py  # where configuration lives, and which one file applies
-    parse.py      # one setting's raw text -> its value
+    parse.py      # one setting's raw text -> its value, and the path rule
+                  # a setting and a fetched URL share
     envfile.py    # reading and writing a .env, comments left alone
   logbook/        # every line on stderr, and what a line may never carry
                   # output (the handler, the levels), access (uvicorn),

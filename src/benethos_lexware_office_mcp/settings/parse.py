@@ -2,6 +2,10 @@
 
 Every parser refuses what it cannot read with a :class:`ConfigError` naming
 the setting, rather than falling back to a default nobody asked for.
+
+Also the one path rule a setting and a fetched URL share, ``plain_path``:
+``files`` may import ``settings`` and not the other way round, so the rule
+lives here for both.
 """
 
 from __future__ import annotations

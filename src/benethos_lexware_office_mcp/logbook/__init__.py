@@ -36,7 +36,7 @@ The modules:
 - ``policy`` - the tool policy file and the tool list
 - ``api`` - the calls the client makes
 - ``calls`` - the tool calls, one line each
-- ``files`` - downloads on disk
+- ``files`` - downloads on disk, and uploads fetched from a URL
 - ``configui`` - what the configuration interface changed
 - ``tally`` - the count of API calls a tool call made, which is no line
 
