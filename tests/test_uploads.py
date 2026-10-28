@@ -346,3 +346,56 @@ async def test_a_file_that_cannot_be_read_for_upload_says_why(
         await server.call_tool("upload_file", {"source": str(receipt)})
 
     assert handler.requests == []
+
+
+NETWORK_PATHS = [
+    r"\\server\share\receipt.pdf",
+    "//server/share/receipt.pdf",
+    r"\\server@8080\share\receipt.pdf",
+]
+
+
+def never_touch_the_share(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail the test when the file system is asked about the share.
+
+    On Windows the first such call connects to the host, so the refusal has
+    to come before any of them. Paths elsewhere are left alone, since the
+    server reads its policy file through the same methods.
+    """
+    for method in ("resolve", "is_file", "stat"):
+        original = getattr(Path, method)
+
+        def guarded(
+            self: Path, *args: Any, _original: Any = original, **kwargs: Any
+        ) -> Any:
+            assert "server" not in str(self), f"the share was touched: {self}"
+            return _original(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, method, guarded)
+
+
+@pytest.mark.parametrize("source", NETWORK_PATHS)
+@pytest.mark.parametrize("with_directory", [True, False])
+@pytest.mark.parametrize("tool", ["upload_file", "attach_file_to_voucher"])
+async def test_a_network_path_is_refused_before_the_share_is_reached(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    with_directory: bool,
+    tool: str,
+) -> None:
+    """A path from a prompt must not send the server to a host it names."""
+    fields: dict[str, Any] = {"download_path": tmp_path}
+    if with_directory:
+        fields["upload_path"] = tmp_path
+    handler = recorder(status=202, json_body=UPLOADED)
+    server, provider = server_with(handler, **fields)
+    never_touch_the_share(monkeypatch)
+
+    arguments = {"source": source, "voucher_id": "PLACEHOLDER-VOUCHER-1"}
+    if tool == "upload_file":
+        del arguments["voucher_id"]
+    with pytest.raises(ToolError, match="A network path is read only when"):
+        await server.call_tool(tool, arguments)
+
+    assert handler.requests == []

@@ -469,6 +469,17 @@ def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:
     assert all(re.search(r":[\w.-]+@sha256:[0-9a-f]{64}$", image) for image in external)
 
 
+def test_the_settings_file_in_the_image_is_for_its_owner_alone() -> None:
+    """It comes to hold the bearer token and the API key, and an update keeps
+    the mode of the file it replaces, so the mode it starts with is the one
+    it keeps."""
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    created = re.findall(r"^RUN .*touch /config/\.env.*$", dockerfile, re.MULTILINE)
+
+    assert len(created) == 1
+    assert "chmod 600 /config/.env" in created[0]
+
+
 def test_every_image_is_pulled_where_dependabot_reads() -> None:
     """By a FROM line. Dependabot does not see an image in `COPY --from=`."""
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")

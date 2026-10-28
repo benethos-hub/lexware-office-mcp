@@ -284,7 +284,9 @@ and `attach_file_to_voucher` read any file this process can read that has
 one of those extensions, and send it to Lexware. That includes any `.xml`:
 a configuration file or an export is refused as not an XRechnung only after
 it has reached the API. Set it to one directory - an inbox for receipts -
-and nothing outside it is read, links included.
+and nothing outside it is read, links included. A network path such as
+`\\server\share\receipt.pdf` is read only when the directory is on that
+same share.
 
 **A URL only from addresses you allow.** Another server can hand the model a
 short-lived link to a file - a mailbox server for an attachment, say - and

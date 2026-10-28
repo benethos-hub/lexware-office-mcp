@@ -102,9 +102,11 @@ USER appuser
 # The settings file is searched relative to the working directory as well, so
 # this is what makes /config/.env the one in effect without naming a path
 # anywhere. It is created empty because the search has to find a file, not a
-# promise: a fresh named volume inherits it from the image.
+# promise: a fresh named volume inherits it from the image. Readable by its
+# owner alone, since it comes to hold the bearer token and the API key, and
+# a save keeps the mode of the file it replaces.
 WORKDIR /config
-RUN touch /config/.env
+RUN touch /config/.env && chmod 600 /config/.env
 
 EXPOSE 8770
 

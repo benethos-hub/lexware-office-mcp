@@ -215,3 +215,42 @@ def test_the_upload_check_refuses_a_type_the_api_does_not_take(
 ) -> None:
     with pytest.raises(ValidationError, match="The API does not accept"):
         storage.accepted(PDF, "a.pdf", content_type, label="a.pdf")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        r"\\server\share\receipt.pdf",
+        "//server/share/receipt.pdf",
+        r"\/server\share\receipt.pdf",
+        r"\\server@8080\share\receipt.pdf",
+        r"  \\server\share\receipt.pdf",
+        r"\\server",
+        "//",
+    ],
+)
+def test_a_network_path_outside_the_upload_share_is_refused(source: str) -> None:
+    with pytest.raises(ValidationError, match="A network path is read only"):
+        storage.read_upload(source, None)
+    with pytest.raises(ValidationError, match="A network path is read only"):
+        storage.read_upload(source, Path(r"\\other\share"))
+
+
+def test_a_network_path_on_the_upload_share_is_read_like_any_other(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The operator chose that share, so the usual checks take over there."""
+    monkeypatch.setattr(Path, "resolve", lambda self, strict=False: self)
+    monkeypatch.setattr(Path, "is_file", lambda self: False)
+
+    with pytest.raises(ValidationError, match="No file at"):
+        storage.read_upload("//server/share/inbox/receipt.pdf", Path("//server/share"))
+    # Windows compares a share without regard to case, and so does the check.
+    with pytest.raises(ValidationError) as excinfo:
+        storage.read_upload(r"\\SERVER\share\receipt.pdf", Path(r"\\server\Share"))
+    assert "network path" not in str(excinfo.value)
+
+
+def test_a_local_path_is_not_taken_for_a_network_path(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="No file at"):
+        storage.read_upload(str(tmp_path / "missing.pdf"), tmp_path)

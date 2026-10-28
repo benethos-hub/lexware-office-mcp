@@ -458,6 +458,33 @@ def read_upload(raw_path: str, allowed: Path | None) -> Upload:
         return _read_upload(raw_path, allowed)
 
 
+def _refuse_another_share(raw_path: str, allowed: Path | None) -> None:
+    """Refuse a network path unless ``allowed`` names the same share.
+
+    On Windows ``\\\\host\\share\\x.pdf`` is a path like any other, and the
+    first call that touches it - ``resolve()`` and ``is_file()`` included -
+    connects to ``host`` with the signed-in user's credentials. The path
+    comes from the model, so that would send this server to a host of the
+    prompt's choosing, which ``LXO_MCP_UPLOAD_URLS`` exists to prevent. So
+    the share is compared as text, before anything reaches the file system.
+    Any two separators open one on Windows, and the rule holds on every
+    platform, so a path is answered the same wherever the server runs.
+    """
+    text = raw_path.lstrip()
+    if len(text) < 2 or text[0] not in "\\/" or text[1] not in "\\/":
+        return
+    share = PureWindowsPath(text).drive.rstrip("\\").lower()
+    if (
+        allowed is None
+        or not share
+        or PureWindowsPath(str(allowed)).drive.rstrip("\\").lower() != share
+    ):
+        raise ValidationError(
+            "A network path is read only when LXO_MCP_UPLOAD_DIR names the "
+            "same share. Give a path on this machine, or ask the account owner."
+        )
+
+
 def _read_upload(raw_path: str, allowed: Path | None) -> Upload:
     """Read a local file for upload, refusing what the API would refuse.
 
@@ -471,6 +498,7 @@ def _read_upload(raw_path: str, allowed: Path | None) -> Upload:
     directory" depending on whether it existed - which tells the model what
     is on the disk where it may not upload from.
     """
+    _refuse_another_share(raw_path, allowed)
     try:
         path = Path(raw_path).expanduser()
     except RuntimeError:

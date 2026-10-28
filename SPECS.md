@@ -1054,7 +1054,7 @@ arriving.
 | `LXO_MCP_TOOL_POLICY` | The per-tool policy file, see section 9.2. Without it the file is searched the same way the `.env` is, so a `config/tools.json` in a checkout overrides an installed one. | `tools.json`, resolved |
 | `LXO_MCP_DOWNLOAD_DIR` | Where downloaded documents are written. | user cache dir |
 | `LXO_MCP_KEPT_DOWNLOADS` | How many downloads the directory keeps, newest by modification time, and how many `resources/list` names. Older ones are deleted at start and after each download, see section 13. Unset, the default cache directory keeps 100 and a directory named by `LXO_MCP_DOWNLOAD_DIR` keeps everything, since that may be somebody's own folder. `0` keeps everything anywhere, and the list stays at 100. | unset |
-| `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. An `.xml` counts as a document there: any XML file the process can read is sent, and only the API refuses one that is not an XRechnung. | unset, anywhere |
+| `LXO_MCP_UPLOAD_DIR` | The one directory `upload_file` and `attach_file_to_voucher` may read from, subdirectories included, links resolved before the check. Unset, they read any file the process can read with an accepted extension, except one on a network share (section 7.2), which is what a local stdio server has always done - the model names the path, so this is the setting that decides what can leave the machine. An `.xml` counts as a document there: any XML file the process can read is sent, and only the API refuses one that is not an XRechnung. | unset, anywhere |
 | `LXO_MCP_UPLOAD_URLS` | The URL prefixes the same two tools may fetch a file from, comma separated: a scheme and a host, optionally a port and the start of a path. A prefix, not a pattern, so no wildcard. Unset, no URL is fetched. `https://` for any host, `http://` for `127.0.0.1`, `::1` and `localhost` alone - any other is a `ConfigError` at startup, and in the configuration interface before the file is written. See section 7.2. | unset, none |
 | `LXO_MCP_PDF_PAGES` | Pages of a PDF `read_download` renders when the call does not say. Deliberately not named after a page size: `LXO_MCP_PAGE_SIZE` counts rows of a search result, this counts sheets of a document, and one answering for the other would be a quiet mistake. No upstream ceiling exists to derive a maximum from, and a caller overrides it per call anyway - up to 100, the most one call renders even when it passes null for every page. | `10`, at most `100` |
 | `LXO_MCP_TIMEOUT` | HTTP timeout in seconds. | `30` |
@@ -1537,8 +1537,15 @@ line named `http://127.0.0.1` and nothing after it.
 **One parameter, `source`, replaced `path`.** A value that starts with
 `https://` or `http://`, in any case, is a URL. A `file:` URL is refused
 with the advice to give the path itself, since it would be a path read past
-`LXO_MCP_UPLOAD_DIR` in disguise. Anything else is a path, read as before.
-Two parameters would have needed a rule for which wins when both are given,
+`LXO_MCP_UPLOAD_DIR` in disguise. Anything else is a path, read as before,
+with one exception: a network path - two separators of either kind at the
+start, `\\host\share` or `//host/share` - is refused unless
+`LXO_MCP_UPLOAD_DIR` names the same share. Windows connects to the host on
+the first call that touches such a path, `resolve()` included, and signs in
+as the user running the server: 21 seconds against an address that did not
+answer, measured 2026-10-28, before the directory check had refused
+anything. So the share is compared as text before the file system is
+asked, the same way on every platform. Two parameters would have needed a rule for which wins when both are given,
 and a caller would have had to learn it. The cost is a renamed argument: a
 caller that passed `path` by name is refused until it lists the tools again.
 No tool is new, so a policy file reads exactly as it did.
