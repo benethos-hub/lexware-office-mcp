@@ -378,19 +378,22 @@ async def test_a_failed_look_costs_one_turn_not_the_watcher(
     """Unguarded, one exception ended the task, and nothing was told after."""
     server, _ = server_with(recorder(), download_path=tmp_path)
     session = Session()
-    await server._handle_list_resources(Ctx(session), None)
+    arrived = tmp_path / "by-another-process.pdf"
     scan = server_module.resources.names
     failures = [PermissionError(13, "Permission denied")]
 
     def names(*args: Any) -> tuple[str, ...]:
-        if failures:
+        # Only once the file is there, so the first look to see it fails:
+        # patched before the watcher starts, no turn in flight can miss it.
+        if failures and arrived.exists():
             raise failures.pop()
         return scan(*args)
 
+    monkeypatch.setattr(server_module.resources, "names", names)
+    await server._handle_list_resources(Ctx(session), None)
     try:
         await turns(3)
-        monkeypatch.setattr(server_module.resources, "names", names)
-        (tmp_path / "by-another-process.pdf").write_bytes(b"%PDF-1.4")
+        arrived.write_bytes(b"%PDF-1.4")
 
         assert await until(lambda: session.downloads == 1)
         assert not failures
