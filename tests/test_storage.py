@@ -164,6 +164,39 @@ def test_a_name_taken_between_the_check_and_the_write_is_not_overwritten(
     assert saved.read_bytes() == b"this download"
 
 
+def test_a_write_that_fails_halfway_leaves_no_file_behind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Half a file under the name would be listed and block its reuse."""
+    real_open = Path.open
+
+    class Full:
+        def __init__(self, handle: Any) -> None:
+            self.handle = handle
+
+        def __enter__(self) -> Full:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            self.handle.close()
+
+        def write(self, content: bytes) -> int:
+            self.handle.write(content[:512])
+            raise OSError(28, "No space left on device")
+
+    def full_disk(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        handle = real_open(self, mode, *args, **kwargs)
+        return Full(handle) if "x" in mode else handle
+
+    monkeypatch.setattr(Path, "open", full_disk)
+    with pytest.raises(OSError, match="No space left"):
+        storage.save(PDF * 100, "invoice.pdf", tmp_path)
+    monkeypatch.undo()
+
+    assert not (tmp_path / "invoice.pdf").exists()
+    assert storage.save(PDF, "invoice.pdf", tmp_path).name == "invoice.pdf"
+
+
 def test_reusing_a_copy_that_already_carries_a_counter(tmp_path: Path) -> None:
     """The match may be behind a name that was itself pushed aside once."""
     storage.save(b"january", "invoice.pdf", tmp_path)

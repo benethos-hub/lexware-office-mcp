@@ -261,11 +261,20 @@ def save(content: bytes, name: str, directory: Path) -> Path:
         # downloads at once - the tools run concurrently - could otherwise
         # both find a name free and the second overwrite the first.
         try:
-            with candidate.open("xb") as out:
-                out.write(content)
-            return candidate
+            out = candidate.open("xb")
         except FileExistsError:
             pass
+        else:
+            # A name holds the whole file or nothing. Half a file under it
+            # would be listed, read back broken, and keep the next download
+            # of the same bytes from ever reusing the name.
+            try:
+                with out:
+                    out.write(content)
+            except OSError:
+                candidate.unlink(missing_ok=True)
+                raise
+            return candidate
         if candidate.is_file() and candidate.read_bytes() == content:
             logbook.files.reused(len(content))
             candidate.touch()

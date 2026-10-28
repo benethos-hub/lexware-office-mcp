@@ -79,6 +79,11 @@ housekeeping are out of scope here — design decisions live in
   single error on the way ended that for good, until a client happened to
   list again. Now the error is named on stderr and the next look follows
   as usual.
+- **A download that fails while it is written leaves nothing behind.** A
+  full disk or a share that went away left half a file under the
+  document's name, offered as a download, read back broken, and the next
+  download of the same document went to a new name every time. Now the
+  name holds the whole file or no file.
 
 ## [0.6.2] - 2026-10-22
 
