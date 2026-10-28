@@ -91,6 +91,9 @@ housekeeping are out of scope here — design decisions live in
   120 characters is saved exactly as before.
 - **`get_voucher` by number says when the API answers in an unexpected
   shape**, as every other list does, rather than failing without a reason.
+- **A port past 65535 is refused with one line.** `LXO_MCP_HTTP_PORT`,
+  `--port` and `--public-port` accepted any number, and one too large
+  ended the start in a traceback from the socket.
 
 ## [0.6.2] - 2026-10-22
 

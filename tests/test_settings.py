@@ -115,6 +115,13 @@ def test_a_tilde_without_a_home_names_the_setting(
         load_settings({key: "~/lexware"})
 
 
+def test_a_port_past_the_last_one_is_refused_as_a_setting() -> None:
+    """The socket would raise OverflowError, which nothing turns into a line."""
+    with pytest.raises(ConfigError, match="LXO_MCP_HTTP_PORT must be at most 65535"):
+        load_settings({"LXO_MCP_HTTP_PORT": "70000"})
+    assert load_settings({"LXO_MCP_HTTP_PORT": "65535"}).http_port == 65535
+
+
 def test_unknown_log_level_falls_back_rather_than_failing() -> None:
     """A bad log level must not stop the server from starting."""
     assert load_settings({"LXO_MCP_LOG_LEVEL": "LOUD"}).log_level == "INFO"
