@@ -732,3 +732,19 @@ def test_a_directory_that_cannot_be_listed_lists_nothing(
 
     assert storage.newest(tmp_path) == []
     assert resources.listed(tmp_path, 10) == []
+
+
+def test_a_directory_that_cannot_even_be_looked_at_lists_and_prunes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Before 3.14 ``is_dir`` raises that, and a list is no reason to fail."""
+    (tmp_path / "invoice.pdf").write_bytes(PDF)
+
+    def refused(self: Path, *args: object, **kwargs: object) -> bool:
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr(Path, "is_dir", refused)
+
+    assert resources.listed(tmp_path, 10) == []
+    assert resources.names(tmp_path, 10) == ()
+    assert storage.prune(tmp_path, 1) == 0

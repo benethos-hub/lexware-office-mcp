@@ -100,7 +100,12 @@ def prune(directory: Path, keep: int) -> int:
     :func:`_could_be_a_download`. The directory can be named in the
     configuration interface, and a folder of somebody's own is not a cache.
     """
-    if keep <= 0 or not directory.is_dir():
+    try:
+        if keep <= 0 or not directory.is_dir():
+            return 0
+    except OSError:
+        # Before Python 3.14 a refused look raises, and pruning is no reason
+        # to fail the call or the start that asked for it.
         return 0
     removed = 0
     for path in newest(directory, downloads_only=True)[keep:]:

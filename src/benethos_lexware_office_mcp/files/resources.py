@@ -116,7 +116,7 @@ def listed(directory: Path | None, limit: int) -> list[Resource]:
     The directory is not created: a server that has never downloaded anything
     lists nothing.
     """
-    if directory is None or limit <= 0 or not directory.is_dir():
+    if directory is None or limit <= 0 or not _is_dir(directory):
         return []
     return [
         Resource(
@@ -137,9 +137,21 @@ def names(directory: Path | None, limit: int) -> tuple[str, ...]:
     again changes it. For the watcher, which asks every few seconds and
     has no use for the list itself.
     """
-    if directory is None or limit <= 0 or not directory.is_dir():
+    if directory is None or limit <= 0 or not _is_dir(directory):
         return ()
     return tuple(path.name for path in storage.newest(directory)[:limit])
+
+
+def _is_dir(directory: Path) -> bool:
+    """Whether ``directory`` can be listed, a refusal read as nothing to list.
+
+    Before Python 3.14 ``is_dir`` raises what the parent refuses, and a list
+    of downloads is no reason to fail a call or end the watcher.
+    """
+    try:
+        return directory.is_dir()
+    except OSError:
+        return False
 
 
 def _size(path: Path) -> int | None:

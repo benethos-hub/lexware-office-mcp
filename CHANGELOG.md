@@ -63,6 +63,11 @@ housekeeping are out of scope here — design decisions live in
   away, made every tool call answer with the operating system's error and
   the file's full path. Such a file now enables nothing, like an unreadable
   one, and stderr names it once.
+- **A download directory the server may not look at no longer ends the
+  start in a traceback.** On Python 3.11 to 3.13 the cleanup at the start
+  failed on such a directory, and the resource list failed with it. Now
+  nothing is pruned and the list is empty, as for a directory that is not
+  there.
 
 ## [0.6.2] - 2026-10-22
 
