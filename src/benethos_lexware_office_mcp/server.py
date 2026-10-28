@@ -256,7 +256,13 @@ class PolicyServer(MCPServer):
                 logbook.calls.arguments_refused(name, fields)
             raise
         if _links_a_download(result):
-            await self._downloads_changed()
+            # The file is on disk and the answer names it. Telling the clients
+            # is a courtesy on top, and its failure must not replace the
+            # answer with an error that carries the directory's path.
+            try:
+                await self._downloads_changed()
+            except Exception as exc:
+                logbook.files.not_announced(exc)
         return result
 
     async def _unknown_arguments(

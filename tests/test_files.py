@@ -56,6 +56,28 @@ async def test_the_bytes_do_not_come_back_in_the_answer(tmp_path: Path) -> None:
     assert "blob" not in str(result.structured_content)
 
 
+async def test_a_download_is_answered_when_the_clients_cannot_be_told(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The file is written, so the answer has to say where, not the error."""
+    handler = recorder(headers={"content-type": "application/pdf"})
+    server, provider = server_with(handler, download_path=tmp_path)
+
+    def refused(directory: Path, limit: int) -> tuple[str, ...]:
+        raise PermissionError(13, "Permission denied", str(directory))
+
+    monkeypatch.setattr(resources, "names", refused)
+
+    with caplog.at_level(logging.WARNING):
+        result = await server.call_tool("download_file", {"file_id": FILE_ID})
+
+    assert "lexware://download/" in str(result.content)
+    assert result.structured_content is not None
+    assert Path(result.structured_content["path"]).read_bytes() == PDF
+    assert "could not be told" in caplog.text
+    assert str(tmp_path) not in caplog.text
+
+
 async def test_a_download_asks_for_the_format_rather_than_for_json(
     tmp_path: Path,
 ) -> None:

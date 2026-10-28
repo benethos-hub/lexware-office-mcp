@@ -5,7 +5,8 @@ cannot say is that nothing new was written, or that older downloads were
 deleted to keep the directory at its bound. A download's name is the
 document's own and often the customer's, and its path is this machine's, so
 neither is in a line. Nor can it say that the clients were told the list of
-downloads grew, which a line here does by their number.
+downloads grew, which a line here does by their number, or that telling
+them failed while the download itself was answered.
 
 Nor can it say where an upload was fetched from. A line here does, by scheme
 and host alone: a signed link carries its key in the path or the query, and
@@ -28,6 +29,7 @@ __all__ = [
     "none_allowed",
     "not_a_url",
     "not_allowed",
+    "not_announced",
     "not_fetched",
     "pruned",
     "reused",
@@ -49,6 +51,14 @@ def pruned(count: int, kept: int) -> None:
 
 def list_changed(clients: int) -> None:
     _log.info("The download list changed, %d clients told", clients)
+
+
+def not_announced(error: BaseException) -> None:
+    _log.warning(
+        "A download was answered, but the clients could not be told the list "
+        "changed: %s",
+        describe(error),
+    )
 
 
 def fetched(scheme: str, host: str, size: int, ms: float) -> None:

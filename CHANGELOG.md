@@ -68,6 +68,11 @@ housekeeping are out of scope here — design decisions live in
   failed on such a directory, and the resource list failed with it. Now
   nothing is pruned and the list is empty, as for a directory that is not
   there.
+- **A download is answered with its link even when the clients cannot be
+  told about it.** When telling them that the list of downloads changed
+  failed, the file was on disk, but the answer was replaced by an error
+  carrying the directory's path. The answer now arrives as usual, and
+  stderr says the clients were not told.
 
 ## [0.6.2] - 2026-10-22
 
