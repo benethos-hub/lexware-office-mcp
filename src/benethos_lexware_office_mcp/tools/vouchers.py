@@ -25,7 +25,11 @@ from ..api.client import ClientProvider
 from ..errors import ValidationError
 from ..policy import classify
 from ..records import formatting
-from ..records.payloads import require_one_contact, voucher_body
+from ..records.payloads import (
+    require_one_contact,
+    require_unchecked,
+    voucher_body,
+)
 from ..records.types import (
     SearchStatus,
     SearchType,
@@ -417,12 +421,7 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         client = provider.get()
         current = await client.voucher(voucher_id)
         require_version(current, version, noun="voucher", reader="get_voucher")
-        status = current.get("voucherStatus")
-        if finalize and status != "unchecked":
-            raise ValidationError(
-                f"finalize only books an unchecked voucher, and this one is "
-                f"{status}. Nothing was written."
-            )
+        require_unchecked(current, finalize)
 
         body = voucher_body(
             base=current,
