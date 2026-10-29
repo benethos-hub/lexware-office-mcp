@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.7.0.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.8.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -1163,9 +1163,11 @@ lets the model open a signed-in page, and with a browser tool beside it tick
 boxes under *Rechte* and read the bearer token, though never the key. So
 `LXO_MCP_SETUP_PROMPT=0` withholds the prompt, decided 2026-10-15 as a
 variable that defaults to on: Claude Desktop, the client it exists for,
-keeps prompts to the person. Over HTTP it is not offered, since a remote
-client would open a page on a machine it does not sit at. The prompt
-always answers with the same sentence, because Claude Desktop
+keeps prompts to the person. So does Claude Code, which lists it among its
+slash commands, and picked there it opened the interface, tried 2026-10-29
+with a session started by `--mcp-config`. Over HTTP it is not offered,
+since a remote client would open a page on a machine it does not sit at.
+The prompt always answers with the same sentence, because Claude Desktop
 holds a prompt's answer against the text the extension declared and rejects
 any other as a possible injection - measured, it said "Failed to attach
 prompt" while the browser opened anyway. What happened goes to stderr
@@ -1446,7 +1448,7 @@ exists the boxes follow it, including a file that deliberately enables
 nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
-around 2,146 characters per tool, sent on every request for the life of the
+around 2,000 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
 and nothing else in the project makes that visible. The total includes
@@ -1805,7 +1807,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.7.0
+version: 0.8.0
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
@@ -2204,7 +2206,7 @@ in doubt which account the permissions being granted apply to.
 
 **It shows what each tool costs in context, which nothing else here does.** A
 tool that is on is sent to the model on every single request, description and
-schemas alike, and section 8 measures that at around 2,146 characters per
+schemas alike, and section 8 measures that at around 2,000 characters per
 tool with `create_sales_document` at more than double. The page carries a
 per-row figure and a running total that follows the checkboxes, so a policy
 can be chosen against a budget rather than against a guess. Characters are
@@ -2683,7 +2685,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.7.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.8.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3703,6 +3705,7 @@ suggested they were.
 | 0.6.1 | The image on current dependencies, and the lowest `mcp` raised to 2.2.0 | **released 2026-10-19** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.6.0. The lockfile the image is built from carries starlette 1.9.0, httpx2 and httpcore2 2.14.0, certifi 2026.10.18 and platformdirs 4.13.5, on the current build of `python:3.15-slim`, and `mcp>=2.2.0` keeps an environment that pins an older SDK from serving Streamable HTTP with sessions that are never reclaimed (GHSA-84m7-p3x7-pcfv). The first release through the organisation's publishing actions, behind the gate that waits for main's CI. Verified live read-only against the test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.6.0's apart from its timestamp |
 | 0.6.2 | The image on Python 3.15.1 | **released 2026-10-22** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.6.1. The image is built on the current `python:3.15-slim` with Python 3.15.1, the security release, and its `ca-certificates` 20250419+deb13u1, with uv 0.13.5 and a lockfile that carries certifi 2026.10.19 and httpx2 and httpcore2 2.16.0. Old and new image were compared before the merge: the packages differ only there, and an HTTP session answers the same, the bearer check and a TLS connection to Lexware included. Verified live read-only against the test account: `live/smoke.py` 13 of 13, and a shape capture identical to 0.6.1's apart from its timestamp |
 | 0.7.0 | The review of 2026-10-28, and the image on Python 3.15.2 | **released 2026-10-28** - a minor, because an installation can trip over it: `upload_file` and `attach_file_to_voucher` refuse a network path unless `LXO_MCP_UPLOAD_DIR` names the same share, since Windows connects to the host on the first look at such a path, and a settings file that is there but cannot be read stops the start instead of being read as empty. The rest of the review's findings show in edge cases, the tool list is byte for byte that of 0.6.2. The image runs Python 3.15.2, the expedited security release, built with uv 0.13.6, and its `/config/.env` is readable by its owner alone. Verified live read-only against the third test account: `live/smoke.py` 13 of 13 on the reviewed code, and a shape capture that differs from 0.6.2's only where the account holds different records |
+| 0.8.0 | `server_status`, the one tool outside the policy file | **released 2026-10-29** - a minor, because an installation can trip over it: a server without a policy file now lists `server_status` where it listed no tool at all, and anything that checked for an empty list, as this project's own CI did, sees one. The tool says which server is running and, with `details`, whether Lexware answers and takes the key, from one request a minute at most, and whether the policy file is loaded. Every other tool and answer is that of 0.7.0, and what the configuration interface says the tools cost includes the new one. platformdirs 4.14.0 in the image's lockfile. Verified live read-only against the third test account: `live/smoke.py` 14 of 14 with the status step, and a shape capture identical to 0.7.0's |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

@@ -70,7 +70,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.7.0.**
+> **Status: 0.8.0.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -136,8 +136,9 @@ without a restart.
 
 The client starts the server, or reaches it over HTTP, and speaks MCP with
 it. What a model can do is settled before anything reaches Lexware: a tool
-the policy file does not name does not exist for the client, and every call
-that is left goes through one API client with one rate limiter. The key and
+the policy file does not name does not exist for the client, `server_status`
+aside, which only says what is running, and every call that is left goes
+through one API client with one rate limiter. The key and
 the permissions live in two files that `setup` writes, a process of its own
 that the client's prompt **Set up Lexware Office** starts, and so does
 `benethos-lexware-office-mcp setup` in a terminal.
@@ -463,7 +464,10 @@ Check that it works:
 uvx benethos-lexware-office-mcp --help
 ```
 
-**3. Point Claude Desktop at it** in `claude_desktop_config.json`:
+**3. Add it to your client.** No path from your machine appears in either
+entry below, which is the point: `uvx` looks the package up by name.
+
+**Claude Desktop**, in `claude_desktop_config.json`:
 
 ```json
 {
@@ -476,10 +480,24 @@ uvx benethos-lexware-office-mcp --help
 }
 ```
 
-No path from your machine appears in there, which is the point: `uvx` looks
-the package up by name. Two things worth knowing about that entry:
+**Claude Code**, with one command in a terminal:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.7.0"]`.
+```bash
+claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-office-mcp
+```
+
+- **`--scope user`** makes it available in every project. Left out, it is
+  `local`, for the current directory alone. `project` writes it into a
+  `.mcp.json` meant to be committed, which shares the entry with everyone
+  who clones that repository.
+- **The prompt Set up Lexware Office** is among the slash commands: type
+  `/` and part of its name, and it opens the configuration interface in the
+  browser.
+
+Two things worth knowing about either entry:
+
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.8.0"]`,
+  or `uvx benethos-lexware-office-mcp==0.8.0` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -525,10 +543,11 @@ out of shared folders and out of backups other people can read. When you stop
 using the server, delete it **and revoke the key** under Extensions, Public
 API — revoking is the only step that actually ends access.
 
-**4. Restart Claude Desktop fully** — quit it from the tray rather than
-closing the window. That is for the configuration file you just edited, which
-a client reads once at startup, and it is what a changed setting in the `.env`
-needs too — the server reads those at startup as well. It is **not** needed
+**4. Restart the client.** Claude Desktop fully — quit it from the tray
+rather than closing the window — and in Claude Code start a new session.
+That is for the entry you just made, which a client reads once at startup,
+and it is what a changed setting in the `.env` needs too — the server reads
+those at startup as well. It is **not** needed
 for permissions: change those later and the running client is told, see
 [Switching individual tools off](#switching-individual-tools-off). Nor for
 the first API key: a server started without one uses a key saved later from
@@ -838,6 +857,21 @@ on a machine shared with other processes. `--host` binds somewhere other than
 loopback, which a container has to do — see [In a container](#in-a-container)
 for why that is not the relaxation it looks like.
 
+**A client connects with the address and the token.** In Claude Code:
+
+```bash
+claude mcp add --transport http benethos-lexware-office-mcp http://127.0.0.1:8770/mcp --header "Authorization: Bearer <token>"
+```
+
+- **The token becomes part of the client's configuration**, with
+  `--scope user` in `~/.claude.json`. For the API key that is avoidable, for
+  the token it is not, since the client has to send it. Treat that file the
+  way the `.env` is treated, and never use `--scope project`, which writes
+  the token into a `.mcp.json` meant to be committed.
+- **There is no prompt Set up Lexware Office over HTTP.** The page would
+  open on the machine the server runs on, not on the client's, so `setup` is
+  started there, or in its container as described below.
+
 ## In a container
 
 The image is published for `linux/amd64` and `linux/arm64`, so nothing from
@@ -847,8 +881,8 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.7.0` for an exact release,
-`:0.7` to follow its patch releases. `:latest` moves with every release, and
+Pin a version for anything you depend on - `:0.8.0` for an exact release,
+`:0.8` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
@@ -1038,6 +1072,7 @@ for everything it saves, and never the key, the token or a setting's value.
 
 Once the server is connected, prompts like these are the intended use:
 
+- "Which version of the Lexware server is running, and does Lexware answer?"
 - "Which invoices are still open, and which of them are overdue?"
 - "Show me everything we billed customer Muster GmbH this quarter."
 - "What does invoice RE-2024-0142 contain, and has it been paid?"
