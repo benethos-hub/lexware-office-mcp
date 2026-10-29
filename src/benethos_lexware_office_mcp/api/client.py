@@ -30,7 +30,7 @@ __all__ = ["CHECK_INTERVAL", "Checked", "ClientProvider", "Health", "LexwareClie
 # came. In a second the bucket refills one and a half at its default rate,
 # so a check after a burst of calls still goes out, and one behind the
 # breaker does not.
-CHECK_INTERVAL = 30.0
+CHECK_INTERVAL = 60.0
 CHECK_WAIT = 1.0
 CHECK_TIMEOUT = 5.0
 

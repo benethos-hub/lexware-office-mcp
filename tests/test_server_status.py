@@ -232,16 +232,16 @@ async def test_an_account_that_answers_takes_the_key() -> None:
     assert found["upstream.token_valid"] == "yes"
 
 
-async def test_a_second_ask_within_thirty_seconds_sends_nothing() -> None:
+async def test_a_second_ask_within_sixty_seconds_sends_nothing() -> None:
     clock = Clock()
     server, handler = checked((200, PROFILE), clock=clock)
     await details_of(server)
-    clock.now += 29.6
+    clock.now += 59.6
 
     found = await details_of(server)
 
     assert handler.calls == 1
-    assert found["upstream.checked_seconds_ago"] == "29"
+    assert found["upstream.checked_seconds_ago"] == "59"
     clock.now += 0.4
     assert (await details_of(server))["upstream.checked_seconds_ago"] == "0"
     assert handler.calls == 2

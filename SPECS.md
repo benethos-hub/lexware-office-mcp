@@ -1784,7 +1784,7 @@ arguments cost three to four times what the simple ones do.
 
 | Tool | Inputs | Output | Calls |
 |---|---|---|---|
-| `server_status` | `details` | plain text, see below | 0, with `details` at most 1 every 30 seconds |
+| `server_status` | `details` | plain text, see below | 0, with `details` at most 1 every 60 seconds |
 
 **Why it exists.** A client shows neither the server's version nor whether
 Lexware answers, and a model cannot read the `serverInfo` of the handshake.
@@ -1846,12 +1846,13 @@ only a token free at that moment, and measured against the test account on
 2026-10-29 it then sent nothing right after two calls and answered
 `never`, less than a second before a token was due. It waits five seconds
 for an answer at most, whatever `LXO_MCP_TIMEOUT` says. One check stands
-for 30 seconds per process, and a call in between is answered with it and
-its true age. A key the API refused is not sent again until another is
-set, which over stdio can happen without a restart, see section 6. Without
-a key nothing is sent and `checked_seconds_ago` is `never`. It writes no
-line at `INFO`: a status question is not an activity, and a check that
-failed is in the answer anyway.
+for 60 seconds per process, and a call in between is answered with it and
+its true age. Nothing checks on its own: without a call with `details`,
+no request is sent at all. A key the API refused is not sent again until
+another is set, which over stdio can happen without a restart, see section
+6. Without a key nothing is sent and `checked_seconds_ago` is `never`. It
+writes no line at `INFO`: a status question is not an activity, and a
+check that failed is in the answer anyway.
 
 **A field is added, never removed or changed.** A new one goes after the
 others of its block. One that has to mean something else gets a new name.
