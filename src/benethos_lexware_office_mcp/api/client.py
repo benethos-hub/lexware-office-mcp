@@ -24,10 +24,14 @@ from .connection import Connection
 
 __all__ = ["CHECK_INTERVAL", "Checked", "ClientProvider", "Health", "LexwareClient"]
 
-# How long one status check stands before the next may be sent, and how long
-# it waits for an answer, whatever LXO_MCP_TIMEOUT says: a status question is
-# answered in seconds or it says that nothing came.
+# How long one status check stands before the next may be sent, how long it
+# waits for its token, and how long for an answer, whatever LXO_MCP_TIMEOUT
+# says: a status question is answered in seconds or it says that nothing
+# came. In a second the bucket refills one and a half at its default rate,
+# so a check after a burst of calls still goes out, and one behind the
+# breaker does not.
 CHECK_INTERVAL = 30.0
+CHECK_WAIT = 1.0
 CHECK_TIMEOUT = 5.0
 
 
@@ -599,7 +603,7 @@ class Health:
     async def _send(self, key: str) -> None:
         try:
             status = await self._provider.get().probe(
-                "/v1/profile", timeout=CHECK_TIMEOUT
+                "/v1/profile", timeout=CHECK_TIMEOUT, wait=CHECK_WAIT
             )
         except RateLimitError:
             return  # nothing was sent, so the last check stands

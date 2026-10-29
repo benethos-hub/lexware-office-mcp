@@ -115,7 +115,7 @@ beneath every layer: errors.py, settings/, logbook/ (stderr only)
 | `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
 | `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the API. | built |
 | `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. It also holds `Health`, what the status check of section 8 last found, and carries the transport an upload fetched from a URL travels by, which only the test suite sets. Here rather than as an argument of `build_server`, decided 2026-10-16: `files` may not import `api`, the upload tools hold the provider already, and a second path into the server for one test seam would cost more than it says. | built |
-| `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. `try_acquire` spends a token only if one is free now, for the status check, which never waits. | built |
+| `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
 | `files/storage.py` | Where downloads land on disk, how a file is read for upload, and the one check every upload passes, read or fetched: its size, its type, and a name whose extension says that type. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, because one whose contents match is reused rather than copied, and because the directory is a cache kept to its newest downloads, see section 13. | built |
 | `files/fetch.py` | An upload fetched from a URL instead of read from disk, under `LXO_MCP_UPLOAD_URLS`, see section 7.2. A client of its own, never the API's: no key, no retries, no rate limiter, no redirects, 30 seconds and 5 MiB. The one place besides `api/connection.py` that opens a connection, and never to Lexware. | built |
@@ -1839,15 +1839,19 @@ details:
 the cheapest call there is, whose answer is read for its status alone. It
 is one attempt: no retry, no status turned into an error, and a 429 does
 not count towards the breaker of section 10.1. It takes its token from the
-one bucket, but only one that is free now, so it never queues behind the
-calls it reports on, and with none free it sends nothing and answers with
-the last check. It waits five seconds at most, whatever `LXO_MCP_TIMEOUT`
-says. One check stands for 30 seconds per process, and a call in between is
-answered with it and its true age. A key the API refused is not sent again
-until another is set, which over stdio can happen without a restart, see
-section 6. Without a key nothing is sent and `checked_seconds_ago` is
-`never`. It writes no line at `INFO`: a status question is not an activity,
-and a check that failed is in the answer anyway.
+one bucket and waits a second for it at most, in which the bucket refills
+one and a half at its default rate. Behind the breaker, or behind a queue
+of calls, it sends nothing and answers with the last check. It first took
+only a token free at that moment, and measured against the test account on
+2026-10-29 it then sent nothing right after two calls and answered
+`never`, less than a second before a token was due. It waits five seconds
+for an answer at most, whatever `LXO_MCP_TIMEOUT` says. One check stands
+for 30 seconds per process, and a call in between is answered with it and
+its true age. A key the API refused is not sent again until another is
+set, which over stdio can happen without a restart, see section 6. Without
+a key nothing is sent and `checked_seconds_ago` is `never`. It writes no
+line at `INFO`: a status question is not an activity, and a check that
+failed is in the answer anyway.
 
 **A field is added, never removed or changed.** A new one goes after the
 others of its block. One that has to mean something else gets a new name.
@@ -2225,8 +2229,8 @@ It is Lexware's limit, so it is Lexware's requests the bucket counts. An
 upload fetched from a URL, see section 7.2, goes to another server and does
 not take a token: it would spend the account's allowance on traffic the
 account never sees. The upload that follows the fetch does take one, and
-so does the status check of section 8, which takes one only when it is free
-at once and otherwise sends nothing.
+so does the status check of section 8, which waits a second for it at most
+and otherwise sends nothing.
 
 #### The algorithm, and which half of it we implement
 

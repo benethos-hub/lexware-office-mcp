@@ -19,11 +19,11 @@ housekeeping are out of scope here — design decisions live in
   version, transport, the Python and MCP library versions and its uptime,
   answered without an API call. With `details: true` it also says whether
   Lexware answers and accepts the key, from one API call at most every 30
-  seconds that is never retried and never waits for the rate limit, and
-  whether the tool policy file is loaded. It is offered whatever the policy
-  file says, so a server is never without a tool, and neither the policy
-  file nor the configuration interface switches it off. It reads no record,
-  writes nothing and writes no log line at `INFO`.
+  seconds that is never retried and waits a second for the rate limit at
+  most, and whether the tool policy file is loaded. It is offered whatever
+  the policy file says, so a server is never without a tool, and neither
+  the policy file nor the configuration interface switches it off. It reads
+  no record, writes nothing and writes no log line at `INFO`.
 
 ### Changed
 

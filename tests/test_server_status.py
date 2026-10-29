@@ -17,6 +17,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult, TextContent
 
 from benethos_lexware_office_mcp import __version__
+from benethos_lexware_office_mcp.api import client as client_module
 from benethos_lexware_office_mcp.api.client import Health
 from benethos_lexware_office_mcp.api.ratelimit import TokenBucket
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
@@ -324,8 +325,11 @@ async def test_without_a_key_nothing_is_sent(tmp_path: Path) -> None:
     assert found["upstream.token_valid"] == "unknown"
 
 
-async def test_with_no_token_free_nothing_is_sent() -> None:
-    """The check takes from the one bucket, and never waits for it."""
+async def test_behind_the_breaker_nothing_is_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The check takes from the one bucket, and waits a moment for it at most."""
+    monkeypatch.setattr(client_module, "CHECK_WAIT", 0.05)
     handler = Scripted((200, PROFILE))
     bucket = TokenBucket(2.0, 2)
     bucket.drain(30.0)
@@ -339,6 +343,23 @@ async def test_with_no_token_free_nothing_is_sent() -> None:
     assert found["upstream.reachable"] == "unknown"
     assert found["upstream.checked_seconds_ago"] == "never"
     assert found["upstream.token_set"] == "yes"
+
+
+async def test_a_token_due_in_a_moment_is_waited_for() -> None:
+    """Measured 2026-10-29: right after two calls, a check that never waited
+    sent nothing and answered `never`, less than a second before a token was due."""
+    handler = Scripted((200, PROFILE))
+    bucket = TokenBucket(20.0, 1)
+    await bucket.acquire()
+    settings = Settings(api_key=API_KEY)
+    server = build_server(
+        settings, fast_provider(handler, settings=settings, bucket=bucket)
+    )
+
+    found = await details_of(server)
+
+    assert handler.calls == 1
+    assert found["upstream.reachable"] == "yes"
 
 
 async def test_the_check_spends_a_token_of_the_one_bucket() -> None:

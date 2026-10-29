@@ -239,19 +239,22 @@ class Connection:
         """
         return await self.request("GET", path, accept=accept)
 
-    async def probe(self, path: str, *, timeout: float) -> int | None:
+    async def probe(self, path: str, *, timeout: float, wait: float) -> int | None:
         """One ``GET`` of ``path`` for a status check: its status, or ``None``.
 
         ``None`` when no answer came. Not :meth:`request`: a check is one
         attempt, so nothing is retried, no status becomes an error, and a 429
         does not count towards the breaker. Its token comes from the one
-        bucket like any request's, but only one that is free now, and
-        :class:`RateLimitError` says there was none. The body is not read
-        for anything.
+        bucket like any request's, waited for ``wait`` seconds at most, and
+        :class:`RateLimitError` says none came in that time: a bucket the
+        breaker holds shut, or a queue of calls ahead of it. The body is not
+        read for anything.
         """
         headers = {"Authorization": f"Bearer {self.settings.require_api_key()}"}
-        if not self._bucket.try_acquire():
-            raise RateLimitError("No request is free for a status check now.")
+        try:
+            await asyncio.wait_for(self._bucket.acquire(), wait)
+        except TimeoutError:
+            raise RateLimitError("No request was free for a status check.") from None
         logbook.tally.api_call()
         sent_at = time.perf_counter()
         try:
