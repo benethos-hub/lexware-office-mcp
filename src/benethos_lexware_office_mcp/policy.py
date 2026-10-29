@@ -3,8 +3,8 @@
 **The file decides, and nothing else does.** A tool set to ``true`` is listed
 and callable, a tool set to ``false`` is neither, and a tool the file does not
 mention is **off**. An installation without a policy file therefore offers
-nothing at all - which is the state to be in when nobody has said yet what
-this server is allowed to touch.
+nothing but ``server_status``, which reads no record - the state to be in
+when nobody has said yet what this server is allowed to touch.
 
 **The classification is metadata, not a gate.** Every tool declares what kind
 of access it needs and which group it belongs to, recorded by :func:`classify`
@@ -254,7 +254,7 @@ class ToolPolicy:
         """Whether the file is there and was read as flags, none at all included.
 
         A broken file enables nothing, as a missing one does, so this is the
-        question that tells a server with no tools why it has none.
+        question that tells a server with no other tool why it has none.
         """
         return self._read() is not None
 

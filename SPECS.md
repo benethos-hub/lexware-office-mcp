@@ -1185,7 +1185,9 @@ ends the way Beenden does, after an action that is writing a file.
 
 Over stdio the instructions a client receives name the prompt too. Without
 that a model facing an empty tool list guessed at a broken connection, which
-is what happened in the sandbox before the prompt existed.
+is what happened in the sandbox before the prompt existed. Since
+`server_status` the list is never empty, and the instructions name the
+prompt for a list that holds nothing else.
 
 **Loopback by default, and loopback names only.** The pages have no password,
 which is defensible exactly as long as they cannot be reached from another
@@ -1436,11 +1438,12 @@ would otherwise report success for work that never reaches the server.
 **With no policy file the boxes open on read-only.** A blank form is a poor
 starting point for a decision, and the alternative — every box empty — reads
 as an invitation to tick things at random rather than as a proposal. It
-changes nothing about section 9.2: no file still means no tools, and nothing
-is written until somebody saves. Ticks that do not describe the file are
-labelled as such at the top of the page, which is the condition under which
-showing them is honest. Once a file exists the boxes follow it, including a
-file that deliberately enables nothing.
+changes nothing about section 9.2: no file still means no tool but
+`server_status`, and nothing is written until somebody saves. Ticks that
+do not describe the file are labelled as such at the top of the page,
+which is the condition under which showing them is honest. Once a file
+exists the boxes follow it, including a file that deliberately enables
+nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
 around 2,146 characters per tool, sent on every request for the life of the
@@ -1520,11 +1523,11 @@ first carried the settings, the permissions and the profiles together, and
 the settings were the problem: `LXO_MCP_TOOL_POLICY` and
 `LXO_MCP_DOWNLOAD_DIR` are absolute paths describing one machine, and an
 import writing the first would have pointed the target installation at a
-policy file that does not exist there — no tools at all, immediately after an
-import that appeared to grant some. The second carried the profiles alone,
-which was safe but answered a question nobody had: a profile is a convenience
-of this interface, while the policy file is the thing an installation
-actually runs on.
+policy file that does not exist there — nothing but `server_status`,
+immediately after an import that appeared to grant some. The second
+carried the profiles alone, which was safe but answered a question nobody
+had: a profile is a convenience of this interface, while the policy file is
+the thing an installation actually runs on.
 
 No format carried the API key, and this one has nowhere to put a setting at
 all.
