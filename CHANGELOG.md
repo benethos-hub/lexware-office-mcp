@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-29
+
+A minor release, because an installation can trip over it: a server
+without a policy file now lists `server_status` where it listed no tool at
+all, so anything that checked for an empty tool list sees one. Every other
+tool and every answer are those of 0.7.0. An image that follows the minor
+line `0.7` stays on 0.7.0, so the new tool takes a move to `0.8`.
+
 ### Added
 
 - **`server_status`**, a tool that says which server is running: its name,
@@ -1748,7 +1756,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.0...v0.6.1
