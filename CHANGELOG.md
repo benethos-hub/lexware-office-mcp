@@ -22,8 +22,9 @@ housekeeping are out of scope here — design decisions live in
   seconds that is never retried and waits a second for the rate limit at
   most, and whether the tool policy file is loaded. It is offered whatever
   the policy file says, so a server is never without a tool, and neither
-  the policy file nor the configuration interface switches it off. It reads
-  no record, writes nothing and writes no log line at `INFO`.
+  the policy file nor the configuration interface switches it off, and
+  what the interface says the tools cost includes it. It reads no record,
+  writes nothing and writes no log line at `INFO`.
 
 ### Changed
 

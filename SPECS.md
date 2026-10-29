@@ -1446,7 +1446,9 @@ file that deliberately enables nothing.
 around 2,146 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
-and nothing else in the project makes that visible.
+and nothing else in the project makes that visible. The total includes
+`server_status`, which has no box since no file decides it, and is sent
+all the same.
 
 **The marks are explained on the page, not in a tooltip.** Each row carries
 what the tool does — `lesend`, `schreibend · create`, `schreibend · delete` —

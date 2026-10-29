@@ -13,7 +13,7 @@ also nichts</strong>.{% if suggested %} Vorgeschlagen und angehakt sind die
 lesenden Tools.{% endif %} Erst „Rechte speichern“ legt die Datei an.{% endcall %}
 {% endif %}
 
-<form method="post" action="/permissions" id="permform" class="stack" data-per-token="{{ per_token }}">{{ ui.csrf_field() }}
+<form method="post" action="/permissions" id="permform" class="stack" data-per-token="{{ per_token }}" data-always="{{ always }}">{{ ui.csrf_field() }}
 <div class="toolbar">
   <span class="hint">Auswahl:</span>
   <button type="button" data-act="all-on">alles an</button>

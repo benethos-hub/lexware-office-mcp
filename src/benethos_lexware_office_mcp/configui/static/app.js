@@ -51,11 +51,13 @@ document.addEventListener("change", function (event) {
 
 // The tally under the permissions form, and the buttons that tick a group
 // or the whole list at once. Each box carries its cost in data-cost, and
-// data-read or data-destructive where they apply.
+// data-read or data-destructive where they apply. The form carries in
+// data-always what is sent whatever is ticked.
 (function () {
   var form = document.getElementById("permform");
   if (!form) return;
   var perToken = parseFloat(form.dataset.perToken) || 3.5;
+  var always = parseInt(form.dataset.always, 10) || 0;
 
   function boxes(root) {
     return Array.prototype.slice.call(root.querySelectorAll("input[name=tool]"));
@@ -69,7 +71,7 @@ document.addEventListener("change", function (event) {
     var on = boxes(form).filter(function (c) { return c.checked; });
     var chars = on.reduce(function (sum, c) {
       return sum + (parseInt(c.dataset.cost, 10) || 0);
-    }, 0);
+    }, always);
     show("count", String(on.length));
     show("cost", de(chars));
     show("tokens", de(Math.round(chars / perToken)));
