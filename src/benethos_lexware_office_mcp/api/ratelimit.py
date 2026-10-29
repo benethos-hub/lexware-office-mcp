@@ -104,6 +104,22 @@ class TokenBucket:
                     return
                 await self._sleep((tokens - self._tokens) / self.rate)
 
+    def try_acquire(self) -> bool:
+        """Spend one token if one is free now, and say whether it was.
+
+        For a status check, which must not wait: queued behind the calls it
+        reports on, it would report on nothing, and holding the lock would
+        make those calls wait for it. A bucket somebody is waiting on, or one
+        the breaker holds shut, has no token free.
+        """
+        if self._lock.locked():
+            return False
+        now = self._refill()
+        if now < self._blocked_until or self._tokens < 1:
+            return False
+        self._tokens -= 1
+        return True
+
     def drain(self, cooldown: float) -> None:
         """Empty the bucket and hold it shut for ``cooldown`` seconds.
 

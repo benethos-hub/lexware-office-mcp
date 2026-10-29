@@ -1,4 +1,4 @@
-"""``server_status``: which server is running, answered from memory.
+"""``server_status``: which server is running, and with details how it is.
 
 The one tool outside the policy file, see SPECS.md section 9.2. It reads no
 record and writes nothing, and with every other tool off it is what a model
@@ -8,7 +8,10 @@ activity worth a line on stderr.
 
 The answer is plain text, one ``key: value`` per line, in an order that
 never changes. A field may be added after the others, never renamed or
-removed, see SPECS.md section 8.
+removed, see SPECS.md section 8. The core is answered from memory. With
+``details`` come two blocks: ``upstream``, whether Lexware answers and takes
+the key, from :class:`..api.client.Health`, and ``policy``, whether the
+policy file was read.
 """
 
 from __future__ import annotations
@@ -17,16 +20,19 @@ import importlib.metadata
 import sys
 import time
 from collections.abc import Callable
+from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from pydantic import Field
 
 from .. import __version__
-from ..api.client import ClientProvider
+from ..api.client import Checked, ClientProvider
+from ..policy import ToolPolicy
 from ..settings import Settings
 from ._base import tidy
 
-__all__ = ["ALWAYS_OFFERED", "NAME", "register", "render"]
+__all__ = ["ALWAYS_OFFERED", "NAME", "register", "render", "upstream"]
 
 NAME = "server_status"
 
@@ -43,6 +49,28 @@ def _mcp_version() -> str:
         return importlib.metadata.version("mcp")
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
+
+
+def _truth(value: bool | None) -> str:
+    return "unknown" if value is None else "yes" if value else "no"
+
+
+def upstream(checked: Checked) -> Block:
+    """The ``upstream`` block: Lexware, as the last check found it."""
+    ago = checked.seconds_ago
+    return [
+        ("reachable", _truth(checked.reachable)),
+        ("checked_seconds_ago", "never" if ago is None else str(ago)),
+        ("token_set", _truth(checked.token_set)),
+        ("token_valid", _truth(checked.token_valid)),
+    ]
+
+
+def _loaded(policy: ToolPolicy) -> str:
+    try:
+        return _truth(policy.loaded())
+    except Exception:  # noqa: BLE001 - a status answer never fails
+        return "no"
 
 
 def render(block: Block, depth: int = 0) -> list[str]:
@@ -71,6 +99,9 @@ def register(
     and the call log around a tool, and this one answers to neither.
     """
     started = clock()
+    policy = getattr(server, "policy", None)
+    if not isinstance(policy, ToolPolicy):
+        policy = ToolPolicy()
     python = ".".join(str(part) for part in sys.version_info[:3])
     mcp = _mcp_version()
 
@@ -84,11 +115,25 @@ def register(
             ("uptime_seconds", str(int(clock() - started))),
         ]
 
-    async def server_status() -> CallToolResult:
+    async def server_status(
+        details: Annotated[
+            bool, Field(description="Also check Lexware and the tool policy file.")
+        ] = False,
+    ) -> CallToolResult:
         """Report which server is running: name, version, transport, Python and
-        MCP library versions and uptime, without an API call.
+        MCP library versions and uptime, without an API call. With details,
+        also whether Lexware answers and accepts the key, at most one API call
+        every 30 seconds, and whether the tool policy file is loaded, which
+        explains a missing tool.
         """
-        text = "\n".join(render(core()))
+        block = core()
+        if details:
+            parts: Block = [
+                ("upstream", upstream(await provider.health.check())),
+                ("policy", [("file_loaded", _loaded(policy))]),
+            ]
+            block.append(("details", parts))
+        text = "\n".join(render(block))
         return CallToolResult(content=[TextContent(type="text", text=text)])
 
     tidy(server_status)
