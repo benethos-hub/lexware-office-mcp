@@ -464,7 +464,10 @@ Check that it works:
 uvx benethos-lexware-office-mcp --help
 ```
 
-**3. Point Claude Desktop at it** in `claude_desktop_config.json`:
+**3. Add it to your client.** No path from your machine appears in either
+entry below, which is the point: `uvx` looks the package up by name.
+
+**Claude Desktop**, in `claude_desktop_config.json`:
 
 ```json
 {
@@ -477,19 +480,19 @@ uvx benethos-lexware-office-mcp --help
 }
 ```
 
-No path from your machine appears in there, which is the point: `uvx` looks
-the package up by name. **In Claude Code** the same entry is one command:
+**Claude Code**, with one command in a terminal:
 
 ```bash
 claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-office-mcp
 ```
 
-`--scope user` makes it available in every project. Left out, it is
-`local`, for the current directory alone. `project` writes it into a
-`.mcp.json` meant to be committed, which shares the entry with everyone who
-clones that repository. The prompt **Set up Lexware Office** is among Claude
-Code's slash commands: type `/` and part of its name, and it opens the
-configuration interface in the browser.
+- **`--scope user`** makes it available in every project. Left out, it is
+  `local`, for the current directory alone. `project` writes it into a
+  `.mcp.json` meant to be committed, which shares the entry with everyone
+  who clones that repository.
+- **The prompt Set up Lexware Office** is among the slash commands: type
+  `/` and part of its name, and it opens the configuration interface in the
+  browser.
 
 Two things worth knowing about either entry:
 
@@ -540,10 +543,11 @@ out of shared folders and out of backups other people can read. When you stop
 using the server, delete it **and revoke the key** under Extensions, Public
 API — revoking is the only step that actually ends access.
 
-**4. Restart Claude Desktop fully** — quit it from the tray rather than
-closing the window. That is for the configuration file you just edited, which
-a client reads once at startup, and it is what a changed setting in the `.env`
-needs too — the server reads those at startup as well. It is **not** needed
+**4. Restart the client.** Claude Desktop fully — quit it from the tray
+rather than closing the window — and in Claude Code start a new session.
+That is for the entry you just made, which a client reads once at startup,
+and it is what a changed setting in the `.env` needs too — the server reads
+those at startup as well. It is **not** needed
 for permissions: change those later and the running client is told, see
 [Switching individual tools off](#switching-individual-tools-off). Nor for
 the first API key: a server started without one uses a key saved later from
