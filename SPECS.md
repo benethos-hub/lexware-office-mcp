@@ -3119,7 +3119,12 @@ The consequences are the point of writing this down.
 - **It found something on its first run**, which is the argument for having
   it: `GET /v1/articles` refuses a page size below 25, alone among the list
   endpoints, and the tool's schema had allowed 1. Nothing offline could have
-  caught that, because the mock answers whatever it is told to.
+  caught that, because the mock answers whatever it is told to. The same
+  happened to `server_status` on 2026-10-29: asked right after the other
+  checks, its check of Lexware found no token free and sent nothing, which
+  is why it now waits a second for one, see section 8. The script calls it
+  both ways and holds the answer to the core's order, a reachable account,
+  a key taken and no part of the key in the text.
 - **Upstream drift is invisible to CI.** The suite mocks HTTP completely, so
   it stays green through any change in Lexware's field names or response
   shapes. Only a live run catches that, and only someone holding an account
@@ -3243,8 +3248,8 @@ Built, tested offline and exercised against a live test account:
   `create_voucher`, `update_voucher`, `create_sales_document`, `upload_file`
   and `attach_file_to_voucher`. Irreversible: `delete_article`, and
   `create_sales_document` when it is asked to finalize. Outside the groups
-  and the policy file, `server_status`, whose check against a live account
-  is still **(to verify)**
+  and the policy file, `server_status`, checked against the test account
+  by `live/smoke.py` on 2026-10-29
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
