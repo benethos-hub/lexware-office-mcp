@@ -13,6 +13,20 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **`server_status`**, a tool that says which server is running: its name,
+  version, transport, the Python and MCP library versions and its uptime,
+  answered without an API call. It is offered whatever the policy file
+  says, so a server is never without a tool, and neither the policy file nor
+  the configuration interface switches it off. It reads no record, writes
+  nothing and writes no log line.
+
+### Changed
+
+- **Without a policy file, the start line says** that only the status tool
+  is offered, rather than that no tool is.
+
 ## [0.7.0] - 2026-10-28
 
 A minor release, because an installation can trip over it: `upload_file`

@@ -144,7 +144,12 @@ that the client's prompt **Set up Lexware Office** starts, and so does
 ## Tools
 
 Every tool below is built and was exercised against a live account. None of
-them is enabled until the policy file names it.
+them is enabled until the policy file names it, except one, which is there
+whatever the file says. It reads no record and writes nothing:
+
+| Tool | What it does |
+|---|---|
+| `server_status` | Which server is running, its version, transport and uptime, without an API call |
 
 Read tools:
 

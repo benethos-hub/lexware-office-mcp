@@ -553,7 +553,7 @@ async def test_enforcement_never_waits_for_the_notification(policy: Path) -> Non
 
         names = {tool.name for tool in await server.list_tools()}
 
-        assert names == {"get_profile"}
+        assert names == {"server_status", "get_profile"}
         assert session.told == 0  # before the watcher has even looked
     finally:
         await server.stop_watching()

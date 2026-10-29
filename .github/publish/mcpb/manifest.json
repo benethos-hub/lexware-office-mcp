@@ -32,6 +32,10 @@
   },
   "tools": [
     {
+      "name": "server_status",
+      "description": "Report which server is running: name, version, transport, Python and MCP library versions and uptime, without an API call."
+    },
+    {
       "name": "get_profile",
       "description": "Show which Lexware Office account this server is connected to."
     },

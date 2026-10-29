@@ -25,7 +25,9 @@ async def test_without_a_file_nothing_is_offered(tmp_path: Path) -> None:
     """The file is the only gate, so its absence has to mean no."""
     settings = Settings(api_key=API_KEY, tool_policy_path=tmp_path / "absent.json")
 
-    assert await build_server(settings).list_tools() == []
+    names = [t.name for t in await build_server(settings).list_tools()]
+
+    assert names == ["server_status"]
 
 
 async def test_a_tool_the_file_does_not_mention_is_off(tmp_path: Path) -> None:
@@ -39,7 +41,7 @@ async def test_a_tool_the_file_does_not_mention_is_off(tmp_path: Path) -> None:
 
     names = {t.name for t in await server.list_tools()}
 
-    assert names == {"get_contact"}
+    assert names == {"server_status", "get_contact"}
 
 
 async def test_a_byte_order_mark_does_not_switch_everything_off(
@@ -53,7 +55,7 @@ async def test_a_byte_order_mark_does_not_switch_everything_off(
 
     names = {t.name for t in await build_server(settings).list_tools()}
 
-    assert names == {"get_contact"}
+    assert names == {"server_status", "get_contact"}
 
 
 async def test_a_disabled_tool_is_not_listed(tmp_path: Path) -> None:
@@ -77,7 +79,7 @@ async def test_a_write_tool_is_offered_when_the_file_says_so(tmp_path: Path) -> 
 
     names = {t.name for t in await server.list_tools()}
 
-    assert names == {"upload_file"}
+    assert names == {"server_status", "upload_file"}
 
 
 # -- a file written by hand and by other programs -------------------------
@@ -99,7 +101,7 @@ async def test_a_broken_file_enables_nothing_and_says_so(
     with caplog.at_level(logging.WARNING):
         tools = await build_server(settings).list_tools()
 
-    assert tools == []
+    assert [t.name for t in tools] == ["server_status"]
     assert "unreadable tool policy" in caplog.text.lower()
 
 
@@ -401,7 +403,10 @@ async def test_switching_a_tool_off_takes_effect_without_a_restart(
     """
     server = server_obeying(tmp_path, {"get_profile": True})
 
-    assert [t.name for t in await server.list_tools()] == ["get_profile"]
+    assert [t.name for t in await server.list_tools()] == [
+        "server_status",
+        "get_profile",
+    ]
     write_policy(tmp_path / "tools.json", {"get_profile": False})
 
     with pytest.raises(ToolError) as excinfo:
@@ -420,12 +425,16 @@ async def test_switching_a_tool_on_takes_effect_too(tmp_path: Path) -> None:
     """
     server = server_obeying(tmp_path, {"get_profile": True})
 
-    assert [t.name for t in await server.list_tools()] == ["get_profile"]
+    assert [t.name for t in await server.list_tools()] == [
+        "server_status",
+        "get_profile",
+    ]
     write_policy(
         tmp_path / "tools.json", {"get_profile": True, "search_contacts": True}
     )
 
     assert {t.name for t in await server.list_tools()} == {
+        "server_status",
         "get_profile",
         "search_contacts",
     }
@@ -435,7 +444,7 @@ async def test_a_tool_enabled_while_running_can_be_called(tmp_path: Path) -> Non
     """Listing it and refusing it would be worse than either alone."""
     server = server_obeying(tmp_path, {})
 
-    assert await server.list_tools() == []
+    assert [t.name for t in await server.list_tools()] == ["server_status"]
     write_policy(tmp_path / "tools.json", {"get_deeplink": True})
 
     result = await server.call_tool(
