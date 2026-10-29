@@ -1163,9 +1163,11 @@ lets the model open a signed-in page, and with a browser tool beside it tick
 boxes under *Rechte* and read the bearer token, though never the key. So
 `LXO_MCP_SETUP_PROMPT=0` withholds the prompt, decided 2026-10-15 as a
 variable that defaults to on: Claude Desktop, the client it exists for,
-keeps prompts to the person. Over HTTP it is not offered, since a remote
-client would open a page on a machine it does not sit at. The prompt
-always answers with the same sentence, because Claude Desktop
+keeps prompts to the person. So does Claude Code, which lists it among its
+slash commands, and picked there it opened the interface, tried 2026-10-29
+with a session started by `--mcp-config`. Over HTTP it is not offered,
+since a remote client would open a page on a machine it does not sit at.
+The prompt always answers with the same sentence, because Claude Desktop
 holds a prompt's answer against the text the extension declared and rejects
 any other as a possible injection - measured, it said "Failed to attach
 prompt" while the browser opened anyway. What happened goes to stderr

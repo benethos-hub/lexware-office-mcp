@@ -478,9 +478,23 @@ uvx benethos-lexware-office-mcp --help
 ```
 
 No path from your machine appears in there, which is the point: `uvx` looks
-the package up by name. Two things worth knowing about that entry:
+the package up by name. **In Claude Code** the same entry is one command:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.8.0"]`.
+```bash
+claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-office-mcp
+```
+
+`--scope user` makes it available in every project. Left out, it is
+`local`, for the current directory alone. `project` writes it into a
+`.mcp.json` meant to be committed, which shares the entry with everyone who
+clones that repository. The prompt **Set up Lexware Office** is among Claude
+Code's slash commands: type `/` and part of its name, and it opens the
+configuration interface in the browser.
+
+Two things worth knowing about either entry:
+
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.8.0"]`,
+  or `uvx benethos-lexware-office-mcp==0.8.0` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
