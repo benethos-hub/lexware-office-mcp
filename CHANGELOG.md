@@ -30,6 +30,10 @@ housekeeping are out of scope here — design decisions live in
 
 - **Without a policy file, the start line says** that only the status tool
   is offered, rather than that no tool is.
+- **platformdirs 4.14.0 in the lockfile the image is built from**, which
+  treats a relative `HOME` as no home rather than resolving the
+  configuration directory against the working directory. An installation
+  from the index resolved it already.
 
 ## [0.7.0] - 2026-10-28
 
