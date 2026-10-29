@@ -136,8 +136,9 @@ without a restart.
 
 The client starts the server, or reaches it over HTTP, and speaks MCP with
 it. What a model can do is settled before anything reaches Lexware: a tool
-the policy file does not name does not exist for the client, and every call
-that is left goes through one API client with one rate limiter. The key and
+the policy file does not name does not exist for the client, `server_status`
+aside, which only says what is running, and every call that is left goes
+through one API client with one rate limiter. The key and
 the permissions live in two files that `setup` writes, a process of its own
 that the client's prompt **Set up Lexware Office** starts, and so does
 `benethos-lexware-office-mcp setup` in a terminal.
@@ -1038,6 +1039,7 @@ for everything it saves, and never the key, the token or a setting's value.
 
 Once the server is connected, prompts like these are the intended use:
 
+- "Which version of the Lexware server is running, and does Lexware answer?"
 - "Which invoices are still open, and which of them are overdue?"
 - "Show me everything we billed customer Muster GmbH this quarter."
 - "What does invoice RE-2024-0142 contain, and has it been paid?"
