@@ -68,7 +68,7 @@ async def test_a_client_can_connect_and_list_the_tools(tmp_path: Path) -> None:
     assert init.server_info.website_url is not None
     assert init.server_info.website_url.startswith("https://github.com/")
     assert len(init.server_info.icons or []) == 2
-    assert [tool.name for tool in tools.tools] == ["get_profile"]
+    assert [tool.name for tool in tools.tools] == ["server_status", "get_profile"]
 
 
 async def test_the_handshake_survives_the_whole_startup_path(tmp_path: Path) -> None:
@@ -92,4 +92,18 @@ async def test_nothing_is_offered_without_a_policy_file(tmp_path: Path) -> None:
             await session.initialize()
             tools = await session.list_tools()
 
-    assert [tool.name for tool in tools.tools] == []
+    assert [tool.name for tool in tools.tools] == ["server_status"]
+
+
+async def test_the_status_answers_over_the_wire_as_text(tmp_path: Path) -> None:
+    """The SDK turns the result into JSON-RPC, which no in-process test sees."""
+    async with stdio_client(server_parameters(tmp_path)) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("server_status", {})
+
+    assert result.is_error is not True
+    assert result.structured_content is None
+    first = result.content[0]
+    assert first.type == "text"
+    assert first.text.startswith("name: benethos-lexware-office-mcp\nversion: ")

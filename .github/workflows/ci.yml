@@ -94,7 +94,7 @@ jobs:
   #
   # It also guards the rule the server is built around, which no offline test
   # can reach because every one of them builds a policy file first: an
-  # installation that has none offers no tools at all.
+  # installation that has none offers no tool but server_status.
   fresh-install:
     runs-on: ubuntu-latest
     env:
@@ -120,7 +120,7 @@ jobs:
 
       # From an empty directory, because the file search reads the working
       # directory too and a checkout is not what a user installs.
-      - name: A fresh installation starts and offers nothing
+      - name: A fresh installation starts and offers nothing but its status
         run: |
           mkdir -p /tmp/empty
           cd /tmp/empty
@@ -134,8 +134,9 @@ jobs:
           policy = settings.policy_file()
           assert not policy.is_file(), 'a runner should not have a policy file'
           tools = asyncio.run(server.build_server(settings).list_tools())
-          assert not tools, 'a fresh installation offered ' + str(len(tools)) + ' tools'
-          print('OK: no policy file, no tools, no key needed to find that out')
+          names = [tool.name for tool in tools]
+          assert names == ['server_status'], 'a fresh installation offered ' + str(names)
+          print('OK: no policy file, nothing but the status, no key needed to find that out')
           "
 
       - name: The policy file is the only thing that turns tools on
@@ -276,9 +277,10 @@ jobs:
 
       # What the image promises on a machine that was handed nothing: it makes
       # its own token, only that token gets in, and an installation with no
-      # policy file offers no tools - the rule the whole server is built around,
-      # asserted here against the artefact people actually run.
-      - name: It generates a token, guards with it, and offers no tools
+      # policy file offers no tool but server_status - the rule the whole
+      # server is built around, asserted here against the artefact people
+      # actually run.
+      - name: It generates a token, guards with it, and offers nothing but its status
         run: |
           token=$(docker exec lxo-ci sh -c "grep '^LXO_MCP_BEARER_TOKEN=' /config/.env | cut -d= -f2-" | tr -d '\r\n')
           [ ${#token} -ge 32 ] || { echo "::error::no generated token in /config/.env"; exit 1; }
@@ -297,12 +299,13 @@ jobs:
             -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
           body=$(curl -s -X POST http://localhost:8770/mcp -H "$auth" -H "$ct" -H "$acc" \
             -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
-          echo "$body" | grep -q '"tools":\[\]' || {
-            echo "::error::the container offered tools without a policy file"
+          names=$(echo "$body" | grep -o '"name":"[a-z_]*"' | sort -u | tr '\n' ' ')
+          [ "$names" = '"name":"server_status" ' ] || {
+            echo "::error::the container offered more than its status without a policy file"
             echo "$body" | head -5
             exit 1
           }
-          echo "OK: token generated, only it is accepted, and no policy file means no tools"
+          echo "OK: token generated, only it is accepted, and no policy file means only the status"
 
       # compose depends on this one, and it is a shell command in a string that
       # nothing else checks.

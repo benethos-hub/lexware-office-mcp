@@ -114,7 +114,7 @@ beneath every layer: errors.py, settings/, logbook/ (stderr only)
 | `records/payloads.py` | Tool arguments to API request bodies. The other direction from `formatting.py`, and not symmetric with it: a response is trimmed, a request has to be complete. See section 5 on why an update starts from the record it is changing. | built |
 | `records/formatting.py` | API JSON to compact, token-frugal tool output, including the page envelope every list endpoint shares. | built |
 | `api/connection.py` | The mechanics of every request: auth header, rate limiting, retry and backoff, the breaker after repeated 429s, and a refusal handed to `refusal.from_response`. Nothing else talks to the API. | built |
-| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. It also carries the transport an upload fetched from a URL travels by, which only the test suite sets. Here rather than as an argument of `build_server`, decided 2026-10-16: `files` may not import `api`, the upload tools hold the provider already, and a second path into the server for one test seam would cost more than it says. | built |
+| `api/client.py` | `LexwareClient`, a connection with one method per endpoint, and `ClientProvider`, which hands out the one client a process may have, so every tool shares one connection pool and one rate limiter. It also holds `Health`, what the status check of section 8 last found, and carries the transport an upload fetched from a URL travels by, which only the test suite sets. Here rather than as an argument of `build_server`, decided 2026-10-16: `files` may not import `api`, the upload tools hold the provider already, and a second path into the server for one test seam would cost more than it says. | built |
 | `api/ratelimit.py` | The token bucket, with an injectable clock so it can be tested against virtual time. | built |
 | `api/refusal.py` | `from_response`, which reads a refused request's body for the field it blames in the two shapes the API uses, and picks the `ToolError` that says so. | built |
 | `files/storage.py` | Where downloads land on disk, how a file is read for upload, and the one check every upload passes, read or fetched: its size, its type, and a name whose extension says that type. Its own module because the filename comes from the server and is treated as untrusted input, because a file whose contents differ is never overwritten, because one whose contents match is reused rather than copied, and because the directory is a cache kept to its newest downloads, see section 13. | built |
@@ -128,7 +128,8 @@ beneath every layer: errors.py, settings/, logbook/ (stderr only)
 | `transport/watch.py` | The watch that ends an HTTP process when its settings file changes, for a deployment that restarts it. | built |
 | `transport/setup_prompt.py` | Over stdio, the prompt a person picks in the client to open the configuration interface: `setup` started as a detached process. See section 7.1. | built |
 | `configui/` | The local configuration interface, see section 7.1. A separate command, never part of the server process. `templates` is the one module importing Jinja2, with the templates under `templates/` and the stylesheet and the script under `static/`, `state` which files apply and where each value came from, `cost` what a tool costs the model, `probe` the one API call it makes, `stamp` when something was written, `profiles` named sets of permissions, `transfer` reading and writing a policy file, `pages` each screen as a template and its context, `actions` what each form does, as functions from a form to a page, `app` the HTTP server, its guards and the routing. | built |
-| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
+| `tools/_base.py` | Registration helper, tidies a docstring before it becomes a tool description. Registers every tool but `server_status`: what is offered is decided when the list is built, not here. Wraps each one in the line it writes per call, see section 11.2. | built |
+| `tools/status.py` | `server_status`, the one tool the policy file does not decide, see sections 8 and 9.2. Registered past `_base`'s helper, so neither the policy guard nor the call line is put around it. What it knows of Lexware is `api/client.Health`. | built |
 | `tools/diagnostics.py` | Profile and connection check. | built |
 | `tools/contacts.py` | Contacts, read and written. | built |
 | `tools/articles.py` | Articles, read, written and deleted. | built |
@@ -1184,7 +1185,9 @@ ends the way Beenden does, after an action that is writing a file.
 
 Over stdio the instructions a client receives name the prompt too. Without
 that a model facing an empty tool list guessed at a broken connection, which
-is what happened in the sandbox before the prompt existed.
+is what happened in the sandbox before the prompt existed. Since
+`server_status` the list is never empty, and the instructions name the
+prompt for a list that holds nothing else.
 
 **Loopback by default, and loopback names only.** The pages have no password,
 which is defensible exactly as long as they cannot be reached from another
@@ -1435,17 +1438,20 @@ would otherwise report success for work that never reaches the server.
 **With no policy file the boxes open on read-only.** A blank form is a poor
 starting point for a decision, and the alternative — every box empty — reads
 as an invitation to tick things at random rather than as a proposal. It
-changes nothing about section 9.2: no file still means no tools, and nothing
-is written until somebody saves. Ticks that do not describe the file are
-labelled as such at the top of the page, which is the condition under which
-showing them is honest. Once a file exists the boxes follow it, including a
-file that deliberately enables nothing.
+changes nothing about section 9.2: no file still means no tool but
+`server_status`, and nothing is written until somebody saves. Ticks that
+do not describe the file are labelled as such at the top of the page,
+which is the condition under which showing them is honest. Once a file
+exists the boxes follow it, including a file that deliberately enables
+nothing.
 
 **What a tool costs is shown next to it.** Section 8 measures the tool list at
 around 2,146 characters per tool, sent on every request for the life of the
 server. The permissions page puts that number on each row and totals it live,
 because switching a tool on is a budget decision as well as a permission one
-and nothing else in the project makes that visible.
+and nothing else in the project makes that visible. The total includes
+`server_status`, which has no box since no file decides it, and is sent
+all the same.
 
 **The marks are explained on the page, not in a tooltip.** Each row carries
 what the tool does — `lesend`, `schreibend · create`, `schreibend · delete` —
@@ -1517,11 +1523,11 @@ first carried the settings, the permissions and the profiles together, and
 the settings were the problem: `LXO_MCP_TOOL_POLICY` and
 `LXO_MCP_DOWNLOAD_DIR` are absolute paths describing one machine, and an
 import writing the first would have pointed the target installation at a
-policy file that does not exist there — no tools at all, immediately after an
-import that appeared to grant some. The second carried the profiles alone,
-which was safe but answered a question nobody had: a profile is a convenience
-of this interface, while the policy file is the thing an installation
-actually runs on.
+policy file that does not exist there — nothing but `server_status`,
+immediately after an import that appeared to grant some. The second
+carried the profiles alone, which was safe but answered a question nobody
+had: a profile is a convenience of this interface, while the policy file is
+the thing an installation actually runs on.
 
 No format carried the API key, and this one has nowhere to put a setting at
 all.
@@ -1690,18 +1696,20 @@ spelling as well and `read_download` stopped suggesting that null renders
 every page, on 2026-10-10 after `search_vouchers` lost the two flags
 the API ignored, and on 2026-10-12 after the twenty-two tools that answer
 with a record stopped publishing an output schema, and on 2026-10-15 after
-the two upload tools took a URL as well as a path.** Serialized as the
-compact JSON a `tools/list` answer is, twenty-five tools come to **51,348
-characters**, around 2,054 each. Roughly 13,500 to 16,000 tokens, estimated
-at 3.2 to 3.8 characters per token rather than counted with a tokenizer.
+the two upload tools took a URL as well as a path, and on 2026-10-29
+after `server_status` joined them.** Serialized as the compact JSON a
+`tools/list` answer is, twenty-six tools come to **52,003 characters**,
+around 2,000 each, of which `server_status` is 655. Roughly 13,500 to
+16,000 tokens, estimated at 3.2 to 3.8 characters per token rather than
+counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
-| Input schemas | 34,382 | 67% |
-| Tool descriptions, the part under a ceiling | 11,234 | 22% |
+| Input schemas | 34,571 | 66% |
+| Tool descriptions, the part under a ceiling | 11,534 | 22% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
-| Annotations | 1,041 | 2% |
-| Names, titles and the rest | ~2,124 | 4% |
+| Annotations | 1,108 | 2% |
+| Names, titles and the rest | ~2,223 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
@@ -1727,8 +1735,8 @@ left, so neither changes the books twice.
 
 `open_world_hint` is the one stated only where it differs from the protocol's
 assumption, which is `get_deeplink` and `read_download` - the two tools that
-answer without reaching the API. Stating it on the other twenty-three would
-have cost 483 characters to repeat a default. On a writing tool the three
+answer without reaching the API. Stating it on the other twenty-four would
+have cost 21 characters each to repeat a default. On a writing tool the three
 hints above are stated either way, including where they match the default: a
 client that does not fill defaults in would otherwise read "this deletes
 things" as nothing at all, and that is not a saving worth 900 characters. A
@@ -1755,7 +1763,8 @@ gone. Checked the way section 14.3 says, over stdio, before and after.
 Two things follow, and neither was obvious before the measurement.
 
 **The 700-character ceiling governs a fifth of the cost.** Of the 34,382
-characters of input schema, 13,686 are prose from `Field(description=...)` and
+characters of input schema measured on 2026-10-15, before `server_status`
+added 189, 13,686 are prose from `Field(description=...)` and
 the remaining 20,696 are structure the schema generator emits: types,
 defaults, `$defs`, `anyOf` branches and generated titles. Parameter prose is
 under no ceiling at all and is not visible while writing a docstring, which is
@@ -1764,16 +1773,96 @@ sixteen parameter descriptions, nearly three times its own description.
 
 **The six structured tools carry half of it.** `create_sales_document`
 (5,307), `create_voucher` (4,192), `update_voucher` (4,114), `create_contact`
-(3,976), `update_contact` (3,926) and `search_vouchers` (3,433) come to 49% of
+(3,976), `update_contact` (3,926) and `search_vouchers` (3,433) come to 48% of
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 22,431 characters, a little under half.
+`read-only` installation sends 23,086 characters, `server_status`
+included, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
 a date on it rather than a budget. What is stable is the shape: schemas cost
 three times what descriptions cost, and the tools that take structured
 arguments cost three to four times what the simple ones do.
+
+### The status tool
+
+| Tool | Inputs | Output | Calls |
+|---|---|---|---|
+| `server_status` | `details` | plain text, see below | 0, with `details` at most 1 every 60 seconds |
+
+**Why it exists.** A client shows neither the server's version nor whether
+Lexware answers, and a model cannot read the `serverInfo` of the handshake.
+One tool answers both, and with every other tool off it is the one a model
+can still ask, which is why it sits outside the policy file, see section
+9.2. Its description is two sentences, since it is sent on every request.
+
+**The answer is plain text**, one `key: value` per line, a block as a line
+`name:` with its fields indented two spaces below it. No structured content,
+since a model reads the text anyway. Truth is `yes`, `no` or `unknown`, a
+duration is whole seconds with the unit in the key, a point in time is how
+many seconds ago, never a date. The core, always, answered from memory:
+
+```
+name: benethos-lexware-office-mcp
+version: 0.7.0
+transport: stdio
+python: 3.15.2
+mcp: 2.3.0
+uptime_seconds: 418
+```
+
+`uptime_seconds` counts from where the server is built, which every
+transport passes through. It is the one thing the core remembers. Anything
+that needs a counter, a cache or a request is under `details`, which with
+`details: true` follows as a line `details:` and two blocks:
+
+```
+details:
+  upstream:
+    reachable: yes
+    checked_seconds_ago: 0
+    token_set: yes
+    token_valid: yes
+  policy:
+    file_loaded: yes
+```
+
+- `reachable` is whether Lexware answered, below 500. A 5xx is no better
+  than no answer for whoever asked.
+- `token_set` is whether a key is configured, never the key or any part of
+  it, its length or a hash. `token_valid` is whether the API took it: a 401
+  is no, and a 403 is a key the API knows that may not read this path, so it
+  is yes.
+- `file_loaded` is whether the policy file was there and read as flags. A
+  broken file enables nothing, as a missing one does, so both are no. No
+  path and no list of tools: the list the client holds is what the file
+  allows, and a key might still be refused a path, which only a call shows.
+
+**The check of Lexware**, `Health` in `api/client.py` and
+`Connection.probe` beside the request mechanics, is one `GET /v1/profile`,
+the cheapest call there is, whose answer is read for its status alone. It
+is one attempt: no retry, no status turned into an error, and a 429 does
+not count towards the breaker of section 10.1. It takes its token from the
+one bucket and waits a second for it at most, in which the bucket refills
+one and a half at its default rate. Behind the breaker, or behind a queue
+of calls, it sends nothing and answers with the last check. It first took
+only a token free at that moment, and measured against the test account on
+2026-10-29 it then sent nothing right after two calls and answered
+`never`, less than a second before a token was due. It waits five seconds
+for an answer at most, whatever `LXO_MCP_TIMEOUT` says. One check stands
+for 60 seconds per process, and a call in between is answered with it and
+its true age. Nothing checks on its own: without a call with `details`,
+no request is sent at all. A key the API refused is not sent again until
+another is set, which over stdio can happen without a restart, see section
+6. Without a key nothing is sent and `checked_seconds_ago` is `never`. It
+writes no line at `INFO`: a status question is not an activity, and a
+check that failed is in the answer anyway.
+
+**A field is added, never removed or changed.** A new one goes after the
+others of its block. One that has to mean something else gets a new name.
+Should a field ever have to go, the answer's first line becomes
+`schema: 2`, and without it the answer is version 1.
 
 ### Read tools
 
@@ -1878,8 +1967,9 @@ with a second mechanism inside this server.
 
 **What replaced the safety.** The default moved from "read-only" to
 **nothing**: a tool the file does not name is off, and an installation without
-a file offers no tools at all. The old default let a fresh installation read a
-live accounting system without anybody having decided that. This one does not.
+a file offers no tools but `server_status`. The old default let a fresh
+installation read a live accounting system without anybody having decided
+that. This one does not.
 
 ### 9.2 The policy
 
@@ -1963,6 +2053,8 @@ doing something else — `download_document` fetches its PDF, `get_deeplink`
 builds a link to it — is grouped by what it does rather than by what it names,
 because that is where a reader looks for it and where the code keeps it.
 Anything else would need a second rule about which of the two wins.
+`server_status` has no domain, since it is classified nowhere, see section
+9.2.
 
 **Enforcement happens twice, as defence in depth.** A disabled tool is left
 out of the list, so it never reaches the model and costs no tokens, and a call
@@ -1970,9 +2062,19 @@ to one is refused by name with the file that would enable it. The listing
 filter is in `PolicyServer`, one place for every tool there is, so a tool
 added to a module later cannot quietly escape it.
 
-**A server that offers nothing says so on stderr**, naming the file and the
-command that writes one. From the client an empty tool list is
-indistinguishable from a broken server, and the difference matters.
+**One tool the file does not decide: `server_status`**, decided
+2026-10-29. It reads no record and writes nothing, and with every other
+tool off it is what a model can still ask, so it can say why the list is
+what it is instead of guessing at a fault. `PolicyServer` lists it and lets
+its call through before it asks the file, so a file that names it changes
+nothing and one that cannot be read does not stand in its way. It is not in
+the registry `classify` fills, so no preset, `--tools`, the configuration
+interface or a saved file knows it. The rule it is the exception to stands
+otherwise as it was: no other tool exists without the file naming it.
+
+**A server that offers nothing else says so on stderr**, naming the file and
+the command that writes one. From the client a list of the status alone
+says little more than an empty one, and the difference matters.
 
 **Changing it while the server runs.** The file is read fresh on every
 question rather than cached, so an edit takes effect on the next request — a
@@ -2132,7 +2234,9 @@ all endpoints of the API at once**. That single sentence decides the design.
 It is Lexware's limit, so it is Lexware's requests the bucket counts. An
 upload fetched from a URL, see section 7.2, goes to another server and does
 not take a token: it would spend the account's allowance on traffic the
-account never sees. The upload that follows the fetch does take one.
+account never sees. The upload that follows the fetch does take one, and
+so does the status check of section 8, which waits a second for it at most
+and otherwise sends nothing.
 
 #### The algorithm, and which half of it we implement
 
@@ -2584,7 +2688,7 @@ where it differs.
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds, and a turn of the watcher that failed, by the error's class, before the next one follows |
-| `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds |
+| `api` (`client`) | `DEBUG` | `GET /v1/contacts 200 in 230 ms, attempt 1`, an attempt without an answer, a honoured Retry-After, a Retry-After that was no number of seconds, a status check that failed for a reason nothing in this server raises, by the error's class |
 | | `WARNING` | `GET /v1/profile answered 503, attempt 2 follows in 1.2 s`, `GET /v1/profile got no answer (ReadTimeout), attempt 2 follows in 1.2 s`, the breaker holding requests, a rejected key, a Retry-After too long to wait |
 | `calls` (`tools`) | `INFO` | `search_contacts read 12 rows in 1 API call, 230 ms`, `get_contact read <id>`, `download_file read <id>, 148 kB`, `create_contact wrote <id> (version 0)`, `upload_file wrote <id> for voucher <id>`, `(version 1, finalized)`, `delete_article removed <id>` |
 | | `WARNING` | `<tool> refused: <class> [status] [codes]`, `<tool> failed: UpstreamError 503, outcome unknown`, `<tool> refused: invalid page` for arguments the schema refused |
@@ -2603,7 +2707,8 @@ variable the client increments per attempt. The variable is per task, so two
 calls at once each count their own. From the result it takes only the id,
 version, rows, size and the voucher an upload created. Arguments that fail
 the schema never reach that wrapper, so `PolicyServer.call_tool` names their
-fields.
+fields. `server_status` is registered past it and writes no line, since
+asking how the server is changes nothing.
 
 **The configuration interface keeps no request log.** It is one person on
 the local machine, and a request log would record them clicking. What it
@@ -3020,7 +3125,12 @@ The consequences are the point of writing this down.
 - **It found something on its first run**, which is the argument for having
   it: `GET /v1/articles` refuses a page size below 25, alone among the list
   endpoints, and the tool's schema had allowed 1. Nothing offline could have
-  caught that, because the mock answers whatever it is told to.
+  caught that, because the mock answers whatever it is told to. The same
+  happened to `server_status` on 2026-10-29: asked right after the other
+  checks, its check of Lexware found no token free and sent nothing, which
+  is why it now waits a second for one, see section 8. The script calls it
+  both ways and holds the answer to the core's order, a reachable account,
+  a key taken and no part of the key in the text.
 - **Upstream drift is invisible to CI.** The suite mocks HTTP completely, so
   it stays green through any change in Lexware's field names or response
   shapes. Only a live run catches that, and only someone holding an account
@@ -3132,8 +3242,9 @@ Built, tested offline and exercised against a live test account:
 - **every module in the table of section 4.** None is marked planned any
   more. The table is the list, so that this does not become a second one to
   keep in step.
-- twenty-five tools in seven groups, over **stdio** and, since 0.2.0, over
-  **streamable-HTTP** or **SSE** behind a required bearer token. Reading:
+- twenty-six tools, twenty-five of them in seven groups, over **stdio**
+  and, since 0.2.0, over **streamable-HTTP** or **SSE** behind a required
+  bearer token. Reading:
   `get_profile`, `search_contacts`, `get_contact`, `search_articles`,
   `get_article`, `search_vouchers`, `get_voucher`, `get_payments`,
   `get_sales_document`, `get_recurring_templates`, `get_master_data`,
@@ -3142,7 +3253,9 @@ Built, tested offline and exercised against a live test account:
   `create_contact`, `update_contact`, `create_article`, `update_article`,
   `create_voucher`, `update_voucher`, `create_sales_document`, `upload_file`
   and `attach_file_to_voucher`. Irreversible: `delete_article`, and
-  `create_sales_document` when it is asked to finalize
+  `create_sales_document` when it is asked to finalize. Outside the groups
+  and the policy file, `server_status`, checked against the test account
+  by `live/smoke.py` on 2026-10-29
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
@@ -3542,10 +3655,12 @@ described in section 7.1. Nothing on the API side is outstanding.
    the server as an environment variable, which beats the `.env` and so
    could no longer be changed on the configuration pages. One place for
    everything won. **It lists every tool**, since the dialog shows what the
-   extension can offer, and its long description says that none is on
-   until the person chooses: Claude Desktop shows a server that offers no
-   tool as failed, "Offered no tools to Cowork and Code sessions", and the
-   prompt is listed all the same. **The prompt is declared with its exact
+   extension can offer, and its long description says that none but
+   `server_status` is on until the person chooses. Before that tool,
+   Claude Desktop showed a server that offered no tool as failed,
+   "Offered no tools to Cowork and Code sessions", and listed the prompt
+   all the same. Whether a server offering `server_status` alone is still
+   shown as failed is **(to verify)**. **The prompt is declared with its exact
    text**, because Claude Desktop refuses an undeclared one and drops an
    answer that differs from the declaration.
 

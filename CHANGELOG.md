@@ -13,6 +13,24 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **`server_status`**, a tool that says which server is running: its name,
+  version, transport, the Python and MCP library versions and its uptime,
+  answered without an API call. With `details: true` it also says whether
+  Lexware answers and accepts the key, from one API call at most every 60
+  seconds that is never retried and waits a second for the rate limit at
+  most, and whether the tool policy file is loaded. It is offered whatever
+  the policy file says, so a server is never without a tool, and neither
+  the policy file nor the configuration interface switches it off, and
+  what the interface says the tools cost includes it. It reads no record,
+  writes nothing and writes no log line at `INFO`.
+
+### Changed
+
+- **Without a policy file, the start line says** that only the status tool
+  is offered, rather than that no tool is.
+
 ## [0.7.0] - 2026-10-28
 
 A minor release, because an installation can trip over it: `upload_file`

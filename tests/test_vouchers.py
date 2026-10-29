@@ -420,6 +420,7 @@ async def test_the_voucher_group_is_complete(tmp_path: Path) -> None:
     }
 
     assert names == {
+        "server_status",
         "search_vouchers",
         "get_voucher",
         "get_payments",

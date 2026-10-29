@@ -8,16 +8,31 @@ docstring says so.
 
 from __future__ import annotations
 
+import asyncio
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-from ..errors import UpstreamError, ValidationError
+from .. import logbook
+from ..errors import ConfigError, RateLimitError, UpstreamError, ValidationError
 from ..settings import DEFAULT_PAGE_SIZE, Settings
 from .connection import Connection
 
-__all__ = ["ClientProvider", "LexwareClient"]
+__all__ = ["CHECK_INTERVAL", "Checked", "ClientProvider", "Health", "LexwareClient"]
+
+# How long one status check stands before the next may be sent, how long it
+# waits for its token, and how long for an answer, whatever LXO_MCP_TIMEOUT
+# says: a status question is answered in seconds or it says that nothing
+# came. In a second the bucket refills one and a half at its default rate,
+# so a check after a burst of calls still goes out, and one behind the
+# breaker does not.
+CHECK_INTERVAL = 60.0
+CHECK_WAIT = 1.0
+CHECK_TIMEOUT = 5.0
 
 
 def _segment(value: str) -> str:
@@ -515,6 +530,7 @@ class ClientProvider:
         self._kwargs = kwargs
         self._client: LexwareClient | None = None
         self.fetch_transport = fetch_transport
+        self.health = Health(self)
 
     def get(self) -> LexwareClient:
         """The process-wide client, built on first use."""
@@ -526,3 +542,103 @@ class ClientProvider:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
+
+
+@dataclass(frozen=True)
+class Checked:
+    """What a status check knows. ``None`` is a question nobody answered.
+
+    ``seconds_ago`` is the age of the answer, or ``None`` when no check was
+    ever sent: without a key there is nothing to send, and a bucket with no
+    token free sends nothing either.
+    """
+
+    token_set: bool
+    reachable: bool | None = None
+    token_valid: bool | None = None
+    seconds_ago: int | None = None
+
+
+class Health:
+    """Whether Lexware answers and takes the key, asked once in a while.
+
+    The one request ``server_status`` may make, to the cheapest endpoint
+    there is, the profile ``get_profile`` reads. One check stands for
+    :data:`CHECK_INTERVAL` seconds, and another call in that time is
+    answered with it and its true age. A key the API refused is not sent
+    again: a new one is a new process, or a key saved to the settings file
+    after this one started, and either is checked afresh.
+    """
+
+    def __init__(
+        self, provider: ClientProvider, *, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        self._provider = provider
+        self._clock = clock
+        self._lock = asyncio.Lock()
+        # The last check sent: what it found, when, and for which key.
+        self._found = Checked(token_set=True)
+        self._at: float | None = None
+        self._key: str | None = None
+
+    async def check(self) -> Checked:
+        """The last check if it stands, else a new one. Never raises."""
+        try:
+            key = self._provider._settings.require_api_key()
+        except (ConfigError, OSError):
+            return Checked(token_set=False)
+        async with self._lock:
+            if key != self._key or self._stale():
+                await self._send(key)
+            return self._aged()
+
+    def _stale(self) -> bool:
+        """Whether the last check is old enough for another, a refusal never."""
+        if self._at is None:
+            return True
+        if self._found.token_valid is False:
+            return False
+        return self._clock() - self._at >= CHECK_INTERVAL
+
+    async def _send(self, key: str) -> None:
+        try:
+            status = await self._provider.get().probe(
+                "/v1/profile", timeout=CHECK_TIMEOUT, wait=CHECK_WAIT
+            )
+        except RateLimitError:
+            return  # nothing was sent, so the last check stands
+        except Exception as exc:
+            # Nothing this server raises, so nothing it can say about Lexware.
+            logbook.api.check_failed(exc)
+            self._found = Checked(token_set=True)
+        else:
+            self._found = _found(status)
+        self._at = self._clock()
+        self._key = key
+
+    def _aged(self) -> Checked:
+        if self._at is None:
+            return Checked(token_set=True)
+        age = int(self._clock() - self._at)
+        return Checked(
+            token_set=True,
+            reachable=self._found.reachable,
+            token_valid=self._found.token_valid,
+            seconds_ago=age,
+        )
+
+
+def _found(status: int | None) -> Checked:
+    """What one answer says, ``None`` being none at all.
+
+    A 401 is the key refused, see SPECS.md section 12. A 403 is a key the API
+    knows that may not read this path, so it is taken. A 5xx is Lexware not
+    serving, which is no better than no answer for whoever asked.
+    """
+    if status is None or status >= 500:
+        return Checked(token_set=True, reachable=False)
+    if status == 401:
+        return Checked(token_set=True, reachable=True, token_valid=False)
+    if status < 300 or status == 403:
+        return Checked(token_set=True, reachable=True, token_valid=True)
+    return Checked(token_set=True, reachable=True)

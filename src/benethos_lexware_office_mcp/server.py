@@ -35,7 +35,7 @@ from .errors import SETUP_PROMPT_TITLE, ConfigError, ToolError
 from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
-from .tools import DOWNLOAD_TOOLS, register_tools
+from .tools import ALWAYS_OFFERED, DOWNLOAD_TOOLS, register_tools
 
 
 def _links_a_download(result: Any) -> bool:
@@ -125,13 +125,17 @@ ICONS = [
 _SETUP_HINT = f"""
 The person can open the configuration interface, where the API key is set and
 the tools are chosen, by picking the prompt "{SETUP_PROMPT_TITLE}" in the
-client. When no tool is listed, or the one a request needs is missing, say so
-and point to that prompt rather than guessing at a fault.
+client. When server_status is the only tool listed, or the one a request needs
+is missing, say so and point to that prompt rather than guessing at a fault.
 """
 
 
 class PolicyServer(MCPServer):
     """An ``MCPServer`` that lists only what the policy file allows.
+
+    And ``server_status``, which it lists and calls whatever the file says:
+    it reads no record, and it is what a model can ask when nothing else is
+    there. See SPECS.md section 9.2.
 
     The filter sits here rather than at registration so that both directions
     take effect the same way: the file is read as the list is built, so a tool
@@ -203,7 +207,11 @@ class PolicyServer(MCPServer):
         # halfway through would otherwise produce a list that never existed.
         allowed = self._policy.as_map()
         tools = await super().list_tools()
-        return [tool for tool in tools if allowed.get(tool.name, False)]
+        return [
+            tool
+            for tool in tools
+            if tool.name in ALWAYS_OFFERED or allowed.get(tool.name, False)
+        ]
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any], context: Any = None
@@ -229,9 +237,12 @@ class PolicyServer(MCPServer):
         requires and quotes what was sent, which is the schema the policy
         keeps from the caller. The answer is the one the guard each tool is
         wrapped in gives a valid call.
+
+        **``server_status`` is never asked about**, so neither a policy file
+        that names it nor one that cannot be read stands in its way.
         """
         try:
-            enabled = self._policy.enabled(name)
+            enabled = name in ALWAYS_OFFERED or self._policy.enabled(name)
         except SDKToolError:
             raise
         except Exception as exc:

@@ -436,7 +436,12 @@ async def test_the_contact_group_is_offered_as_the_file_names_it(
         for tool in await build_server(Settings(tool_policy_path=flags)).list_tools()
     }
 
-    assert names == {"search_contacts", "get_contact", "create_contact"}
+    assert names == {
+        "server_status",
+        "search_contacts",
+        "get_contact",
+        "create_contact",
+    }
 
 
 async def test_create_contact_sends_what_the_api_requires() -> None:

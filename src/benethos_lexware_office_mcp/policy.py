@@ -3,8 +3,8 @@
 **The file decides, and nothing else does.** A tool set to ``true`` is listed
 and callable, a tool set to ``false`` is neither, and a tool the file does not
 mention is **off**. An installation without a policy file therefore offers
-nothing at all - which is the state to be in when nobody has said yet what
-this server is allowed to touch.
+nothing but ``server_status``, which reads no record - the state to be in
+when nobody has said yet what this server is allowed to touch.
 
 **The classification is metadata, not a gate.** Every tool declares what kind
 of access it needs and which group it belongs to, recorded by :func:`classify`
@@ -250,12 +250,24 @@ class ToolPolicy:
         self._complaint = complaint
         return new and bool(complaint)
 
+    def loaded(self) -> bool:
+        """Whether the file is there and was read as flags, none at all included.
+
+        A broken file enables nothing, as a missing one does, so this is the
+        question that tells a server with no other tool why it has none.
+        """
+        return self._read() is not None
+
     def _stored(self) -> dict[str, bool]:
+        return self._read() or {}
+
+    def _read(self) -> dict[str, bool] | None:
+        """The flags the file holds, or ``None`` when it holds none to read."""
         present = self._is_file()
         if not present:
             if present is False:
                 self._complaint = ()
-            return {}
+            return None
         assert self._path is not None
         try:
             # utf-8-sig, as for the .env: a Windows editor puts a byte order
@@ -268,11 +280,11 @@ class ToolPolicy:
             # unreadable policy enables nothing, and says so on stderr.
             if self._news(("unreadable", type(exc).__name__, str(exc))):
                 logbook.policy.unreadable(self._path, exc)
-            return {}
+            return None
         if not isinstance(data, dict):
             if self._news(("not an object", type(data).__name__)):
                 logbook.policy.not_an_object(self._path)
-            return {}
+            return None
         not_flags = tuple(
             (str(key), type(value).__name__)
             for key, value in data.items()

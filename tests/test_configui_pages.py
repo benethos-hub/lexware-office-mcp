@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp.configui import pages, probe, templates
+from benethos_lexware_office_mcp.configui import cost, pages, probe, templates
 from benethos_lexware_office_mcp.configui.state import EDITABLE_KEYS, Installation
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import Settings, locations
@@ -235,6 +235,21 @@ def test_the_context_cost_of_what_is_on_is_shown(inst: Installation) -> None:
     assert "Zeichen, rund" in body and "Token" in body
     # What the permissions page says: the list goes with every request.
     assert "Token je Anfrage" in body
+
+
+def test_the_cost_counts_what_is_sent_whatever_is_on(inst: Installation) -> None:
+    """`server_status` has no box and is sent with every request all the same."""
+    ToolPolicy(inst.settings.policy_file()).save({"get_profile": True})
+    costs = cost.tool_costs(inst.settings)
+    sent = costs["get_profile"] + costs["server_status"]
+
+    overview = text(pages.overview(inst))
+    permissions = text(pages.permissions(inst))
+
+    assert f"{templates.de(sent)} Zeichen, rund" in overview
+    assert f'<span id="cost">{templates.de(sent)}</span>' in permissions
+    assert f'data-always="{costs["server_status"]}"' in permissions
+    assert 'value="server_status"' not in permissions
 
 
 def test_the_files_in_use_are_named_with_their_state(inst: Installation) -> None:

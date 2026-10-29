@@ -17,6 +17,7 @@ from mcp.types import Tool
 from benethos_lexware_office_mcp.policy import known_tools
 from benethos_lexware_office_mcp.server import build_server
 from benethos_lexware_office_mcp.settings import Settings
+from benethos_lexware_office_mcp.tools import ALWAYS_OFFERED
 from benethos_lexware_office_mcp.tools._base import _CLOSED_WORLD
 
 
@@ -29,7 +30,7 @@ def listed() -> dict[str, Tool]:
 
 
 def test_every_tool_carries_hints(listed: dict[str, Tool]) -> None:
-    assert set(listed) == set(known_tools())
+    assert set(listed) == set(known_tools()) | ALWAYS_OFFERED
     missing = [name for name, tool in listed.items() if tool.annotations is None]
     assert not missing, f"no annotations on {missing}"
 

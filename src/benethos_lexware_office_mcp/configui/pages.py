@@ -291,6 +291,16 @@ def _badge(inst: Installation, key: str, env: dict[str, str]) -> Badge:
     return Badge(*inst.source(key, env))
 
 
+def _always(costs: dict[str, int]) -> int:
+    """What the tools no policy file decides cost, which is sent whatever is on.
+
+    The tools that are not in the registry: listed whatever the file says, so
+    they belong in every tally, and have no box to tick.
+    """
+    meta = known_tools()
+    return sum(cost for name, cost in costs.items() if name not in meta)
+
+
 def _cost_note(characters: int) -> str:
     return (
         f"{templates.de(characters)} Zeichen, rund "
@@ -359,7 +369,7 @@ def _policy_row(inst: Installation, costs: dict[str, int]) -> Stand:
     on = [name for name, flag in flags.items() if flag]
     writers = sorted(writing(on))
     count = f"{len(on)} von {len(flags)} Tools aktiv."
-    spend = _cost_note(sum(costs.get(name, 0) for name in on))
+    spend = _cost_note(_always(costs) + sum(costs.get(name, 0) for name in on))
     link = ("/permissions", "Rechte festlegen")
     if not policy.exists():
         return Stand(
@@ -627,7 +637,8 @@ def permissions(
     # The tally as the page opens, so it is right before the script runs,
     # and without it.
     on = [name for name, flag in state.items() if flag and name in meta]
-    spend = sum(costs.get(name, 0) for name in on)
+    always = _always(costs)
+    spend = always + sum(costs.get(name, 0) for name in on)
     return Page(
         "pages/permissions.html",
         "Rechte",
@@ -642,6 +653,7 @@ def permissions(
             "total": len(meta),
             "on": len(on),
             "cost": spend,
+            "always": always,
             "tokens": estimate_tokens(spend),
             "per_token": CHARS_PER_TOKEN,
             "profiles": [

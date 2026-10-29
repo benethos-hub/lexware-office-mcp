@@ -36,6 +36,7 @@ __all__ = [
     "register_tool",
     "require_finalize_confirmed",
     "require_version",
+    "tidy",
 ]
 
 # Every list tool takes the same two parameters, and every parameter
@@ -216,8 +217,7 @@ def register_tool(server: MCPServer, func: Callable[..., Awaitable[Any]]) -> Non
     that whitespace forever. ``cleandoc`` strips the common indent and the
     trailing blank line.
     """
-    if func.__doc__:
-        func.__doc__ = inspect.cleandoc(func.__doc__)
+    tidy(func)
     policy = getattr(server, "policy", None)
     if not isinstance(policy, ToolPolicy):
         policy = ToolPolicy()
@@ -227,6 +227,12 @@ def register_tool(server: MCPServer, func: Callable[..., Awaitable[Any]]) -> Non
         annotations=_annotations(func.__name__),
         structured_output=False if record else None,
     )(as_result(tool) if record else tool)
+
+
+def tidy(func: Callable[..., Any]) -> None:
+    """Strip the source indentation from ``func``'s docstring, which is sent."""
+    if func.__doc__:
+        func.__doc__ = inspect.cleandoc(func.__doc__)
 
 
 def _returns_record(func: Callable[..., Any]) -> bool:

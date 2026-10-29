@@ -74,10 +74,10 @@ def test_the_prompt_is_listed_with_its_title(tmp_path: Path) -> None:
 
 
 def test_the_prompt_is_there_while_no_tool_is(tmp_path: Path) -> None:
-    """The moment it is needed most: no policy file, so an empty tool list."""
+    """The moment it is needed most: no policy file, so the status alone."""
     server = _offered(tmp_path)
 
-    assert asyncio.run(server.list_tools()) == []
+    assert [t.name for t in asyncio.run(server.list_tools())] == ["server_status"]
     assert [p.name for p in asyncio.run(server.list_prompts())] == [SETUP_PROMPT]
 
 

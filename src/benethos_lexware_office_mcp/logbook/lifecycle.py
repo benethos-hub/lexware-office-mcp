@@ -1,6 +1,6 @@
 """Starting, listening and ending: what the process is and may do.
 
-The first lines anyone reads, and the ones that explain an empty tool list,
+The first lines anyone reads, and the ones that explain a bare tool list,
 which a client shows without saying why.
 """
 
@@ -67,8 +67,9 @@ def late_key_unreadable(path: Path) -> None:
 def no_policy(path: Path | None, prompt: bool) -> None:
     """Where the client offers a prompt that opens the interface, it is named."""
     _log.warning(
-        "No tool policy at %s, so no tools are offered. Choose them in the "
-        "configuration interface: %s`benethos-lexware-office-mcp setup`.",
+        "No tool policy at %s, so only the status tool is offered. Choose the "
+        "others in the configuration interface: "
+        "%s`benethos-lexware-office-mcp setup`.",
         path,
         opened_by(prompt),
     )

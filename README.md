@@ -112,7 +112,8 @@ permissions page adds one later in a click, and a client that honours
 without a restart.
 
 - **Nothing is enabled until you say so.** A fresh installation has no
-  policy file, and a server without one offers no tools at all. What this
+  policy file, and a server without one offers no tool but `server_status`,
+  which says what is running and reads nothing in the account. What this
   server may do is a decision somebody made, never a default that happened.
 - **One flag per tool**, in a JSON file you write with `--tools`, tick
   through `setup`, or edit by hand. Not a level, not a group:
@@ -144,7 +145,12 @@ that the client's prompt **Set up Lexware Office** starts, and so does
 ## Tools
 
 Every tool below is built and was exercised against a live account. None of
-them is enabled until the policy file names it.
+them is enabled until the policy file names it, except one, which is there
+whatever the file says. It reads no record and writes nothing:
+
+| Tool | What it does |
+|---|---|
+| `server_status` | Which server is running, its version, transport and uptime, without an API call. With `details`, whether Lexware answers and takes the key, and whether the policy file is loaded |
 
 Read tools:
 
@@ -400,8 +406,8 @@ The answer names the company the key belongs to.
 
 Worth knowing:
 
-- **Failed until step 5.** Nothing is enabled after installing, so Claude
-  Desktop shows the server as failed, offering no tools, until the setup
+- **Only `server_status` until step 5.** Nothing else is enabled after
+  installing, so that is the one tool Claude Desktop lists until the setup
   page has saved some.
 - **The install dialog** asks for nothing. It warns that an extension can
   reach everything on your computer, which is true of every local MCP
@@ -696,7 +702,9 @@ first. After that, edit it:
 A tool set to `false` is not listed and cannot be called. **A tool the file
 does not mention is also off** — silence is a refusal, so a tool that arrives
 with an upgrade waits for you rather than appearing on its own. No file at all
-means no tools at all, which is why `--tools` is part of setting the server up.
+means no tools but `server_status`, which is why `--tools` is part of setting
+the server up. `server_status` is the one tool the file does not decide: it
+is listed whatever the file says, and naming it there changes nothing.
 
 The file is read as the tool list is built and again on every call, so an
 edit takes effect at once in both directions — no restart. The server also

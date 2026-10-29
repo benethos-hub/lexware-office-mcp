@@ -22,6 +22,7 @@ from .output import PACKAGE
 __all__ = [
     "answered",
     "breaker_tripped",
+    "check_failed",
     "key_rejected",
     "retry_after_honoured",
     "retry_after_too_long",
@@ -126,3 +127,8 @@ def retry_after_too_long(delay: float) -> None:
 def retry_after_unreadable() -> None:
     """An HTTP date rather than seconds. The usual delay applies instead."""
     _log.debug("Retry-After was not a number of seconds, backing off as usual")
+
+
+def check_failed(error: BaseException) -> None:
+    """Debug only: what a status check found is in its answer anyway."""
+    _log.debug("A status check of the API failed: %s", describe(error))

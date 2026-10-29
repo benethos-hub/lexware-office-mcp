@@ -120,12 +120,12 @@ async def run(env_file: Path | None) -> int:
         provider = ClientProvider(settings)
         server = build_server(settings, provider)
         try:
-            return await _checks(server)
+            return await _checks(server, settings.api_key or "")
         finally:
             await provider.aclose()
 
 
-async def _checks(server: Any) -> int:
+async def _checks(server: Any, key: str) -> int:
     report = Report()
 
     async def call(name: str, **arguments: Any) -> Any:
@@ -359,6 +359,32 @@ async def _checks(server: Any) -> int:
         return mask(link["url"])
 
     await check(report, "a deeplink, built without a call", deeplink)
+
+    # -- the status, which the policy file does not decide ------------------
+    async def status() -> str:
+        expect("server_status" in tools, "server_status is not offered")
+        texts = []
+        for arguments in ({}, {"details": True}):
+            result = await server.call_tool("server_status", arguments)
+            expect(result.is_error is not True, "server_status failed")
+            texts.append(result.content[0].text)
+        quick, detailed = texts
+        core = ["name", "version", "transport", "python", "mcp", "uptime_seconds"]
+        keys = [line.partition(":")[0] for line in quick.splitlines()]
+        expect(keys == core, f"the core changed: {keys}")
+        lines = detailed.splitlines()
+        expect(lines[: len(core) - 1] == quick.splitlines()[:-1], "the core moved")
+        for line in ("reachable: yes", "token_set: yes", "token_valid: yes"):
+            expect(f"    {line}" in lines, f"the details lack {line}")
+        expect("    file_loaded: yes" in lines, "the policy file was not read")
+        # Eight characters, so a run of digits in the uptime is no false alarm.
+        pieces = {key[i : i + 8] for i in range(len(key) - 7)}
+        expect(not any(p in detailed for p in pieces), "a part of the key is shown")
+        name = str(profile.get("companyName") or "")
+        expect(not name or name not in detailed, "the account's name is shown")
+        return "the core in order, Lexware reachable, the key taken, no secret"
+
+    await check(report, "the status, quick and with details", status)
 
     print(f"\n{report.summary()}.")
     if report.failed:

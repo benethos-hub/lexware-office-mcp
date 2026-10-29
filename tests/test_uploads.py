@@ -40,7 +40,7 @@ async def test_the_file_tools_are_offered_when_the_policy_names_them(
         for tool in await build_server(Settings(tool_policy_path=flags)).list_tools()
     ]
 
-    assert set(names) == {"download_file", "upload_file"}
+    assert set(names) == {"server_status", "download_file", "upload_file"}
 
 
 async def test_an_upload_sends_the_part_and_the_type_the_api_demands(

@@ -62,15 +62,15 @@
   <text class="stepsub" x="351" y="249">tools.json</text>
   <text class="stepsub" x="351" y="271">one flag per tool</text>
   <rect class="step" x="537" y="183" width="172" height="110" rx="12"/>
-  <text class="steptitle" x="551" y="223">25 tools</text>
-  <text class="stepsub" x="551" y="249">15 read, 9 write</text>
+  <text class="steptitle" x="551" y="223">26 tools</text>
+  <text class="stepsub" x="551" y="249">16 read, 9 write</text>
   <text class="stepsub" x="551" y="271">1 deletes articles</text>
   <rect class="step" x="737" y="183" width="172" height="110" rx="12"/>
   <text class="steptitle" x="751" y="223">API client</text>
   <text class="stepsub" x="751" y="249">one rate limiter</text>
   <text class="stepsub" x="751" y="271">backoff on 429</text>
   <rect class="chip" x="337" y="321" width="281" height="38" rx="9"/>
-  <text class="chiptext" x="350" y="345.5">No tools.json, no tools at all</text>
+  <text class="chiptext" x="350" y="345.5">No tools.json, only server_status</text>
   <rect class="chip" x="628" y="321" width="281" height="38" rx="9"/>
   <text class="chiptext" x="641" y="345.5">Checked when listed and when called</text>
   <rect class="chip" x="337" y="369" width="281" height="38" rx="9"/>
