@@ -857,6 +857,21 @@ on a machine shared with other processes. `--host` binds somewhere other than
 loopback, which a container has to do — see [In a container](#in-a-container)
 for why that is not the relaxation it looks like.
 
+**A client connects with the address and the token.** In Claude Code:
+
+```bash
+claude mcp add --transport http benethos-lexware-office-mcp http://127.0.0.1:8770/mcp --header "Authorization: Bearer <token>"
+```
+
+- **The token becomes part of the client's configuration**, with
+  `--scope user` in `~/.claude.json`. For the API key that is avoidable, for
+  the token it is not, since the client has to send it. Treat that file the
+  way the `.env` is treated, and never use `--scope project`, which writes
+  the token into a `.mcp.json` meant to be committed.
+- **There is no prompt Set up Lexware Office over HTTP.** The page would
+  open on the machine the server runs on, not on the client's, so `setup` is
+  started there, or in its container as described below.
+
 ## In a container
 
 The image is published for `linux/amd64` and `linux/arm64`, so nothing from
