@@ -10,7 +10,10 @@ How to work in this repository. Read this before making changes. See
    only thing that decides which tools exist, a tool it does not name is off,
    and an installation without the file offers none at all. Nothing may weaken
    that: no tool may register itself past the file, and no default may stand
-   in for a decision nobody made. Never call a write tool against an account
+   in for a decision nobody made. **One exception, and only one:**
+   `server_status`, which reads no record and writes nothing, is offered
+   whatever the file says, so a model can still say why nothing else is
+   there. See SPECS.md section 9.2. Never call a write tool against an account
    that has not been explicitly confirmed as a test account — call
    `get_profile` first and check the organization.
 2. **Virtual environment only.** Never the global Python or pip. A
@@ -118,6 +121,7 @@ src/benethos_lexware_office_mcp/
     <group>.py    # one module per resource group, thin tool definitions
                   # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, deeplinks, master_data
+    status.py     # server_status, the one tool outside the policy file
 tests/            # offline, httpx MockTransport - the whole of the gate
   helpers.py      # the client, provider, server and scripted transport every suite builds,
                   # and the served configuration interface with a browser for it
