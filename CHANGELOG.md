@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **pydantic 2.14.2 in the lockfile the image is built from**, with the
+  fixes for GHSA-qpmf-fgh3-ff25 and GHSA-3r8g-cqwr-jr29, together with
+  pydantic-core 2.50.2, platformdirs 4.14.2, python-multipart 0.0.33 and
+  opentelemetry-api 1.45.2. The tool list and every answer over stdio are
+  byte for byte those before. An installation from the index resolved them
+  already.
+
 ## [0.8.0] - 2026-10-29
 
 A minor release, because an installation can trip over it: a server
