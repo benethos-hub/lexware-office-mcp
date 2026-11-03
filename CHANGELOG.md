@@ -21,6 +21,14 @@ housekeeping are out of scope here — design decisions live in
   opentelemetry-api 1.45.2. The tool list and every answer over stdio are
   byte for byte those before. An installation from the index resolved them
   already.
+- **anyio 4.16.0 and platformdirs 4.14.3 in the same lockfile.** anyio,
+  under the SDK's transports, fixes how cancellation reaches a task and
+  how a socket closes. platformdirs keeps trailing whitespace in an
+  absolute XDG directory. The tool list and every answer over stdio stay
+  the same.
+- **uv 0.13.7 builds the image**, instead of 0.13.6. It installs the
+  same lockfile the same way. An installation from the index is not
+  affected.
 
 ## [0.8.0] - 2026-10-29
 
