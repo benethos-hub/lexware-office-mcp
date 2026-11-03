@@ -26,6 +26,9 @@ housekeeping are out of scope here — design decisions live in
   how a socket closes. platformdirs keeps trailing whitespace in an
   absolute XDG directory. The tool list and every answer over stdio stay
   the same.
+- **uv 0.13.7 builds the image**, instead of 0.13.6. It installs the
+  same lockfile the same way. An installation from the index is not
+  affected.
 
 ## [0.8.0] - 2026-10-29
 
