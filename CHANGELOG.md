@@ -13,19 +13,25 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-03
+
+A patch release for the container image. Nothing a client receives
+changed: the tool list and every answer are those of 0.8.0. The image is
+built with uv 0.13.7 from a refreshed lockfile, pydantic 2.14.2 with its
+two security fixes among it. An installation from the index resolved the
+same Python packages already.
+
 ### Changed
 
 - **pydantic 2.14.2 in the lockfile the image is built from**, with the
-  fixes for GHSA-qpmf-fgh3-ff25 and GHSA-3r8g-cqwr-jr29, together with
-  pydantic-core 2.50.2, platformdirs 4.14.2, python-multipart 0.0.33 and
-  opentelemetry-api 1.45.2. The tool list and every answer over stdio are
-  byte for byte those before. An installation from the index resolved them
-  already.
-- **anyio 4.16.0 and platformdirs 4.14.3 in the same lockfile.** anyio,
-  under the SDK's transports, fixes how cancellation reaches a task and
-  how a socket closes. platformdirs keeps trailing whitespace in an
-  absolute XDG directory. The tool list and every answer over stdio stay
-  the same.
+  fixes for GHSA-qpmf-fgh3-ff25 and GHSA-3r8g-cqwr-jr29. Neither concerns
+  a model this server or the SDK fills from a client's request, but a
+  scanner reading the packages of the 0.8.0 image would report both.
+  With it pydantic-core 2.50.2, anyio 4.16.0 under the SDK's transports,
+  which fixes how a cancellation reaches a task and how a socket closes,
+  platformdirs 4.14.3, python-multipart 0.0.33 and opentelemetry-api
+  1.45.2. The tool list and every answer over stdio are byte for byte
+  those of 0.8.0.
 - **uv 0.13.7 builds the image**, instead of 0.13.6. It installs the
   same lockfile the same way. An installation from the index is not
   affected.
@@ -1773,7 +1779,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.1...v0.6.2
