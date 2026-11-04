@@ -1,0 +1,48 @@
+name: Freshness
+
+# What this repository pins and what is newer, once a day in one issue,
+# through the organisation's reusable workflow (docs/freshness.md in
+# benethos-hub/.github). Its jobs measure, nothing here commits:
+#
+#   outdated   every package uv.lock pins that has a newer release, within
+#              the ranges pyproject.toml allows and beyond them, and the
+#              build backend
+#   audit      known vulnerabilities of the pinned versions, with the same
+#              waivers as the CI
+#   images     python and uv in the Dockerfile, by digest and by tag, and
+#              every image of the compose files with a digit in its tag
+#   actions    every action pinned to a commit, against its newest release
+#
+# Dependabot proposes the direct dependencies, the actions and the images of
+# the Dockerfile. The issue adds the packages beneath them, the versions
+# beyond a range, the rebuilds of a base image under the same tag and the
+# one place to see all of it. It stays open while there is something to
+# report and closes when there is not. A job that fails is a line in it, so
+# a run that proved nothing never closes it.
+#
+# The issue is public: names, versions and the result of a job go in, no
+# log. The cron, the concurrency group and the permission to write issues
+# belong here, the measuring belongs to the organisation. The workflow is
+# followed at main, unpinned, for the reason given in ci.yml. It is no
+# required check, nothing here runs for a pull request.
+
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshness
+
+jobs:
+  freshness:
+    name: Freshness report
+    uses: benethos-hub/.github/.github/workflows/freshness.yml@main
+    permissions:
+      contents: read
+      issues: write
+    with:
+      issue-title: Pinned versions have newer releases

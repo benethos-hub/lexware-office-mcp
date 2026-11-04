@@ -441,6 +441,7 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
             "python-dependency-audit",
             "python-release-ci-passed",
             "coverage-badge",
+            "freshness",
         )
     } | {
         f"- uses: benethos-hub/.github/actions/publish/{name}@main"
@@ -456,6 +457,30 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     ]
 
     assert loose == []
+
+
+def test_the_freshness_report_runs_on_a_schedule_and_writes_issues_only() -> None:
+    """The daily report is the organisation's, see docs/freshness.md there.
+
+    What can go wrong here is the call: a trigger other than the schedule and
+    the hand, a permission beyond issues, a title another workflow could use
+    as well, or a run without the concurrency group, which would let two
+    runs edit the one issue at once.
+    """
+    workflow = (REPO / ".github" / "workflows" / "freshness.yml").read_text(
+        encoding="utf-8"
+    )
+    on = workflow.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert "schedule:" in on
+    assert "workflow_dispatch:" in on
+    assert "push" not in on
+    assert "pull_request" not in on
+    assert "concurrency:\n  group: freshness\n" in workflow
+    jobs = workflow.split("\njobs:\n", 1)[1]
+    assert "uses: benethos-hub/.github/.github/workflows/freshness.yml@main" in jobs
+    assert "issue-title: Pinned versions have newer releases" in jobs
+    permissions = re.findall(r"^\s+(\w+): (read|write)$", jobs, re.MULTILINE)
+    assert permissions == [("contents", "read"), ("issues", "write")]
 
 
 def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:

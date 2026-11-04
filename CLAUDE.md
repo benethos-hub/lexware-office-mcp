@@ -162,6 +162,8 @@ containers/       # README.md says which folder is for what
                   # Claude Desktop bundle, and the MCP Registry entry,
                   # behind ci-passed, each through the organisation's
                   # actions. A manual run tries PyPI and pushes edge
+    freshness.yml # daily: what is pinned and what is newer, in one
+                  # issue, the organisation's reusable workflow
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -369,7 +371,9 @@ fallen behind, so the list is short on purpose. In this order:
    to drag it along, and otherwise never - and the container image is built
    from the lockfile, so it is the one installation that inherits that
    silence. An install from the index resolves the newest allowed versions on
-   its own. If the dry run lists anything, refresh on its own branch first,
+   its own. The issue "Pinned versions have newer releases", which
+   `freshness.yml` keeps daily, lists the same, transitive packages
+   included. If the dry run lists anything, refresh on its own branch first,
    with the suite and a look at the notes of whatever sits in the transport
    or under the SDK. A security fix does not wait for this step: the bot's
    security updates cover transitive packages too. **The base images as
