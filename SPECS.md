@@ -3185,8 +3185,10 @@ layer on the near side: the MCP SDK, which sits between this code and the
 client. The suite calls `MCPServer.call_tool` and asserts on what comes back
 or on what it raises. A client never does that. It sends JSON-RPC over stdio
 and is answered by `_handle_call_tool`, which converts a return value into a
-result and an exception into an `is_error` result. Nothing in this repository
-exercises that conversion, so a change to it is green all the way through.
+result and an exception into an `is_error` result. `tests/test_stdio.py`
+exercises the success path of that conversion, a status call answered as
+text, and nothing in the suite exercises the error path, so a change to it
+is green all the way through.
 
 **When the SDK version moves, drive the server the way a client does.** Spawn
 `python -m benethos_lexware_office_mcp` with a scratch policy file and a
@@ -3210,11 +3212,29 @@ the error path had changed underneath, see section 12.1. Neither half of that
 was predictable from the release notes alone, which is the argument for
 sending the requests.
 
-The probe is a scratch script, deliberately not a test. It spawns a process
-and speaks a wire protocol, which is slow and brittle as a gate, and what it
+The diff is a scratch run, deliberately not a test. It spawns a process and
+speaks a wire protocol, which is slow and brittle as a gate, and what it
 guards is a decision rather than a behaviour: that the error hierarchy stays
 on the SDK's anticipated-failure side of the line. `tests/test_errors.py`
 asserts that decision directly, in a form that costs nothing to run.
+
+**Since 2026-11-04 the fixed half of the probe is a script**,
+`tests/stdio_check.py`, outside the suite by its name. It spawns the server
+under the interpreter it runs with, against a scratch policy file and an
+empty settings file, and asserts what a client has to receive whatever the
+SDK version: the tool list with the status and the enabled tools, each with
+its annotations, a disabled tool refused with this server's sentence rather
+than the SDK's bare "Error executing tool", an unknown argument refused
+the same way, an argument of the wrong type answered as an error result
+rather than a crash, and the status naming the version installed in that
+interpreter. It exits with 0 or 1 and needs no key and no network. Of the
+mutations measured on 2026-11-04 in a container, the suite missed two: the
+wire conversion dropping every error text, and `tools/list` dropping the
+annotations. The script sees both. `.github/workflows/freshness.yml` runs
+it daily on the newest versions the ranges allow, from the checkout, and on
+the published package installed from PyPI, see section 16. The byte diff
+stays the check for a bump of `mcp`, since it sees what no fixed assertion
+asks for.
 
 ## 15. Conventions
 
@@ -3566,9 +3586,28 @@ described in section 7.1. Nothing on the API side is outstanding.
    repository, the upgrade of the lockfile is a dry run inside the runner,
    and the issue closes when there is nothing to report. A job that fails
    is a line in it, so a run that proved nothing never closes it. It is no
-   required check, and a pull request never runs it.
+   required check, and a pull request never runs it. Its first run the
+   same evening opened the issue with platformdirs 4.14.5, a patch within
+   the range.
+   **The same run asks a second question**, since the same evening: whether
+   the newest versions the ranges allow still work, which is what `uvx`
+   without a pin and `pip install` resolve, so what a user runs can change
+   on any day without a release here. The job `newest`, the organisation's
+   `python/freshness-newest` action run from this workflow, upgrades the
+   lockfile inside the runner, runs the suite on those versions and then
+   `tests/stdio_check.py`, the server spoken to over stdio without a key,
+   see section 14.3. The job `index` of the organisation's workflow
+   installs the published release from PyPI into a fresh environment, the
+   path `uvx` takes, and runs the same script with its interpreter, so a
+   dependency that moved under a fixed version shows there, as
+   platformdirs 4.14.4 under 0.8.1 did on 2026-11-04. Both address the
+   issue "Newest dependency versions break the server" and say in one
+   sentence what passed, which the pins issue lists under Checks. A run
+   that proves nothing, the check failing on the locked versions too or a
+   step failing while nothing moved, leaves the alarm issue as it was.
    `tests/test_packaging.py` holds the call: schedule and hand only, the
-   permission to write issues and nothing else, the title.
+   permission to write issues and nothing else, the two titles, the job's
+   artifact and the check commands.
 7. **An entry in the official MCP Registry**, published with 0.5.1 on
    2026-10-10. The job took it at the first attempt, and the registry
    lists the version as active and newest, with the PyPI package, the

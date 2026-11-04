@@ -431,22 +431,26 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     by one, so a new unpinned reference still has to be added here.
     """
     pinned = re.compile(r"uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
-    organisation = {
-        f"uses: benethos-hub/.github/.github/workflows/{name}.yml@main"
-        for name in (
-            "brand",
-            "python-lint",
-            "python-tests",
-            "python-lowest-versions",
-            "python-dependency-audit",
-            "python-release-ci-passed",
-            "coverage-badge",
-            "freshness",
-        )
-    } | {
-        f"- uses: benethos-hub/.github/actions/publish/{name}@main"
-        for name in ("pypi", "ghcr", "mcpb", "mcp-registry")
-    }
+    organisation = (
+        {
+            f"uses: benethos-hub/.github/.github/workflows/{name}.yml@main"
+            for name in (
+                "brand",
+                "python-lint",
+                "python-tests",
+                "python-lowest-versions",
+                "python-dependency-audit",
+                "python-release-ci-passed",
+                "coverage-badge",
+                "freshness",
+            )
+        }
+        | {
+            f"- uses: benethos-hub/.github/actions/publish/{name}@main"
+            for name in ("pypi", "ghcr", "mcpb", "mcp-registry")
+        }
+        | {"uses: benethos-hub/.github/actions/python/freshness-newest@main"}
+    )
     loose = [
         f"{workflow.name}: {line.strip()}"
         for workflow in (REPO / ".github" / "workflows").glob("*.yml")
@@ -459,28 +463,82 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
     assert loose == []
 
 
+FRESHNESS = (REPO / ".github" / "workflows" / "freshness.yml").read_text(
+    encoding="utf-8"
+)
+
+
+def _freshness_job(name: str) -> str:
+    """One job of freshness.yml, up to the next key at a job's indentation."""
+    rest = FRESHNESS.split(f"\n  {name}:\n", 1)[1]
+    return re.split(r"\n\n  (?=\S)", rest, maxsplit=1)[0]
+
+
 def test_the_freshness_report_runs_on_a_schedule_and_writes_issues_only() -> None:
     """The daily report is the organisation's, see docs/freshness.md there.
 
     What can go wrong here is the call: a trigger other than the schedule and
-    the hand, a permission beyond issues, a title another workflow could use
-    as well, or a run without the concurrency group, which would let two
-    runs edit the one issue at once.
+    the hand, a permission beyond issues, two issues under one title, or a
+    run without the concurrency group, which would let two runs edit the one
+    issue at once.
     """
-    workflow = (REPO / ".github" / "workflows" / "freshness.yml").read_text(
-        encoding="utf-8"
-    )
-    on = workflow.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    on = FRESHNESS.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
     assert "schedule:" in on
     assert "workflow_dispatch:" in on
     assert "push" not in on
     assert "pull_request" not in on
-    assert "concurrency:\n  group: freshness\n" in workflow
-    jobs = workflow.split("\njobs:\n", 1)[1]
+    assert "concurrency:\n  group: freshness\n" in FRESHNESS
+    jobs = FRESHNESS.split("\njobs:\n", 1)[1]
     assert "uses: benethos-hub/.github/.github/workflows/freshness.yml@main" in jobs
-    assert "issue-title: Pinned versions have newer releases" in jobs
     permissions = re.findall(r"^\s+(\w+): (read|write)$", jobs, re.MULTILINE)
     assert permissions == [("contents", "read"), ("issues", "write")]
+    titles = re.findall(r"^\s+(?:issue|alarm)-title: (.+)$", jobs, re.MULTILINE)
+    assert titles == [
+        "Pinned versions have newer releases",
+        "Newest dependency versions break the server",
+    ]
+
+
+def test_the_newest_job_feeds_the_report_and_runs_the_stdio_check() -> None:
+    """The organisation's job of the repository, with this project's check.
+
+    The artifact name is what the report expects for the job extra-jobs
+    names, and the call waits for the job without being cancelled with it,
+    so a job that died before its upload is a line in the issue. The check
+    is the stdio script, which has no exit code for a rate limit, so the
+    actions keep their default.
+    """
+    newest = _freshness_job("newest")
+    assert "uses: benethos-hub/.github/actions/python/freshness-newest@main" in newest
+    assert "extras: dev" in newest, "the test tools live in the dev extra"
+    assert "check: uv run --frozen python tests/stdio_check.py" in newest
+    assert "findings: ${{ runner.temp }}/freshness/newest" in newest
+    assert "name: freshness-newest" in newest
+    assert "path: ${{ runner.temp }}/freshness/newest" in newest
+    call = _freshness_job("freshness")
+    assert "needs: newest" in call
+    assert "if: ${{ !cancelled() }}" in call
+    assert "extra-jobs: newest" in call
+    assert "index: true" in call
+    assert "index-check: $FRESHNESS_PYTHON tests/stdio_check.py" in call
+    assert "rate-limit-exit-code" not in FRESHNESS
+
+
+def test_the_stdio_check_is_a_script_and_not_a_test() -> None:
+    """pytest collects test_*.py, so the name keeps it out of the suite.
+
+    It spawns a process and speaks the wire protocol, which is slow and
+    brittle as a gate, see SPECS.md section 14.3. It imports nothing from
+    the suite's helpers, because the published package is one of the
+    environments it runs in and pytest is not installed there.
+    """
+    script = REPO / "tests" / "stdio_check.py"
+    assert script.is_file()
+    assert not script.name.startswith("test_")
+    text = script.read_text(encoding="utf-8")
+    assert "from helpers import" not in text
+    assert "import pytest" not in text
+    assert "sys.exit(anyio.run(main))" in text
 
 
 def test_every_image_the_build_pulls_is_pinned_by_digest() -> None:

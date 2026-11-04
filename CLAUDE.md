@@ -125,6 +125,8 @@ src/benethos_lexware_office_mcp/
 tests/            # offline, httpx MockTransport - the whole of the gate
   helpers.py      # the client, provider, server and scripted transport every suite builds,
                   # and the served configuration interface with a browser for it
+  stdio_check.py  # the server over stdio without a key, as a client speaks
+                  # to it, run by hand and by freshness.yml, not a test
 live/             # talks to a real account, run by hand, outside testpaths
   smoke.py        # read-only live check
   api_shape.py    # records response shapes, so drift becomes a diff
@@ -162,8 +164,10 @@ containers/       # README.md says which folder is for what
                   # Claude Desktop bundle, and the MCP Registry entry,
                   # behind ci-passed, each through the organisation's
                   # actions. A manual run tries PyPI and pushes edge
-    freshness.yml # daily: what is pinned and what is newer, in one
-                  # issue, the organisation's reusable workflow
+    freshness.yml # daily: what is pinned and what is newer, and whether
+                  # the newest versions allowed and the published package
+                  # still work, two issues through the organisation's
+                  # reusable workflow
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -315,14 +319,20 @@ SPECS.md rather than stating them as fact.
 **Nor do they cover the SDK changing under the server.** The suite calls
 `MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and is
 answered by `_handle_call_tool`, which turns a return value into a result and
-an exception into an `is_error` result. Nothing here exercises that
-conversion. So when `mcp` moves, drive the server the way a client does -
-spawn `python -m benethos_lexware_office_mcp` against a scratch policy file,
-send `initialize`, `tools/list` and `tools/call`, and diff the answers against
-the same run on the old version. The recipe and what to capture are in
-SPECS.md section 14.3. The 2.0.0 to 2.1.1 bump is why it is written down: the
-tool list came back byte-identical while every error message this server sends
-had silently stopped reaching the model.
+an exception into an `is_error` result. The suite exercises the success
+path of that conversion in `tests/test_stdio.py` and nothing else.
+`tests/stdio_check.py` asserts the rest without a key: the tool list with
+its annotations, and that a disabled tool, an unknown argument and an
+argument of the wrong type each come back as an error result carrying this
+server's sentence. `uv run python tests/stdio_check.py` runs it on the
+checkout, and `freshness.yml` runs it daily on the newest versions the
+ranges allow and on the published package. When `mcp` moves, drive the
+server the same way by hand as well - send `initialize`, `tools/list` and
+`tools/call` and diff the answers against the same run on the old version,
+since a byte diff sees what no fixed assertion asks for. The recipe and
+what to capture are in SPECS.md section 14.3. The 2.0.0 to 2.1.1 bump is why
+it is written down: the tool list came back byte-identical while every error
+message this server sends had silently stopped reaching the model.
 
 **One rule follows from that and is easy to undo by accident.** Every class in
 `errors.py` derives from the SDK's `ToolError`, because that type is what
