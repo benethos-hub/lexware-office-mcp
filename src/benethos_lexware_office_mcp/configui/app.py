@@ -603,12 +603,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _page_address(path: str) -> str:
-    """``path`` if it is a page's address, else the overview's.
+    """The address of the page ``path`` names, else the overview's.
 
     For a link this interface builds from the address it was asked for: a
-    browser reads ``/\\`` as ``//``, the start of another host.
+    browser reads ``/\\`` as ``//``, the start of another host. The answer is
+    the table's own entry, so nothing of the request reaches a header.
     """
-    return path if path in PAGES else "/"
+    return next((page for page in PAGES if page == path), "/")
 
 
 def _cookie_values(header: str, name: str) -> list[str]:

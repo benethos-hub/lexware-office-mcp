@@ -198,7 +198,9 @@ def test_the_code_in_the_address_signs_in_and_leaves_the_address(
     assert stranger.get("/permissions")[0] == 200
 
 
-@pytest.mark.parametrize("path", ["/\\evil.example/", "/nope"])
+@pytest.mark.parametrize(
+    "path", ["/\\evil.example/", "/nope", "/permissions%0d%0aX-Injected:1"]
+)
 def test_the_code_in_an_address_leads_only_to_a_page(
     browser: Browser, path: str
 ) -> None:
@@ -213,6 +215,7 @@ def test_the_code_in_an_address_leads_only_to_a_page(
 
     assert status == 303
     assert headers["Location"] == "/"
+    assert "X-Injected" not in headers
 
 
 @pytest.mark.parametrize("site", ["cross-site", "same-site"])
