@@ -13,8 +13,13 @@ updates:
   # configured. `mcp` carries an upper bound on purpose, so a major release
   # arrives as a pull request to look at rather than as a resolution nobody
   # chose.
+  #
+  # A range that already allows a new release stays as it is and only uv.lock
+  # moves, so an update does not raise the floor for whoever installs this
+  # package. The option exists for this ecosystem alone among the three here.
   - package-ecosystem: "uv"
     directory: "/"
+    versioning-strategy: "increase-if-necessary"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
