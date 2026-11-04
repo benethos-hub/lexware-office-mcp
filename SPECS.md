@@ -3551,6 +3551,24 @@ described in section 7.1. Nothing on the API side is outstanding.
    Since the pins, minor and patch updates come as one pull request per
    ecosystem and week, and a major one alone. `mcp` always comes alone,
    since the suite does not see what the SDK changes.
+
+   **Since 2026-11-04 a daily report sits beside Dependabot.**
+   `.github/workflows/freshness.yml` calls the organisation's reusable
+   workflow of the same name, which keeps the issue "Pinned versions have
+   newer releases": every package `uv.lock` pins that has a newer release,
+   within the ranges and beyond them, the build backend, known
+   vulnerabilities of the pinned versions, the images of the Dockerfile and
+   the compose files by digest and by tag, and the actions pinned by
+   commit. Dependabot proposes the direct packages, the actions and the
+   base images. The report adds the packages beneath them, the versions a
+   range does not allow yet, and a rebuild of a base image under the same
+   tag, which is the cue for a patch release. Nothing is written to the
+   repository, the upgrade of the lockfile is a dry run inside the runner,
+   and the issue closes when there is nothing to report. A job that fails
+   is a line in it, so a run that proved nothing never closes it. It is no
+   required check, and a pull request never runs it.
+   `tests/test_packaging.py` holds the call: schedule and hand only, the
+   permission to write issues and nothing else, the title.
 7. **An entry in the official MCP Registry**, published with 0.5.1 on
    2026-10-10. The job took it at the first attempt, and the registry
    lists the version as active and newest, with the PyPI package, the
