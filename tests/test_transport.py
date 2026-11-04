@@ -165,8 +165,9 @@ def test_a_named_host_is_allowed_behind_tls_too() -> None:
     """A proxy ending TLS: the browser's Origin is https for the same Host."""
     security = transport.transport_security(("mcp.example.invalid",))
 
-    assert "https://mcp.example.invalid" in security.allowed_origins
-    assert "http://mcp.example.invalid" in security.allowed_origins
+    assert {"https://mcp.example.invalid", "http://mcp.example.invalid"} <= set(
+        security.allowed_origins
+    )
 
 
 def test_without_extra_hosts_only_loopback_is_allowed() -> None:

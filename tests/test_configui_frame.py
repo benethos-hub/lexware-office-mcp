@@ -73,7 +73,7 @@ def test_no_page_has_inline_script_or_style(site: Browser, path: str) -> None:
     """The policy would block them, so one would be a page that breaks."""
     body = site.get(path)[1]
 
-    assert re.findall(r"<script(?![^>]*\ssrc=)[^>]*>", body) == []
+    assert re.findall(r"<script(?![^>]*\ssrc=)[^>]*>", body, re.IGNORECASE) == []
     assert "<style" not in body
     assert " style=" not in body
     assert re.findall(r"\son[a-z]+=", body) == []
