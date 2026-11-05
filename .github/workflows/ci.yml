@@ -18,13 +18,13 @@ permissions:
   contents: read
 
 jobs:
-  # brand, lint, test, coverage-badge, lowest-versions and audit are the
-  # organisation's reusable workflows in benethos-hub/.github, the same for
-  # every Python project there. Each one explains itself in its file. What
+  # brand, lint, test, coverage-badge, lowest-versions, audit and codeql are
+  # the organisation's reusable workflows in benethos-hub/.github, the same
+  # for every Python project there. Each one explains itself in its file. What
   # stays here is what only this project has: fresh-install and docker.
   #
-  # They are followed at main, unpinned, and all but coverage-badge are
-  # required checks, so whoever writes that repository's main decides
+  # They are followed at main, unpinned, and all but coverage-badge and codeql
+  # are required checks, so whoever writes that repository's main decides
   # whether a merge here is green. A change there can turn every open pull
   # request red, or run other code in these jobs, without a commit in this
   # repository. Kept on main deliberately, decided 2026-10-15 for brand and
@@ -184,6 +184,22 @@ jobs:
   # lowest-versions alike.
   audit:
     uses: benethos-hub/.github/.github/workflows/python-dependency-audit.yml@main
+
+  # CodeQL on the Python code, the JavaScript of the configuration interface
+  # and the workflows themselves, with the security and the quality queries.
+  # The default setup of code scanning ran the security queries alone, and the
+  # quality queries are no setting of it. Findings go to Security, Code
+  # scanning, and never fail this job, so codeql / CodeQL is no required check.
+  # codeql.yml makes the same call once a week, for the queries GitHub adds in
+  # between. The job grants security-events: write, the one permission the
+  # upload needs, and the called workflow gets no more than that.
+  codeql:
+    uses: benethos-hub/.github/.github/workflows/codeql.yml@main
+    permissions:
+      contents: read
+      security-events: write
+    with:
+      languages: python,javascript-typescript,actions
 
   # The image and the Compose files are the only part of this repository that no
   # test touches: the suite is offline Python, and a Dockerfile is neither.
