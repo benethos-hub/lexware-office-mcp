@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-05
+
+A patch release for the container image. Nothing a client receives
+changed: the tool list and every answer are those of 0.8.1. The image
+moves to a refreshed lockfile and a rebuilt base, its health check runs
+without a shell, and it names its user by id. An installation from the
+index resolved the same Python packages already.
+
 ### Changed
 
 - **A refreshed lockfile for the image**: platformdirs 4.14.5, pydantic 2.14.3
@@ -1792,7 +1800,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.6.2...v0.7.0

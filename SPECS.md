@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.8.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.8.2.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -1807,7 +1807,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.8.1
+version: 0.8.2
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
@@ -2685,7 +2685,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.8.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.8.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3301,7 +3301,7 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  179 MB on 2026-10-28, on Python 3.15.2. The server on a loopback-published
+  179 MB on 2026-11-05, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -3415,15 +3415,16 @@ described in section 7.1. Nothing on the API side is outstanding.
    queries alone, and the quality queries are no setting of it. `codeql` in
    `ci.yml` calls the organisation's workflow with its default suite
    `security-and-quality`, on the Python code, the JavaScript of the
-   configuration interface and the workflows, on every push and pull
-   request. `.github/workflows/codeql.yml` makes the same call once a week,
-   since GitHub adds queries over time and only a run on a schedule reads code
+   configuration interface and the workflows, on every push and pull request.
+   `.github/workflows/codeql.yml` makes the same call once a week, since
+   GitHub adds queries over time and only a run on a schedule reads code
    nobody changed with them. Both file under one category, so each run
    refreshes the last. A finding goes to Security, Code scanning, and never
    fails the job, so it is no required check. GitHub refuses a workflow's
-   upload while the default setup is on, so that setting goes off once this
-   is merged. `tests/test_packaging.py` holds the two calls equal, the
-   languages, the weekly schedule and the one permission.
+   upload while the default setup is on, so that setting went off with the
+   merge, and the API has reported it as not configured since 2026-11-05.
+   `tests/test_packaging.py` holds the two calls equal, the languages, the
+   weekly schedule and the one permission.
 
    **hadolint reads the Dockerfile, decided the same day.** `dockerfile-lint`
    in `ci.yml` calls the organisation's workflow over
@@ -3590,13 +3591,17 @@ described in section 7.1. Nothing on the API side is outstanding.
    line tag, so a rebuild of the base under it moves the digest only.
 
    What makes that bearable is that all three are watched.
-   `.github/dependabot.yml` covers the declared ranges, the actions and, since
-   2026-08-23, the container base image - the one that ages silently, because
-   an out-of-date base is not a build failure but unpatched system packages
-   inside something people pull and run.
-   Since the pins, minor and patch updates come as one pull request per
-   ecosystem and week, and a major one alone. `mcp` always comes alone,
-   since the suite does not see what the SDK changes.
+   `.github/dependabot.yml` covers the declared ranges, the actions and,
+   since 2026-08-23, the container base image - the one that ages silently,
+   because an out-of-date base is not a build failure but unpatched system
+   packages inside something people pull and run. Since the pins, minor and
+   patch updates come as one pull request per ecosystem and week, and a major
+   one alone. `mcp` always comes alone, since the suite does not see what the
+   SDK changes. Since 2026-11-04 the uv ecosystem runs with
+   `versioning-strategy: increase-if-necessary`: a range that already allows
+   a new release stays as it is and only `uv.lock` moves, so an update never
+   raises the floor for whoever installs the package. The option exists for
+   that ecosystem alone of the three.
 
    **Since 2026-11-04 a daily report sits beside Dependabot.**
    `.github/workflows/freshness.yml` calls the organisation's reusable
@@ -3617,20 +3622,20 @@ described in section 7.1. Nothing on the API side is outstanding.
    the range.
    **The same run asks a second question**, since the same evening: whether
    the newest versions the ranges allow still work, which is what `uvx`
-   without a pin and `pip install` resolve, so what a user runs can change
-   on any day without a release here. The job `newest`, the organisation's
+   without a pin and `pip install` resolve, so what a user runs can change on
+   any day without a release here. The job `newest`, the organisation's
    `python/freshness-newest` action run from this workflow, upgrades the
    lockfile inside the runner, runs the suite on those versions and then
-   `tests/stdio_check.py`, the server spoken to over stdio without a key,
-   see section 14.3. The job `index` of the organisation's workflow
-   installs the published release from PyPI into a fresh environment, the
-   path `uvx` takes, and runs the same script with its interpreter, so a
-   dependency that moved under a fixed version shows there, as
-   platformdirs 4.14.4 under 0.8.1 did on 2026-11-04. Both address the
-   issue "Newest dependency versions break the server" and say in one
-   sentence what passed, which the pins issue lists under Checks. A run
-   that proves nothing, the check failing on the locked versions too or a
-   step failing while nothing moved, leaves the alarm issue as it was.
+   `tests/stdio_check.py`, the server spoken to over stdio without a key, see
+   section 14.3. The job `index` of the organisation's workflow installs the
+   published release from PyPI into a fresh environment, the path `uvx`
+   takes, and runs the same script with its interpreter, so a dependency that
+   moved under a fixed version shows there, as platformdirs did under 0.8.1
+   on 2026-11-04: 4.14.5 from the index where the release had locked 4.14.3.
+   Both address the issue "Newest dependency versions break the server" and
+   say in one sentence what passed, which the pins issue lists under Checks.
+   A run that proves nothing, the check failing on the locked versions too or
+   a step failing while nothing moved, leaves the alarm issue as it was.
    **The whole run starts once more when `publish.yml` has finished,**
    whatever its result and whether a release or the hand started it. It is
    there for `index`, whose answer changes at that moment, so a release that
@@ -3799,6 +3804,7 @@ suggested they were.
 | 0.7.0 | The review of 2026-10-28, and the image on Python 3.15.2 | **released 2026-10-28** - a minor, because an installation can trip over it: `upload_file` and `attach_file_to_voucher` refuse a network path unless `LXO_MCP_UPLOAD_DIR` names the same share, since Windows connects to the host on the first look at such a path, and a settings file that is there but cannot be read stops the start instead of being read as empty. The rest of the review's findings show in edge cases, the tool list is byte for byte that of 0.6.2. The image runs Python 3.15.2, the expedited security release, built with uv 0.13.6, and its `/config/.env` is readable by its owner alone. Verified live read-only against the third test account: `live/smoke.py` 13 of 13 on the reviewed code, and a shape capture that differs from 0.6.2's only where the account holds different records |
 | 0.8.0 | `server_status`, the one tool outside the policy file | **released 2026-10-29** - a minor, because an installation can trip over it: a server without a policy file now lists `server_status` where it listed no tool at all, and anything that checked for an empty list, as this project's own CI did, sees one. The tool says which server is running and, with `details`, whether Lexware answers and takes the key, from one request a minute at most, and whether the policy file is loaded. Every other tool and answer is that of 0.7.0, and what the configuration interface says the tools cost includes the new one. platformdirs 4.14.0 in the image's lockfile. Verified live read-only against the third test account: `live/smoke.py` 14 of 14 with the status step, and a shape capture identical to 0.7.0's |
 | 0.8.1 | The image on a refreshed lockfile | **released 2026-11-03** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.8.0. The image is built with uv 0.13.7 from a lockfile that carries pydantic 2.14.2, whose two security fixes a scanner reading the image would ask for though neither is reachable here, and anyio 4.16.0 under the SDK's transports. The stdio probe of section 14.3 answered byte for byte as before on both protocol versions. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.8.0's |
+| 0.8.2 | The image on a refreshed lockfile and a rebuilt base | **released 2026-11-05** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.8.1, measured over stdio on both protocol versions. The image carries pydantic 2.14.3, apt 3.0.4 and tzdata 2026f, its health check runs without a shell, and it names its user by id, 10001, the same user as before. The capture of the read-only live run against the third test account is identical to 0.8.1's but for its date |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
