@@ -19,6 +19,8 @@ housekeeping are out of scope here — design decisions live in
   with pydantic-core 2.50.4, and typing-inspection 0.4.5, all patches. What a
   client receives stays byte for byte the same. An installation from the index
   resolves these versions already.
+- **The image's base rebuilt**, `python:3.15-slim` on a new digest. Python stays
+  at 3.15.2, and apt 3.0.4 and tzdata 2026f come with it.
 - **The image's health check runs without a shell.** It asks the same as
   before, whether the transport port answers.
 - **The image names its user by id**, 10001, the same user `appuser` as
