@@ -152,8 +152,10 @@ containers/       # README.md says which folder is for what
   publish/
     mcp-registry/
       server.json # the MCP Registry entry, sent by publish.yml at a release
-    mcpb/         # the Claude Desktop bundle: manifest.json as it ships,
-                  # server.py that uv starts, build.py that stages it
+    mcpb/         # the Claude Desktop bundles: manifest.json as the pinned
+                  # one ships, server.py that uv starts, build.py that stages
+                  # it, and with --auto-update the one that runs the newest
+                  # release from PyPI, its manifest made from the pinned one
   workflows/
     ci.yml        # brand, lint, test (coverage on 3.15 alone, and the
                   # badge), coverage-badge, lowest-versions (the oldest
@@ -163,7 +165,7 @@ containers/       # README.md says which folder is for what
                   # reusable workflows, and this project's own fresh-install
                   # and docker
     publish.yml   # a published release -> PyPI, the container image, the
-                  # Claude Desktop bundle, and the MCP Registry entry,
+                  # Claude Desktop bundles, and the MCP Registry entry,
                   # behind ci-passed, each through the organisation's
                   # actions. A manual run tries PyPI and pushes edge
     freshness.yml # daily and after every run of publish.yml: what is
