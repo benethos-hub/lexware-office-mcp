@@ -1,7 +1,7 @@
 name: Publish
 
 # Publishes a release: the package to PyPI, the image to ghcr.io, the Claude
-# Desktop bundle onto the release, and the entry in the MCP Registry. Each
+# Desktop bundles onto the release, and the entry in the MCP Registry. Each
 # upload is done by an action of the organisation in benethos-hub/.github
 # (actions/publish), followed at main like the CI workflows. Its README
 # describes the gate, the trial run, the release tags and the one-time
@@ -120,9 +120,9 @@ jobs:
           cache-scope: buildkit
 
   mcpb-bundle:
-    name: Attach the Claude Desktop bundle
-    # The bundle goes onto the release it is built for, and a manual run has
-    # no release to attach it to.
+    name: Attach the Claude Desktop bundles
+    # The bundles go onto the release they are built for, and a manual run has
+    # no release to attach them to.
     if: github.event_name == 'release'
     needs: ci-passed
     runs-on: ubuntu-latest
@@ -148,6 +148,19 @@ jobs:
         with:
           staged: ${{ runner.temp }}/bundle
           name: benethos-lexware-office-mcp
+
+      # The second bundle runs the newest release from PyPI instead of the
+      # code it was built with. Attached the same way, so the README links
+      # releases/latest/download/benethos-lexware-office-mcp-auto-update.mcpb.
+      # Its versioned copy only says which release built it. The registry entry
+      # lists the pinned one alone.
+      - name: Stage the auto-update bundle
+        run: uv run --no-project .github/publish/mcpb/build.py --auto-update "$RUNNER_TEMP/bundle-auto-update"
+
+      - uses: benethos-hub/.github/actions/publish/mcpb@main
+        with:
+          staged: ${{ runner.temp }}/bundle-auto-update
+          name: benethos-lexware-office-mcp-auto-update
 
   mcp-registry:
     name: Publish to the MCP Registry

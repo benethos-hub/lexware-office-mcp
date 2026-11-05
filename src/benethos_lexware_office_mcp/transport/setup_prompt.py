@@ -43,7 +43,9 @@ IDLE_MINUTES = 30
 
 # The one answer, whatever happened. Claude Desktop holds a prompt's answer
 # against the text its extension declared and rejects anything else as a
-# possible injection, so this cannot carry what happened - stderr does.
+# possible injection, so this cannot carry what happened - stderr does. An
+# extension that updates itself declares the text of the release it was built
+# from and runs the newest server, so this text cannot change either.
 SETUP_PROMPT_TEXT = (
     "The configuration interface of the Lexware Office MCP server is open in "
     "the browser, where the person sets the API key and which tools exist. "

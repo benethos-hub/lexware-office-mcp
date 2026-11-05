@@ -18,7 +18,16 @@ housekeeping are out of scope here — design decisions live in
 - **The Claude Desktop extension can be pointed at your own files.** Its page
   under *Settings → Extensions* asks for a settings file and a tool policy
   file, both optional. Left empty, the extension reads the per-user files as
-  before. A file picked there applies at once, the server restarts on it.
+  before. A file picked there restarts the server on it at once, and Claude
+  Desktop shows the new tools once it is quit from the tray and started again.
+- **A second Claude Desktop extension on every release**,
+  `benethos-lexware-office-mcp-auto-update.mcpb`. It runs the newest release on
+  PyPI through `uv tool run`, so a new release arrives with a restart of Claude
+  Desktop instead of a new download. It takes the newest dependency versions
+  the release allows, not the locked ones, and nothing rolls back on its own. A
+  tool you enabled can gain abilities under its name with a release. The README
+  says how and when it updates, and that the way out is the pinned extension of
+  a release that worked. The pinned extension stays as it is.
 
 ## [0.8.2] - 2026-11-05
 

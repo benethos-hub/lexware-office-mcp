@@ -44,6 +44,7 @@
 - [Getting an API key](#getting-an-api-key)
 - [Installation](#installation)
   - [As a Claude Desktop extension](#as-a-claude-desktop-extension)
+  - [As an extension that updates itself](#as-an-extension-that-updates-itself)
   - [With uvx, for any MCP client](#with-uvx-for-any-mcp-client)
 - [Configuring it in a browser](#configuring-it-in-a-browser)
 - [Switching individual tools off](#switching-individual-tools-off)
@@ -425,18 +426,111 @@ Worth knowing:
   *Tool policy file (tools.json)*. Left empty, the extension reads the same
   per-user `.env` and `tools.json` as an installation with uvx, so
   `uvx benethos-lexware-office-mcp setup` changes them too. Pick a file
-  there and *Save*, and the server restarts on it at once. The second field
-  can stay empty when the `.env` names the policy file with
-  `LXO_MCP_TOOL_POLICY`.
+  there and *Save*, and the server restarts on it at once, while Claude
+  Desktop keeps the tools it had until it is quit from the tray and started
+  again. The second field can stay empty when the `.env` names the policy
+  file with `LXO_MCP_TOOL_POLICY`.
 - **Updating** is installing the newer file over the old one. If Claude
   Desktop cannot replace it, end the setup page first with *Beenden*: while it
   runs, it holds the extension's files.
-- **A changed key** applies once Claude Desktop is quit from the tray and
-  started again. The first key does not need that, and until that restart
-  neither does a change to it.
+- **A changed key, or any other setting in the `.env`,** applies once Claude
+  Desktop is quit from the tray and started again. The first key does not need
+  that, and until that restart neither does a change to it. Ticking tools does
+  not need it either.
 - **Tried on Windows**, with Claude Desktop from the Microsoft Store and
   nothing else installed. macOS is expected to work the same way and has not
   been tried.
+
+### As an extension that updates itself
+
+The extension above runs the release it was downloaded with, and a new
+release means a new download. A second extension runs the newest release on
+PyPI instead, so a new release arrives with a restart of Claude Desktop. It
+holds the same key to the same books, so read the list below first. The
+pinned extension is the choice for anyone who wants to look at a release
+before it runs.
+
+1. **Download**
+   [`benethos-lexware-office-mcp-auto-update.mcpb`](https://github.com/benethos-hub/lexware-office-mcp/releases/latest/download/benethos-lexware-office-mcp-auto-update.mcpb).
+   Every release carries it, the copy with a version in its name as well. Any
+   of them runs the newest release, the version only says which release built
+   it.
+2. **Install and set it up** as under
+   [As a Claude Desktop extension](#as-a-claude-desktop-extension), from
+   step 3. Install this one or the pinned one, not both, or every tool shows
+   up twice. Installing one does not remove the other, so when you switch,
+   remove the old one under *Settings → Extensions*. The per-user files stay,
+   and a file picked on the old one's page has to be picked again.
+
+How and when it updates:
+
+- **At the start of the server, not during a chat.** Claude Desktop starts it
+  with `uv tool run benethos-lexware-office-mcp`. uv looks for a newer release
+  only then, when Claude Desktop starts or reconnects the extension. To pick
+  up a release, quit Claude Desktop from the tray and start it again.
+- **Up to 10 minutes late.** uv keeps PyPI's list of releases for 10 minutes,
+  as PyPI tells it to, so a release published in between arrives with the first
+  restart after those 10 minutes.
+- **It needs to reach PyPI.** Once the 10 minutes are over, uv asks PyPI before
+  it starts the server, and without an answer it stops with `Failed to fetch`
+  instead of falling back to the release it has. A network that blocks PyPI
+  keeps this extension from starting. The pinned one is the choice there.
+- **The first start after a release takes longer.** uv downloads and installs
+  the new release and its dependencies once, a few seconds, and later starts
+  reuse them.
+- **The running version is the one `server_status` names.** Claude Desktop's
+  extension list shows the version of the file it was installed from, and that
+  stays as it was.
+- **A copy from `uv tool install` wins.** uv then runs that one, whatever PyPI
+  has, and nothing updates. `uv tool uninstall benethos-lexware-office-mcp`
+  removes it.
+- **uv's own configuration counts too.** An `exclude-newer` in a `uv.toml` of
+  yours holds this extension on an older release, and nothing says so but the
+  version `server_status` names.
+- **A new tool stays off, an enabled one can grow.** A tool the policy file
+  does not name is not offered, whichever release brought it. A tool you
+  enabled keeps its name and can gain abilities under it: `update_voucher`
+  learned to book a voucher in 0.3.0, and the upload tools to fetch from the
+  addresses `LXO_MCP_UPLOAD_URLS` allows in 0.6.0. Such a change arrives with a
+  restart, without asking, and the [changelog](https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md)
+  says what it was.
+- **Dependencies are not pinned.** uv takes the newest versions each release
+  allows, as `uvx` does, not the tested set in `uv.lock` that the pinned
+  extension and the container image run. The ranges are wide, so a new minor of
+  `mcp` or `httpx` arrives without a release here. A check in this repository
+  runs the newest versions allowed every day and after each release, installs
+  the published package from PyPI as this extension does, and opens an issue
+  when the server stops answering a client correctly. It holds no key and
+  reaches no account, so a change in what a call sends to Lexware passes it.
+- **Tried in Claude Desktop on Windows**, from the Microsoft Store: the first
+  start, the setup page, both file fields and a change of version at a restart,
+  brought about by hand. A real release arriving through PyPI has not been
+  tried with this extension, and neither has macOS.
+
+If it fails:
+
+- **It can come without a release of this project.** A dependency moves while
+  this server's version stays the same, so `server_status` naming the version
+  that worked yesterday proves nothing, and two machines on one version can run
+  different dependencies.
+- **A crash shows.** The extension does not start and its tools are missing
+  from the chat, or a tool answers with an error. The reason is in Claude
+  Desktop's log folder, in `mcp-server-<extension name>.log`, uv's own messages
+  included.
+- **A wrong result does not have to.** A dependency that changes a request or a
+  field can leave the server running with no error anywhere. If an answer looks
+  off, compare it with Lexware Office itself before relying on it.
+- **Nothing rolls back on its own.** uv runs the newest versions at every
+  start. Once something broke, every restart runs it again, until a release
+  fixes it, and the auto-update file of an older release runs the newest
+  release as well.
+- **The way out is the pinned extension.** Remove this one and install
+  `benethos-lexware-office-mcp-X.Y.Z.mcpb` of a release that worked, from the
+  [releases page](https://github.com/benethos-hub/lexware-office-mcp/releases).
+  It runs that release with the versions tested for it, and stays there until
+  you install another. Please
+  [open an issue](https://github.com/benethos-hub/lexware-office-mcp/issues)
+  with the log, so the fix comes sooner.
 
 ### With uvx, for any MCP client
 

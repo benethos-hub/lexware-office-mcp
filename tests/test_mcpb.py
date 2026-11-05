@@ -1,10 +1,11 @@
-"""The Claude Desktop bundle, kept in step with the package.
+"""The Claude Desktop bundles, kept in step with the package.
 
-The manifest is committed as it ships, so nothing regenerates it on a
+The pinned manifest is committed as it ships, so nothing regenerates it on a
 release. Its version, tools, prompt and metadata repeat what the package
-already says, and each of them is held to that here. The bundle itself is
-staged by .github/publish/mcpb/build.py, which runs into a temporary
-directory below to check what a user's Claude Desktop would unpack.
+already says, and each of them is held to that here. The auto-update manifest
+is made from it. The bundles are staged by .github/publish/mcpb/build.py,
+which runs into a temporary directory below to check what a user's Claude
+Desktop would unpack.
 """
 
 from __future__ import annotations
@@ -217,6 +218,85 @@ def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
     )
 
 
+# -- the auto-update bundle -----------------------------------------------------
+
+
+def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() -> None:
+    """Version, tools, prompt and fields come from the pinned one, so they stay."""
+    build = _build_script()
+    manifest = build.auto_update_manifest()
+    own = set(build.AUTO_UPDATE)
+
+    assert own == {"name", "display_name", "description", "server"}
+    assert {k: v for k, v in manifest.items() if k not in own} == {
+        k: v for k, v in MANIFEST.items() if k not in own
+    }
+    assert manifest["version"] == benethos_lexware_office_mcp.__version__
+    # It opens as the project's does, so a new description in pyproject.toml
+    # cannot leave this card behind.
+    assert manifest["description"].startswith(MANIFEST["description"].split(" — ")[0])
+
+
+def test_the_auto_update_bundle_stands_beside_the_pinned_one() -> None:
+    """Claude Desktop keys an extension by its name, the same one would replace it."""
+    manifest = _build_script().auto_update_manifest()
+
+    assert manifest["name"] == PROJECT["name"] + "-auto-update"
+    assert manifest["display_name"] == MANIFEST["display_name"] + " (auto-update)"
+
+
+def test_the_auto_update_bundle_runs_the_newest_release_from_the_index() -> None:
+    """No version, no lockfile, no directory: uv resolves the newest release.
+
+    The two files are passed exactly as the pinned bundle passes them, the same
+    form for the same reason, so the extension's page means the same in both.
+    """
+    server = _build_script().auto_update_manifest()["server"]
+    pinned = MANIFEST["server"]["mcp_config"]["args"]
+
+    assert server["type"] == "uv"
+    assert server["entry_point"] == PROJECT["name"]
+    assert server["mcp_config"]["command"] == "uv"
+    assert server["mcp_config"]["args"] == ["tool", "run", PROJECT["name"], *pinned[5:]]
+    assert "env" not in server["mcp_config"]
+
+
+def test_the_staged_auto_update_bundle_carries_no_project(tmp_path: Path) -> None:
+    """Without a pyproject.toml Claude Desktop has nothing to install."""
+    build = _build_script()
+    target = tmp_path / "auto-update"
+
+    build.stage_auto_update(target)
+
+    assert sorted(p.name for p in target.iterdir()) == [
+        "LICENSE",
+        "icon.png",
+        "manifest.json",
+    ]
+    staged = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    assert staged == build.auto_update_manifest()
+    assert (target / staged["icon"]).read_bytes() == (
+        REPO / "assets" / "brand" / "icon.png"
+    ).read_bytes()
+
+
+def test_the_prompt_stays_what_installed_extensions_declare() -> None:
+    """An extension that updates itself keeps the manifest it was installed with.
+
+    It runs the newest server against the prompt declared by an older release.
+    Claude Desktop refuses an undeclared prompt and drops an answer that differs
+    from the declared text, so a new name or a new word here would break the
+    setup on every one of them, with no new file to reach them through. Changing
+    this takes a new way into the setup, not a new expected value.
+    """
+    assert SETUP_PROMPT == "open_setup"
+    assert SETUP_PROMPT_TEXT == (
+        "The configuration interface of the Lexware Office MCP server is open in "
+        "the browser, where the person sets the API key and which tools exist. "
+        "Nothing needs to be done in this conversation."
+    )
+
+
 # -- the release job ------------------------------------------------------------
 
 
@@ -239,5 +319,24 @@ def test_the_job_stages_here_and_lets_the_organisation_pack_and_attach() -> None
     )
     action = "uses: benethos-hub/.github/actions/publish/mcpb@main"
     assert steps.index(staging) < steps.index(action)
-    assert "staged: ${{ runner.temp }}/bundle" in steps
+    assert "staged: ${{ runner.temp }}/bundle\n" in steps
     assert "name: benethos-lexware-office-mcp\n" in steps
+
+
+def test_both_bundles_are_staged_and_attached_under_their_names() -> None:
+    """Each through the action, so each comes with and without its version."""
+    workflow = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    job = workflow.split("\n  mcpb-bundle:\n", 1)[1].split("\n  mcp-registry:\n")[0]
+
+    assert (
+        "run: uv run --no-project .github/publish/mcpb/build.py --auto-update "
+        '"$RUNNER_TEMP/bundle-auto-update"' in job
+    )
+    assert "staged: ${{ runner.temp }}/bundle-auto-update\n" in job
+    assert re.findall(r"^\s+name: (benethos-[a-z-]+)$", job, re.M) == [
+        "benethos-lexware-office-mcp",
+        "benethos-lexware-office-mcp-auto-update",
+    ]
+    assert job.count("uses: benethos-hub/.github/actions/publish/mcpb@main") == 2

@@ -3768,25 +3768,81 @@ described in section 7.1. Nothing on the API side is outstanding.
    with Desktop 4.16336: both empty arrives as `--env-file=` and
    `--tools-file=`, which the server already reads as not given, a file set
    on the extension's page arrives as `--env-file=<path>` and Save restarts
-   the server at once. **It lists every tool**, since the dialog shows what
-   the extension can offer, and its long description says that none but
-   `server_status` is on until the person chooses. Before that tool, Claude
-   Desktop showed a server that offered no tool as failed, "Offered no tools
-   to Cowork and Code sessions", and listed the prompt all the same. A
-   server offering `server_status` alone is shown as running, measured the
-   same day. **The prompt is declared with its exact text**, because Claude
-   Desktop refuses an undeclared one and drops an answer that differs from
-   the declaration.
+   the server at once. Claude Desktop keeps the tool list it holds across
+   that restart: measured on 2026-11-05 on the bundle below, the server read
+   all 25 tools at once and the open session went on offering `server_status`
+   alone until Claude Desktop itself was restarted. **It lists every tool**,
+   since the dialog shows what the extension can offer, and its long
+   description says that none but `server_status` is on until the person
+   chooses. Before that tool, Claude Desktop showed a server that offered no
+   tool as failed, "Offered no tools to Cowork and Code sessions", and listed
+   the prompt all the same. A server offering `server_status` alone is shown
+   as running, measured the same day. **The prompt is declared with its exact
+   text**, because Claude Desktop refuses an undeclared one and drops an
+   answer that differs from the declaration.
+
+   **A second bundle updates itself.** `build.py --auto-update` stages
+   `benethos-lexware-office-mcp-auto-update`, which carries no code, only the
+   manifest, the icon and the license, and the same job attaches it through
+   the same action. Claude Desktop runs `uv tool run
+   benethos-lexware-office-mcp` with the same two file arguments, the newest
+   release on PyPI with whatever dependency versions that release allows. Its
+   manifest is made from the pinned one, with its own name, since Claude
+   Desktop keys an extension by it and the two stand side by side, its own
+   display name, description and server. The registry entry lists the pinned
+   bundle alone. The wheel carries no pins in this step, so the ranges in
+   `pyproject.toml` decide what it runs. An extension keeps the manifest it
+   was installed with while the server moves on, which makes **the prompt's
+   name and text permanent**: a new word would be dropped as a possible
+   injection on every extension installed, with no new file to reach them
+   through. `tests/test_mcpb.py` holds both to their literal value.
+
+   A release can change what an enabled tool does under its name, which the
+   policy file cannot see, since it names a tool and not its abilities. The
+   README says so, and nothing here stops it.
+
+   Measured on 2026-11-05 on Windows with uv 0.13.6, no key, 0.8.2 from PyPI,
+   uv's cache and tool directories of their own: both fields empty arrives as
+   `--env-file= --tools-file=` and starts, in 4.8 seconds cold and 1.1 warm,
+   and over stdio with two scratch files the server offers `server_status`
+   and the prompt. `setup`, started with the interpreter of that server as
+   the prompt starts it, answers on its port. The interpreter lives in uv's
+   cache, under `archive-v0`. PyPI's simple index says `max-age=600`. **An
+   installed tool wins:** with 0.8.1 from `uv tool install`, `uv tool run`
+   ran 0.8.1 and `uv tool run <package>@latest` ran 0.8.2. Measured on
+   2026-11-03 in a Windows Sandbox on another package of the same form:
+   Claude Desktop brought uv 0.9.7, uv a Python 3.14, restarts at 3 minutes
+   and at 9 minutes 49 seconds after the last check ran the old release and
+   the one at 12 minutes the new one, and offline the command ran from the
+   cache within those 10 minutes and failed after them with `Failed to
+   fetch`. Smart App Control blocked the downloaded `uv.exe` there, for either
+   kind of bundle.
+
+   Measured on 2026-11-05 on this bundle in Claude Desktop, in a Windows
+   Sandbox with Smart App Control turned off, against a confirmed test
+   account: Claude Desktop's uv 0.9.7 fetched Python 3.14.0 and 37 packages
+   and ran 0.8.2, with `server_status` alone while both fields were empty.
+   Claude Desktop accepted the prompt's answer as matching the declaration,
+   `setup` started from uv's cache and wrote into the `.env` the field named.
+   With both files set, `get_profile` answered. Saving the read-only preset
+   there told the client at once with no restart, and `create_article` was
+   refused after no API call. `UV_EXCLUDE_NEWER` in the user's environment
+   did not reach uv, `exclude-newer` in uv's `uv.toml` did: 0.8.1 at the next
+   restart of Claude Desktop, and 0.8.2 at the one after the file was gone.
+   **(to verify)** for this one: a real release arriving through PyPI, whether
+   Claude Desktop's own uv finds a tool from `uv tool install` the same way,
+   Smart App Control on this bundle, and a Python newer than the wheels of the
+   native dependencies, which `requires-python` does not hold back.
 
    macOS is not measured, in particular whether Claude Desktop there keeps
    an extension from the per-user directory `setup` writes **(to verify)**.
    The mcpb CLI is locked in the organisation's `publish/mcpb` action, where
-   Dependabot keeps it current. `tests/test_mcpb.py` holds the manifest to
+   Dependabot keeps it current. `tests/test_mcpb.py` holds the manifests to
    the package: the version, the metadata, every tool with the first
    sentence of its description, the prompt as the server answers it, the two
    file fields and no other, neither sensitive nor required, and no bare
-   placeholder in the arguments, and a staged bundle that holds the tracked
-   source and nothing else.
+   placeholder in the arguments, a staged bundle that holds the tracked
+   source and nothing else, and an auto-update bundle that holds no project.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
