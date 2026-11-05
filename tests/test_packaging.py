@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -444,6 +445,7 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
                 "coverage-badge",
                 "freshness",
                 "codeql",
+                "dockerfile-lint",
             )
         }
         | {
@@ -568,6 +570,43 @@ def test_the_weekly_codeql_run_is_weekly_and_by_hand_only() -> None:
     assert "workflow_dispatch:" in on
     assert "push" not in on
     assert "pull_request" not in on
+
+
+def _dockerfiles() -> list[Path]:
+    files = list((REPO / "containers").rglob("Dockerfile*"))
+    assert files, "no Dockerfile in the repository"
+    return files
+
+
+def test_the_dockerfile_lint_job_reads_every_dockerfile() -> None:
+    """A pattern that misses a file reports nothing and looks like a clean file."""
+    job = _job(CI, "dockerfile-lint")
+    assert (
+        "uses: benethos-hub/.github/.github/workflows/dockerfile-lint.yml@main" in job
+    )
+    patterns = re.findall(r"^\s+files: (.+)$", job, re.MULTILINE)[0].split()
+    for path in _dockerfiles():
+        relative = path.relative_to(REPO).as_posix()
+        assert any(fnmatch(relative, pattern) for pattern in patterns), relative
+
+
+def test_every_registry_a_from_line_pulls_from_is_trusted() -> None:
+    """An image from elsewhere is a finding, so the list names what is used."""
+    job = _job(CI, "dockerfile-lint")
+    trusted = re.findall(r"^\s+trusted-registries: (.+)$", job, re.MULTILINE)[0].split()
+    for path in _dockerfiles():
+        for image in re.findall(r"^FROM (\S+)", path.read_text("utf-8"), re.MULTILINE):
+            # The first path component is a registry only when it looks like
+            # a host: python:3.15-slim comes from Docker Hub.
+            first, slash, _ = image.partition("/")
+            registry = first if slash and "." in first else "docker.io"
+            assert registry in trusted, f"{image} comes from {registry}"
+
+
+def test_the_dockerfile_lint_job_may_upload_and_nothing_more() -> None:
+    job = _job(CI, "dockerfile-lint")
+    permissions = re.findall(r"^\s+([\w-]+): (read|write)$", job, re.MULTILINE)
+    assert permissions == [("contents", "read"), ("security-events", "write")]
 
 
 def test_the_stdio_check_is_a_script_and_not_a_test() -> None:

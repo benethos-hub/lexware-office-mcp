@@ -77,4 +77,6 @@ docker build -f containers/images/lexware-office-mcp/Dockerfile -t benethos-lexw
 keep every port on the loopback address but Caddy's 443 and start the
 configuration interface and Caddy only with their profiles, and it starts
 the image once: it makes its own token, refuses a request without it, and
-offers no tool but `server_status` while no policy file names one.
+offers no tool but `server_status` while no policy file names one. Its job
+`dockerfile-lint` reads the Dockerfile with hadolint, and what that finds
+goes to Security, Code scanning.
