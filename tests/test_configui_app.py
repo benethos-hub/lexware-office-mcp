@@ -22,7 +22,6 @@ from urllib.parse import urlencode
 
 import pytest
 
-import helpers
 from benethos_lexware_office_mcp.configui import actions, app, probe, transfer
 from benethos_lexware_office_mcp.configui.app import (
     CONTENT_SECURITY_POLICY,
@@ -38,6 +37,7 @@ from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import DEFAULT_PAGE_SIZE, Settings, envfile
 from benethos_lexware_office_mcp.settings.envfile import read_env_file
 from helpers import Browser, serving, signed_in
+from helpers import installation as make_installation
 
 ACCOUNT = probe.Account(company="Test Inc.", tax_type="net")
 
@@ -60,7 +60,7 @@ def installation(
     no_configuration_from_this_machine: None,
 ) -> Installation:
     monkeypatch.setattr(probe, "check", fake_check)
-    return helpers.installation(
+    return make_installation(
         tmp_path, "LXO_MCP_PAGE_SIZE=50\n", api_key="secret-value", page_size=50
     )
 

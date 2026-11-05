@@ -31,8 +31,10 @@ def receipt_pdf(text: str) -> bytes:
         b"<</Type/Catalog/Pages 2 0 R>>",
         b"<</Type/Pages/Kids[4 0 R]/Count 1>>",
         b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
-        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]"
-        b"/Resources<</Font<</F1 3 0 R>>>>/Contents 5 0 R>>",
+        (
+            b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]"
+            b"/Resources<</Font<</F1 3 0 R>>>>/Contents 5 0 R>>"
+        ),
         b"<</Length "
         + str(len(stream)).encode()
         + b">>stream\n"

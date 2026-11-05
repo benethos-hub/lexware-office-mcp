@@ -8,6 +8,7 @@ report about one laptop rather than about the code.
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 from collections.abc import AsyncIterator, Iterator
@@ -15,13 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from benethos_lexware_office_mcp import server as _server  # noqa: F401
 from benethos_lexware_office_mcp.configui import probe
 from benethos_lexware_office_mcp.logbook.access import ACCESS_LOGGER
 from benethos_lexware_office_mcp.logbook.output import LIBRARIES, PACKAGE
 from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools
 from benethos_lexware_office_mcp.settings import locations
 from helpers import OPEN_PROVIDERS, capture_lines
+
+# For what the import does and not for a name it gives: see the fixture below.
+importlib.import_module("benethos_lexware_office_mcp.server")
 
 
 @pytest.fixture(autouse=True)

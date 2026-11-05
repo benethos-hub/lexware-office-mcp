@@ -19,7 +19,6 @@ from typing import Any
 
 import pytest
 
-import benethos_lexware_office_mcp
 from benethos_lexware_office_mcp import logbook
 from benethos_lexware_office_mcp.errors import ValidationError
 from benethos_lexware_office_mcp.logbook._describe import describe
@@ -85,7 +84,7 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "writers": ("tool names", ("create_contact",)),
 }
 
-_SOURCE = Path(benethos_lexware_office_mcp.__file__).parent
+_SOURCE = Path(logbook.__file__).parents[1]
 
 
 def _lines() -> list[tuple[str, Callable[..., None]]]:
@@ -161,9 +160,7 @@ def test_a_system_error_says_why_without_the_file() -> None:
 
 
 def test_a_broken_json_file_says_where() -> None:
-    try:
+    with pytest.raises(json.JSONDecodeError) as caught:
         json.loads('{"get_profile": tru}')
-    except json.JSONDecodeError as exc:
-        error = exc
 
-    assert describe(error) == "JSONDecodeError at line 1 column 17"
+    assert describe(caught.value) == "JSONDecodeError at line 1 column 17"
