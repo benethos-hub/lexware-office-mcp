@@ -30,6 +30,11 @@ name: Freshness
 #   nothing, the check failing on the locked versions too or a step failing
 #   while nothing moved, leaves the alarm issue as it was.
 #
+# The run after Publish is for the index job, which installs the freshly
+# published package from PyPI, so a release that does not install stands in
+# the alarm issue within minutes instead of at the next cron, for the reason
+# see "Calling it" in docs/freshness.md of benethos-hub/.github.
+#
 # Both issues are public: names, versions and the result of a job go in, no
 # log. The cron, the concurrency group and the permission to write issues
 # belong here, the measuring belongs to the organisation. The workflow and
@@ -39,6 +44,9 @@ name: Freshness
 on:
   schedule:
     - cron: "30 4 * * *"
+  workflow_run:
+    workflows: [Publish]
+    types: [completed]
   workflow_dispatch:
 
 permissions:

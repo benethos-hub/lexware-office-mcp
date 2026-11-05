@@ -3231,10 +3231,10 @@ interpreter. It exits with 0 or 1 and needs no key and no network. Of the
 mutations measured on 2026-11-04 in a container, the suite missed two: the
 wire conversion dropping every error text, and `tools/list` dropping the
 annotations. The script sees both. `.github/workflows/freshness.yml` runs
-it daily on the newest versions the ranges allow, from the checkout, and on
-the published package installed from PyPI, see section 16. The byte diff
-stays the check for a bump of `mcp`, since it sees what no fixed assertion
-asks for.
+it daily and after every run of Publish on the newest versions the ranges
+allow, from the checkout, and on the published package installed from PyPI,
+see section 16. The byte diff stays the check for a bump of `mcp`, since it
+sees what no fixed assertion asks for.
 
 ## 15. Conventions
 
@@ -3605,7 +3605,16 @@ described in section 7.1. Nothing on the API side is outstanding.
    sentence what passed, which the pins issue lists under Checks. A run
    that proves nothing, the check failing on the locked versions too or a
    step failing while nothing moved, leaves the alarm issue as it was.
-   `tests/test_packaging.py` holds the call: schedule and hand only, the
+   **The whole run starts once more when `publish.yml` has finished,**
+   whatever its result and whether a release or the hand started it. It is
+   there for `index`, whose answer changes at that moment, so a release that
+   does not install stands in the alarm issue within minutes instead of at
+   the next cron. A publishing run that failed leaves the index as it was,
+   and the run after it repeats the day before. An index that shows a fresh
+   version a minute late is measured once on the version before, and the
+   schedule corrects that.
+   `tests/test_packaging.py` holds the call: the schedule, the hand and the
+   run after Publish, whose name it compares with `publish.yml`, the
    permission to write issues and nothing else, the two titles, the job's
    artifact and the check commands.
 7. **An entry in the official MCP Registry**, published with 0.5.1 on

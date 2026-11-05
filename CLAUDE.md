@@ -164,10 +164,10 @@ containers/       # README.md says which folder is for what
                   # Claude Desktop bundle, and the MCP Registry entry,
                   # behind ci-passed, each through the organisation's
                   # actions. A manual run tries PyPI and pushes edge
-    freshness.yml # daily: what is pinned and what is newer, and whether
-                  # the newest versions allowed and the published package
-                  # still work, two issues through the organisation's
-                  # reusable workflow
+    freshness.yml # daily and after every run of publish.yml: what is
+                  # pinned and what is newer, and whether the newest
+                  # versions allowed and the published package still work,
+                  # two issues through the organisation's reusable workflow
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -325,14 +325,15 @@ path of that conversion in `tests/test_stdio.py` and nothing else.
 its annotations, and that a disabled tool, an unknown argument and an
 argument of the wrong type each come back as an error result carrying this
 server's sentence. `uv run python tests/stdio_check.py` runs it on the
-checkout, and `freshness.yml` runs it daily on the newest versions the
-ranges allow and on the published package. When `mcp` moves, drive the
-server the same way by hand as well - send `initialize`, `tools/list` and
-`tools/call` and diff the answers against the same run on the old version,
-since a byte diff sees what no fixed assertion asks for. The recipe and
-what to capture are in SPECS.md section 14.3. The 2.0.0 to 2.1.1 bump is why
-it is written down: the tool list came back byte-identical while every error
-message this server sends had silently stopped reaching the model.
+checkout, and `freshness.yml` runs it daily and after every run of Publish
+on the newest versions the ranges allow and on the published package. When
+`mcp` moves, drive the server the same way by hand as well - send
+`initialize`, `tools/list` and `tools/call` and diff the answers against the
+same run on the old version, since a byte diff sees what no fixed assertion
+asks for. The recipe and what to capture are in SPECS.md section 14.3. The
+2.0.0 to 2.1.1 bump is why it is written down: the tool list came back
+byte-identical while every error message this server sends had silently
+stopped reaching the model.
 
 **One rule follows from that and is easy to undo by accident.** Every class in
 `errors.py` derives from the SDK's `ToolError`, because that type is what
