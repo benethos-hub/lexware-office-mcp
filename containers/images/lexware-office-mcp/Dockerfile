@@ -97,7 +97,9 @@ RUN useradd --create-home --uid 10001 appuser \
 
 COPY --from=builder /opt/venv /opt/venv
 
-USER appuser
+# By its id, so that whatever starts the image can tell it is not root without
+# reading the image's user list.
+USER 10001
 
 # The settings file is searched relative to the working directory as well, so
 # this is what makes /config/.env the one in effect without naming a path

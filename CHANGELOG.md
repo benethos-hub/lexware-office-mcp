@@ -20,6 +20,8 @@ housekeeping are out of scope here — design decisions live in
   resolves it already.
 - **The image's health check runs without a shell.** It asks the same as
   before, whether the transport port answers.
+- **The image names its user by id**, 10001, the same user `appuser` as
+  before, so nothing changes for the volumes.
 
 ## [0.8.1] - 2026-11-03
 
