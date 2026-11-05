@@ -3597,7 +3597,7 @@ described in section 7.1. Nothing on the API side is outstanding.
    packages inside something people pull and run. Since the pins, minor and
    patch updates come as one pull request per ecosystem and week, and a major
    one alone. `mcp` always comes alone, since the suite does not see what the
-   SDK changes. Since 2026-11-05 the uv ecosystem runs with
+   SDK changes. Since 2026-11-04 the uv ecosystem runs with
    `versioning-strategy: increase-if-necessary`: a range that already allows
    a new release stays as it is and only `uv.lock` moves, so an update never
    raises the floor for whoever installs the package. The option exists for
