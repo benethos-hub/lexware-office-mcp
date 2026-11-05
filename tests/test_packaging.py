@@ -15,10 +15,9 @@ from typing import Any
 
 import pytest
 
-import benethos_lexware_office_mcp
-from benethos_lexware_office_mcp import cli
+from benethos_lexware_office_mcp import __version__, cli
 
-PACKAGE_DIR = Path(benethos_lexware_office_mcp.__file__).resolve().parent
+PACKAGE_DIR = Path(cli.__file__).resolve().parent
 REPO = PACKAGE_DIR.parents[1]
 MARKER = PACKAGE_DIR / "py.typed"
 DOCKERFILE = REPO / "containers" / "images" / "lexware-office-mcp" / "Dockerfile"
@@ -89,10 +88,10 @@ def test_the_documented_version_examples_are_current(
     # A pattern that has stopped matching would pass while checking nothing.
     assert found, f"{relative_path} no longer contains {pattern!r}"
 
-    stale = sorted({v for v in found if v != benethos_lexware_office_mcp.__version__})
+    stale = sorted({v for v in found if v != __version__})
     assert not stale, (
         f"{relative_path} still shows {stale}, the package is at "
-        f"{benethos_lexware_office_mcp.__version__}. Anyone copying that "
+        f"{__version__}. Anyone copying that "
         "example uses an older release than the one they are reading about."
     )
 
@@ -106,7 +105,7 @@ def test_the_documented_minor_line_examples_are_current(
 
     assert found, f"{relative_path} no longer contains {pattern!r}"
 
-    major, minor, *_ = benethos_lexware_office_mcp.__version__.split(".")
+    major, minor, *_ = __version__.split(".")
     current = f"{major}.{minor}"
     stale = sorted({v for v in found if v != current})
     assert not stale, (
@@ -118,7 +117,7 @@ def test_the_documented_minor_line_examples_are_current(
 
 def test_the_changelog_has_a_section_for_this_version() -> None:
     """Its heading, its link, and the unreleased link starting after it."""
-    version = re.escape(benethos_lexware_office_mcp.__version__)
+    version = re.escape(__version__)
     text = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
     compare = re.escape("https://github.com/benethos-hub/lexware-office-mcp/compare/")
 
@@ -130,7 +129,7 @@ def test_the_changelog_has_a_section_for_this_version() -> None:
 def test_the_roadmap_has_a_row_for_this_version() -> None:
     text = (REPO / "SPECS.md").read_text(encoding="utf-8")
 
-    assert f"\n| {benethos_lexware_office_mcp.__version__} | " in text
+    assert f"\n| {__version__} | " in text
 
 
 def test_the_version_check_would_notice_a_stale_example() -> None:
@@ -141,7 +140,7 @@ def test_the_version_check_would_notice_a_stale_example() -> None:
     found = re.findall(pattern, sample)
 
     assert found == ["0.0.1"]
-    assert found != [benethos_lexware_office_mcp.__version__]
+    assert found != [__version__]
 
 
 # -- which Python versions this project claims ------------------------------
@@ -936,7 +935,7 @@ def test_the_registry_entry_describes_the_package_as_pypi_does() -> None:
 def test_the_registry_entry_points_at_the_published_packages() -> None:
     """The names publish.yml uploads under, and the image without a version."""
     pypi, oci = _package("pypi"), _package("oci")
-    version = benethos_lexware_office_mcp.__version__
+    version = __version__
     image = f"ghcr.io/{_owner()}/{_project()['name']}:{version}"
 
     assert pypi["identifier"] == _project()["name"]
@@ -1039,7 +1038,7 @@ PLACEHOLDER = "0" * 64
 
 
 def test_the_bundle_entry_is_this_releases_asset() -> None:
-    version = benethos_lexware_office_mcp.__version__
+    version = __version__
     bundle = _package("mcpb")
 
     assert bundle["identifier"] == (
@@ -1058,6 +1057,6 @@ def test_the_bundle_entry_holds_the_placeholder() -> None:
 def test_the_bundle_file_name_is_the_one_the_workflow_uploads() -> None:
     """The mcpb action attaches <name>-<version>.mcpb, the entry names it."""
     name = _publish_steps("mcpb-bundle").split("\n          name: ", 1)[1].split()[0]
-    version = benethos_lexware_office_mcp.__version__
+    version = __version__
 
     assert _package("mcpb")["identifier"].endswith(f"/{name}-{version}.mcpb")

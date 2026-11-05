@@ -19,7 +19,6 @@ from typing import Any
 
 import pytest
 
-import benethos_lexware_office_mcp
 from benethos_lexware_office_mcp import logbook
 from benethos_lexware_office_mcp.errors import ValidationError
 from benethos_lexware_office_mcp.logbook._describe import describe
@@ -85,7 +84,7 @@ VOCABULARY: dict[str, tuple[str, Any]] = {
     "writers": ("tool names", ("create_contact",)),
 }
 
-_SOURCE = Path(benethos_lexware_office_mcp.__file__).parent
+_SOURCE = Path(logbook.__file__).parents[1]
 
 
 def _lines() -> list[tuple[str, Callable[..., None]]]:
