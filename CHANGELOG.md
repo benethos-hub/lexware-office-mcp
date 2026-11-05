@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **The Claude Desktop extension can be pointed at your own files.** Its page
+  under *Settings → Extensions* asks for a settings file and a tool policy
+  file, both optional. Left empty, the extension reads the per-user files as
+  before. A file picked there applies at once, the server restarts on it.
+
 ## [0.8.2] - 2026-11-05
 
 A patch release for the container image. Nothing a client receives

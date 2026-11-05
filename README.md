@@ -420,9 +420,14 @@ Worth knowing:
 - **One or the other.** The extension and an entry for the same server in
   `claude_desktop_config.json` would offer every tool twice. Remove the entry
   when you switch to the extension.
-- **The configuration is shared.** The extension reads the same per-user
-  `.env` and `tools.json` as an installation with uvx, so
-  `uvx benethos-lexware-office-mcp setup` changes them too.
+- **Your own files, if you have them.** The extension's page under
+  *Settings → Extensions* has two fields, *Settings file (.env)* and
+  *Tool policy file (tools.json)*. Left empty, the extension reads the same
+  per-user `.env` and `tools.json` as an installation with uvx, so
+  `uvx benethos-lexware-office-mcp setup` changes them too. Pick a file
+  there and *Save*, and the server restarts on it at once. The second field
+  can stay empty when the `.env` names the policy file with
+  `LXO_MCP_TOOL_POLICY`.
 - **Updating** is installing the newer file over the old one. If Claude
   Desktop cannot replace it, end the setup page first with *Beenden*: while it
   runs, it holds the extension's files.
