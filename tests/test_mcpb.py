@@ -124,17 +124,36 @@ def test_it_is_a_uv_bundle_started_from_its_own_directory() -> None:
     assert args[:3] == ["run", "--directory", "${__dirname}"]
     # The lockfile decides the versions, as it does for the image.
     assert "--frozen" in args
-    assert args[-1] == server["entry_point"] == "server.py"
+    assert server["entry_point"] == "server.py" and args[4] == "server.py"
+    assert args[5:] == [
+        "--env-file=${user_config.env_file}",
+        "--tools-file=${user_config.tools_file}",
+    ]
 
 
-def test_the_bundle_asks_for_no_settings() -> None:
-    """Everything is set in the configuration interface the prompt opens.
+def test_the_bundle_asks_for_the_two_files_and_nothing_else() -> None:
+    """Every setting is made in the configuration interface the prompt opens.
 
     A key asked for here would reach the server as an environment variable,
-    which beats the .env and so could no longer be changed on those pages.
+    which beats the .env and so could no longer be changed on those pages, so
+    the only fields are the paths of the two files.
+
+    The = form with an empty default is what Claude Desktop substitutes when
+    a field is empty. The plain form, a placeholder as its own argument,
+    passes the placeholder through (measured 2026-11-05, Desktop 4.16336).
     """
-    assert "user_config" not in MANIFEST
-    assert "env" not in MANIFEST["server"]["mcp_config"]
+    fields = MANIFEST["user_config"]
+    config = MANIFEST["server"]["mcp_config"]
+
+    assert set(fields) == {"env_file", "tools_file"}
+    for field in fields.values():
+        assert field["type"] == "file"
+        assert field["required"] is False
+        assert field["default"] == ""
+        assert not field.get("multiple", False)
+        assert not field.get("sensitive", False)
+    assert "env" not in config
+    assert all(not re.fullmatch(r"\$\{user_config\.\w+\}", a) for a in config["args"])
 
 
 def test_the_data_goes_where_a_privacy_policy_says() -> None:

@@ -26,8 +26,26 @@
         "--directory",
         "${__dirname}",
         "--frozen",
-        "server.py"
+        "server.py",
+        "--env-file=${user_config.env_file}",
+        "--tools-file=${user_config.tools_file}"
       ]
+    }
+  },
+  "user_config": {
+    "env_file": {
+      "type": "file",
+      "title": "Settings file (.env)",
+      "description": "The .env the server reads and the setup pages write. Leave empty for the per-user configuration directory.",
+      "required": false,
+      "default": ""
+    },
+    "tools_file": {
+      "type": "file",
+      "title": "Tool policy file (tools.json)",
+      "description": "Which tools exist. Leave empty when the .env names it or the per-user directory holds it.",
+      "required": false,
+      "default": ""
     }
   },
   "tools": [
