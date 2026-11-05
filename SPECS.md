@@ -3749,28 +3749,44 @@ described in section 7.1. Nothing on the API side is outstanding.
    set the key and the tools in the browser, and `get_profile` answered
    for the test account.
 
-   **The manifest asks for nothing.** Its `user_config` could carry the key
-   into the install dialog, and a first try did, but a value there reaches
-   the server as an environment variable, which beats the `.env` and so
-   could no longer be changed on the configuration pages. One place for
-   everything won. **It lists every tool**, since the dialog shows what the
-   extension can offer, and its long description says that none but
-   `server_status` is on until the person chooses. Before that tool,
-   Claude Desktop showed a server that offered no tool as failed,
-   "Offered no tools to Cowork and Code sessions", and listed the prompt
-   all the same. Whether a server offering `server_status` alone is still
-   shown as failed is **(to verify)**. **The prompt is declared with its exact
-   text**, because Claude Desktop refuses an undeclared one and drops an
-   answer that differs from the declaration.
+   **The manifest asks for two files and no key.** Its `user_config` could
+   carry the key into the install dialog, and a first try did, but a value
+   there reaches the server as an environment variable, which beats the
+   `.env` and so could no longer be changed on the configuration pages. One
+   place for everything won. Since 2026-11-05 it asks for two optional
+   files, `env_file` and `tools_file`, type `file`, passed as
+   `--env-file=${user_config.env_file}` and
+   `--tools-file=${user_config.tools_file}`, each with an empty default. A
+   path is not a setting and names the file the setup pages write into, so
+   one place for everything stays. The `=` form and the empty default are
+   there for a Claude Desktop defect: an args element that is exactly a
+   `${user_config.…}` placeholder is left as it is when the field is empty,
+   with or without a default, because the reference substitution substitutes
+   only a truthy value, while a placeholder inside a longer string is
+   replaced whenever the field exists (issue #250 of
+   modelcontextprotocol/mcpb, open since 2026-05-28). Measured on Windows
+   with Desktop 4.16336: both empty arrives as `--env-file=` and
+   `--tools-file=`, which the server already reads as not given, a file set
+   on the extension's page arrives as `--env-file=<path>` and Save restarts
+   the server at once. **It lists every tool**, since the dialog shows what
+   the extension can offer, and its long description says that none but
+   `server_status` is on until the person chooses. Before that tool, Claude
+   Desktop showed a server that offered no tool as failed, "Offered no tools
+   to Cowork and Code sessions", and listed the prompt all the same. A
+   server offering `server_status` alone is shown as running, measured the
+   same day. **The prompt is declared with its exact text**, because Claude
+   Desktop refuses an undeclared one and drops an answer that differs from
+   the declaration.
 
    macOS is not measured, in particular whether Claude Desktop there keeps
    an extension from the per-user directory `setup` writes **(to verify)**.
-   The mcpb CLI is locked in the organisation's `publish/mcpb` action,
-   where Dependabot keeps it current. `tests/test_mcpb.py` holds the manifest to
+   The mcpb CLI is locked in the organisation's `publish/mcpb` action, where
+   Dependabot keeps it current. `tests/test_mcpb.py` holds the manifest to
    the package: the version, the metadata, every tool with the first
-   sentence of its description, the prompt as the server answers it, no
-   settings asked for, and a staged bundle that holds the tracked source
-   and nothing else.
+   sentence of its description, the prompt as the server answers it, the two
+   file fields and no other, neither sensitive nor required, and no bare
+   placeholder in the arguments, and a staged bundle that holds the tracked
+   source and nothing else.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
