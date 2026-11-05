@@ -477,14 +477,21 @@ def _freshness_job(name: str) -> str:
 def test_the_freshness_report_runs_on_a_schedule_and_writes_issues_only() -> None:
     """The daily report is the organisation's, see docs/freshness.md there.
 
-    What can go wrong here is the call: a trigger other than the schedule and
-    the hand, a permission beyond issues, two issues under one title, or a
-    run without the concurrency group, which would let two runs edit the one
-    issue at once.
+    What can go wrong here is the call: a trigger other than the schedule,
+    the hand and the run after Publish, a permission beyond issues, two
+    issues under one title, or a run without the concurrency group, which
+    would let two runs edit the one issue at once. The run after Publish
+    names that workflow as its ``name:`` reads, and GitHub says nothing when
+    the name it was given matches none.
     """
     on = FRESHNESS.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
     assert "schedule:" in on
     assert "workflow_dispatch:" in on
+    assert "workflow_run:\n    workflows: [Publish]\n    types: [completed]\n" in on
+    publish = (REPO / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    assert publish.startswith("name: Publish\n")
     assert "push" not in on
     assert "pull_request" not in on
     assert "concurrency:\n  group: freshness\n" in FRESHNESS
