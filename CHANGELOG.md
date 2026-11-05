@@ -18,6 +18,8 @@ housekeeping are out of scope here — design decisions live in
 - **platformdirs 4.14.4 in the lockfile the image is built from**, with no
   change to its code, only to its version. An installation from the index
   resolves it already.
+- **The image's health check runs without a shell.** It asks the same as
+  before, whether the transport port answers.
 
 ## [0.8.1] - 2026-11-03
 
