@@ -97,6 +97,7 @@ jobs:
   # installation that has none offers no tool but server_status.
   fresh-install:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       # The per-user configuration directory, pointed at an empty one rather
       # than trusting the runner to have none. What is being asserted is what
@@ -190,6 +191,7 @@ jobs:
   # kind of proof that stops being true without anyone noticing.
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
