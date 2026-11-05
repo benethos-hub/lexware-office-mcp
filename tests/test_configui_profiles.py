@@ -64,7 +64,8 @@ def test_long_names_edited_in_by_hand_stay_apart(store: ProfileStore) -> None:
 
     assert set(store.all()) == {first, second}
     store.save(first, ["create_voucher"], KNOWN)
-    assert store.delete(second)
+    deleted = store.delete(second)
+    assert deleted
     assert set(store.all()) == {first}
     assert store.all()[first].tools == ("create_voucher",)
 
@@ -140,8 +141,10 @@ def test_saving_the_same_name_replaces_it(store: ProfileStore) -> None:
 def test_deleting_says_whether_there_was_one(store: ProfileStore) -> None:
     store.save("Profil", ["get_profile"], KNOWN)
 
-    assert store.delete("Profil") is True
-    assert store.delete("Profil") is False
+    first = store.delete("Profil")
+    again = store.delete("Profil")
+    assert first is True
+    assert again is False
     assert store.all() == {}
 
 

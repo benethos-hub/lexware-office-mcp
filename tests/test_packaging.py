@@ -837,7 +837,8 @@ def test_production_runs_the_published_image_at_the_named_version() -> None:
     services = _services(COMPOSE_FILES[1])
     image = "image: ghcr.io/benethos-hub/benethos-lexware-office-mcp:${LXO_VERSION:?"
 
-    assert "\n    image: caddy:2\n" in services.pop("caddy")
+    caddy = services.pop("caddy")
+    assert "\n    image: caddy:2\n" in caddy
     assert all(image in block for block in services.values())
     assert all("build:" not in block for block in services.values())
 
