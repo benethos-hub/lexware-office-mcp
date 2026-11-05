@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -443,6 +444,8 @@ def test_every_action_is_pinned_to_a_commit_with_its_version() -> None:
                 "python-release-ci-passed",
                 "coverage-badge",
                 "freshness",
+                "codeql",
+                "dockerfile-lint",
             )
         }
         | {
@@ -468,10 +471,15 @@ FRESHNESS = (REPO / ".github" / "workflows" / "freshness.yml").read_text(
 )
 
 
+def _job(workflow: str, name: str) -> str:
+    """One job of a workflow, up to the next key at a job's indentation."""
+    rest = workflow.split(f"\n  {name}:\n", 1)[1]
+    return re.split(r"\n\n  (?=\S)", rest, maxsplit=1)[0].rstrip()
+
+
 def _freshness_job(name: str) -> str:
-    """One job of freshness.yml, up to the next key at a job's indentation."""
-    rest = FRESHNESS.split(f"\n  {name}:\n", 1)[1]
-    return re.split(r"\n\n  (?=\S)", rest, maxsplit=1)[0]
+    """One job of freshness.yml."""
+    return _job(FRESHNESS, name)
 
 
 def test_the_freshness_report_runs_on_a_schedule_and_writes_issues_only() -> None:
@@ -529,6 +537,76 @@ def test_the_newest_job_feeds_the_report_and_runs_the_stdio_check() -> None:
     assert "index: true" in call
     assert "index-check: $FRESHNESS_PYTHON tests/stdio_check.py" in call
     assert "rate-limit-exit-code" not in FRESHNESS
+
+
+CI = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+CODEQL = (REPO / ".github" / "workflows" / "codeql.yml").read_text(encoding="utf-8")
+
+
+def test_the_codeql_job_and_the_weekly_run_make_one_call() -> None:
+    """One analysis in two places, so a change to one is a change to both.
+
+    A category of their own would file the same findings twice, and the
+    upload needs one permission and the called workflow gets no more.
+    """
+    job = _job(CI, "codeql")
+    assert job == _job(CODEQL, "codeql")
+    assert "uses: benethos-hub/.github/.github/workflows/codeql.yml@main" in job
+    assert "category:" not in job
+    permissions = re.findall(r"^\s+([\w-]+): (read|write)$", job, re.MULTILINE)
+    assert permissions == [("contents", "read"), ("security-events", "write")]
+
+
+def test_codeql_reads_every_language_of_the_repository() -> None:
+    """The configuration interface's script is code as well as the server."""
+    assert list((REPO / "src").rglob("*.js")), "no script left, drop the language"
+    assert "languages: python,javascript-typescript,actions" in _job(CI, "codeql")
+
+
+def test_the_weekly_codeql_run_is_weekly_and_by_hand_only() -> None:
+    """Only a run on a schedule reads code nobody changed with new queries."""
+    on = CODEQL.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert re.search(r'cron: "\d+ \d+ \* \* [0-6]"', on), "one weekday, once"
+    assert "workflow_dispatch:" in on
+    assert "push" not in on
+    assert "pull_request" not in on
+
+
+def _dockerfiles() -> list[Path]:
+    files = list((REPO / "containers").rglob("Dockerfile*"))
+    assert files, "no Dockerfile in the repository"
+    return files
+
+
+def test_the_dockerfile_lint_job_reads_every_dockerfile() -> None:
+    """A pattern that misses a file reports nothing and looks like a clean file."""
+    job = _job(CI, "dockerfile-lint")
+    assert (
+        "uses: benethos-hub/.github/.github/workflows/dockerfile-lint.yml@main" in job
+    )
+    patterns = re.findall(r"^\s+files: (.+)$", job, re.MULTILINE)[0].split()
+    for path in _dockerfiles():
+        relative = path.relative_to(REPO).as_posix()
+        assert any(fnmatch(relative, pattern) for pattern in patterns), relative
+
+
+def test_every_registry_a_from_line_pulls_from_is_trusted() -> None:
+    """An image from elsewhere is a finding, so the list names what is used."""
+    job = _job(CI, "dockerfile-lint")
+    trusted = re.findall(r"^\s+trusted-registries: (.+)$", job, re.MULTILINE)[0].split()
+    for path in _dockerfiles():
+        for image in re.findall(r"^FROM (\S+)", path.read_text("utf-8"), re.MULTILINE):
+            # The first path component is a registry only when it looks like
+            # a host: python:3.15-slim comes from Docker Hub.
+            first, slash, _ = image.partition("/")
+            registry = first if slash and "." in first else "docker.io"
+            assert registry in trusted, f"{image} comes from {registry}"
+
+
+def test_the_dockerfile_lint_job_may_upload_and_nothing_more() -> None:
+    job = _job(CI, "dockerfile-lint")
+    permissions = re.findall(r"^\s+([\w-]+): (read|write)$", job, re.MULTILINE)
+    assert permissions == [("contents", "read"), ("security-events", "write")]
 
 
 def test_the_stdio_check_is_a_script_and_not_a_test() -> None:

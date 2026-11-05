@@ -3410,6 +3410,32 @@ described in section 7.1. Nothing on the API side is outstanding.
    percentage as `coverage.json` on the `badges` branch after a push to
    main. It never runs for a pull request, so it is no required check.
 
+   **CodeQL became a job of this repository, decided 2026-11-05.** The
+   default setup of code scanning, a setting with no file, ran the security
+   queries alone, and the quality queries are no setting of it. `codeql` in
+   `ci.yml` calls the organisation's workflow with its default suite
+   `security-and-quality`, on the Python code, the JavaScript of the
+   configuration interface and the workflows, on every push and pull
+   request. `.github/workflows/codeql.yml` makes the same call once a week,
+   since GitHub adds queries over time and only a run on a schedule reads code
+   nobody changed with them. Both file under one category, so each run
+   refreshes the last. A finding goes to Security, Code scanning, and never
+   fails the job, so it is no required check. GitHub refuses a workflow's
+   upload while the default setup is on, so that setting goes off once this
+   is merged. `tests/test_packaging.py` holds the two calls equal, the
+   languages, the weekly schedule and the one permission.
+
+   **hadolint reads the Dockerfile, decided the same day.** `dockerfile-lint`
+   in `ci.yml` calls the organisation's workflow over
+   `containers/**/Dockerfile`, with `docker.io` and `ghcr.io` as the registries
+   a `FROM` may pull from. `docker` builds and runs the image, this job judges
+   the form of the file. Its findings go to Security, Code scanning, and the
+   job stays green on them: whether a new finding turns the pull request's
+   "Code scanning results" check red is the repository's protection rule, one
+   threshold for every scanner. It is no required check.
+   `tests/test_packaging.py` holds the pattern to every Dockerfile, the
+   registries to every `FROM` line and the one permission.
+
    **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
    where a parameter description had silently disappeared from a tool schema.
    See section 6 for what changed in Python and why the workaround it broke

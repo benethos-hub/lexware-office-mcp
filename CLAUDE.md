@@ -157,9 +157,11 @@ containers/       # README.md says which folder is for what
   workflows/
     ci.yml        # brand, lint, test (coverage on 3.15 alone, and the
                   # badge), coverage-badge, lowest-versions (the oldest
-                  # allowed dependencies, audited) and audit (the locked
-                  # versions), all the organisation's reusable workflows,
-                  # and this project's own fresh-install and docker
+                  # allowed dependencies, audited), audit (the locked
+                  # versions), codeql (security and quality queries) and
+                  # dockerfile-lint (hadolint), all the organisation's
+                  # reusable workflows, and this project's own fresh-install
+                  # and docker
     publish.yml   # a published release -> PyPI, the container image, the
                   # Claude Desktop bundle, and the MCP Registry entry,
                   # behind ci-passed, each through the organisation's
@@ -168,6 +170,8 @@ containers/       # README.md says which folder is for what
                   # pinned and what is newer, and whether the newest
                   # versions allowed and the published package still work,
                   # two issues through the organisation's reusable workflow
+    codeql.yml    # weekly: the codeql job of ci.yml once more, for the
+                  # queries GitHub adds in between
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -489,7 +493,9 @@ fallen behind, so the list is short on purpose. In this order:
   commit defeats the point of branching. Once a remote exists, the merge goes
   through a pull request instead and `main` is no longer written directly.
 - **Every CI job has to pass before a merge**, and each one is a required
-  check on `main`. A job calling a reusable workflow is named after both,
+  check on `main`, but for `codeql` and `dockerfile-lint`, which report to
+  Security, Code scanning, so that a merge does not wait for what they find.
+  A job calling a reusable workflow is named after both, as in
   `lint / lint`, `test / Python 3.11` and so on, and a renamed check has to
   be swapped in the branch protection before the pull request that renames
   it can merge. When `lowest-versions` goes red, a lower bound has become
