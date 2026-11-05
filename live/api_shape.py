@@ -124,10 +124,14 @@ class Capture:
             f"Taken {taken.strftime('%Y-%m-%d %H:%M UTC')} "
             f"by live/api_shape.py against a live account.",
             "",
-            "Field names and JSON types. Values appear only for the closed "
-            "vocabularies the script names,",
-            "never for anything a person entered. See the module docstring "
-            "for the rule.",
+            (
+                "Field names and JSON types. Values appear only for the closed "
+                "vocabularies the script names,"
+            ),
+            (
+                "never for anything a person entered. See the module docstring "
+                "for the rule."
+            ),
             "",
             f"{len(self.shapes)} endpoints read"
             + (f", {len(self.skipped)} not available" if self.skipped else ""),
