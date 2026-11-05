@@ -426,8 +426,10 @@ fallen behind, so the list is short on purpose. In this order:
    organisation's `python-release-ci-passed` workflow), waits for the CI
    run the merge commit's push to main started and lets nothing be built
    unless that run succeeded, so a tag on a commit that never reached main,
-   or on one whose CI is red, publishes nothing. It also audits `uv.lock`
-   once more, and a waiver in `ignore-vulns` belongs there as well as in
+   or on one whose CI is red, publishes nothing. That is the run as a whole,
+   so `codeql` or `dockerfile-lint` gone red stops a release as well, though
+   a merge does not wait for either. `ci-passed` also audits `uv.lock` once
+   more, and a waiver in `ignore-vulns` belongs there as well as in
    `ci.yml`. Each action after it stops when the tag is not `v` plus the
    version in its file, `pyproject.toml`, `manifest.json` or
    `server.json`, so a tag ahead of step 3 publishes nothing rather than an
