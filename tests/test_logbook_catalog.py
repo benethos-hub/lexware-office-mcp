@@ -161,9 +161,7 @@ def test_a_system_error_says_why_without_the_file() -> None:
 
 
 def test_a_broken_json_file_says_where() -> None:
-    try:
+    with pytest.raises(json.JSONDecodeError) as caught:
         json.loads('{"get_profile": tru}')
-    except json.JSONDecodeError as exc:
-        error = exc
 
-    assert describe(error) == "JSONDecodeError at line 1 column 17"
+    assert describe(caught.value) == "JSONDecodeError at line 1 column 17"
