@@ -3772,15 +3772,14 @@ described in section 7.1. Nothing on the API side is outstanding.
    that restart: measured on 2026-11-05 on the bundle below, the server read
    all 25 tools at once and the open session went on offering `server_status`
    alone until Claude Desktop itself was restarted. **It lists every tool**,
-   since the dialog shows what
-   the extension can offer, and its long description says that none but
-   `server_status` is on until the person chooses. Before that tool, Claude
-   Desktop showed a server that offered no tool as failed, "Offered no tools
-   to Cowork and Code sessions", and listed the prompt all the same. A
-   server offering `server_status` alone is shown as running, measured the
-   same day. **The prompt is declared with its exact text**, because Claude
-   Desktop refuses an undeclared one and drops an answer that differs from
-   the declaration.
+   since the dialog shows what the extension can offer, and its long
+   description says that none but `server_status` is on until the person
+   chooses. Before that tool, Claude Desktop showed a server that offered no
+   tool as failed, "Offered no tools to Cowork and Code sessions", and listed
+   the prompt all the same. A server offering `server_status` alone is shown
+   as running, measured the same day. **The prompt is declared with its exact
+   text**, because Claude Desktop refuses an undeclared one and drops an
+   answer that differs from the declaration.
 
    **A second bundle updates itself.** `build.py --auto-update` stages
    `benethos-lexware-office-mcp-auto-update`, which carries no code, only the
@@ -3817,11 +3816,23 @@ described in section 7.1. Nothing on the API side is outstanding.
    the one at 12 minutes the new one, and offline the command ran from the
    cache within those 10 minutes and failed after them with `Failed to
    fetch`. Smart App Control blocked the downloaded `uv.exe` there, for either
-   kind of bundle. **(to verify)** for this one: the bundle in Claude Desktop
-   as a whole, the prompt picked there, whether Claude Desktop's own uv finds
-   a tool from `uv tool install` the same way, and a Python newer than the
-   wheels of the native dependencies, which `requires-python` does not hold
-   back.
+   kind of bundle.
+
+   Measured on 2026-11-05 on this bundle in Claude Desktop, in a Windows
+   Sandbox with Smart App Control turned off, against a confirmed test
+   account: Claude Desktop's uv 0.9.7 fetched Python 3.14.0 and 37 packages
+   and ran 0.8.2, with `server_status` alone while both fields were empty.
+   Claude Desktop accepted the prompt's answer as matching the declaration,
+   `setup` started from uv's cache and wrote into the `.env` the field named.
+   With both files set, `get_profile` answered. Saving the read-only preset
+   there told the client at once with no restart, and `create_article` was
+   refused after no API call. `UV_EXCLUDE_NEWER` in the user's environment
+   did not reach uv, `exclude-newer` in uv's `uv.toml` did: 0.8.1 at the next
+   restart of Claude Desktop, and 0.8.2 at the one after the file was gone.
+   **(to verify)** for this one: a real release arriving through PyPI, whether
+   Claude Desktop's own uv finds a tool from `uv tool install` the same way,
+   Smart App Control on this bundle, and a Python newer than the wheels of the
+   native dependencies, which `requires-python` does not hold back.
 
    macOS is not measured, in particular whether Claude Desktop there keeps
    an extension from the per-user directory `setup` writes **(to verify)**.

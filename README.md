@@ -484,6 +484,9 @@ How and when it updates:
 - **A copy from `uv tool install` wins.** uv then runs that one, whatever PyPI
   has, and nothing updates. `uv tool uninstall benethos-lexware-office-mcp`
   removes it.
+- **uv's own configuration counts too.** An `exclude-newer` in a `uv.toml` of
+  yours holds this extension on an older release, and nothing says so but the
+  version `server_status` names.
 - **A new tool stays off, an enabled one can grow.** A tool the policy file
   does not name is not offered, whichever release brought it. A tool you
   enabled keeps its name and can gain abilities under it: `update_voucher`
@@ -499,8 +502,10 @@ How and when it updates:
   the published package from PyPI as this extension does, and opens an issue
   when the server stops answering a client correctly. It holds no key and
   reaches no account, so a change in what a call sends to Lexware passes it.
-- **Not tried in Claude Desktop yet.** What is measured is the command this
-  extension runs, on Windows, with no key.
+- **Tried in Claude Desktop on Windows**, from the Microsoft Store: the first
+  start, the setup page, both file fields and a change of version at a restart,
+  brought about by hand. A real release arriving through PyPI has not been
+  tried with this extension, and neither has macOS.
 
 If it fails:
 
