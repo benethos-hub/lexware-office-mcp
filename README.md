@@ -426,15 +426,17 @@ Worth knowing:
   *Tool policy file (tools.json)*. Left empty, the extension reads the same
   per-user `.env` and `tools.json` as an installation with uvx, so
   `uvx benethos-lexware-office-mcp setup` changes them too. Pick a file
-  there and *Save*, and the server restarts on it at once. The second field
-  can stay empty when the `.env` names the policy file with
-  `LXO_MCP_TOOL_POLICY`.
+  there and *Save*, and the server restarts on it at once, while Claude
+  Desktop keeps the tools it had until it is quit from the tray and started
+  again. The second field can stay empty when the `.env` names the policy
+  file with `LXO_MCP_TOOL_POLICY`.
 - **Updating** is installing the newer file over the old one. If Claude
   Desktop cannot replace it, end the setup page first with *Beenden*: while it
   runs, it holds the extension's files.
-- **A changed key** applies once Claude Desktop is quit from the tray and
-  started again. The first key does not need that, and until that restart
-  neither does a change to it.
+- **A changed key, or any other setting in the `.env`,** applies once Claude
+  Desktop is quit from the tray and started again. The first key does not need
+  that, and until that restart neither does a change to it. Ticking tools does
+  not need it either.
 - **Tried on Windows**, with Claude Desktop from the Microsoft Store and
   nothing else installed. macOS is expected to work the same way and has not
   been tried.

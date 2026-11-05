@@ -3768,7 +3768,11 @@ described in section 7.1. Nothing on the API side is outstanding.
    with Desktop 4.16336: both empty arrives as `--env-file=` and
    `--tools-file=`, which the server already reads as not given, a file set
    on the extension's page arrives as `--env-file=<path>` and Save restarts
-   the server at once. **It lists every tool**, since the dialog shows what
+   the server at once. Claude Desktop keeps the tool list it holds across
+   that restart: measured on 2026-11-05 on the bundle below, the server read
+   all 25 tools at once and the open session went on offering `server_status`
+   alone until Claude Desktop itself was restarted. **It lists every tool**,
+   since the dialog shows what
    the extension can offer, and its long description says that none but
    `server_status` is on until the person chooses. Before that tool, Claude
    Desktop showed a server that offered no tool as failed, "Offered no tools
