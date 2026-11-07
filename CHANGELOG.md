@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **`server_status` says how to read its answer.** Its description now
+  tells the model that no other tool is offered while the policy file is
+  not loaded, and that an answer from before a settings change no longer
+  holds, so it asks again. The tool list grows by 133 characters.
+
 ## [0.9.0] - 2026-11-07
 
 A minor release, because an installation can trip over it: every runtime

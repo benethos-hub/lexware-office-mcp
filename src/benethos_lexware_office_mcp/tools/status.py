@@ -123,8 +123,10 @@ def register(
         """Report which server is running: name, version, transport, Python and
         MCP library versions and uptime, without an API call. With details,
         also whether Lexware answers and accepts the key, at most one API call
-        every 60 seconds, and whether the tool policy file is loaded, which
-        explains a missing tool.
+        every 60 seconds, and whether the tool policy file is loaded. If it is
+        not, no other tool is offered. An answer holds for the moment it was
+        given: after the settings change, call it again rather than rely on an
+        earlier one.
         """
         block = core()
         if details:

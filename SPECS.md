@@ -1698,20 +1698,21 @@ spelling as well and `read_download` stopped suggesting that null renders
 every page, on 2026-10-10 after `search_vouchers` lost the two flags
 the API ignored, and on 2026-10-12 after the twenty-two tools that answer
 with a record stopped publishing an output schema, and on 2026-10-15 after
-the two upload tools took a URL as well as a path, and on 2026-10-29
-after `server_status` joined them.** Serialized as the compact JSON a
-`tools/list` answer is, twenty-six tools come to **52,003 characters**,
-around 2,000 each, of which `server_status` is 655. Roughly 13,500 to
+the two upload tools took a URL as well as a path, on 2026-10-29
+after `server_status` joined them, and on 2026-11-07 after its
+description grew by two sentences.** Serialized as the compact JSON a
+`tools/list` answer is, twenty-six tools come to **52,136 characters**,
+around 2,000 each, of which `server_status` is 788. Roughly 13,500 to
 16,000 tokens, estimated at 3.2 to 3.8 characters per token rather than
 counted with a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 34,571 | 66% |
-| Tool descriptions, the part under a ceiling | 11,534 | 22% |
+| Tool descriptions, the part under a ceiling | 11,665 | 22% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,108 | 2% |
-| Names, titles and the rest | ~2,223 | 4% |
+| Names, titles and the rest | ~2,225 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
@@ -1779,7 +1780,7 @@ sixteen parameter descriptions, nearly three times its own description.
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,086 characters, `server_status`
+`read-only` installation sends 23,219 characters, `server_status`
 included, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
@@ -1797,7 +1798,11 @@ arguments cost three to four times what the simple ones do.
 Lexware answers, and a model cannot read the `serverInfo` of the handshake.
 One tool answers both, and with every other tool off it is the one a model
 can still ask, which is why it sits outside the policy file, see section
-9.2. Its description is two sentences, since it is sent on every request.
+9.2. Its description is short, since it is sent on every request. Two
+of its sentences answer what a model misread twice in one Claude Desktop
+test on 2026-11-07: that a policy file not loaded is why no other tool is
+there, and that an answer from before the settings changed no longer
+says how the server is.
 
 **The answer is plain text**, one `key: value` per line, a block as a line
 `name:` with its fields indented two spaces below it. No structured content,
