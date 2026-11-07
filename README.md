@@ -71,7 +71,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.8.2.**
+> **Status: 0.9.0.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -367,11 +367,12 @@ cut access if anything looks wrong.
 
 Two ways in. In Claude Desktop the shortest is the
 [extension](#as-a-claude-desktop-extension), which needs nothing installed
-beside Claude Desktop. For any other client, or to manage the server
-yourself, run it [with uvx](#with-uvx-for-any-mcp-client). Both read the
-same configuration, so moving from one to the other keeps the key and the
-permissions. To run it in a container instead, see
-[In a container](#in-a-container).
+beside Claude Desktop, pinned to its release or
+[updating itself](#as-an-extension-that-updates-itself). For any other
+client, or to manage the server yourself, run it
+[with uvx](#with-uvx-for-any-mcp-client). Both read the same configuration,
+so moving from one to the other keeps the key and the permissions. To run it
+in a container instead, see [In a container](#in-a-container).
 
 The server is also listed in the
 [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp)
@@ -441,6 +442,19 @@ Worth knowing:
   nothing else installed. macOS is expected to work the same way and has not
   been tried.
 
+> **Windows with Smart App Control on.** The extension may not start
+> there, and its tools never appear. Claude Desktop runs it through uv,
+> and on a machine without uv it downloads a copy of its own. Smart App
+> Control judges a program by its signature and reputation, and it can
+> block that copy, which Windows records as a Code Integrity block of
+> `uv.exe`. The same goes for the `.exe` launchers `uvx` writes. The way
+> around is a virtual environment made from the python.org installer,
+> `py -m venv` and `pip install benethos-lexware-office-mcp` into it, and
+> a client entry that starts its `python.exe` with
+> `-m benethos_lexware_office_mcp`, with no generated program in between.
+> Whether to keep Smart App Control on is a decision about the whole
+> machine, not about this server.
+
 ### As an extension that updates itself
 
 The extension above runs the release it was downloaded with, and a new
@@ -505,6 +519,8 @@ How and when it updates:
   and opens an issue when the server stops answering a client correctly. It
   holds no key and reaches no account, so a change in what a call sends to
   Lexware passes it.
+- **Smart App Control** blocks it as it blocks the pinned extension, see the
+  note above.
 - **Tried in Claude Desktop on Windows**, from the Microsoft Store: the first
   start, the setup page, both file fields and a change of version at a restart,
   brought about by hand. A real release arriving through PyPI has not been
@@ -514,8 +530,9 @@ If it fails:
 
 - **It can come without a release of this project.** A dependency moves while
   this server's version stays the same, so `server_status` naming the version
-  that worked yesterday proves nothing, and two machines on one version can run
-  different dependencies.
+  that worked yesterday proves nothing, and two machines on one version can
+  run different dependencies. `server_status` names the `mcp` in use, the one
+  of the six most likely to matter.
 - **A crash shows.** The extension does not start and its tools are missing
   from the chat, or a tool answers with an error. The reason is in Claude
   Desktop's log folder, in `mcp-server-<extension name>.log`, uv's own messages
@@ -598,8 +615,8 @@ claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-
 
 Two things worth knowing about either entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.8.2"]`,
-  or `uvx benethos-lexware-office-mcp==0.8.2` at the end of the command.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.9.0"]`,
+  or `uvx benethos-lexware-office-mcp==0.9.0` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -983,8 +1000,8 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.8.2` for an exact release,
-`:0.8` to follow its patch releases. `:latest` moves with every release, and
+Pin a version for anything you depend on - `:0.9.0` for an exact release,
+`:0.9` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
