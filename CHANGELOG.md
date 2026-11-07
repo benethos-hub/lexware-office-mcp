@@ -43,6 +43,9 @@ housekeeping are out of scope here — design decisions live in
   now ends a stuck clean-up after 30 seconds instead of holding the response
   open, and click 8.5.1, a patch under uvicorn. An installation from the index
   resolves these versions already.
+- **pypdfium2 5.15.0**, with PDFium 159 and its fixes for several CVEs, for
+  every installation: its window moves to `~=5.15.0`. A rendered page comes out
+  byte for byte as before.
 
 ## [0.8.2] - 2026-11-05
 
