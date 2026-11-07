@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-07
+
+A minor release, because an installation can trip over it: every runtime
+dependency now sits in a patch window. Nothing in the source changed, so the
+tool list and every answer are those of 0.8.2. The Claude Desktop extension
+can be pointed at your own files, a second extension updates itself from
+PyPI, and pypdfium2 5.15.0 brings a PDFium with fixes for several CVEs.
+
 ### Added
 
 - **The Claude Desktop extension can be pointed at your own files.** Its page
@@ -1834,7 +1842,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.7.0...v0.8.0
