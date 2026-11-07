@@ -64,8 +64,10 @@ dependencies = [
     # Renders PDF pages to images, because a PDF itself cannot be displayed by
     # every client. PDFium under BSD-3-Clause and Apache-2.0. PyMuPDF is the
     # better known binding and is AGPL-3.0 or a commercial licence, which this
-    # MIT project cannot take. See src/.../rendering.py.
-    "pypdfium2~=5.14.0",
+    # MIT project cannot take. See src/.../rendering.py. 5.15.0 builds a
+    # PDFium with fixes for several CVEs, and the PDFs rendered here come
+    # from outside.
+    "pypdfium2~=5.15.0",
     # The templates of the configuration interface, `setup`, and nothing in
     # the server. Imported in configui/templates.py alone. 3.1.6 is the
     # first without the sandbox escapes of 2024 and 2025.

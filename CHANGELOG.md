@@ -38,6 +38,14 @@ housekeeping are out of scope here — design decisions live in
   release of this server. `pydantic`, which the server imports directly, is
   declared now. The lowest allowed `mcp` is 2.3.0. A `pip install` into an
   environment that needs another minor of one of the six no longer resolves.
+- **A refreshed lockfile for the image and the pinned extension**:
+  sse-starlette 3.7.0, which mcp serves the SSE transport through and which
+  now ends a stuck clean-up after 30 seconds instead of holding the response
+  open, and click 8.5.1, a patch under uvicorn. An installation from the index
+  resolves these versions already.
+- **pypdfium2 5.15.0**, with PDFium 159 and its fixes for several CVEs, for
+  every installation: its window moves to `~=5.15.0`. A rendered page comes out
+  byte for byte as before.
 
 ## [0.8.2] - 2026-11-05
 
