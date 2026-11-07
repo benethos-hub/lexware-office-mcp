@@ -29,6 +29,16 @@ housekeeping are out of scope here — design decisions live in
   says how and when it updates, and that the way out is the pinned extension of
   a release that worked. The pinned extension stays as it is.
 
+### Changed
+
+- **The dependencies stay inside patch windows.** `mcp`, `httpx`, `pydantic`,
+  `platformdirs`, `pypdfium2` and `jinja2` are declared as `~=` at the versions
+  tested last, so an installation with `uvx` or `pip` and the auto-update
+  extension take a patch of them by themselves and a new minor only with a
+  release of this server. `pydantic`, which the server imports directly, is
+  declared now. The lowest allowed `mcp` is 2.3.0. A `pip install` into an
+  environment that needs another minor of one of the six no longer resolves.
+
 ## [0.8.2] - 2026-11-05
 
 A patch release for the container image. Nothing a client receives

@@ -3603,6 +3603,23 @@ described in section 7.1. Nothing on the API side is outstanding.
    raises the floor for whoever installs the package. The option exists for
    that ecosystem alone of the three.
 
+   **Every runtime dependency sits in a patch window.** `mcp`, `httpx`,
+   `pydantic`, `platformdirs`, `pypdfium2` and `jinja2` are declared as
+   `~=x.y.z` at the version locked last, so `uvx`, `pip` and the
+   auto-update extension below take a patch by themselves and a
+   minor only once a release raised the window. Dependabot proposes each of
+   the six alone, each a check of its own, and with
+   `increase-if-necessary` a minor arrives as `~=` again rather than as a
+   range over two. `pydantic` is declared since the windows, as the code
+   imports it directly. `uvicorn` and `starlette` are imported too and stay
+   undeclared, since they come with `mcp` and a window here could contradict
+   its bounds. The packages beneath stay open, so a transitive release still
+   reaches an installation from the index without a release here. A window
+   that turns out too wide or too narrow is changed with the next release,
+   which carries its own, and a security fix outside a window means a
+   release at once. `tests/test_packaging.py` holds the six to the form and
+   Dependabot to both settings.
+
    **Since 2026-11-04 a daily report sits beside Dependabot.**
    `.github/workflows/freshness.yml` calls the organisation's reusable
    workflow of the same name, which keeps the issue "Pinned versions have
@@ -3790,8 +3807,8 @@ described in section 7.1. Nothing on the API side is outstanding.
    manifest is made from the pinned one, with its own name, since Claude
    Desktop keys an extension by it and the two stand side by side, its own
    display name, description and server. The registry entry lists the pinned
-   bundle alone. The wheel carries no pins in this step, so the ranges in
-   `pyproject.toml` decide what it runs. An extension keeps the manifest it
+   bundle alone. The patch windows described above decide what it runs, and
+   the packages beneath them stay open. An extension keeps the manifest it
    was installed with while the server moves on, which makes **the prompt's
    name and text permanent**: a new word would be dropped as a possible
    injection on every extension installed, with no new file to reach them
