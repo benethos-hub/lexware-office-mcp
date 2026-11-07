@@ -3301,7 +3301,7 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  179 MB on 2026-11-05, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-07, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -3596,8 +3596,9 @@ described in section 7.1. Nothing on the API side is outstanding.
    because an out-of-date base is not a build failure but unpatched system
    packages inside something people pull and run. Since the pins, minor and
    patch updates come as one pull request per ecosystem and week, and a major
-   one alone. `mcp` always comes alone, since the suite does not see what the
-   SDK changes. Since 2026-11-04 the uv ecosystem runs with
+   one alone. `mcp` always came alone, since the suite does not see what the
+   SDK changes, and since the windows below each of the six does. Since
+   2026-11-04 the uv ecosystem runs with
    `versioning-strategy: increase-if-necessary`: a range that already allows
    a new release stays as it is and only `uv.lock` moves, so an update never
    raises the floor for whoever installs the package. The option exists for

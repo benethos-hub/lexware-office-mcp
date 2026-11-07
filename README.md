@@ -367,11 +367,12 @@ cut access if anything looks wrong.
 
 Two ways in. In Claude Desktop the shortest is the
 [extension](#as-a-claude-desktop-extension), which needs nothing installed
-beside Claude Desktop. For any other client, or to manage the server
-yourself, run it [with uvx](#with-uvx-for-any-mcp-client). Both read the
-same configuration, so moving from one to the other keeps the key and the
-permissions. To run it in a container instead, see
-[In a container](#in-a-container).
+beside Claude Desktop, pinned to its release or
+[updating itself](#as-an-extension-that-updates-itself). For any other
+client, or to manage the server yourself, run it
+[with uvx](#with-uvx-for-any-mcp-client). Both read the same configuration,
+so moving from one to the other keeps the key and the permissions. To run it
+in a container instead, see [In a container](#in-a-container).
 
 The server is also listed in the
 [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp)
@@ -514,8 +515,9 @@ If it fails:
 
 - **It can come without a release of this project.** A dependency moves while
   this server's version stays the same, so `server_status` naming the version
-  that worked yesterday proves nothing, and two machines on one version can run
-  different dependencies.
+  that worked yesterday proves nothing, and two machines on one version can
+  run different dependencies. `server_status` names the `mcp` in use, the one
+  of the six most likely to matter.
 - **A crash shows.** The extension does not start and its tools are missing
   from the chat, or a tool answers with an error. The reason is in Claude
   Desktop's log folder, in `mcp-server-<extension name>.log`, uv's own messages

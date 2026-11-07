@@ -383,22 +383,24 @@ date, which `tests/test_api_shapes.py` checks. See SPECS.md section 14.2.
 A patch release is cheap here and has been used for an image that had merely
 fallen behind, so the list is short on purpose. In this order:
 
-1. **`uv lock --upgrade --dry-run`.** Dependabot proposes direct
-   dependencies only. Everything transitive moves when a direct bump happens
-   to drag it along, and otherwise never - and the container image is built
-   from the lockfile, so it is the one installation that inherits that
-   silence. An install from the index resolves the newest allowed versions on
-   its own. The issue "Pinned versions have newer releases", which
-   `freshness.yml` keeps daily, lists the same, transitive packages
-   included. If the dry run lists anything, refresh on its own branch first,
-   with the suite and a look at the notes of whatever sits in the transport
-   or under the SDK. A security fix does not wait for this step: the bot's
-   security updates cover transitive packages too. **The base images as
-   well**: the digest each `FROM` line pins against the one its tag points
-   to now. A rebuild under the same tag moves the digest only, and
-   Dependabot asks about it once a week. If one moved, raise it on the
-   same branch as a lockfile refresh, and compare the packages of the old
-   and the new image before the merge.
+1. **`uv lock --upgrade --dry-run`.** Dependabot proposes direct dependencies
+   only. Everything transitive moves when a direct bump happens to drag it
+   along, and otherwise never - and the container image is built from the
+   lockfile, so it is the one installation that inherits that silence. An
+   install from the index resolves the newest allowed versions on its own.
+   The issue "Pinned versions have newer releases", which `freshness.yml`
+   keeps daily, lists the same, transitive packages included. If the dry run
+   lists anything, refresh on its own branch first, with the suite and a look
+   at the notes of whatever sits in the transport or under the SDK. A new
+   minor of one of the six packages in a `~=` window is not in the dry run at
+   all, the issue lists it as outside the bounds: raise the window in
+   `pyproject.toml` on that branch, after its notes, and `uv lock` follows. A
+   security fix does not wait for this step: the bot's security updates cover
+   transitive packages too. **The base images as well**: the digest each
+   `FROM` line pins against the one its tag points to now. A rebuild under
+   the same tag moves the digest only, and Dependabot asks about it once a
+   week. If one moved, raise it on the same branch as a lockfile refresh, and
+   compare the packages of the old and the new image before the merge.
 2. **Live checks while an account exists.** `live/smoke.py` and
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
@@ -442,7 +444,8 @@ fallen behind, so the list is short on purpose. In this order:
    for the exact tag, the minor line and `latest`, all three on the same
    revision. Then install the wheel into a scratch environment and pull the
    image, and check inside each that the change the release is for is there.
-   Last the registry entry, under
+   The release carries both bundles, each twice, under its version and
+   without one. Last the registry entry, under
    `https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp`,
    at this version, with this image tag and with the bundle's checksum in
    place of the zeros the committed file holds.
