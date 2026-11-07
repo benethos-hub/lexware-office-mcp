@@ -442,6 +442,19 @@ Worth knowing:
   nothing else installed. macOS is expected to work the same way and has not
   been tried.
 
+> **Windows with Smart App Control on.** The extension may not start
+> there, and its tools never appear. Claude Desktop runs it through uv,
+> and on a machine without uv it downloads a copy of its own. Smart App
+> Control judges a program by its signature and reputation, and it can
+> block that copy, which Windows records as a Code Integrity block of
+> `uv.exe`. The same goes for the `.exe` launchers `uvx` writes. The way
+> around is a virtual environment made from the python.org installer,
+> `py -m venv` and `pip install benethos-lexware-office-mcp` into it, and
+> a client entry that starts its `python.exe` with
+> `-m benethos_lexware_office_mcp`, with no generated program in between.
+> Whether to keep Smart App Control on is a decision about the whole
+> machine, not about this server.
+
 ### As an extension that updates itself
 
 The extension above runs the release it was downloaded with, and a new
@@ -506,6 +519,8 @@ How and when it updates:
   and opens an issue when the server stops answering a client correctly. It
   holds no key and reaches no account, so a change in what a call sends to
   Lexware passes it.
+- **Smart App Control** blocks it as it blocks the pinned extension, see the
+  note above.
 - **Tried in Claude Desktop on Windows**, from the Microsoft Store: the first
   start, the setup page, both file fields and a change of version at a restart,
   brought about by hand. A real release arriving through PyPI has not been
