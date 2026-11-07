@@ -1060,3 +1060,57 @@ def test_the_bundle_file_name_is_the_one_the_workflow_uploads() -> None:
     version = __version__
 
     assert _package("mcpb")["identifier"].endswith(f"/{name}-{version}.mcpb")
+
+
+WINDOWED = ("mcp", "httpx", "pydantic", "platformdirs", "pypdfium2", "jinja2")
+
+
+def _pyproject() -> dict[str, Any]:
+    import tomllib
+
+    return tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def test_every_runtime_dependency_stays_inside_a_patch_window() -> None:
+    """The auto-update extension and uvx install the newest versions allowed.
+
+    A patch may reach them untested. A minor waits until it was checked and a
+    release raised the window, so a new requirement without one fails here.
+    """
+    requirements = _pyproject()["project"]["dependencies"]
+    names = sorted(re.split(r"[~<>=!\[ ]", r, maxsplit=1)[0] for r in requirements)
+    assert names == sorted(WINDOWED)
+    for name in WINDOWED:
+        pattern = rf"{name}~=\d+\.\d+\.\d+"
+        assert [r for r in requirements if re.fullmatch(pattern, r)], name
+
+
+def test_the_sdk_in_development_shares_the_window_of_the_runtime() -> None:
+    """mcp[cli] in dev must not resolve another SDK than the server declares."""
+    [runtime] = [
+        r for r in _pyproject()["project"]["dependencies"] if r.startswith("mcp")
+    ]
+    dev = _pyproject()["project"]["optional-dependencies"]["dev"]
+    assert runtime.replace("mcp", "mcp[cli]", 1) in dev
+
+
+def _dependabot_uv() -> str:
+    """The uv entry of dependabot.yml, as far as the next ecosystem."""
+    text = (REPO / ".github/dependabot.yml").read_text(encoding="utf-8")
+    return text.split('package-ecosystem: "uv"', 1)[1].split("package-ecosystem", 1)[0]
+
+
+def test_dependabot_keeps_the_patch_windows() -> None:
+    """Left to itself it takes this project for a library and widens the range.
+
+    Its description matches PyPI, which is how Dependabot tells, and a range
+    over two minors is no patch window any more.
+    """
+    assert 'versioning-strategy: "increase-if-necessary"' in _dependabot_uv()
+
+
+def test_dependabot_proposes_each_windowed_package_alone() -> None:
+    """Each of their minors needs its own check, so none comes in a group."""
+    excluded = re.search(r"exclude-patterns: \[(.*)\]", _dependabot_uv())
+    assert excluded
+    assert sorted(re.findall(r'"([^"]+)"', excluded[1])) == sorted(WINDOWED)

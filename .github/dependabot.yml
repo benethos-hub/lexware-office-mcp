@@ -5,18 +5,16 @@ version: 2
 # together. A major update still comes on its own, since that is where
 # behaviour changes and it wants its own review.
 updates:
-  # `uv`, not `pip`, because uv.lock is what actually pins a version here.
-  # The pip ecosystem does not read that file, and every range in
-  # pyproject.toml is a `>=`, so pip had nothing to raise either: the newest
-  # release was already allowed by the declaration. Neither half of that is
-  # an error, and between them they kept the bot silent from the day it was
-  # configured. `mcp` carries an upper bound on purpose, so a major release
-  # arrives as a pull request to look at rather than as a resolution nobody
-  # chose.
+  # `uv`, not `pip`, because uv.lock is what actually pins a version here,
+  # and the pip ecosystem does not read that file.
   #
-  # A range that already allows a new release stays as it is and only uv.lock
-  # moves, so an update does not raise the floor for whoever installs this
-  # package. The option exists for this ecosystem alone among the three here.
+  # Every runtime dependency sits in a patch window. A release inside it
+  # changes uv.lock only, so an update does not raise the floor for whoever
+  # installs this package, and one past it moves the window, as `~=` again.
+  # Left to itself Dependabot takes this project for a library, since its
+  # description matches PyPI, and widens to a range over two minors, which is
+  # no patch window any more. The option exists for this ecosystem alone
+  # among the three here.
   - package-ecosystem: "uv"
     directory: "/"
     versioning-strategy: "increase-if-necessary"
@@ -27,9 +25,11 @@ updates:
       minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-        # Always alone, whatever the size of the bump: the suite does not see
-        # what the SDK changes, so it needs the stdio comparison of CLAUDE.md.
-        exclude-patterns: ["mcp"]
+        # Always alone, whatever the size of the bump: a minor of any of the
+        # six moves its window and needs its own check before a release takes
+        # it to everyone, and the suite does not see what the SDK changes, so
+        # mcp needs the stdio comparison of CLAUDE.md.
+        exclude-patterns: ["mcp", "httpx", "pydantic", "platformdirs", "pypdfium2", "jinja2"]
 
   # The actions the workflows use, each pinned to a commit with its version
   # in a comment beside it. Dependabot reads the comment and raises the

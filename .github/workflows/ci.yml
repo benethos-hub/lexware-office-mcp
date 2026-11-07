@@ -91,7 +91,7 @@ jobs:
   # Every other job installs from uv.lock, which pins dependencies to a set
   # known to work. Reproducibility needs that, but it hides a broken *declared*
   # range: someone installing from PyPI resolves the ranges in pyproject.toml
-  # instead, so `mcp>=2.2.0,<3` is a promise nothing else here tests. This job
+  # instead, so `mcp~=2.3.0` is a promise nothing else here tests. This job
   # resolves the way that person does, with no lockfile involved.
   #
   # It also guards the rule the server is built around, which no offline test

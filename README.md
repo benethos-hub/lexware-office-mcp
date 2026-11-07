@@ -494,14 +494,17 @@ How and when it updates:
   addresses `LXO_MCP_UPLOAD_URLS` allows in 0.6.0. Such a change arrives with a
   restart, without asking, and the [changelog](https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md)
   says what it was.
-- **Dependencies are not pinned.** uv takes the newest versions each release
-  allows, as `uvx` does, not the tested set in `uv.lock` that the pinned
-  extension and the container image run. The ranges are wide, so a new minor of
-  `mcp` or `httpx` arrives without a release here. A check in this repository
-  runs the newest versions allowed every day and after each release, installs
-  the published package from PyPI as this extension does, and opens an issue
-  when the server stops answering a client correctly. It holds no key and
-  reaches no account, so a change in what a call sends to Lexware passes it.
+- **Dependencies move within patch windows.** uv takes the newest versions each
+  release allows, as `uvx` does, not the tested set in `uv.lock` that the
+  pinned extension and the container image run. The packages this server names
+  itself, such as `mcp` and `httpx`, may move by a patch, and a new minor of one
+  of them arrives with a release here. The packages beneath them are not held
+  back, so one of those can still change without a release. A check in this
+  repository runs the newest versions allowed every day and after each
+  release, installs the published package from PyPI as this extension does,
+  and opens an issue when the server stops answering a client correctly. It
+  holds no key and reaches no account, so a change in what a call sends to
+  Lexware passes it.
 - **Tried in Claude Desktop on Windows**, from the Microsoft Store: the first
   start, the setup page, both file fields and a change of version at a restart,
   brought about by hand. A real release arriving through PyPI has not been
