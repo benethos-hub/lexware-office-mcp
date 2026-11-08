@@ -19,6 +19,11 @@ housekeeping are out of scope here — design decisions live in
   tells the model that no other tool is offered while the policy file is
   not loaded, and that an answer from before a settings change no longer
   holds, so it asks again. The tool list grows by 133 characters.
+- **pypdfium2 5.15.1 in the lockfile, for the image and the pinned
+  extension**, with PDFium 8149 and its fixes in decoding JPEG images, ICC
+  colour profiles and font name tables. An installation from the
+  index resolves it already. A rendered page comes out byte for byte as
+  before.
 
 ## [0.9.0] - 2026-11-07
 
