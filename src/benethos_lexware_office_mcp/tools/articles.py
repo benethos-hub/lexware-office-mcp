@@ -119,7 +119,12 @@ def register(server: MCPServer, settings: Settings, provider: ClientProvider) ->
         """Read one article in full, by id.
 
         One API call. Returns the title, description, note, unit, type, the
-        price block and the `version` an update has to send back.
+        price block and the `version`.
+
+        Use `search_articles` when you have an article number or a barcode
+        rather than an id. Read this before `update_article`, which needs the
+        `version` it reports. An unknown id answers with an error, not an
+        empty record.
 
         The price carries a net and a gross figure with the tax rate between
         them. `leadingPrice` says which of the two was entered and which the

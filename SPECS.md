@@ -1699,9 +1699,10 @@ every page, on 2026-10-10 after `search_vouchers` lost the two flags
 the API ignored, and on 2026-10-12 after the twenty-two tools that answer
 with a record stopped publishing an output schema, and on 2026-10-15 after
 the two upload tools took a URL as well as a path, on 2026-10-29
-after `server_status` joined them, and on 2026-11-07 after its
-description grew by two sentences.** Serialized as the compact JSON a
-`tools/list` answer is, twenty-six tools come to **52,136 characters**,
+after `server_status` joined them, on 2026-11-07 after its
+description grew by two sentences, and on 2026-11-09 after `get_article`
+named its neighbours.** Serialized as the compact JSON a
+`tools/list` answer is, twenty-six tools come to **52,332 characters**,
 around 2,000 each, of which `server_status` is 788. Roughly 13,500 to
 16,000 tokens, estimated at 3.2 to 3.8 characters per token rather than
 counted with a tokenizer.
@@ -1709,10 +1710,10 @@ counted with a tokenizer.
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 34,571 | 66% |
-| Tool descriptions, the part under a ceiling | 11,665 | 22% |
+| Tool descriptions, the part under a ceiling | 11,856 | 23% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,108 | 2% |
-| Names, titles and the rest | ~2,225 | 4% |
+| Names, titles and the rest | ~2,230 | 4% |
 
 The figures move whenever a description is touched, so they carry a date
 rather than a promise. `CLAUDE.md` holds the one-liner that measures them.
