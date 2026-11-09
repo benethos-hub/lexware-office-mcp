@@ -72,11 +72,12 @@ docker build -f containers/images/lexware-office-mcp/Dockerfile -t benethos-lexw
 - Both Compose files cap the log Docker keeps of each container at five
   files of 10 MB, the oldest dropped first.
 
-`ci.yml` builds the image on every pull request and every push to
-`main`, for arm64 as well. It checks that both Compose files are valid,
-keep every port on the loopback address but Caddy's 443 and start the
-configuration interface and Caddy only with their profiles, and it starts
-the image once: it makes its own token, refuses a request without it, and
-offers no tool but `server_status` while no policy file names one. Its job
+`ci.yml` builds the image on every pull request and every push to `main`, for
+arm64 as well. It checks that both Compose files are valid, keep every port
+on the loopback address but Caddy's 443 and start the configuration interface
+and Caddy only with their profiles, and it starts the image twice: over HTTP,
+where it makes its own token, refuses a request without it, and offers no
+tool but `server_status` while no policy file names one, and over stdio
+without a network, where the list has to be the same. Its job
 `dockerfile-lint` reads the Dockerfile with hadolint, and what that finds
 goes to Security, Code scanning.

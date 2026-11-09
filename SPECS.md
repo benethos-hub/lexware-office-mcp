@@ -989,11 +989,12 @@ arriving.
 - **CLI flags:** `--version`, `--settings-sample`, `--log-level`, `--tools`,
   `--tools-file` and `--env-file` for any run, `--transport`, `--host`,
   `--port`, `--path` and `--allowed-hosts` for the HTTP transport since
-  0.2.0, and for `setup` the same `--host` and `--port` with `--no-browser`
-  and `--public-port` beside them, see section 7.1. `--mode` and
-  `--download-dir` were planned here and never built: the mode is gone with
-  the tier of section 9.1, and the download directory stayed an environment
-  setting because a client spawns the server and passes no arguments.
+  0.2.0, and for `setup` the same `--host` and `--port` with `--no-browser`,
+  `--public-port` and `--exit-when-idle` beside them, see section 7.1.
+  `--mode` and `--download-dir` were planned here and never built: the mode
+  is gone with the tier of section 9.1, and the download directory stayed an
+  environment setting because a client spawns the server and passes no
+  arguments.
 - **One `.env` applies, and the environment beats it.** A setting resolves as
   that one file, then the real environment, which has the last word - the
   order Docker and uvicorn use, and what lets a client override one value
@@ -1018,9 +1019,10 @@ arriving.
   rule and "which file is this value from" has one answer. The environment
   stays a separate layer because the container depends on it: the transport
   settings arrive as real variables while the key lives in the mounted file.
-  `--log-level` and `--tools-file` are the two flags that outrank the
-  environment, because each is a decision about this one run. `--tools` and
-  `--version` are actions rather than settings and have no equivalent at all.
+  `--log-level`, `--tools-file` and the transport flags `--transport`,
+  `--host`, `--port`, `--path` and `--allowed-hosts` outrank the environment,
+  because each is a decision about this one run. `--tools` and `--version`
+  are actions rather than settings and have no equivalent at all.
 - **Entry points:** `python -m benethos_lexware_office_mcp` or the
   `benethos-lexware-office-mcp` console script.
 - **Python:** 3.11 to 3.15, all in the CI matrix. 3.15 joined on
@@ -1395,17 +1397,18 @@ only when a person notices.
 
 **What does not change.** The command and its flags, `--port`, `--host`,
 `--no-browser`, `--env-file` and `--tools-file`, and the port.
-`--public-port` was added after the rework, for a container published under
-another port: it changes the port the printed address names and nothing
-else. The three
-files, their formats, the search of section 7 and the pinning below. The
-URLs of the pages and the posts, with `/settings` as a page, `/code` and
-`/static/` added. The guards above: loopback, the `Host` check, `Origin`
-with the port, the CSRF token, `no-store`, and `SO_REUSEADDR` off on
-Windows. The `setup` service of both Compose files, whose comments now say
-where the code is. The server, `settings/`, `policy.py` and the transport
-are not touched. The image grows by Jinja2 and MarkupSafe, 1.2 MB with their
-bytecode, measured on 2026-10-08 in an installed environment.
+`--public-port` and `--exit-when-idle` were added after the rework: the first
+for a container published under another port, it changes the port the printed
+address names and nothing else, the second ends the interface after that many
+minutes without a request, which the prompt passes. The three files, their
+formats, the search of section 7 and the pinning below. The URLs of the pages
+and the posts, with `/settings` as a page, `/code` and `/static/` added. The
+guards above: loopback, the `Host` check, `Origin` with the port, the CSRF
+token, `no-store`, and `SO_REUSEADDR` off on Windows. The `setup` service of
+both Compose files, whose comments now say where the code is. The server,
+`settings/`, `policy.py` and the transport are not touched. The image grows
+by Jinja2 and MarkupSafe, 1.2 MB with their bytecode, measured on 2026-10-08
+in an installed environment.
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in

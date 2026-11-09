@@ -344,8 +344,8 @@ network unencrypted. In a container, the same machine is the container.
   Desktop extension needs neither uv nor Python:
   [Claude Desktop](https://claude.ai/download) brings both
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
-  in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
-  Jinja2 for the pages of `setup`
+  in the MCP SDK, httpx, pydantic, platformdirs, pypdfium2 to render PDF
+  pages, and Jinja2 for the pages of `setup`
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 
@@ -1246,7 +1246,7 @@ uv run mypy
 
 The test suite is fully offline. It mocks the HTTP layer and needs no API
 key, so it runs anywhere. Two kinds of test leave the process without leaving
-the machine: three start the server as a real subprocess and speak MCP to it
+the machine: four start the server as a real subprocess and speak MCP to it
 over stdio, which is also what proves that nothing writes to stdout on the
 startup path, and the configuration interface is driven through a real
 loopback HTTP server with a real cookie jar, because its CSRF guards are only
