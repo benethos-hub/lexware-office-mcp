@@ -163,7 +163,7 @@ containers/       # README.md says which folder is for what
                   # versions), codeql (security and quality queries) and
                   # dockerfile-lint (hadolint), all the organisation's
                   # reusable workflows, and this project's own fresh-install
-                  # and docker
+                  # and docker (the image over HTTP and over stdio)
     publish.yml   # a published release -> PyPI, the container image, the
                   # Claude Desktop bundles, and the MCP Registry entry,
                   # behind ci-passed, each through the organisation's
@@ -174,6 +174,7 @@ containers/       # README.md says which folder is for what
                   # two issues through the organisation's reusable workflow
     codeql.yml    # weekly: the codeql job of ci.yml once more, for the
                   # queries GitHub adds in between
+glama.json        # names the maintainers who may claim the Glama listing
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
