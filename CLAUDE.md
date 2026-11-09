@@ -174,6 +174,7 @@ containers/       # README.md says which folder is for what
                   # two issues through the organisation's reusable workflow
     codeql.yml    # weekly: the codeql job of ci.yml once more, for the
                   # queries GitHub adds in between
+glama.json        # names the maintainers who may claim the Glama listing
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
