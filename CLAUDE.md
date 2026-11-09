@@ -406,17 +406,17 @@ fallen behind, so the list is short on purpose. In this order:
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
    README's status line, pin example and exact image tag, `LXO_VERSION` in
-   `containers/production/.env.example`, the SPECS status line, a roadmap
-   row and the example start line in section 11.2, the MCP Registry
-   entry in `.github/publish/mcp-registry/server.json` (its own version,
-   the PyPI package's and the image tag), the bundle's manifest in
-   `.github/publish/mcpb/manifest.json`, and the changelog section with
-   its link reference. Then `uv lock`, which carries the
+   `containers/production/.env.example`, the SPECS status line, a roadmap row
+   and the example start line in section 11.2, the MCP Registry entry in
+   `.github/publish/mcp-registry/server.json` (its own version, the PyPI
+   package's, the image tag and the bundle's download address), the bundle's
+   manifest in `.github/publish/mcpb/manifest.json`, and the changelog
+   section with its link reference. Then `uv lock`, which carries the
    package's own version. The guards in `tests/test_packaging.py` catch a
    missed one in any of these places, and `uv lock --check` one in the
-   lockfile. **The minor line** (`:0.9` in the README, and in the comment
-   of `.env.example`) changes only with a minor release - the image tag
-   itself follows the release tag when the image is built.
+   lockfile. **The minor line** (`:0.9` in the README, and in the comment of
+   `.env.example`) changes only with a minor release - the image tag itself
+   follows the release tag when the image is built.
 4. **A trial run, only when asked for.** It is there to test the publishing
    machinery after a change to it, such as the move onto the
    organisation's actions, and is never started on its own. When it is

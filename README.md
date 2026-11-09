@@ -73,7 +73,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.9.0.**
+> **Status: 0.9.1.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -344,8 +344,8 @@ network unencrypted. In a container, the same machine is the container.
   Desktop extension needs neither uv nor Python:
   [Claude Desktop](https://claude.ai/download) brings both
 - Python 3.11 or newer, if you would rather bring your own. Installing pulls
-  in the MCP SDK, httpx, platformdirs, pypdfium2 to render PDF pages, and
-  Jinja2 for the pages of `setup`
+  in the MCP SDK, httpx, pydantic, platformdirs, pypdfium2 to render PDF
+  pages, and Jinja2 for the pages of `setup`
 - A Lexware Office account with the public API add-on enabled
 - An API key from <https://app.lexware.de/addons/public-api>
 
@@ -617,8 +617,8 @@ claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-
 
 Two things worth knowing about either entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.9.0"]`,
-  or `uvx benethos-lexware-office-mcp==0.9.0` at the end of the command.
+- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.9.1"]`,
+  or `uvx benethos-lexware-office-mcp==0.9.1` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -1002,7 +1002,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.9.0` for an exact release,
+Pin a version for anything you depend on - `:0.9.1` for an exact release,
 `:0.9` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
@@ -1246,7 +1246,7 @@ uv run mypy
 
 The test suite is fully offline. It mocks the HTTP layer and needs no API
 key, so it runs anywhere. Two kinds of test leave the process without leaving
-the machine: three start the server as a real subprocess and speak MCP to it
+the machine: four start the server as a real subprocess and speak MCP to it
 over stdio, which is also what proves that nothing writes to stdout on the
 startup path, and the configuration interface is driven through a real
 loopback HTTP server with a real cookie jar, because its CSRF guards are only

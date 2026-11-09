@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.9.0.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.9.1.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -989,11 +989,12 @@ arriving.
 - **CLI flags:** `--version`, `--settings-sample`, `--log-level`, `--tools`,
   `--tools-file` and `--env-file` for any run, `--transport`, `--host`,
   `--port`, `--path` and `--allowed-hosts` for the HTTP transport since
-  0.2.0, and for `setup` the same `--host` and `--port` with `--no-browser`
-  and `--public-port` beside them, see section 7.1. `--mode` and
-  `--download-dir` were planned here and never built: the mode is gone with
-  the tier of section 9.1, and the download directory stayed an environment
-  setting because a client spawns the server and passes no arguments.
+  0.2.0, and for `setup` the same `--host` and `--port` with `--no-browser`,
+  `--public-port` and `--exit-when-idle` beside them, see section 7.1.
+  `--mode` and `--download-dir` were planned here and never built: the mode
+  is gone with the tier of section 9.1, and the download directory stayed an
+  environment setting because a client spawns the server and passes no
+  arguments.
 - **One `.env` applies, and the environment beats it.** A setting resolves as
   that one file, then the real environment, which has the last word - the
   order Docker and uvicorn use, and what lets a client override one value
@@ -1018,9 +1019,10 @@ arriving.
   rule and "which file is this value from" has one answer. The environment
   stays a separate layer because the container depends on it: the transport
   settings arrive as real variables while the key lives in the mounted file.
-  `--log-level` and `--tools-file` are the two flags that outrank the
-  environment, because each is a decision about this one run. `--tools` and
-  `--version` are actions rather than settings and have no equivalent at all.
+  `--log-level`, `--tools-file` and the transport flags `--transport`,
+  `--host`, `--port`, `--path` and `--allowed-hosts` outrank the environment,
+  because each is a decision about this one run. `--tools` and `--version`
+  are actions rather than settings and have no equivalent at all.
 - **Entry points:** `python -m benethos_lexware_office_mcp` or the
   `benethos-lexware-office-mcp` console script.
 - **Python:** 3.11 to 3.15, all in the CI matrix. 3.15 joined on
@@ -1395,17 +1397,18 @@ only when a person notices.
 
 **What does not change.** The command and its flags, `--port`, `--host`,
 `--no-browser`, `--env-file` and `--tools-file`, and the port.
-`--public-port` was added after the rework, for a container published under
-another port: it changes the port the printed address names and nothing
-else. The three
-files, their formats, the search of section 7 and the pinning below. The
-URLs of the pages and the posts, with `/settings` as a page, `/code` and
-`/static/` added. The guards above: loopback, the `Host` check, `Origin`
-with the port, the CSRF token, `no-store`, and `SO_REUSEADDR` off on
-Windows. The `setup` service of both Compose files, whose comments now say
-where the code is. The server, `settings/`, `policy.py` and the transport
-are not touched. The image grows by Jinja2 and MarkupSafe, 1.2 MB with their
-bytecode, measured on 2026-10-08 in an installed environment.
+`--public-port` and `--exit-when-idle` were added after the rework: the first
+for a container published under another port, it changes the port the printed
+address names and nothing else, the second ends the interface after that many
+minutes without a request, which the prompt passes. The three files, their
+formats, the search of section 7 and the pinning below. The URLs of the pages
+and the posts, with `/settings` as a page, `/code` and `/static/` added. The
+guards above: loopback, the `Host` check, `Origin` with the port, the CSRF
+token, `no-store`, and `SO_REUSEADDR` off on Windows. The `setup` service of
+both Compose files, whose comments now say where the code is. The server,
+`settings/`, `policy.py` and the transport are not touched. The image grows
+by Jinja2 and MarkupSafe, 1.2 MB with their bytecode, measured on 2026-10-08
+in an installed environment.
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in
@@ -1781,7 +1784,7 @@ sixteen parameter descriptions, nearly three times its own description.
 the total between them. Every one of them takes a record's worth of arguments,
 and the largest takes a nested model of line items on top. The policy file of
 section 9 is therefore also a context lever, not only a permission one: a
-`read-only` installation sends 23,219 characters, `server_status`
+`read-only` installation sends 23,415 characters, `server_status`
 included, a little under half.
 
 The numbers move whenever a description does, so they are a measurement with
@@ -1813,7 +1816,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.9.0
+version: 0.9.1
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
@@ -2691,7 +2694,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.9.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.9.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3307,7 +3310,7 @@ Built, tested offline and exercised against a live test account:
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
 - **a container image and two Compose folders**, two stages, non-root,
-  180 MB on 2026-11-07, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-09, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -3909,6 +3912,7 @@ suggested they were.
 | 0.8.1 | The image on a refreshed lockfile | **released 2026-11-03** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.8.0. The image is built with uv 0.13.7 from a lockfile that carries pydantic 2.14.2, whose two security fixes a scanner reading the image would ask for though neither is reachable here, and anyio 4.16.0 under the SDK's transports. The stdio probe of section 14.3 answered byte for byte as before on both protocol versions. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.8.0's |
 | 0.8.2 | The image on a refreshed lockfile and a rebuilt base | **released 2026-11-05** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.8.1, measured over stdio on both protocol versions. The image carries pydantic 2.14.3, apt 3.0.4 and tzdata 2026f, its health check runs without a shell, and it names its user by id, 10001, the same user as before. The capture of the read-only live run against the third test account is identical to 0.8.1's but for its date |
 | 0.9.0 | The extension's own files, a second extension that updates itself, and a patch window on every runtime dependency | **released 2026-11-07** - a minor, because an installation can trip over it: `mcp`, `httpx`, `pydantic`, `platformdirs`, `pypdfium2` and `jinja2` are declared as `~=x.y.z`, so a `pip install` into an environment that needs another minor of one of them no longer resolves. Nothing in the source changed, so the tool list and every answer are those of 0.8.2. pypdfium2 5.15.0 brings PDFium 159 with fixes for several CVEs, and a rendered page comes out byte for byte as before. Both extensions were tried in Claude Desktop on Windows in a Windows Sandbox against the third test account, `live/smoke.py` passed 14 of 14 before and after the refresh, and the capture of the read-only live run is identical to 0.8.2's but for its date |
+| 0.9.1 | Two tool descriptions that say how to use the tool, and pypdfium2 5.15.1 in the lockfile | **released 2026-11-09** - a patch, because nothing an installation trips over changed: the tool names, their parameters and every answer are those of 0.9.0. The descriptions of `server_status` and `get_article` name what to do with the answer and which tool to use instead, 329 characters more on every request. The image and the pinned extension carry pypdfium2 5.15.1, and a rendered page comes out byte for byte as before. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.9.0's but for its date |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

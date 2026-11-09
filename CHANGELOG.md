@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-09
+
+A patch release. The tool names, their parameters and every answer are
+those of 0.9.0. Two descriptions say more about how to use the tool,
+`server_status` and `get_article`, which adds 329 characters to the tool
+list. The image and the pinned Claude Desktop extension move to pypdfium2
+5.15.1, which an installation from the index resolved already.
+
 ### Changed
 
 - **`server_status` says how to read its answer.** Its description now
@@ -1859,7 +1867,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.0...v0.8.1
