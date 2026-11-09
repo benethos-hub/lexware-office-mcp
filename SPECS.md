@@ -3376,8 +3376,12 @@ described in section 7.1. Nothing on the API side is outstanding.
    tools, and fails on any line on stdout that is not JSON-RPC. It
    also fails the build if a plain `up` would start the configuration
    interface, which belongs behind its profile. Both architectures a release
-   publishes are built, and only `linux/amd64` is started. Every job passes
-   with no key, no network and no account, see section 14.1.
+   publishes are built, and only `linux/amd64` is started. `fresh-install`
+   also runs the commands of the build spec Glama keeps on its own site,
+   which writes a policy file with every tool on and asks for no key, and
+   expects every tool over stdio, so a changed flag fails here rather than
+   in a build nobody watches. The spec and the step change together. Every
+   job passes with no key, no network and no account, see section 14.1.
    A fifth job, `lowest-versions`, was added 2026-09-27. It installs the
    oldest allowed version of every direct dependency on Python 3.11, with no
    lockfile, and runs the suite, so a lower bound in `pyproject.toml` that has

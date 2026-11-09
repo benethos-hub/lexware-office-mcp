@@ -158,6 +158,72 @@ jobs:
           print('OK: the preset enabled', len(names), 'tools, none of them writing')
           "
 
+      # Glama builds this repository from a spec kept on its own Dockerfile
+      # page rather than here: in a clone, these two build steps, then this
+      # start command behind its mcp-proxy. The spec writes a policy file
+      # with every tool on, so the listing shows and scores all of them, and
+      # asks for no key, so nothing started there reaches an account. A
+      # changed flag would break that build where no other step looks. This
+      # one runs the same commands in the checkout, lists the tools over
+      # stdio and compares them with the bundle manifest, which
+      # tests/test_mcpb.py holds equal to the registered ones. Keep the
+      # commands equal to the spec on Glama, and change both together.
+      - name: Glama's build spec lists every tool
+        run: |
+          uv sync --frozen
+          uv run --no-sync benethos-lexware-office-mcp --tools irreversible --tools-file tools.json
+          python3 - <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          with open(".github/publish/mcpb/manifest.json", encoding="utf-8") as f:
+              expected = sorted(tool["name"] for tool in json.load(f)["tools"])
+
+          proc = subprocess.Popen(
+              ["timeout", "60", "uv", "run", "--no-sync", "benethos-lexware-office-mcp",
+               "--transport", "stdio", "--tools-file", "tools.json"],
+              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+              text=True,
+          )
+
+
+          def send(message):
+              proc.stdin.write(json.dumps(message) + "\n")
+              proc.stdin.flush()
+
+
+          def answer(wanted):
+              for line in proc.stdout:
+                  message = json.loads(line)  # anything but JSON-RPC on stdout fails here
+                  if message.get("id") == wanted:
+                      if "error" in message:
+                          sys.exit(f"::error::request {wanted} failed: {message['error']}")
+                      return message["result"]
+              proc.kill()
+              sys.exit(f"::error::no answer to request {wanted}\n{proc.stderr.read()}")
+
+
+          send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+              "protocolVersion": "2025-06-18", "capabilities": {},
+              "clientInfo": {"name": "ci-glama", "version": "0"}}})
+          server = answer(1)["serverInfo"]
+          send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+          send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+          listing = answer(2)
+          proc.stdin.close()
+          proc.wait()
+
+          found = sorted(tool["name"] for tool in listing["tools"])
+          if "nextCursor" in listing or found != expected:
+              sys.exit(
+                  "::error::Glama's build spec does not list every tool\n"
+                  f"missing: {sorted(set(expected) - set(found))}\n"
+                  f"extra: {sorted(set(found) - set(expected))}"
+              )
+          print(f"OK: {server['name']} {server['version']} lists all {len(found)} tools as Glama builds it")
+          PY
+
   # fresh-install resolves the newest versions the ranges allow, which is what
   # most people get. The other end of each range is a promise too: `>=0.28`
   # says 0.28 works, and nothing else here installs it. This job does, with
