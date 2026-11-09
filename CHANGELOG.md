@@ -19,6 +19,11 @@ housekeeping are out of scope here — design decisions live in
   tells the model that no other tool is offered while the policy file is
   not loaded, and that an answer from before a settings change no longer
   holds, so it asks again. The tool list grows by 133 characters.
+- **`get_article` says when to use it.** Its description now points to
+  `search_articles` for an article number or a barcode, says that
+  `update_article` needs the `version` it reports, and that an unknown id
+  answers with an error rather than an empty record. The tool list grows
+  by 196 characters.
 - **pypdfium2 5.15.1 in the lockfile, for the image and the pinned
   extension**, with PDFium 8149 and its fixes in decoding JPEG images, ICC
   colour profiles and font name tables. An installation from the
