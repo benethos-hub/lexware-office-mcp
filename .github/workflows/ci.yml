@@ -357,6 +357,66 @@ jobs:
           [ "$status" = "healthy" ] || { echo "::error::health check reports $status"; exit 1; }
           echo "OK: healthy"
 
+      # Directories such as Glama start the image the way a local client does:
+      # over stdio, in a fresh container, with nothing of ours in its
+      # environment, and list its tools. The HTTP steps above never go that
+      # way. This one sends initialize and tools/list through `docker run -i`
+      # without a network, fails on any line on stdout that is not JSON-RPC,
+      # and holds the answer to the rule of SPECS.md section 9.2: with no
+      # policy file, server_status and nothing else.
+      - name: Over stdio, with nothing handed to it, it lists its status alone
+        run: |
+          python3 - <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          image = "benethos-lexware-office-mcp:ci"
+          expected = ["server_status"]
+
+          proc = subprocess.Popen(
+              ["timeout", "60", "docker", "run", "-i", "--rm", "--network", "none",
+               image, "--transport", "stdio"],
+              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+              text=True,
+          )
+
+
+          def send(message):
+              proc.stdin.write(json.dumps(message) + "\n")
+              proc.stdin.flush()
+
+
+          def answer(wanted):
+              for line in proc.stdout:
+                  message = json.loads(line)  # anything but JSON-RPC on stdout fails here
+                  if message.get("id") == wanted:
+                      if "error" in message:
+                          sys.exit(f"::error::request {wanted} failed: {message['error']}")
+                      return message["result"]
+              proc.kill()
+              sys.exit(f"::error::no answer to request {wanted}\n{proc.stderr.read()}")
+
+
+          send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+              "protocolVersion": "2025-06-18", "capabilities": {},
+              "clientInfo": {"name": "ci-smoke", "version": "0"}}})
+          server = answer(1)["serverInfo"]
+          send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+          send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+          listing = answer(2)
+          proc.stdin.close()
+          proc.wait()
+
+          found = sorted(tool["name"] for tool in listing["tools"])
+          if "nextCursor" in listing or found != expected:
+              sys.exit(
+                  "::error::tools/list over stdio, without a policy file, "
+                  f"offered {found}, expected {expected}"
+              )
+          print(f"OK: {server['name']} {server['version']} lists {found} over stdio")
+          PY
+
       - name: What it said
         if: always()
         run: docker logs lxo-ci || true

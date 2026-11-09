@@ -3369,7 +3369,10 @@ described in section 7.1. Nothing on the API side is outstanding.
    because every one of them writes a policy file first - and `docker`, which
    builds the image and asserts the same rule against the artefact people
    actually run: the container generates its own bearer token, refuses a
-   request that does not carry it, and answers `tools/list` with nothing. It
+   request that does not carry it, and answers `tools/list` with nothing but
+   `server_status`. It asks the same over stdio as well, through
+   `docker run -i` without a network, the way a directory lists a server's
+   tools, and fails on any line on stdout that is not JSON-RPC. It
    also fails the build if a plain `up` would start the configuration
    interface, which belongs behind its profile. Both architectures a release
    publishes are built, and only `linux/amd64` is started. Every job passes
