@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+- **pypdfium2 5.15.2 in the lockfile, for the image and the pinned
+  extension.** It fixes how PDFium's objects are closed when the
+  interpreter shuts down, which 5.15.1 had broken. PDFium itself stays at
+  8149. An installation from the index resolves it already. A rendered
+  page comes out byte for byte as before.
+
 ## [0.9.1] - 2026-11-09
 
 A patch release. The tool names, their parameters and every answer are
