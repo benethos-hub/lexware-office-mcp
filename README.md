@@ -384,9 +384,9 @@ one call per 250 vouchers. **Contact overview** needs `search_contacts`,
 `get_deeplink`, which costs no call.
 
 **A rhythm needs a history.** Missing receipts reads it from the months
-before the period, so an account with only a few weeks of vouchers shows no
-rhythm yet, so nothing is reported as missing. A gap it does find is reported
-as a question: the voucher it expects may never have been issued.
+before the period: an account with only a few weeks of vouchers shows no
+rhythm yet, and nothing is reported as missing. A gap it does find is
+reported as a question: the voucher it expects may never have been issued.
 
 ## Requirements
 
@@ -549,11 +549,11 @@ How and when it updates:
   extension list shows the version of the file it was installed from, and that
   stays as it was.
 - **Installed with 0.9.1 or earlier? Install it once more for the prompts.**
-  Tools arrive with a restart, but an extension file from an earlier release
-  does not tell Claude Desktop that the server brings prompts of its own.
-  Desktop then lists them under "+" and refuses to attach them. The file of
-  0.10.0 or later says so, and later prompts arrive with a restart like the
-  rest.
+  The tools and Set up Lexware Office keep working, but an extension file
+  from an earlier release does not tell Claude Desktop that the server
+  brings prompts of its own. Desktop then lists them under "+" and refuses
+  to attach them. The file of 0.10.0 or later says so, and later prompts
+  arrive with a restart like the rest.
 - **A copy from `uv tool install` wins.** uv then runs that one, whatever PyPI
   has, and nothing updates. `uv tool uninstall benethos-lexware-office-mcp`
   removes it.

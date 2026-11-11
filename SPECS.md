@@ -3398,6 +3398,10 @@ Built, tested offline and exercised against a live test account:
 - **a Claude Desktop extension and an entry in the MCP Registry**, since
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
+- **three prompts**, since 0.10.0: Open items, Missing receipts and Contact
+  overview, recipes a person picks in the client that read and never write,
+  offered whatever the policy file says, with both extensions leaving their
+  tools and prompts to the server, see section 8
 - **a container image and two Compose folders**, two stages, non-root,
   180 MB on 2026-11-09, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
@@ -3970,7 +3974,8 @@ described in section 7.1. Nothing on the API side is outstanding.
    two file fields and no other, neither sensitive nor required, and no bare
    placeholder in the arguments, a staged bundle that holds the tracked
    source and nothing else, and an auto-update bundle that holds no project.
-   The tools and prompts are written by `build.py --sync-manifest`.
+   The tools and prompts are written by `build.py --sync-manifest`, the two
+   generated flags by hand, and a test holds them in place.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
