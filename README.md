@@ -42,6 +42,7 @@
 - [Safety first](#safety-first)
 - [How it works](#how-it-works)
 - [Tools](#tools)
+- [Prompts](#prompts)
 - [Requirements](#requirements)
 - [Getting an API key](#getting-an-api-key)
 - [Installation](#installation)
@@ -60,7 +61,6 @@
   - [As single containers](#as-single-containers)
   - [Turn the interface off when you are done](#turn-the-interface-off-when-you-are-done)
 - [Logs](#logs)
-- [Prompts](#prompts)
 - [Example prompts](#example-prompts)
 - [Rate limits](#rate-limits)
 - [Development](#development)
@@ -93,7 +93,9 @@ questions about it are read questions — what is still unpaid, what did this
 customer order, which receipt belongs to that expense — and those are exactly
 the questions an assistant answers well once it can see the data. This server
 makes that possible without exporting anything, using an API key the account
-owner generates and can revoke.
+owner generates and can revoke. For the questions that come back every
+month, three built-in [prompts](#prompts) ask them the same careful way each
+time: what is still open, which receipt is missing, where a customer stands.
 
 ## Safety first
 
@@ -338,6 +340,54 @@ machine, and is accepted for `127.0.0.1`, `::1` and `localhost` alone: the
 server refuses to start with any other host, since the file would cross the
 network unencrypted. In a container, the same machine is the container.
 
+## Prompts
+
+Three recipes come with the server. Pick one in the client and fill in its
+argument, and the model calls the right tools in the right order and minds
+the traps of the books on the way: a quotation that owes nothing, an amount
+that is never rounded, an id that comes from a search and never from memory.
+They read the books and never write to them.
+
+| Prompt | Asks for | What you get |
+|--------|----------|--------------|
+| **Open items** | a contact, optional | What is still unpaid, owed to you and owed by you, overdue first, with a link to each overdue document |
+| **Missing receipts** | a period, optional: `2026-10`, `2026-Q3` or a year, the last complete month if left out | Reads the rhythm of the twelve months before, such as a supplier who bills every month or a customer invoiced every quarter, and lists where the period breaks it, and the drafts and unchecked vouchers of the period |
+| **Contact overview** | a name, or a customer or vendor number | The contact, the latest documents and what is open, with a link |
+
+**Starting one.** In Claude Desktop and Claude Code a prompt is picked by
+you: the model cannot start one on its own and does not see that they
+exist.
+
+- **Claude Desktop:** click "+" in the message box, then **Connectors**,
+  **Add from** and the server's name, then the prompt. A small form asks for
+  the argument, and an optional one may stay empty. The recipe is attached
+  to the message as a text file, and nothing happens until you send it. The
+  recipes are written in English, so add a line such as "answer in German"
+  if the answer comes in a language you did not want.
+- **Claude Code:** each prompt is a slash command named after the server,
+  `/mcp__benethos-lexware-office-mcp__missing_receipts 2026-10` and so on,
+  with the argument after the command.
+- **Other clients** show them where they show MCP prompts, if they do.
+
+Without a prompt, a plain question works as before and the model picks the
+tools itself. What a prompt adds is the fixed order and the rules spelled
+out every time.
+
+**What each one needs.** A prompt is offered whatever `tools.json` says,
+since it reaches nothing by itself. The tools it leads to still answer to the
+file: when one is not enabled, the model says which and leaves that step out.
+**Open items** needs `search_vouchers`, and `search_contacts` for a contact.
+**Missing receipts** needs `search_vouchers` and `get_recurring_templates`,
+and pages through the twelve months before the period and the period itself,
+one call per 250 vouchers. **Contact overview** needs `search_contacts`,
+`get_contact` and `search_vouchers`. All three add links through
+`get_deeplink`, which costs no call.
+
+**A rhythm needs a history.** Missing receipts reads it from the months
+before the period, so an account with only a few weeks of vouchers shows no
+rhythm yet, so nothing is reported as missing. A gap it does find is reported
+as a question: the voucher it expects may never have been issued.
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which brings
@@ -498,6 +548,12 @@ How and when it updates:
 - **The running version is the one `server_status` names.** Claude Desktop's
   extension list shows the version of the file it was installed from, and that
   stays as it was.
+- **Installed with 0.9.1 or earlier? Install it once more for the prompts.**
+  Tools arrive with a restart, but an extension file from an earlier release
+  does not tell Claude Desktop that the server brings prompts of its own.
+  Desktop then lists them under "+" and refuses to attach them. The file of
+  0.10.0 or later says so, and later prompts arrive with a restart like the
+  rest.
 - **A copy from `uv tool install` wins.** uv then runs that one, whatever PyPI
   has, and nothing updates. `uv tool uninstall benethos-lexware-office-mcp`
   removes it.
@@ -614,12 +670,13 @@ claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-
   who clones that repository.
 - **The prompt Set up Lexware Office** is among the slash commands: type
   `/` and part of its name, and it opens the configuration interface in the
-  browser.
+  browser. The three [recipes](#prompts) are slash commands as well.
 
 Two things worth knowing about either entry:
 
-- **Pin a version** for stability: `"args": ["benethos-lexware-office-mcp==0.10.0"]`,
-  or `uvx benethos-lexware-office-mcp==0.10.0` at the end of the command.
+- **Pin a version** for stability:
+  `"args": ["benethos-lexware-office-mcp==0.10.0"]`, or
+  `uvx benethos-lexware-office-mcp==0.10.0` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -1189,30 +1246,6 @@ search term, name, amount or file name, and no query string. The libraries
 underneath stay at `WARNING` for the same reason, since their `INFO` lines
 carry request URLs and error text. The configuration interface writes a line
 for everything it saves, and never the key, the token or a setting's value.
-
-## Prompts
-
-Besides the tools, the server offers three prompts: recipes you pick in the
-client, in Claude Desktop from the "+" menu and in Claude Code as a slash
-command. Each sends one message that tells the model which tools to call, in
-which order and what to mind, so the same question is asked the same careful
-way every time. They read the books and never write to them.
-
-| Prompt | Argument | What it does |
-|--------|----------|--------------|
-| **Open items** | a contact, optional | What is still unpaid, owed to you and owed by you, overdue first, with a link to each overdue document |
-| **Missing receipts** | a period, optional: `2026-10`, `2026-Q3` or a year, the last complete month if left out | Reads the rhythm of the twelve months before, such as a supplier who bills every month or a customer invoiced every quarter, and lists where the period breaks it, and the drafts and unchecked vouchers of the period |
-| **Contact overview** | a name, or a customer or vendor number | The contact, the latest documents and what is open, with a link |
-
-A prompt is offered whatever `tools.json` says, since it reaches nothing by
-itself. The tools it leads to still answer to the file: when one is not
-enabled, the model says which and leaves that step out. **Open items** needs
-`search_vouchers`, and `search_contacts` for a contact. **Missing receipts**
-needs `search_vouchers` and `get_recurring_templates`, and pages through
-thirteen months of vouchers, one call per 250. **Contact overview** needs
-`search_contacts`, `get_contact` and `search_vouchers`. All three add links
-through `get_deeplink`, which costs no call. A rhythm is a hint, so a gap is
-reported as a question: the voucher it expects may never have been issued.
 
 ## Example prompts
 
