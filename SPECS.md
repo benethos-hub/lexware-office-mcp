@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.9.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.10.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -1818,7 +1818,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.9.1
+version: 0.10.0
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
@@ -2780,7 +2780,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.9.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.10.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -4000,6 +4000,7 @@ suggested they were.
 | 0.8.2 | The image on a refreshed lockfile and a rebuilt base | **released 2026-11-05** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.8.1, measured over stdio on both protocol versions. The image carries pydantic 2.14.3, apt 3.0.4 and tzdata 2026f, its health check runs without a shell, and it names its user by id, 10001, the same user as before. The capture of the read-only live run against the third test account is identical to 0.8.1's but for its date |
 | 0.9.0 | The extension's own files, a second extension that updates itself, and a patch window on every runtime dependency | **released 2026-11-07** - a minor, because an installation can trip over it: `mcp`, `httpx`, `pydantic`, `platformdirs`, `pypdfium2` and `jinja2` are declared as `~=x.y.z`, so a `pip install` into an environment that needs another minor of one of them no longer resolves. Nothing in the source changed, so the tool list and every answer are those of 0.8.2. pypdfium2 5.15.0 brings PDFium 159 with fixes for several CVEs, and a rendered page comes out byte for byte as before. Both extensions were tried in Claude Desktop on Windows in a Windows Sandbox against the third test account, `live/smoke.py` passed 14 of 14 before and after the refresh, and the capture of the read-only live run is identical to 0.8.2's but for its date |
 | 0.9.1 | Two tool descriptions that say how to use the tool, and pypdfium2 5.15.1 in the lockfile | **released 2026-11-09** - a patch, because nothing an installation trips over changed: the tool names, their parameters and every answer are those of 0.9.0. The descriptions of `server_status` and `get_article` name what to do with the answer and which tool to use instead, 329 characters more on every request. The image and the pinned extension carry pypdfium2 5.15.1, and a rendered page comes out byte for byte as before. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.9.0's but for its date |
+| 0.10.0 | Three prompts, and both extensions leave their tools and prompts to the server | **released 2026-11-11** - a minor, because an installation can trip over it: an extension that updates itself, installed from 0.9.1 or earlier, lists the three prompts and refuses to attach them until it is installed again. The tool names, their parameters and every answer are those of 0.9.1. Open items, Missing receipts and Contact overview are recipes a person picks in the client, they read and never write, and both manifests set `tools_generated` and `prompts_generated`, so Claude Desktop checks neither list. The image and the pinned extension carry pypdfium2 5.15.2. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, a shape capture identical to 0.9.1's but for its date, and the three prompts run in Claude Desktop 5.1231.2 through the pinned extension |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

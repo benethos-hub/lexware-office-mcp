@@ -13,11 +13,19 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-11
+
 **Action needed for the auto-update extension.** Installed from 0.9.1 or
 earlier, it lists the new prompts but Claude Desktop refuses to attach
 them. Open the auto-update file of this release once to install it anew.
 The tools and Set up Lexware Office keep working either way, and later
 prompts arrive with a restart.
+
+A minor release. Three prompts a person picks in the client, and both
+Claude Desktop extensions leave their tools and prompts to the server. The
+tool names, their parameters and every answer are those of 0.9.1. The
+image and the pinned extension move to pypdfium2 5.15.2, which an
+installation from the index resolved already.
 
 ### Added
 
@@ -1900,7 +1908,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.1...v0.8.2

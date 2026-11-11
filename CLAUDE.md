@@ -421,7 +421,7 @@ fallen behind, so the list is short on purpose. In this order:
    section with its link reference. Then `uv lock`, which carries the
    package's own version. The guards in `tests/test_packaging.py` catch a
    missed one in any of these places, and `uv lock --check` one in the
-   lockfile. **The minor line** (`:0.9` in the README, and in the comment of
+   lockfile. **The minor line** (`:0.10` in the README, and in the comment of
    `.env.example`) changes only with a minor release - the image tag itself
    follows the release tag when the image is built.
 4. **A trial run, only when asked for.** It is there to test the publishing
