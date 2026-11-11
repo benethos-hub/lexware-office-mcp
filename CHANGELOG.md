@@ -24,7 +24,10 @@ housekeeping are out of scope here — design decisions live in
   overview shows one customer or vendor with the latest documents and what
   is open. They read and never write, are offered whatever `tools.json`
   says, and a step whose tool is not enabled is named and left out. The
-  Claude Desktop extension declares all three.
+  Claude Desktop extension declares all three. A request for a prompt
+  that does not exist, or without the argument it requires, is answered
+  as invalid parameters rather than as a failure of the server, and leaves
+  no traceback on stderr.
 
 ### Changed
 

@@ -1995,6 +1995,13 @@ and a recipe added later is not declared there at all. Changing a released
 text is a decision with that cost, not an edit. **(to verify)** whether
 Desktop lists a prompt the server offers but the manifest does not declare.
 
+**A bad request is the client's mistake, and answered as one.** The SDK
+raises a plain `ValueError` for a prompt name it does not know and for a
+required argument left out, which its dispatcher answers with code 0 and a
+whole traceback on stderr, as if the server had broken. `PolicyServer`
+checks both first and answers with invalid parameters and no log line. An
+empty string counts as left out. The name a client sent is not repeated.
+
 `missing_receipts` reads the rhythm from the voucher list alone, so it costs
 one call per 250 vouchers of thirteen months and one for the templates. It
 needs no bank statement and no file, and reports a gap as a question: a

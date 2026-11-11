@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, get_args
 
 import pytest
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 
 from benethos_lexware_office_mcp import prompts
 from benethos_lexware_office_mcp.records.types import LinkTarget, SortOrder
@@ -111,9 +113,28 @@ def test_only_the_contact_overview_requires_its_argument() -> None:
     }
 
 
-def test_a_missing_required_argument_is_refused() -> None:
-    with pytest.raises(ValueError, match="contact"):
-        asyncio.run(SERVER.get_prompt("contact_overview", {}))
+@pytest.mark.parametrize("arguments", [{}, {"contact": ""}])
+def test_a_missing_required_argument_is_refused_as_invalid(
+    arguments: dict[str, str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """The client's mistake, not a broken server: no code 0, no traceback."""
+    caplog.set_level(logging.DEBUG)
+    with pytest.raises(MCPError) as excinfo:
+        asyncio.run(SERVER.get_prompt("contact_overview", arguments))
+
+    assert excinfo.value.code == INVALID_PARAMS
+    assert excinfo.value.message == (
+        "contact_overview needs the argument contact, so nothing was rendered."
+    )
+    assert not [r for r in caplog.records if r.exc_info]
+
+
+def test_an_unknown_prompt_is_refused_without_repeating_its_name() -> None:
+    with pytest.raises(MCPError) as excinfo:
+        asyncio.run(SERVER.get_prompt("<img src=x>", {}))
+
+    assert excinfo.value.code == INVALID_PARAMS
+    assert "<img" not in excinfo.value.message
 
 
 # -- what the text names ----------------------------------------------------------
