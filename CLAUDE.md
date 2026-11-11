@@ -122,6 +122,10 @@ src/benethos_lexware_office_mcp/
                   # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, deeplinks, master_data
     status.py     # server_status, the one tool outside the policy file
+  prompts/        # recipes a person picks in the client, offered whatever
+    _base.py      # the policy says: the Prompt class and the shared texts
+    <name>.py     # one module per prompt: open_items, missing_receipts,
+                  # contact_overview
 tests/            # offline, httpx MockTransport - the whole of the gate
   helpers.py      # the client, provider, server and scripted transport every suite builds,
                   # and the served configuration interface with a browser for it
@@ -155,7 +159,10 @@ containers/       # README.md says which folder is for what
     mcpb/         # the Claude Desktop bundles: manifest.json as the pinned
                   # one ships, server.py that uv starts, build.py that stages
                   # it, and with --auto-update the one that runs the newest
-                  # release from PyPI, its manifest made from the pinned one
+                  # release from PyPI, its manifest made from the pinned one.
+                  # `uv run python .github/publish/mcpb/build.py
+                  # --sync-manifest` writes the manifest's tools and prompts
+                  # from the server, after a changed docstring or prompt
   workflows/
     ci.yml        # brand, lint, test (coverage on 3.15 alone, and the
                   # badge), coverage-badge, lowest-versions (the oldest

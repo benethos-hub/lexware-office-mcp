@@ -39,6 +39,9 @@ PROJECT: dict[str, Any] = tomllib.loads(
     (REPO / "pyproject.toml").read_text(encoding="utf-8")
 )["project"]
 
+# What a failing comparison says to do about it.
+SYNC = "run: uv run python .github/publish/mcpb/build.py --sync-manifest"
+
 
 def _first_sentence(text: str) -> str:
     """A tool description cut to its first sentence, as the manifest lists it.
@@ -76,34 +79,74 @@ def test_the_tools_are_every_registered_one() -> None:
     Every tool, not the ones a policy enables: the dialog shows what the
     extension can offer, and the long description says that none is on until
     the person chooses. A changed docstring changes the line here too, and
-    the expected list is printed so it can be pasted into the manifest.
+    `build.py --sync-manifest` writes it.
     """
     expected = [
         {"name": tool.name, "description": _first_sentence(tool.description or "")}
         for tool in asyncio.run(_registry.list_tools())
     ]
 
-    assert MANIFEST["tools"] == expected, json.dumps(expected, indent=2)
+    assert MANIFEST["tools"] == expected, SYNC
 
 
-def test_the_prompt_is_declared_as_the_server_answers_it(tmp_path: Path) -> None:
+def test_the_prompts_are_declared_as_the_server_answers_them(
+    tmp_path: Path,
+) -> None:
     """Claude Desktop rejects a prompt it was not told of, or another text.
 
     Both were measured: an undeclared prompt is refused outright, and an
     answer that differs from the declared text is dropped as a possible
-    injection, with "Failed to attach prompt" in the window.
+    injection, with "Failed to attach prompt" in the window. An argument is
+    declared by its name and written into the text as Desktop fills it in,
+    so the server renders each with that placeholder. The setup prompt is
+    stubbed, since rendering it would start the interface. Rendered here
+    rather than taken from `build.py`, so the command is checked too, and
+    `build.py --sync-manifest` writes the list.
     """
     server = build_server(Settings(tool_policy_path=tmp_path / "tools.json"))
-    offer_setup(server, port=8771, env_file=None, tools_file=None)
-    [prompt] = asyncio.run(server.list_prompts())
-
-    assert MANIFEST["prompts"] == [
-        {
-            "name": SETUP_PROMPT,
+    offer_setup(
+        server,
+        port=8771,
+        env_file=None,
+        tools_file=None,
+        listening=lambda port: True,
+        start=lambda command: None,
+    )
+    expected: list[dict[str, Any]] = []
+    for prompt in asyncio.run(server.list_prompts()):
+        names = [a.name for a in prompt.arguments or []]
+        placeholders = {name: f"${{arguments.{name}}}" for name in names}
+        result = asyncio.run(server.get_prompt(prompt.name, placeholders))
+        [message] = result.messages
+        entry: dict[str, Any] = {
+            "name": prompt.name,
             "description": prompt.description,
-            "text": SETUP_PROMPT_TEXT,
         }
-    ]
+        if names:
+            entry["arguments"] = names
+        entry["text"] = message.content.text
+        expected.append(entry)
+
+    assert expected[-1]["text"] == SETUP_PROMPT_TEXT
+    assert MANIFEST["prompts"] == expected, SYNC
+
+
+def test_the_sync_writes_tools_and_prompts_and_nothing_else(tmp_path: Path) -> None:
+    """A stale copy comes back as the committed file, byte for byte.
+
+    The committed one is in step already, so the command leaves it alone, and
+    a field it does not own keeps its value and its place.
+    """
+    build = _build_script()
+    stale = json.loads((BUNDLE / "manifest.json").read_text(encoding="utf-8"))
+    stale["tools"] = stale["tools"][:1]
+    stale["prompts"] = []
+    copy = tmp_path / "manifest.json"
+    copy.write_text(json.dumps(stale, indent=2), encoding="utf-8")
+
+    assert build.sync_manifest(copy) is True
+    assert copy.read_bytes() == (BUNDLE / "manifest.json").read_bytes()
+    assert build.sync_manifest(copy) is False
 
 
 def test_the_description_says_how_to_begin() -> None:
@@ -222,12 +265,12 @@ def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
 
 
 def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() -> None:
-    """Version, tools, prompt and fields come from the pinned one, so they stay."""
+    """Version, tools and fields come from the pinned one, so they stay."""
     build = _build_script()
     manifest = build.auto_update_manifest()
-    own = set(build.AUTO_UPDATE)
+    own = set(build.AUTO_UPDATE) | {"prompts", "prompts_generated", "tools_generated"}
 
-    assert own == {"name", "display_name", "description", "server"}
+    assert set(build.AUTO_UPDATE) == {"name", "display_name", "description", "server"}
     assert {k: v for k, v in manifest.items() if k not in own} == {
         k: v for k, v in MANIFEST.items() if k not in own
     }
@@ -235,6 +278,37 @@ def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() 
     # It opens as the project's does, so a new description in pyproject.toml
     # cannot leave this card behind.
     assert manifest["description"].startswith(MANIFEST["description"].split(" — ")[0])
+
+
+def test_the_auto_update_bundle_declares_the_setup_prompt_alone() -> None:
+    """It keeps its manifest while the server moves on, so a declared recipe
+    would be refused once a release changed its text. The setup prompt stays,
+    with the text the pinned manifest declares, and the server lists the
+    rest. The pinned bundle declares every prompt and generates none."""
+    build = _build_script()
+    manifest = build.auto_update_manifest()
+    keys = list(manifest)
+
+    assert build.AUTO_UPDATE_PROMPTS == (SETUP_PROMPT,)
+    assert manifest["prompts"] == [
+        p for p in MANIFEST["prompts"] if p["name"] == SETUP_PROMPT
+    ]
+    assert manifest["prompts_generated"] is True
+    assert keys.index("prompts_generated") == keys.index("prompts") + 1
+    assert "prompts_generated" not in MANIFEST
+    assert len(MANIFEST["prompts"]) > 1
+
+
+def test_the_auto_update_bundle_takes_tools_a_later_release_adds() -> None:
+    """The server lists its tools itself, the declared list stays for the
+    dialog. The pinned bundle runs the server its list was written from."""
+    manifest = _build_script().auto_update_manifest()
+    keys = list(manifest)
+
+    assert manifest["tools_generated"] is True
+    assert keys.index("tools_generated") == keys.index("tools") + 1
+    assert manifest["tools"] == MANIFEST["tools"]
+    assert "tools_generated" not in MANIFEST
 
 
 def test_the_auto_update_bundle_stands_beside_the_pinned_one() -> None:

@@ -138,6 +138,7 @@ beneath every layer: errors.py, settings/, logbook/ (stderr only)
 | `tools/files.py` | Upload, download, rendered documents. | built |
 | `tools/deeplinks.py` | Links into the web app, built from ids without an API call. Classified under `files`, so the policy file and the interface group it as before. | built |
 | `tools/master_data.py` | Countries, payment conditions, posting categories, print layouts. | built |
+| `prompts/` | The recipes a person picks in the client, each a subclass of `_base.Prompt` in the module of its name: `open_items.py`, `missing_receipts.py`, `contact_overview.py`. `_base.py` holds the class and the two texts every recipe shares, the one on withheld tools and the rules of the books. Offered whatever the policy file says, see section 8. | built |
 
 **Layer rule:** tool functions stay thin. Every endpoint is a method on
 `api/client.py` and every request goes through `api/connection.py`, never
@@ -158,7 +159,8 @@ that needs another layer adds it on purpose:
 | `files` | `errors`, `logbook`, `settings` |
 | `policy` | `errors`, `logbook`, `settings` |
 | `tools` | all of the above, never `server`, `transport`, `cli` or `configui` |
-| `server` | `tools`, `policy`, `api`, `files` and the three of the foundation |
+| `prompts` | nothing: a recipe names tools, it never imports them |
+| `server` | `tools`, `prompts`, `policy`, `api`, `files` and the three of the foundation |
 | `transport` | the three of the foundation, and the SDK's server type rather than this one |
 | `configui` | `api`, `policy`, `server` and the three of the foundation, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
 | `cli` | everything, imported by nothing but `python -m` |
@@ -1141,7 +1143,7 @@ by a person, that stops when they are done. The two share their configuration
 modules and nothing else.
 
 **Over stdio the server can start it, at the person's request**, since
-2026-10-10. It offers one MCP prompt, `open_setup`, titled "Set up Lexware
+2026-10-10. It offers an MCP prompt, `open_setup`, titled "Set up Lexware
 Office", and picking it in the client starts `setup` as a detached process
 with no hold on stdout, which opens the browser signed in. When the
 port already answers it starts nothing. The reason is a client that runs the
@@ -1951,6 +1953,96 @@ yet.
   and making it a gate would turn the judgement into a number to be gamed.
 - IDs are Lexware UUIDs. No tool invents, guesses or assembles an ID. A caller
   that has only a name uses `search_contacts` or `search_vouchers` first.
+
+### Prompts
+
+Three prompts in `prompts/` are recipes a person picks in the client, Claude
+Desktop from the "+" menu, Claude Code as a slash command. Each returns one
+user message that names the tools to call, in which order, and the traps of
+the books to mind. A prompt asks Lexware nothing and writes no log line, the
+tool calls it leads to write theirs. Every recipe reads and none writes.
+
+| Prompt | Arguments | Tools it chains |
+|--------|-----------|-----------------|
+| `open_items` | `contact?` (every contact when empty) | `search_contacts` for a contact, `search_vouchers` with status open and 250 rows, quotations, order confirmations and delivery notes left out, split into owed to the company and owed by it, `get_deeplink` for each overdue document |
+| `missing_receipts` | `period?` (a month, a quarter or a year, the last complete month when empty) | `search_vouchers` over the twelve months before the period and the period itself, oldest first, every page, `get_recurring_templates`, `get_deeplink`. Fixed rules for the rhythm of each contact and direction (monthly, quarterly, yearly), what is expected in the period, what is not due yet, what has likely ended, and the drafts and unchecked vouchers of the period |
+| `contact_overview` | `contact` (a name, or a customer or vendor number) | `search_contacts`, `get_contact`, `search_vouchers` twice, the latest 25 and the open ones, `get_deeplink` for the contact |
+
+**Offered whatever the policy file says.** A prompt is user-controlled in
+MCP, it reaches no data and calls nothing, and the model it hands a message
+to is left with the tools the file allows. So the list of prompts does not
+follow the file, and every recipe opens by saying that a tool missing from
+the list was withheld: name it, and leave out the step that needs it rather
+than working around it. Following the file would also have made the prompt
+list change at runtime, which no client has been told to expect, and Claude
+Desktop declares its prompts in the extension's manifest anyway.
+
+**A recipe has no branch in it.** Claude Desktop holds a prompt's answer
+against the text the extension's manifest declares, with each argument
+written as `${arguments.<name>}`, and drops one that differs as a possible
+injection, measured for the setup prompt, see section 7.1. So an argument
+goes into the text as it was given, an optional one defaults to the empty
+string, and the text says in words what an empty one means. A recipe that
+picked another sentence for a missing argument would be refused in exactly
+the case it was written for. Measured 2026-11-11 in Claude Desktop
+5.1231.2 with every recipe declared: `open_items` with a contact and with
+the field left empty, and `missing_receipts` with the field left empty, each
+logged as "content matches declared template". An optional argument left
+out arrives as the empty string, so the text reads `Contact filter: ""`.
+
+**The extension that updates itself declares no recipe.** It keeps the
+manifest it was installed with and runs the newest server, so a recipe
+declared there would be refused as soon as a release changed a word of it,
+and one added later would not be declared at all. Its manifest therefore
+declares the setup prompt alone, whose text never changes and which is the
+way into the configuration for an installation without a key, and sets
+`prompts_generated`, which says the server lists its prompts itself. The
+pinned extension declares every prompt, since its manifest and its server
+arrive together.
+
+Measured 2026-11-11 in Claude Desktop 5.1231.2, with three bundles that ran
+the same server and differed in their manifest alone. Desktop lists every
+prompt the server offers, declared or not, so the menu says nothing about
+the manifest. Without the flag, a recipe the manifest does not declare is
+refused when it is attached, logged as "attempted undeclared prompt", with
+"Failed to attach prompt" in the window, while the declared setup prompt
+opens the interface. With `prompts_generated` set, Desktop logs "skipping
+prompt verification" when it starts the extension and checks no prompt at
+all: the undeclared recipe is attached, and the setup prompt still opens
+the interface. The setup prompt stays declared all the same, since the
+installation dialog shows the declared prompts and the long description
+points to that one. An extension that updates itself installed from 0.9.1
+or earlier declares the setup prompt alone and no flag, so it shows a
+recipe in the menu and refuses it, until it is installed again.
+
+**The same manifest sets `tools_generated`,** so a tool a later release
+adds is not one it has never heard of. Its tool list stays, for the
+installation dialog. Measured the same day with a manifest that left
+`server_status` out of its tools and set the flag: Desktop listed the tool
+and the call was answered. Without the flag that case was not measured,
+and Desktop logged no check of tools in any of the bundles.
+
+**A bad request is the client's mistake, and answered as one.** The SDK
+raises a plain `ValueError` for a prompt name it does not know and for a
+required argument left out, which its dispatcher answers with code 0 and a
+whole traceback on stderr, as if the server had broken. `PolicyServer`
+checks both first and answers with invalid parameters and no log line. An
+empty string counts as left out. The name a client sent is not repeated.
+
+`missing_receipts` reads the rhythm from the voucher list alone, so it costs
+one call per 250 vouchers of thirteen months and one for the templates. It
+needs no bank statement and no file, and reports a gap as a question: a
+voucher a rhythm expects may never have been issued.
+
+`tests/test_prompts.py` holds every tool a recipe names to the registry,
+every parameter to a tool's schema, every field in backticks to the shape
+captures of section 14.2, every page size and link target to what the tools
+accept, and every text to the one with its placeholders filled in.
+`tests/test_mcpb.py` holds the manifest to the texts, and `build.py
+--sync-manifest` writes them, the tools beside them, so nothing is copied by
+hand. The prompt that opens the configuration interface is not one of these:
+it starts a process, is offered over stdio only and lives in
+`transport/setup_prompt.py`.
 
 ## 9. Permission model
 
@@ -3873,10 +3965,11 @@ described in section 7.1. Nothing on the API side is outstanding.
    The mcpb CLI is locked in the organisation's `publish/mcpb` action, where
    Dependabot keeps it current. `tests/test_mcpb.py` holds the manifests to
    the package: the version, the metadata, every tool with the first
-   sentence of its description, the prompt as the server answers it, the two
-   file fields and no other, neither sensitive nor required, and no bare
+   sentence of its description, every prompt as the server answers it, the
+   two file fields and no other, neither sensitive nor required, and no bare
    placeholder in the arguments, a staged bundle that holds the tracked
    source and nothing else, and an auto-update bundle that holds no project.
+   The tools and prompts are written by `build.py --sync-manifest`.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did

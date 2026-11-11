@@ -13,6 +13,33 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+**Action needed for the auto-update extension.** Installed from 0.9.1 or
+earlier, it lists the new prompts but Claude Desktop refuses to attach
+them. Open the auto-update file of this release once to install it anew.
+The tools and Set up Lexware Office keep working either way, and later
+prompts arrive with a restart.
+
+### Added
+
+- **Three prompts: Open items, Missing receipts and Contact overview.**
+  Picked in the client, each sends the model a recipe of which tools to
+  call and what to mind. Open items lists what is unpaid both ways,
+  overdue first. Missing receipts reads the monthly, quarterly and yearly
+  rhythm of the twelve months before a period and lists where the period
+  breaks it, with the drafts and unchecked vouchers of the period. Contact
+  overview shows one customer or vendor with the latest documents and what
+  is open. They read and never write, are offered whatever `tools.json`
+  says, and a step whose tool is not enabled is named and left out. The
+  pinned Claude Desktop extension declares all three. The one that updates
+  itself declares only Set up Lexware Office and leaves the others to the
+  server, so a later change to a recipe has nothing to contradict there,
+  and says the same of its tools, so a tool a later release adds arrives
+  as well. A request for a prompt that does not exist, or without the
+  argument it requires, is answered as invalid parameters rather than as
+  a failure of the server, and leaves no traceback on stderr.
+
+### Changed
+
 - **pypdfium2 5.15.2 in the lockfile, for the image and the pinned
   extension.** It fixes how PDFium's objects are closed when the
   interpreter shuts down, which 5.15.1 had broken. PDFium itself stays at

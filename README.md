@@ -60,6 +60,7 @@
   - [As single containers](#as-single-containers)
   - [Turn the interface off when you are done](#turn-the-interface-off-when-you-are-done)
 - [Logs](#logs)
+- [Prompts](#prompts)
 - [Example prompts](#example-prompts)
 - [Rate limits](#rate-limits)
 - [Development](#development)
@@ -1188,6 +1189,30 @@ search term, name, amount or file name, and no query string. The libraries
 underneath stay at `WARNING` for the same reason, since their `INFO` lines
 carry request URLs and error text. The configuration interface writes a line
 for everything it saves, and never the key, the token or a setting's value.
+
+## Prompts
+
+Besides the tools, the server offers three prompts: recipes you pick in the
+client, in Claude Desktop from the "+" menu and in Claude Code as a slash
+command. Each sends one message that tells the model which tools to call, in
+which order and what to mind, so the same question is asked the same careful
+way every time. They read the books and never write to them.
+
+| Prompt | Argument | What it does |
+|--------|----------|--------------|
+| **Open items** | a contact, optional | What is still unpaid, owed to you and owed by you, overdue first, with a link to each overdue document |
+| **Missing receipts** | a period, optional: `2026-10`, `2026-Q3` or a year, the last complete month if left out | Reads the rhythm of the twelve months before, such as a supplier who bills every month or a customer invoiced every quarter, and lists where the period breaks it, and the drafts and unchecked vouchers of the period |
+| **Contact overview** | a name, or a customer or vendor number | The contact, the latest documents and what is open, with a link |
+
+A prompt is offered whatever `tools.json` says, since it reaches nothing by
+itself. The tools it leads to still answer to the file: when one is not
+enabled, the model says which and leaves that step out. **Open items** needs
+`search_vouchers`, and `search_contacts` for a contact. **Missing receipts**
+needs `search_vouchers` and `get_recurring_templates`, and pages through
+thirteen months of vouchers, one call per 250. **Contact overview** needs
+`search_contacts`, `get_contact` and `search_vouchers`. All three add links
+through `get_deeplink`, which costs no call. A rhythm is a hint, so a gap is
+reported as a question: the voucher it expects may never have been issued.
 
 ## Example prompts
 

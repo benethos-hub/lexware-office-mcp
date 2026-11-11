@@ -66,9 +66,9 @@ def _pick(server: Any) -> str:
 
 
 def test_the_prompt_is_listed_with_its_title(tmp_path: Path) -> None:
-    [prompt] = asyncio.run(_offered(tmp_path).list_prompts())
+    prompts = asyncio.run(_offered(tmp_path).list_prompts())
+    [prompt] = [p for p in prompts if p.name == SETUP_PROMPT]
 
-    assert prompt.name == SETUP_PROMPT
     assert prompt.title == SETUP_PROMPT_TITLE
     assert not prompt.arguments
 
@@ -78,7 +78,7 @@ def test_the_prompt_is_there_while_no_tool_is(tmp_path: Path) -> None:
     server = _offered(tmp_path)
 
     assert [t.name for t in asyncio.run(server.list_tools())] == ["server_status"]
-    assert [p.name for p in asyncio.run(server.list_prompts())] == [SETUP_PROMPT]
+    assert SETUP_PROMPT in [p.name for p in asyncio.run(server.list_prompts())]
 
 
 # -- what picking it does -----------------------------------------------------

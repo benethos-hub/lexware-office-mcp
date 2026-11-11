@@ -26,7 +26,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError
 from mcp.server.mcpserver.exceptions import ToolError as SDKToolError
 from mcp.server.subscriptions import ResourcesListChanged, ServerEvent, ToolsListChanged
-from mcp.types import CallToolResult, Icon, Resource, Tool
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS, CallToolResult, Icon, Resource, Tool
 from pydantic import ValidationError as ArgumentError
 
 from . import __version__, logbook
@@ -34,6 +35,7 @@ from .api.client import ClientProvider
 from .errors import SETUP_PROMPT_TITLE, ConfigError, ToolError
 from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
+from .prompts import register_prompts
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .tools import ALWAYS_OFFERED, DOWNLOAD_TOOLS, register_tools
 
@@ -309,6 +311,38 @@ class PolicyServer(MCPServer):
             if key not in known
         )
 
+    async def get_prompt(
+        self, name: str, arguments: dict[str, Any] | None = None, context: Any = None
+    ) -> Any:
+        """Render a prompt, and refuse a request for one as the client's mistake.
+
+        The SDK raises a plain ``ValueError`` for a name it does not know and
+        for an argument a prompt requires, and its dispatcher answers that
+        with code 0 and a whole traceback on stderr, as if the server had
+        broken. Both are checked here first and answered as invalid
+        parameters, without a log line. The name is not repeated: it is
+        whatever the client sent, and the list says what there is.
+        """
+        listed = {prompt.name: prompt for prompt in await super().list_prompts()}
+        prompt = listed.get(name)
+        if prompt is None:
+            raise MCPError(
+                INVALID_PARAMS, "There is no such prompt. prompts/list names them."
+            )
+        given = arguments or {}
+        missing = [
+            argument.name
+            for argument in prompt.arguments or []
+            if argument.required and not given.get(argument.name)
+        ]
+        if missing:
+            raise MCPError(
+                INVALID_PARAMS,
+                f"{name} needs the argument {', '.join(missing)}, so nothing "
+                "was rendered.",
+            )
+        return await super().get_prompt(name, arguments, context)
+
     @property
     def policy(self) -> ToolPolicy:
         """The file this server answers to, for listing and for every call."""
@@ -565,6 +599,7 @@ def build_server(
         kept_downloads=settings.downloads_kept(),
     )
     register_tools(server, settings, provider or ClientProvider(settings))
+    register_prompts(server)
     return server
 
 
