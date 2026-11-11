@@ -265,12 +265,12 @@ def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
 
 
 def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() -> None:
-    """Version, tools, prompts and fields come from the pinned one, so they stay."""
+    """Version, tools and fields come from the pinned one, so they stay."""
     build = _build_script()
     manifest = build.auto_update_manifest()
-    own = set(build.AUTO_UPDATE)
+    own = set(build.AUTO_UPDATE) | {"prompts", "prompts_generated"}
 
-    assert own == {"name", "display_name", "description", "server"}
+    assert set(build.AUTO_UPDATE) == {"name", "display_name", "description", "server"}
     assert {k: v for k, v in manifest.items() if k not in own} == {
         k: v for k, v in MANIFEST.items() if k not in own
     }
@@ -278,6 +278,25 @@ def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() 
     # It opens as the project's does, so a new description in pyproject.toml
     # cannot leave this card behind.
     assert manifest["description"].startswith(MANIFEST["description"].split(" — ")[0])
+
+
+def test_the_auto_update_bundle_declares_the_setup_prompt_alone() -> None:
+    """It keeps its manifest while the server moves on, so a declared recipe
+    would be refused once a release changed its text. The setup prompt stays,
+    with the text the pinned manifest declares, and the server lists the
+    rest. The pinned bundle declares every prompt and generates none."""
+    build = _build_script()
+    manifest = build.auto_update_manifest()
+    keys = list(manifest)
+
+    assert build.AUTO_UPDATE_PROMPTS == (SETUP_PROMPT,)
+    assert manifest["prompts"] == [
+        p for p in MANIFEST["prompts"] if p["name"] == SETUP_PROMPT
+    ]
+    assert manifest["prompts_generated"] is True
+    assert keys.index("prompts_generated") == keys.index("prompts") + 1
+    assert "prompts_generated" not in MANIFEST
+    assert len(MANIFEST["prompts"]) > 1
 
 
 def test_the_auto_update_bundle_stands_beside_the_pinned_one() -> None:

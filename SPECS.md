@@ -1984,16 +1984,36 @@ injection, measured for the setup prompt, see section 7.1. So an argument
 goes into the text as it was given, an optional one defaults to the empty
 string, and the text says in words what an empty one means. A recipe that
 picked another sentence for a missing argument would be refused in exactly
-the case it was written for. **(to verify)** what Desktop puts in place of
-an optional argument the person leaves out, the empty string being the
-assumption the texts are written against.
+the case it was written for. Measured 2026-11-11 in Claude Desktop
+5.1231.2 with every recipe declared: `open_items` with a contact and with
+the field left empty, and `missing_receipts` with the field left empty, each
+logged as "content matches declared template". An optional argument left
+out arrives as the empty string, so the text reads `Contact filter: ""`.
 
-**A released text is what installed extensions declare.** The extension
-that updates itself keeps the manifest it was installed with and runs the
-newest server, so after a release a changed recipe text is refused there,
-and a recipe added later is not declared there at all. Changing a released
-text is a decision with that cost, not an edit. **(to verify)** whether
-Desktop lists a prompt the server offers but the manifest does not declare.
+**The extension that updates itself declares no recipe.** It keeps the
+manifest it was installed with and runs the newest server, so a recipe
+declared there would be refused as soon as a release changed a word of it,
+and one added later would not be declared at all. Its manifest therefore
+declares the setup prompt alone, whose text never changes and which is the
+way into the configuration for an installation without a key, and sets
+`prompts_generated`, which says the server lists its prompts itself. The
+pinned extension declares every prompt, since its manifest and its server
+arrive together.
+
+Measured 2026-11-11 in Claude Desktop 5.1231.2, with three bundles that ran
+the same server and differed in their manifest alone. Desktop lists every
+prompt the server offers, declared or not, so the menu says nothing about
+the manifest. Without the flag, a recipe the manifest does not declare is
+refused when it is attached, logged as "attempted undeclared prompt", with
+"Failed to attach prompt" in the window, while the declared setup prompt
+opens the interface. With `prompts_generated` set, Desktop logs "skipping
+prompt verification" when it starts the extension and checks no prompt at
+all: the undeclared recipe is attached, and the setup prompt still opens
+the interface. The setup prompt stays declared all the same, since the
+installation dialog shows the declared prompts and the long description
+points to that one. An extension that updates itself installed from 0.9.1
+or earlier declares the setup prompt alone and no flag, so it shows a
+recipe in the menu and refuses it, until it is installed again.
 
 **A bad request is the client's mistake, and answered as one.** The SDK
 raises a plain `ValueError` for a prompt name it does not know and for a

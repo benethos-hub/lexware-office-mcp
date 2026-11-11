@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+**Action needed for the auto-update extension.** Installed from 0.9.1 or
+earlier, it lists the new prompts but Claude Desktop refuses to attach
+them. Open the auto-update file of this release once to install it anew.
+The tools and Set up Lexware Office keep working either way, and later
+prompts arrive with a restart.
+
 ### Added
 
 - **Three prompts: Open items, Missing receipts and Contact overview.**
@@ -24,10 +30,12 @@ housekeeping are out of scope here — design decisions live in
   overview shows one customer or vendor with the latest documents and what
   is open. They read and never write, are offered whatever `tools.json`
   says, and a step whose tool is not enabled is named and left out. The
-  Claude Desktop extension declares all three. A request for a prompt
-  that does not exist, or without the argument it requires, is answered
-  as invalid parameters rather than as a failure of the server, and leaves
-  no traceback on stderr.
+  pinned Claude Desktop extension declares all three. The one that updates
+  itself declares only Set up Lexware Office and leaves the others to the
+  server, so a later change to a recipe has nothing to contradict there.
+  A request for a prompt that does not exist, or without the argument it
+  requires, is answered as invalid parameters rather than as a failure of
+  the server, and leaves no traceback on stderr.
 
 ### Changed
 
