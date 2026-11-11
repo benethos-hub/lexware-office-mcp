@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.9.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.10.0.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -275,7 +275,6 @@ Facts taken from <https://developers.lexware.io/docs/>.
 | Dunnings | `/v1/dunnings` | GET, POST |
 | Down payment invoices | `/v1/down-payment-invoices` | GET |
 | Recurring templates | `/v1/recurring-templates` | GET, and GET by id |
-| Payments | `/v1/payments/{id}` | GET |
 | Payment conditions | `/v1/payment-conditions` | GET |
 | Posting categories | `/v1/posting-categories` | GET |
 | Print layouts | `/v1/print-layouts` | GET |
@@ -768,7 +767,7 @@ arriving.
   again 2026-09-27 on a quotation. An `open` document carries
   `files.documentFileId`, pointing at the same rendered file `/file` serves,
   but that block is deprecated for every type, see "Announced upstream"
-  below, so nothing here reads its absence as a signal any more.
+  above, so nothing here reads its absence as a signal any more.
 - **A document type that does not match the id is a 404**, measured on
   2026-08-21 by reading a real invoice id through `/v1/quotations`,
   `/v1/credit-notes` and `/v1/dunnings`. The answer is word for word the one
@@ -786,7 +785,7 @@ arriving.
   honours the `Accept` header, so an XRechnung can be fetched as XML or PDF
   while ZUGFeRD and plain documents are PDF only.
 - **Deeplinks:** `{appbaseurl}/permalink/{resource}/view/{id}` and `/edit/{id}`,
-  with the exceptions measured in section 5. The app base URL stays
+  with the exceptions measured in this section. The app base URL stays
   configuration rather than a constant, even though `https://app.lexware.de`
   is now confirmed.
 
@@ -815,14 +814,14 @@ arriving.
   listening things this process is**, the transport or the configuration
   interface of section 7.1, since a process is never both.
 - **A changed settings file ends the process** when
-  `LXO_MCP_EXIT_ON_CONFIG_CHANGE` says so, which the image sets and nothing
-  else does. Settings are read once, at startup: the key goes into a
-  long-lived client and the one rate limiter of section 10.1 hangs off it, so
-  rebuilding that in place would mean moving state between two clients.
-  Ending instead hands the problem to whatever started the process, and a
-  fresh one reads everything again - which is what lets a key saved in a
-  browser reach a running server. Off by default, because ending is the whole
-  of it where nothing restarts it.
+  `LXO_MCP_EXIT_ON_CONFIG_CHANGE` says so, which the image and both Compose
+  files set and nothing else does. Settings are read once, at startup: the
+  key goes into a long-lived client and the one rate limiter of section 10.1
+  hangs off it, so rebuilding that in place would mean moving state between
+  two clients. Ending instead hands the problem to whatever started the
+  process, and a fresh one reads everything again - which is what lets a key
+  saved in a browser reach a running server. Off by default, because ending
+  is the whole of it where nothing restarts it.
 
   **One exception, since 2026-10-10: a key saved into a server that had
   none.** A server started before its first key was saved looks for one in
@@ -1166,19 +1165,22 @@ prompts to the model - agent frameworks, the SDK's own client, some editors -
 lets the model open a signed-in page, and with a browser tool beside it tick
 boxes under *Rechte* and read the bearer token, though never the key. So
 `LXO_MCP_SETUP_PROMPT=0` withholds the prompt, decided 2026-10-15 as a
-variable that defaults to on: Claude Desktop, the client it exists for,
-keeps prompts to the person. So does Claude Code, which lists it among its
-slash commands, and picked there it opened the interface, tried 2026-10-29
-with a session started by `--mcp-config`. Over HTTP it is not offered,
-since a remote client would open a page on a machine it does not sit at.
-The prompt always answers with the same sentence, because Claude Desktop
-holds a prompt's answer against the text the extension declared and rejects
-any other as a possible injection - measured, it said "Failed to attach
-prompt" while the browser opened anyway. What happened goes to stderr
-instead. `setup` is handed `--env-file` and `--tools-file` only when the
-server was started with them, so a person who never configured a client is
-not told to put arguments into one, and it inherits the server's
-environment, so a value a variable holds shows as such on its pages.
+variable that defaults to on: Claude Desktop, the client it exists for, keeps
+prompts to the person. So does Claude Code, which lists it among its slash
+commands, and picked there it opened the interface, tried 2026-10-29 with a
+session started by `--mcp-config`. Over HTTP it is not offered, since a
+remote client would open a page on a machine it does not sit at. The prompt
+always answers with the same sentence, because Claude Desktop holds a
+prompt's answer against the text the extension declared and rejects any other
+as a possible injection - measured, it said "Failed to attach prompt" while
+the browser opened anyway. What happened goes to stderr instead. Since 0.10.0
+both manifests set `prompts_generated` and Desktop compares no prompt, see
+section 8, but an extension that updates itself installed from 0.9.1 or
+earlier still compares, so the sentence stays. `setup` is handed `--env-file`
+and `--tools-file` only when the server was started with them, so a person
+who never configured a client is not told to put arguments into one, and it
+inherits the server's environment, so a value a variable holds shows as such
+on its pages.
 
 **It ends itself after 30 minutes without a request**, `--exit-when-idle
 30`, which the prompt passes and nothing else does. Nobody started it from
@@ -1818,7 +1820,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.9.1
+version: 0.10.0
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
@@ -2024,9 +2026,10 @@ checks both first and answers with invalid parameters and no log line. An
 empty string counts as left out. The name a client sent is not repeated.
 
 `missing_receipts` reads the rhythm from the voucher list alone, so it costs
-one call per 250 vouchers of thirteen months and one for the templates. It
-needs no bank statement and no file, and reports a gap as a question: a
-voucher a rhythm expects may never have been issued.
+one call per 250 vouchers of the twelve months before the period and the
+period itself, and one for the templates. It needs no bank statement and no
+file, and reports a gap as a question: a voucher a rhythm expects may never
+have been issued.
 
 `tests/test_prompts.py` holds every tool a recipe names to the registry,
 every parameter to a tool's schema, every field in backticks to the shape
@@ -2150,8 +2153,7 @@ doing something else — `download_document` fetches its PDF, `get_deeplink`
 builds a link to it — is grouped by what it does rather than by what it names,
 because that is where a reader looks for it and where the code keeps it.
 Anything else would need a second rule about which of the two wins.
-`server_status` has no domain, since it is classified nowhere, see section
-9.2.
+`server_status` has no domain, since it is classified nowhere.
 
 **Enforcement happens twice, as defence in depth.** A disabled tool is left
 out of the list, so it never reaches the model and costs no tokens, and a call
@@ -2780,7 +2782,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.9.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.10.0 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3369,10 +3371,11 @@ Built, tested offline and exercised against a live test account:
   Writing:
   `create_contact`, `update_contact`, `create_article`, `update_article`,
   `create_voucher`, `update_voucher`, `create_sales_document`, `upload_file`
-  and `attach_file_to_voucher`. Irreversible: `delete_article`, and
-  `create_sales_document` when it is asked to finalize. Outside the groups
-  and the policy file, `server_status`, checked against the test account
-  by `live/smoke.py` on 2026-10-29
+  and `attach_file_to_voucher`. Irreversible: `delete_article`,
+  `create_sales_document` when it is asked to finalize, and `update_voucher`
+  when it books an unchecked voucher. Outside the groups and the policy
+  file, `server_status`, checked against the test account by
+  `live/smoke.py` on 2026-10-29
 - one flag per tool in a JSON file, enforced when the list is built and again
   when a call arrives, with nothing enabled until that file says so and an
   edit taking effect in both directions without a restart. Presets and the
@@ -3395,6 +3398,10 @@ Built, tested offline and exercised against a live test account:
 - **a Claude Desktop extension and an entry in the MCP Registry**, since
   0.5.1, and over stdio a prompt, *Set up Lexware Office*, that starts
   `setup` from the client, see section 7.1 and items 7 and 8 below
+- **three prompts**, since 0.10.0: Open items, Missing receipts and Contact
+  overview, recipes a person picks in the client that read and never write,
+  offered whatever the policy file says, with both extensions leaving their
+  tools and prompts to the server, see section 8
 - **a container image and two Compose folders**, two stages, non-root,
   180 MB on 2026-11-09, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
@@ -3897,9 +3904,11 @@ described in section 7.1. Nothing on the API side is outstanding.
    chooses. Before that tool, Claude Desktop showed a server that offered no
    tool as failed, "Offered no tools to Cowork and Code sessions", and listed
    the prompt all the same. A server offering `server_status` alone is shown
-   as running, measured the same day. **The prompt is declared with its exact
-   text**, because Claude Desktop refuses an undeclared one and drops an
-   answer that differs from the declaration.
+   as running, measured the same day. **Every prompt is declared with its
+   exact text**, for the installation dialog to show, and since 0.10.0 both
+   manifests set `tools_generated` and `prompts_generated`, so Desktop checks
+   neither list, see section 8. Without the flags it refuses an undeclared
+   prompt and drops an answer that differs from the declaration.
 
    **A second bundle updates itself.** `build.py --auto-update` stages
    `benethos-lexware-office-mcp-auto-update`, which carries no code, only the
@@ -3912,10 +3921,12 @@ described in section 7.1. Nothing on the API side is outstanding.
    display name, description and server. The registry entry lists the pinned
    bundle alone. The patch windows described above decide what it runs, and
    the packages beneath them stay open. An extension keeps the manifest it
-   was installed with while the server moves on, which makes **the prompt's
-   name and text permanent**: a new word would be dropped as a possible
-   injection on every extension installed, with no new file to reach them
-   through. `tests/test_mcpb.py` holds both to their literal value.
+   was installed with while the server moves on. One installed from 0.9.1 or
+   earlier has no flags and declares the setup prompt alone, which makes
+   **the setup prompt's name and text permanent**: a new word would be
+   dropped as a possible injection on every such extension, with no new file
+   to reach them through. `tests/test_mcpb.py` holds both to their literal
+   value.
 
    A release can change what an enabled tool does under its name, which the
    policy file cannot see, since it names a tool and not its abilities. The
@@ -3963,7 +3974,8 @@ described in section 7.1. Nothing on the API side is outstanding.
    two file fields and no other, neither sensitive nor required, and no bare
    placeholder in the arguments, a staged bundle that holds the tracked
    source and nothing else, and an auto-update bundle that holds no project.
-   The tools and prompts are written by `build.py --sync-manifest`.
+   The tools and prompts are written by `build.py --sync-manifest`, the two
+   generated flags by hand, and a test holds them in place.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
@@ -4000,6 +4012,7 @@ suggested they were.
 | 0.8.2 | The image on a refreshed lockfile and a rebuilt base | **released 2026-11-05** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.8.1, measured over stdio on both protocol versions. The image carries pydantic 2.14.3, apt 3.0.4 and tzdata 2026f, its health check runs without a shell, and it names its user by id, 10001, the same user as before. The capture of the read-only live run against the third test account is identical to 0.8.1's but for its date |
 | 0.9.0 | The extension's own files, a second extension that updates itself, and a patch window on every runtime dependency | **released 2026-11-07** - a minor, because an installation can trip over it: `mcp`, `httpx`, `pydantic`, `platformdirs`, `pypdfium2` and `jinja2` are declared as `~=x.y.z`, so a `pip install` into an environment that needs another minor of one of them no longer resolves. Nothing in the source changed, so the tool list and every answer are those of 0.8.2. pypdfium2 5.15.0 brings PDFium 159 with fixes for several CVEs, and a rendered page comes out byte for byte as before. Both extensions were tried in Claude Desktop on Windows in a Windows Sandbox against the third test account, `live/smoke.py` passed 14 of 14 before and after the refresh, and the capture of the read-only live run is identical to 0.8.2's but for its date |
 | 0.9.1 | Two tool descriptions that say how to use the tool, and pypdfium2 5.15.1 in the lockfile | **released 2026-11-09** - a patch, because nothing an installation trips over changed: the tool names, their parameters and every answer are those of 0.9.0. The descriptions of `server_status` and `get_article` name what to do with the answer and which tool to use instead, 329 characters more on every request. The image and the pinned extension carry pypdfium2 5.15.1, and a rendered page comes out byte for byte as before. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.9.0's but for its date |
+| 0.10.0 | Three prompts, and both extensions leave their tools and prompts to the server | **released 2026-11-11** - a minor, because an installation can trip over it: an extension that updates itself, installed from 0.9.1 or earlier, lists the three prompts and refuses to attach them until it is installed again. The tool names, their parameters and every answer are those of 0.9.1. Open items, Missing receipts and Contact overview are recipes a person picks in the client, they read and never write, and both manifests set `tools_generated` and `prompts_generated`, so Claude Desktop checks neither list. The image and the pinned extension carry pypdfium2 5.15.2. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, a shape capture identical to 0.9.1's but for its date, and the three prompts run in Claude Desktop 5.1231.2 through the pinned extension |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD

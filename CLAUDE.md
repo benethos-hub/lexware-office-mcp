@@ -65,7 +65,7 @@ How to work in this repository. Read this before making changes. See
 
 ## Project layout
 
-The planned structure, see SPECS.md section 4 for the full table.
+The structure, see SPECS.md section 4 for the full table.
 
 ```
 src/benethos_lexware_office_mcp/
@@ -211,7 +211,9 @@ fails the suite.
    output schema is published for it, since the only one the SDK could
    derive says nothing. A tool that answers with content blocks returns a
    `CallToolResult` and names its model, as the file tools do, see SPECS.md
-   section 8.
+   section 8. A new tool or a changed docstring changes the Claude Desktop
+   manifest too: `uv run python .github/publish/mcpb/build.py
+   --sync-manifest` writes it, and `tests/test_mcpb.py` fails until it has.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds. A named `Literal`
    or an argument model goes in `records/types.py`, not in the tool module.
@@ -413,15 +415,16 @@ fallen behind, so the list is short on purpose. In this order:
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
    README's status line, pin example and exact image tag, `LXO_VERSION` in
-   `containers/production/.env.example`, the SPECS status line, a roadmap row
-   and the example start line in section 11.2, the MCP Registry entry in
+   `containers/production/.env.example`, the SPECS status line, the
+   `server_status` example in section 8, a roadmap row and the example start
+   line in section 11.2, the MCP Registry entry in
    `.github/publish/mcp-registry/server.json` (its own version, the PyPI
    package's, the image tag and the bundle's download address), the bundle's
    manifest in `.github/publish/mcpb/manifest.json`, and the changelog
    section with its link reference. Then `uv lock`, which carries the
    package's own version. The guards in `tests/test_packaging.py` catch a
    missed one in any of these places, and `uv lock --check` one in the
-   lockfile. **The minor line** (`:0.9` in the README, and in the comment of
+   lockfile. **The minor line** (`:0.10` in the README, and in the comment of
    `.env.example`) changes only with a minor release - the image tag itself
    follows the release tag when the image is built.
 4. **A trial run, only when asked for.** It is there to test the publishing
