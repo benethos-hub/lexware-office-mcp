@@ -24,10 +24,17 @@ never ships, and neither a .env nor a config/ directory can: the server
 would read either before the per-user files that the configuration
 interface writes. The pinned manifest is committed as it ships, its tools
 and prompts written by --sync-manifest, everything else by hand. The
-auto-update one is made from it here, so its version, tools and fields
-cannot drift from it. Of the prompts it declares the setup prompt alone and
-says the server lists the rest. tests/test_mcpb.py holds both to the
-package.
+auto-update one is made from it here, so its version, tools, prompts and
+fields cannot drift from it. tests/test_mcpb.py holds both to the package.
+
+Both set `tools_generated` and `prompts_generated`: the server lists its
+tools and prompts itself, and the lists in the manifest are what the
+installation dialog shows. Without the flags Claude Desktop refuses a
+prompt the manifest does not declare, and compares a declared one with its
+text, which a prompt whose optional argument is left out beside a required
+one cannot match. The auto-update bundle keeps its manifest while the
+server moves on, so it would refuse every later prompt as well. With the
+flags Desktop checks neither, measured 2026-11-11, see SPECS.md section 8.
 """
 
 from __future__ import annotations
@@ -83,24 +90,6 @@ AUTO_UPDATE = {
         },
     },
 }
-
-# The one prompt the auto-update bundle declares. It keeps the manifest it
-# was installed with while the server moves on, and Claude Desktop holds a
-# prompt's answer against the declared text, so a recipe declared there
-# would be refused as soon as a release changed a word of it. The recipes
-# are left out and `prompts_generated` says the server lists its prompts
-# itself, which makes Claude Desktop check no prompt at all, measured
-# 2026-11-11. The setup prompt stays declared: its text never changes, the
-# installation dialog shows it, and it is the way into the configuration
-# for an installation that has no key yet.
-# The name is `transport/setup_prompt.SETUP_PROMPT`, written out because
-# staging imports nothing of the package.
-#
-# `tools_generated` says the same of the tools, so a tool a later release
-# adds is not one the manifest has never heard of. With it, a tool missing
-# from the manifest was listed and answered, measured 2026-11-11. Without it
-# that case was not measured. The tool list stays, for the dialog to show.
-AUTO_UPDATE_PROMPTS = ("open_setup",)
 
 # Destination in the auto-update bundle -> source. No pyproject.toml, so
 # Claude Desktop has no project to install, only the command to run.
@@ -223,25 +212,11 @@ def stage(target: Path) -> None:
 
 
 def auto_update_manifest() -> dict[str, object]:
-    """The pinned manifest with the fields of ``AUTO_UPDATE`` in its place.
-
-    And its prompts cut to ``AUTO_UPDATE_PROMPTS``, with ``tools_generated``
-    and ``prompts_generated`` right after the list each one speaks of.
-    """
-    pinned: dict[str, Any] = json.loads(
+    """The pinned manifest with the fields of ``AUTO_UPDATE`` in its place."""
+    manifest: dict[str, object] = json.loads(
         FILES["manifest.json"].read_text(encoding="utf-8")
     )
-    pinned.update(AUTO_UPDATE)
-    manifest: dict[str, object] = {}
-    for key, value in pinned.items():
-        if key == "tools":
-            manifest[key] = value
-            manifest["tools_generated"] = True
-        elif key == "prompts":
-            manifest[key] = [p for p in value if p["name"] in AUTO_UPDATE_PROMPTS]
-            manifest["prompts_generated"] = True
-        else:
-            manifest[key] = value
+    manifest.update(AUTO_UPDATE)
     return manifest
 
 

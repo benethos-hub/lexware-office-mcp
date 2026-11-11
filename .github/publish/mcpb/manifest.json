@@ -154,6 +154,7 @@
       "description": "Read one of the lists this account is configured with."
     }
   ],
+  "tools_generated": true,
   "prompts": [
     {
       "name": "open_items",
@@ -185,6 +186,7 @@
       "text": "The configuration interface of the Lexware Office MCP server is open in the browser, where the person sets the API key and which tools exist. Nothing needs to be done in this conversation."
     }
   ],
+  "prompts_generated": true,
   "keywords": [
     "mcp",
     "mcp-server",
