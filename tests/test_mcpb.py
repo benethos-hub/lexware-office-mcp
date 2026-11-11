@@ -131,6 +131,24 @@ def test_the_prompts_are_declared_as_the_server_answers_them(
     assert MANIFEST["prompts"] == expected, SYNC
 
 
+def test_the_server_lists_its_tools_and_prompts_itself() -> None:
+    """Claude Desktop checks neither list against the server with these set.
+
+    Without them it refuses a prompt the manifest does not declare and
+    compares a declared one with its text, which a prompt whose optional
+    argument is left out beside a required one cannot match, and an
+    extension that updates itself keeps its manifest while the server moves
+    on. Each flag follows the list it speaks of, which stays for the
+    installation dialog to show.
+    """
+    keys = list(MANIFEST)
+
+    assert MANIFEST["tools_generated"] is True
+    assert MANIFEST["prompts_generated"] is True
+    assert keys.index("tools_generated") == keys.index("tools") + 1
+    assert keys.index("prompts_generated") == keys.index("prompts") + 1
+
+
 def test_the_sync_writes_tools_and_prompts_and_nothing_else(tmp_path: Path) -> None:
     """A stale copy comes back as the committed file, byte for byte.
 
@@ -265,12 +283,12 @@ def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
 
 
 def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() -> None:
-    """Version, tools and fields come from the pinned one, so they stay."""
+    """Version, tools, prompts and fields come from the pinned one, so they stay."""
     build = _build_script()
     manifest = build.auto_update_manifest()
-    own = set(build.AUTO_UPDATE) | {"prompts", "prompts_generated", "tools_generated"}
+    own = set(build.AUTO_UPDATE)
 
-    assert set(build.AUTO_UPDATE) == {"name", "display_name", "description", "server"}
+    assert own == {"name", "display_name", "description", "server"}
     assert {k: v for k, v in manifest.items() if k not in own} == {
         k: v for k, v in MANIFEST.items() if k not in own
     }
@@ -278,37 +296,6 @@ def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() 
     # It opens as the project's does, so a new description in pyproject.toml
     # cannot leave this card behind.
     assert manifest["description"].startswith(MANIFEST["description"].split(" — ")[0])
-
-
-def test_the_auto_update_bundle_declares_the_setup_prompt_alone() -> None:
-    """It keeps its manifest while the server moves on, so a declared recipe
-    would be refused once a release changed its text. The setup prompt stays,
-    with the text the pinned manifest declares, and the server lists the
-    rest. The pinned bundle declares every prompt and generates none."""
-    build = _build_script()
-    manifest = build.auto_update_manifest()
-    keys = list(manifest)
-
-    assert build.AUTO_UPDATE_PROMPTS == (SETUP_PROMPT,)
-    assert manifest["prompts"] == [
-        p for p in MANIFEST["prompts"] if p["name"] == SETUP_PROMPT
-    ]
-    assert manifest["prompts_generated"] is True
-    assert keys.index("prompts_generated") == keys.index("prompts") + 1
-    assert "prompts_generated" not in MANIFEST
-    assert len(MANIFEST["prompts"]) > 1
-
-
-def test_the_auto_update_bundle_takes_tools_a_later_release_adds() -> None:
-    """The server lists its tools itself, the declared list stays for the
-    dialog. The pinned bundle runs the server its list was written from."""
-    manifest = _build_script().auto_update_manifest()
-    keys = list(manifest)
-
-    assert manifest["tools_generated"] is True
-    assert keys.index("tools_generated") == keys.index("tools") + 1
-    assert manifest["tools"] == MANIFEST["tools"]
-    assert "tools_generated" not in MANIFEST
 
 
 def test_the_auto_update_bundle_stands_beside_the_pinned_one() -> None:

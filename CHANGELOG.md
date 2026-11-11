@@ -29,14 +29,14 @@ prompts arrive with a restart.
   breaks it, with the drafts and unchecked vouchers of the period. Contact
   overview shows one customer or vendor with the latest documents and what
   is open. They read and never write, are offered whatever `tools.json`
-  says, and a step whose tool is not enabled is named and left out. The
-  pinned Claude Desktop extension declares all three. The one that updates
-  itself declares only Set up Lexware Office and leaves the others to the
-  server, so a later change to a recipe has nothing to contradict there,
-  and says the same of its tools, so a tool a later release adds arrives
-  as well. A request for a prompt that does not exist, or without the
-  argument it requires, is answered as invalid parameters rather than as
-  a failure of the server, and leaves no traceback on stderr.
+  says, and a step whose tool is not enabled is named and left out. Both
+  Claude Desktop extensions leave the list of tools and prompts to the
+  server, so the one that updates itself takes a new or changed prompt or
+  tool with a restart, and Claude Desktop no longer compares a prompt with
+  the text the extension was installed with. A request for a prompt that
+  does not exist, or without the argument it requires, is answered as
+  invalid parameters rather than as a failure of the server, and leaves no
+  traceback on stderr.
 
 ### Changed
 
