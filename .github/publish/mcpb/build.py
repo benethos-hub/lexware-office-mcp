@@ -95,6 +95,11 @@ AUTO_UPDATE = {
 # for an installation that has no key yet.
 # The name is `transport/setup_prompt.SETUP_PROMPT`, written out because
 # staging imports nothing of the package.
+#
+# `tools_generated` says the same of the tools, so a tool a later release
+# adds is not one the manifest has never heard of. With it, a tool missing
+# from the manifest was listed and answered, measured 2026-11-11. Without it
+# that case was not measured. The tool list stays, for the dialog to show.
 AUTO_UPDATE_PROMPTS = ("open_setup",)
 
 # Destination in the auto-update bundle -> source. No pyproject.toml, so
@@ -220,8 +225,8 @@ def stage(target: Path) -> None:
 def auto_update_manifest() -> dict[str, object]:
     """The pinned manifest with the fields of ``AUTO_UPDATE`` in its place.
 
-    And its prompts cut to ``AUTO_UPDATE_PROMPTS``, with ``prompts_generated``
-    right after them.
+    And its prompts cut to ``AUTO_UPDATE_PROMPTS``, with ``tools_generated``
+    and ``prompts_generated`` right after the list each one speaks of.
     """
     pinned: dict[str, Any] = json.loads(
         FILES["manifest.json"].read_text(encoding="utf-8")
@@ -229,7 +234,10 @@ def auto_update_manifest() -> dict[str, object]:
     pinned.update(AUTO_UPDATE)
     manifest: dict[str, object] = {}
     for key, value in pinned.items():
-        if key == "prompts":
+        if key == "tools":
+            manifest[key] = value
+            manifest["tools_generated"] = True
+        elif key == "prompts":
             manifest[key] = [p for p in value if p["name"] in AUTO_UPDATE_PROMPTS]
             manifest["prompts_generated"] = True
         else:

@@ -268,7 +268,7 @@ def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() 
     """Version, tools and fields come from the pinned one, so they stay."""
     build = _build_script()
     manifest = build.auto_update_manifest()
-    own = set(build.AUTO_UPDATE) | {"prompts", "prompts_generated"}
+    own = set(build.AUTO_UPDATE) | {"prompts", "prompts_generated", "tools_generated"}
 
     assert set(build.AUTO_UPDATE) == {"name", "display_name", "description", "server"}
     assert {k: v for k, v in manifest.items() if k not in own} == {
@@ -297,6 +297,18 @@ def test_the_auto_update_bundle_declares_the_setup_prompt_alone() -> None:
     assert keys.index("prompts_generated") == keys.index("prompts") + 1
     assert "prompts_generated" not in MANIFEST
     assert len(MANIFEST["prompts"]) > 1
+
+
+def test_the_auto_update_bundle_takes_tools_a_later_release_adds() -> None:
+    """The server lists its tools itself, the declared list stays for the
+    dialog. The pinned bundle runs the server its list was written from."""
+    manifest = _build_script().auto_update_manifest()
+    keys = list(manifest)
+
+    assert manifest["tools_generated"] is True
+    assert keys.index("tools_generated") == keys.index("tools") + 1
+    assert manifest["tools"] == MANIFEST["tools"]
+    assert "tools_generated" not in MANIFEST
 
 
 def test_the_auto_update_bundle_stands_beside_the_pinned_one() -> None:

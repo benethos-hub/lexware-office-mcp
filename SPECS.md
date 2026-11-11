@@ -2015,6 +2015,13 @@ points to that one. An extension that updates itself installed from 0.9.1
 or earlier declares the setup prompt alone and no flag, so it shows a
 recipe in the menu and refuses it, until it is installed again.
 
+**The same manifest sets `tools_generated`,** so a tool a later release
+adds is not one it has never heard of. Its tool list stays, for the
+installation dialog. Measured the same day with a manifest that left
+`server_status` out of its tools and set the flag: Desktop listed the tool
+and the call was answered. Without the flag that case was not measured,
+and Desktop logged no check of tools in any of the bundles.
+
 **A bad request is the client's mistake, and answered as one.** The SDK
 raises a plain `ValueError` for a prompt name it does not know and for a
 required argument left out, which its dispatcher answers with code 0 and a
