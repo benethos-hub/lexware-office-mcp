@@ -54,6 +54,8 @@ VERSION_EXAMPLES = (
     ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     # The start line the log catalogue shows as an example.
     ("SPECS.md", r"`(\d+\.\d+\.\d+) started over stdio`"),
+    # The answer of server_status that section 8 shows.
+    ("SPECS.md", r"(?m)^version: (\d+\.\d+\.\d+)$"),
     # The MCP Registry entry: its own version and the PyPI package's, then
     # the image tag, which carries the version in place of a field of its own.
     (".github/publish/mcp-registry/server.json", r'"version": "(\d+\.\d+\.\d+)"'),
