@@ -42,7 +42,9 @@ MAY_IMPORT: dict[str, frozenset[str]] = {
     "files": FOUNDATION,
     "policy": FOUNDATION,
     "tools": FOUNDATION | {"records", "api", "files", "policy"},
-    "server": FOUNDATION | {"tools", "policy", "api", "files"},
+    # Recipes in plain text: they name tools, never import them.
+    "prompts": frozenset(),
+    "server": FOUNDATION | {"tools", "prompts", "policy", "api", "files"},
     # Every MCPServer in it is the SDK's type, not this server.
     "transport": FOUNDATION,
     # The configuration interface builds a server to measure what the tools

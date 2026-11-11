@@ -34,6 +34,7 @@ from .api.client import ClientProvider
 from .errors import SETUP_PROMPT_TITLE, ConfigError, ToolError
 from .files import resources
 from .policy import ToolPolicy, known_tools, withheld
+from .prompts import register_prompts
 from .settings import DEFAULT_KEPT_DOWNLOADS, Settings, load_settings
 from .tools import ALWAYS_OFFERED, DOWNLOAD_TOOLS, register_tools
 
@@ -565,6 +566,7 @@ def build_server(
         kept_downloads=settings.downloads_kept(),
     )
     register_tools(server, settings, provider or ClientProvider(settings))
+    register_prompts(server)
     return server
 
 

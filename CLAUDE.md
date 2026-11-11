@@ -122,6 +122,10 @@ src/benethos_lexware_office_mcp/
                   # built: diagnostics, contacts, vouchers, articles,
                   #        sales_documents, files, deeplinks, master_data
     status.py     # server_status, the one tool outside the policy file
+  prompts/        # recipes a person picks in the client, offered whatever
+    _base.py      # the policy says: the Prompt class and the shared texts
+    <name>.py     # one module per prompt: open_items, missing_receipts,
+                  # contact_overview
 tests/            # offline, httpx MockTransport - the whole of the gate
   helpers.py      # the client, provider, server and scripted transport every suite builds,
                   # and the served configuration interface with a browser for it

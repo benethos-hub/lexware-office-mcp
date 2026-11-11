@@ -86,24 +86,45 @@ def test_the_tools_are_every_registered_one() -> None:
     assert MANIFEST["tools"] == expected, json.dumps(expected, indent=2)
 
 
-def test_the_prompt_is_declared_as_the_server_answers_it(tmp_path: Path) -> None:
+def test_the_prompts_are_declared_as_the_server_answers_them(
+    tmp_path: Path,
+) -> None:
     """Claude Desktop rejects a prompt it was not told of, or another text.
 
     Both were measured: an undeclared prompt is refused outright, and an
     answer that differs from the declared text is dropped as a possible
-    injection, with "Failed to attach prompt" in the window.
+    injection, with "Failed to attach prompt" in the window. An argument is
+    declared by its name and written into the text as Desktop fills it in,
+    so the server renders each with that placeholder. The setup prompt is
+    stubbed, since rendering it would start the interface. The expected list
+    is printed so it can be pasted into the manifest.
     """
     server = build_server(Settings(tool_policy_path=tmp_path / "tools.json"))
-    offer_setup(server, port=8771, env_file=None, tools_file=None)
-    [prompt] = asyncio.run(server.list_prompts())
-
-    assert MANIFEST["prompts"] == [
-        {
-            "name": SETUP_PROMPT,
+    offer_setup(
+        server,
+        port=8771,
+        env_file=None,
+        tools_file=None,
+        listening=lambda port: True,
+        start=lambda command: None,
+    )
+    expected: list[dict[str, Any]] = []
+    for prompt in asyncio.run(server.list_prompts()):
+        names = [a.name for a in prompt.arguments or []]
+        placeholders = {name: f"${{arguments.{name}}}" for name in names}
+        result = asyncio.run(server.get_prompt(prompt.name, placeholders))
+        [message] = result.messages
+        entry: dict[str, Any] = {
+            "name": prompt.name,
             "description": prompt.description,
-            "text": SETUP_PROMPT_TEXT,
         }
-    ]
+        if names:
+            entry["arguments"] = names
+        entry["text"] = message.content.text
+        expected.append(entry)
+
+    assert expected[-1]["text"] == SETUP_PROMPT_TEXT
+    assert MANIFEST["prompts"] == expected, json.dumps(expected, indent=2)
 
 
 def test_the_description_says_how_to_begin() -> None:
@@ -222,7 +243,7 @@ def test_the_icon_is_the_size_claude_desktop_recommends() -> None:
 
 
 def test_the_auto_update_manifest_is_the_pinned_one_in_all_but_its_own_fields() -> None:
-    """Version, tools, prompt and fields come from the pinned one, so they stay."""
+    """Version, tools, prompts and fields come from the pinned one, so they stay."""
     build = _build_script()
     manifest = build.auto_update_manifest()
     own = set(build.AUTO_UPDATE)

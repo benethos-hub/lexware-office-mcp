@@ -13,6 +13,21 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **Three prompts: Open items, Missing receipts and Contact overview.**
+  Picked in the client, each sends the model a recipe of which tools to
+  call and what to mind. Open items lists what is unpaid both ways,
+  overdue first. Missing receipts reads the monthly, quarterly and yearly
+  rhythm of the twelve months before a period and lists where the period
+  breaks it, with the drafts and unchecked vouchers of the period. Contact
+  overview shows one customer or vendor with the latest documents and what
+  is open. They read and never write, are offered whatever `tools.json`
+  says, and a step whose tool is not enabled is named and left out. The
+  Claude Desktop extension declares all three.
+
+### Changed
+
 - **pypdfium2 5.15.2 in the lockfile, for the image and the pinned
   extension.** It fixes how PDFium's objects are closed when the
   interpreter shuts down, which 5.15.1 had broken. PDFium itself stays at
