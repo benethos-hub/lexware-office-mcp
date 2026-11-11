@@ -2011,9 +2011,11 @@ voucher a rhythm expects may never have been issued.
 every parameter to a tool's schema, every field in backticks to the shape
 captures of section 14.2, every page size and link target to what the tools
 accept, and every text to the one with its placeholders filled in.
-`tests/test_mcpb.py` holds the manifest to the texts. The prompt that opens
-the configuration interface is not one of these: it starts a process, is
-offered over stdio only and lives in `transport/setup_prompt.py`.
+`tests/test_mcpb.py` holds the manifest to the texts, and `build.py
+--sync-manifest` writes them, the tools beside them, so nothing is copied by
+hand. The prompt that opens the configuration interface is not one of these:
+it starts a process, is offered over stdio only and lives in
+`transport/setup_prompt.py`.
 
 ## 9. Permission model
 
@@ -3940,6 +3942,7 @@ described in section 7.1. Nothing on the API side is outstanding.
    two file fields and no other, neither sensitive nor required, and no bare
    placeholder in the arguments, a staged bundle that holds the tracked
    source and nothing else, and an auto-update bundle that holds no project.
+   The tools and prompts are written by `build.py --sync-manifest`.
 
 **The numbers below no longer mean what they were named for.** They were
 assigned when the work was expected to arrive release by release, and it did
