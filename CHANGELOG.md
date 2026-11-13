@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **uv 0.13.8 builds the image**, instead of 0.13.7. It installs the
+  same lockfile the same way, and the packages in the image are byte for
+  byte those of 0.10.0. An installation from the index is not affected.
+
 ## [0.10.0] - 2026-11-11
 
 **Action needed for the auto-update extension.** Installed from 0.9.1 or
