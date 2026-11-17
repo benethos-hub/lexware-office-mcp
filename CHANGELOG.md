@@ -13,11 +13,20 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-17
+
+A patch release for the container image and the pinned extension.
+Nothing a client receives changed: the tool list and every answer are
+those of 0.10.0. The image is built with uv 0.13.8 from a refreshed
+lockfile. An installation from the index resolved the same Python
+packages already.
+
 ### Changed
 
 - **uv 0.13.8 builds the image**, instead of 0.13.7. It installs the
-  same lockfile the same way, and the packages in the image are byte for
-  byte those of 0.10.0. An installation from the index is not affected.
+  same lockfile the same way: built from the lockfile of 0.10.0 with
+  either, the packages in the image are byte for byte the same. An
+  installation from the index is not affected.
 - **A refreshed lockfile for the image and the pinned extension**: httpx2
   and httpcore2 2.16.2, the HTTP client under the SDK, with fixes for
   redirects without a valid `Location`, `NO_PROXY` wildcards and HTTP/2
@@ -1920,7 +1929,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.8.2...v0.9.0
