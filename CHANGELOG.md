@@ -15,11 +15,23 @@ housekeeping are out of scope here — design decisions live in
 
 ## [0.10.1] - 2026-11-17
 
-A patch release for the container image and the pinned extension.
-Nothing a client receives changed: the tool list and every answer are
-those of 0.10.0. The image is built with uv 0.13.8 from a refreshed
-lockfile. An installation from the index resolved the same Python
+A patch release for the container image and the pinned extension, and
+for the log. Nothing a client receives changed: the tool list and every
+answer are those of 0.10.0. The image is built with uv 0.13.8 from a
+refreshed lockfile, and the SDK's HTTP client is held at WARNING by its
+own name. An installation from the index resolved the same Python
 packages already.
+
+### Fixed
+
+- **The SDK's HTTP client is held at WARNING by name.** The log holds
+  the libraries whose INFO lines carry request URLs at WARNING, and the
+  list named httpx and httpcore, the client this server talks to Lexware
+  with, but not httpx2 and httpcore2, which the SDK uses. Nothing leaked,
+  since every library not named stays at WARNING too, but the list is
+  what holds them whatever else changes. It names all four now, and a
+  test fails on a held name that is not installed and on an HTTP client
+  in the process the list misses.
 
 ### Changed
 
