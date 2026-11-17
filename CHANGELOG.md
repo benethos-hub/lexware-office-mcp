@@ -18,6 +18,12 @@ housekeeping are out of scope here — design decisions live in
 - **uv 0.13.8 builds the image**, instead of 0.13.7. It installs the
   same lockfile the same way, and the packages in the image are byte for
   byte those of 0.10.0. An installation from the index is not affected.
+- **A refreshed lockfile for the image and the pinned extension**: httpx2
+  and httpcore2 2.16.2, the HTTP client under the SDK, with fixes for
+  redirects without a valid `Location`, `NO_PROXY` wildcards and HTTP/2
+  uploads that could stall, and python-multipart 0.0.34. Neither reaches
+  a request to Lexware, which goes through httpx. An installation from
+  the index resolves these versions already.
 
 ## [0.10.0] - 2026-11-11
 
