@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **uv 0.13.9 builds the image**, instead of 0.13.8. It installs the
+  same lockfile the same way: built from the lockfile of 0.10.1 with
+  either, the packages in the image are byte for byte the same. An
+  installation from the index is not affected.
+
 ## [0.10.1] - 2026-11-17
 
 A patch release for the container image and the pinned extension, and
