@@ -3407,7 +3407,7 @@ Built, tested offline and exercised against a live test account:
   offered whatever the policy file says, with both extensions leaving their
   tools and prompts to the server, see section 8
 - **a container image and two Compose folders**, two stages, non-root,
-  180 MB on 2026-11-09, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-17, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
