@@ -36,8 +36,10 @@ PACKAGE = __name__.split(".")[0]
 # httpx names every request with its whole URL, which holds the name or email
 # `search_contacts` looked for, and the SDK quotes a failed tool's message,
 # which quotes the arguments. The server writes its own line for both, see
-# the package docstring for what those may carry.
-LIBRARIES = ("httpx", "httpcore", "mcp")
+# the package docstring for what those may carry. Two HTTP clients live in
+# the process: httpx and httpcore are this server's, for Lexware and for a
+# fetched upload, httpx2 and httpcore2 the SDK's.
+LIBRARIES = ("httpx", "httpcore", "httpx2", "httpcore2", "mcp")
 
 # uvicorn's own messages - started, stopped, a malformed request - are the
 # lifecycle of the HTTP transport and stay visible at INFO even when this

@@ -7,6 +7,7 @@ container log.
 
 from __future__ import annotations
 
+import importlib.util
 import io
 import logging
 import re
@@ -47,6 +48,30 @@ def test_the_libraries_stay_at_warning_whatever_the_level(level: str) -> None:
     for name in LIBRARIES:
         assert logging.getLogger(name).level == logging.WARNING
     assert logging.getLogger(PACKAGE).level == logging.getLevelName(level)
+
+
+def test_every_held_library_is_installed() -> None:
+    """A name nothing logs under holds nothing back.
+
+    The SDK moved to httpx2 and httpcore2, and a list that named only the
+    old packages would pass every other test while pinning the wrong ones.
+    """
+    for name in LIBRARIES:
+        assert importlib.util.find_spec(name) is not None, name
+
+
+def test_every_http_client_in_the_process_is_held() -> None:
+    """This server's client and the SDK's are two packages, both held."""
+    import benethos_lexware_office_mcp.files.fetch  # noqa: F401
+    import benethos_lexware_office_mcp.server  # noqa: F401
+
+    clients = {
+        name.split(".")[0]
+        for name in logging.root.manager.loggerDict
+        if re.fullmatch(r"http(x|core)\d*", name.split(".")[0])
+    }
+    assert {"httpx", "httpx2"} <= clients
+    assert clients <= set(LIBRARIES)
 
 
 async def test_a_search_term_never_reaches_the_log_even_at_debug() -> None:
