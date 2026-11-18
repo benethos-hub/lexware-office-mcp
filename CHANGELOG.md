@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-18
+
+A patch release for the container image and the pinned extension.
+Nothing a client receives changed: the tool list and every answer are
+those of 0.10.1. The image is built with uv 0.13.9, and the lockfile
+carries platformdirs 4.14.7. An installation from the index resolved
+the same Python packages already.
+
 ### Changed
 
 - **uv 0.13.9 builds the image**, instead of 0.13.8. It installs the
@@ -1954,7 +1962,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.0...v0.9.1
