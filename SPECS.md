@@ -1,6 +1,6 @@
 # Specification — Unofficial Lexware Office MCP Server
 
-> **Status: 0.10.1.** Every tool of section 8 is built, tested and exercised
+> **Status: 0.10.2.** Every tool of section 8 is built, tested and exercised
 > against a live account, and so is every module of section 4, including the
 > HTTP transport of section 6 and the configuration interface of section 7.1.
 > The container image is published, a client has reached a live account
@@ -1820,7 +1820,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.10.1
+version: 0.10.2
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
@@ -2786,7 +2786,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.10.1 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.10.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see section 9.2 |
@@ -3407,7 +3407,7 @@ Built, tested offline and exercised against a live test account:
   offered whatever the policy file says, with both extensions leaving their
   tools and prompts to the server, see section 8
 - **a container image and two Compose folders**, two stages, non-root,
-  180 MB on 2026-11-17, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-18, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -4018,6 +4018,7 @@ suggested they were.
 | 0.9.1 | Two tool descriptions that say how to use the tool, and pypdfium2 5.15.1 in the lockfile | **released 2026-11-09** - a patch, because nothing an installation trips over changed: the tool names, their parameters and every answer are those of 0.9.0. The descriptions of `server_status` and `get_article` name what to do with the answer and which tool to use instead, 329 characters more on every request. The image and the pinned extension carry pypdfium2 5.15.1, and a rendered page comes out byte for byte as before. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.9.0's but for its date |
 | 0.10.0 | Three prompts, and both extensions leave their tools and prompts to the server | **released 2026-11-11** - a minor, because an installation can trip over it: an extension that updates itself, installed from 0.9.1 or earlier, lists the three prompts and refuses to attach them until it is installed again. The tool names, their parameters and every answer are those of 0.9.1. Open items, Missing receipts and Contact overview are recipes a person picks in the client, they read and never write, and both manifests set `tools_generated` and `prompts_generated`, so Claude Desktop checks neither list. The image and the pinned extension carry pypdfium2 5.15.2. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, a shape capture identical to 0.9.1's but for its date, and the three prompts run in Claude Desktop 5.1231.2 through the pinned extension |
 | 0.10.1 | The image and the pinned extension on a refreshed lockfile, and the SDK's HTTP client held at `WARNING` by name | **released 2026-11-17** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.0. The image is built with uv 0.13.8 from a lockfile that carries httpx2 and httpcore2 2.16.2, the SDK's HTTP client, and python-multipart 0.0.34, neither on the path of a request to Lexware. The log holds httpx2 and httpcore2 at `WARNING` by name beside httpx and httpcore. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.0's but for its date |
+| 0.10.2 | The image and the pinned extension on uv 0.13.9 and platformdirs 4.14.7 | **released 2026-11-18** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.1. The image is built with uv 0.13.9, which installs the same files as 0.13.8, and the lockfile carries platformdirs 4.14.7, with which the configuration and cache directories resolve to the same paths. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.1's but for its date |
 
 **A number gets assigned when there is content for it, not before.** What
 was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
