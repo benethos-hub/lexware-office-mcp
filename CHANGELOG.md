@@ -19,6 +19,12 @@ housekeeping are out of scope here — design decisions live in
   same lockfile the same way: built from the lockfile of 0.10.1 with
   either, the packages in the image are byte for byte the same. An
   installation from the index is not affected.
+- **platformdirs 4.14.7 in the lockfile** for the image and the pinned
+  extension, instead of 4.14.5. It fixes how folder names are read from
+  `user-dirs.dirs` and from the `WIN_PD_OVERRIDE_*` variables. The
+  configuration and cache directories this server uses resolve to the
+  same paths as before, on Windows and in the image. An installation
+  from the index resolves this version already.
 
 ## [0.10.1] - 2026-11-17
 
