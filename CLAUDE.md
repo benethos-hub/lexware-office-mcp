@@ -186,6 +186,8 @@ containers/       # README.md says which folder is for what
     codeql.yml    # weekly: the codeql job of ci.yml once more, for the
                   # queries GitHub adds in between
 glama.json        # names the maintainers who may claim the Glama listing
+.githooks/
+  pre-commit      # refuses keys, configuration, records and local paths
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
@@ -450,6 +452,13 @@ release.
 - End commit messages with a `Co-Authored-By` line naming the Claude model
   that did the work, as the session reports it, for example
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- The pre-commit hook in `.githooks/` refuses a staged settings or policy
+  file, a download, a PDF, and an added line that looks like a key, names
+  a path of a machine or holds an e-mail address. It reports the file and
+  the line, never the text. It is enabled once per clone with
+  `git config core.hooksPath .githooks`. A line that has to show such a
+  form, a made-up key in a test for one, ends with
+  `pragma: allowlist secret`.
 - Ship changes on a branch. One work stream, one branch — a branch covers the
   piece of work being done including the fixes found along the way, not one
   branch per file. Open the next branch when the *topic* changes, not when the
