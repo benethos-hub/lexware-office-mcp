@@ -28,6 +28,7 @@ def inst(tmp_path: Path) -> Installation:
     return installation(
         tmp_path,
         "LXO_MCP_PAGE_SIZE=50\n",
+        # pragma: allowlist secret
         api_key="secret-value-do-not-print",
         page_size=50,
     )
@@ -900,10 +901,13 @@ def test_a_token_the_environment_holds_is_shown_as_held(
 ) -> None:
     """The file's token stood in the field under an "aus: Umgebung" badge,
     the one a client would be refused with."""
+    # pragma: allowlist secret
     inst.env_path.write_text("LXO_MCP_BEARER_TOKEN=from-the-file\n", encoding="utf-8")
     monkeypatch.setenv("LXO_MCP_BEARER_TOKEN", "from-the-environment")
     inst.settings = dataclasses.replace(
-        inst.settings, bearer_token="from-the-environment"
+        inst.settings,
+        # pragma: allowlist secret
+        bearer_token="from-the-environment",
     )
 
     body = text(pages.credentials(inst))

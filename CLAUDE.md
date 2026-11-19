@@ -459,7 +459,11 @@ release.
   the line, never the text. It is enabled once per clone with
   `git config core.hooksPath .githooks`. A line that has to show such a
   form, a made-up key in a test for one, ends with
-  `pragma: allowlist secret`.
+  `pragma: allowlist secret` or follows a comment line saying only that,
+  which is the form that survives `ruff format`. `tests/test_repo_content.py`
+  holds every tracked file to the same rules, so CI catches what a clone
+  without the hook let through. A change to the patterns of one changes the
+  other.
 - Ship changes on a branch. One work stream, one branch — a branch covers the
   piece of work being done including the fixes found along the way, not one
   branch per file. Open the next branch when the *topic* changes, not when the

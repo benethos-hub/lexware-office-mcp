@@ -41,6 +41,7 @@ def test_rate_default_stays_below_the_documented_ceiling() -> None:
 def test_environment_overrides_defaults() -> None:
     settings = load_settings(
         {
+            # pragma: allowlist secret
             "LXO_MCP_API_KEY": "key-0123456789",
             "LXO_MCP_TOOL_POLICY": "/somewhere/tools.json",
             "LXO_MCP_BASE_URL": "https://example.invalid/",
@@ -145,6 +146,7 @@ def test_env_file_is_read_but_real_environment_wins(
     that the environment wins and only the file was ever checked.
     """
     (tmp_path / ".env").write_text(
+        # pragma: allowlist secret
         "# a comment\nLXO_MCP_API_KEY='from-file-123456'\nexport LXO_MCP_MODE=write\n",
         encoding="utf-8",
     )

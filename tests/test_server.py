@@ -306,6 +306,7 @@ def test_an_env_file_in_another_encoding_is_one_line_not_a_traceback(
 ) -> None:
     """Saved as Windows-1252 by an editor, it ended even `--version`."""
     env_file = tmp_path / "cp1252.env"
+    # pragma: allowlist secret
     env_file.write_bytes("LXO_MCP_DOWNLOAD_DIR=C:/Jürgen\n".encode("cp1252"))
 
     with pytest.raises(SystemExit) as excinfo:

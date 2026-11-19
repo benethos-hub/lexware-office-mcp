@@ -22,6 +22,7 @@ from benethos_lexware_office_mcp.settings import Settings, load_settings
 from benethos_lexware_office_mcp.transport import http as transport
 from benethos_lexware_office_mcp.transport import watch
 
+# pragma: allowlist secret
 TOKEN = "a-token-that-is-not-a-real-one"
 
 
@@ -440,8 +441,10 @@ def test_a_change_before_the_watch_starts_still_ends_the_process(
     container, the server kept running without the key it had been given.
     """
     env = tmp_path / ".env"
+    # pragma: allowlist secret
     env.write_text("LXO_MCP_API_KEY=read-at-start\n", encoding="utf-8")
     read_from = watch.snapshot(env)
+    # pragma: allowlist secret
     env.write_text("LXO_MCP_API_KEY=saved-while-starting\n", encoding="utf-8")
     ended = threading.Event()
     stop = threading.Event()

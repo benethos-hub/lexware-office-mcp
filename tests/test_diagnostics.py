@@ -53,6 +53,7 @@ async def test_the_description_tells_the_model_when_to_use_it() -> None:
 async def test_get_profile_returns_the_account(
     offline_api: client_module.ClientProvider,
 ) -> None:
+    # pragma: allowlist secret
     server = build_server(Settings(api_key="test-key-0123456789"), offline_api)
     result = await server.call_tool("get_profile", {})
     assert result.is_error is not True

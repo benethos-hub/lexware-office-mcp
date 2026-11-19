@@ -138,6 +138,7 @@ async def test_a_url_under_an_allowed_prefix_is_fetched_and_uploaded(
         "https://files.example.com/inbox/../admin/9f3c",
         "https://files.example.com/inbox/%2e%2e/admin/9f3c",
         "https://files.example.com/inbox/..%2Fadmin",
+        # pragma: allowlist secret
         "https://files.example.com@elsewhere.net/inbox/9f3c",
         "https://files.example.com/inbox/..;/admin/9f3c",
         "https://files.example.com/inbox/%252e%252e/admin/9f3c",
