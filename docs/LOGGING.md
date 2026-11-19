@@ -134,18 +134,18 @@ ends the same way. `cli.main` catches it around the whole run, writes
 every transport. SIGTERM, which `docker stop` and systemd send, is not
 affected, since Python turns only SIGINT into an exception: the server shuts
 down without the extra line and without a traceback. `setup` catches Ctrl+C
-itself and ends with the same line, or with `Stopped from the page` after
-*Beenden*. Its lines were German `print` calls until 2026-10-08 and go
-through the catalogue since, so they carry the time and the level like
-every other.
+itself and ends with the same line, with `Stopped from the page` after
+*Beenden*, or with `Stopped after 30 minutes without a request` under
+`--exit-when-idle`. Its lines go through the catalogue, so they carry the
+time and the level like every other.
 
 **The catalogue**, by module. The logger name a line carries is in brackets
 where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.10.3 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
-| | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
+| `lifecycle` (`server`) | `INFO` | `0.10.3 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, `setup` started from the prompt or found open already, ending on a changed settings file, `Stopped by an interrupt` |
+| | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated, a key saved after the start that could not be read, `setup` that could not be started from the prompt |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see [section 9.2](concept/permissions.md#92-the-policy) |
 | | `WARNING` | an unreadable policy, one that is not an object, a flag that is not a boolean - each once, and again only after the file says something else, since the watcher reads it every two seconds, and a turn of the watcher that failed, by the error's class, before the next one follows |
@@ -156,7 +156,7 @@ where it differs.
 | `files` (`storage`, and `fetch` for an upload's URL) | `INFO` | `Deleted 2 older downloads, the newest 100 are kept`, by count and never by name, `The download list changed, 2 clients told`, `Fetched 48213 bytes to upload from https://files.example.com in 310 ms`, by scheme and host and never the path or the query |
 | | `WARNING` | `Fetching an upload from https://files.example.com failed: UpstreamError 404`, or with `timeout`, `connection` or the refusal's class where the status was fine and the file was not, `Refused to fetch an upload over https: the address is outside LXO_MCP_UPLOAD_URLS, nothing was requested` without the host the model chose, the same for what is no URL that can be fetched, and that no address is allowed at all, and a download answered while the clients could not be told the list changed, by the error's class |
 | | `DEBUG` | a download that reused an identical file, by size |
-| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt` or `Stopped from the page` |
+| `configui` | `INFO` | the key written, checked or not, the token written or generated, which settings were written, the policy with nothing that writes, a profile created, overwritten or deleted, a browser signed in with the start code but never the code, the three files `setup` edits, `Stopped by an interrupt`, `Stopped from the page` or stopped after the idle minutes `--exit-when-idle` named |
 | | `WARNING` | the address with the start code, the one line that carries it and at this level so no log level hides it, a bind beyond loopback, the policy with writing tools on and which, a key the account refused, a request a guard refused, a wrong start code among them, a file that could not be written, unreadable profiles |
 | | `ERROR` | a port `setup` could not open, before it ends |
 

@@ -57,14 +57,15 @@ sets for a 5xx or a 429. A line names the class and those two, then what the
 call cost, as in `update_voucher refused: ConflictError 406 version:
 invalid_value, after 1 API call, 230 ms`.
 
-**What a crash sends depended on the SDK version.** A traceback never
-travels on either, but on 2.0.0 an unanticipated exception's own message
-does, and from 2.1 it does not. That alone was not reason enough to raise
-the floor: the difference is a message this server never composed, in a
-path it does not expect to reach. The floor moved to 2.2.0 on 2026-10-19
-for a different reason, GHSA-84m7-p3x7-pcfv: before 2.2.0 a stateful
-Streamable HTTP server never reclaimed its sessions, and this server
-serves that transport in stateful mode. The 2.0.0 behaviour is no longer
+**What a crash sends depended on the SDK version.** A traceback never travels
+on either, but on 2.0.0 an unanticipated exception's own message does, and
+from 2.1 it does not. That alone was not reason enough to raise the floor:
+the difference is a message this server never composed, in a path it does not
+expect to reach. The floor moved to 2.2.0 on 2026-10-19 for a different
+reason, GHSA-84m7-p3x7-pcfv: before 2.2.0 a stateful Streamable HTTP server
+never reclaimed its sessions, and this server serves that transport in
+stateful mode. On 2026-11-07 it moved to 2.3.x, when every runtime
+dependency took a patch window. The 2.0.0 behaviour is no longer
 installable.
 
 ### 12.1 Why `ToolError` derives from the SDK's
@@ -114,8 +115,8 @@ says how to look.
   trimming it afterwards. A second, client-side row cap would waste a request
   on rows it then discards, and would hide from the caller that the API had
   more to give. The default of `25` matches the documented typical page size,
-  and open question 1 is what would let it be raised per endpoint with
-  evidence.
+  and [question 1](../ROADMAP.md#the-open-questions-answered) is what would
+  let it be raised per endpoint with evidence.
 - **Every paged list has the same shape**, `{<records>: [...], "page": {...}}`,
   where `page` carries `number`, `size`, `totalElements`, `totalPages` and
   `last`. A caller that has learned to page through one list can page through
@@ -152,8 +153,7 @@ says how to look.
   - **`pypdfium2`, not PyMuPDF.** PyMuPDF is faster and better known, and it
     is AGPL-3.0 or a commercial licence from Artifex, which an MIT project
     cannot take. `pypdfium2` binds the same PDFium that Chrome uses, under
-    BSD-3-Clause and Apache-2.0, in a 3.7 MiB wheel. It is the project's first
-    runtime dependency beyond the MCP SDK, httpx and platformdirs.
+    BSD-3-Clause and Apache-2.0, in a 3.7 MiB wheel.
   - **PNG, encoded here rather than by an imaging library.** Writing a PNG
     from raw pixels is zlib and four chunks. Pillow would be a second
     dependency to save fifteen lines, and the adaptive filtering it brings
@@ -289,13 +289,10 @@ says how to look.
     `subscriptions/listen` is served — and `MCPServer` always serves it, with
     an in-memory bus unless one is passed to the constructor. The flags would
     be `true` without this project doing anything.
-  - That version is never reached here. `initialize` negotiates down to
-    `2025-11-25`, the newest handshake version, whatever the client asks for,
-    and the modern `server/discover` is not reachable over stdio at all.
-    Measured again on 2026-10-16, and not so: over stdio, with mcp 2.0.0 and
-    2.3.0 alike, a client that sends `server/discover` instead of `initialize`
-    is served `2026-07-28` and promised `tools.listChanged`. The notifications
-    reach it on its listen stream, see
+  - It is reached here, measured 2026-10-16: over stdio, with mcp 2.0.0 and
+    2.3.0 alike, a client that sends `server/discover` instead of
+    `initialize` is served `2026-07-28` and promised `tools.listChanged`. The
+    notifications reach it on its listen stream, see
     [section 9.2](permissions.md#92-the-policy).
 
   **What that analysis missed is that `PolicyServer` is ours.** The default
@@ -319,26 +316,26 @@ says how to look.
   since 2026-10-16, and `PolicyServer.call_tool` sends
   `notifications/resources/list_changed` to every client when a tool's
   answer carries a download link, which is the one moment the list grows.
-  The answer decides rather than the tool's name, so a tool added later
-  that saves a file is covered by what it returns. The watcher of section
-  9.2 looks at the directory as well, by the names the list would answer
-  with, because the process that wrote a download is not always the one
-  that answers the listing: Claude Desktop starts the server twice and
-  sends its calls to the second process, measured 2026-10-16, so the
-  first learned of a download only from the disk, and a file put there
-  by hand is a change of the list too. A download told at once is not
-  told again, since the watcher's last sight is refreshed with it. A list
-  the server itself changed is the server's to announce, and the
+  The answer decides rather than the tool's name, so a tool added later that
+  saves a file is covered by what it returns. The watcher of
+  [section 9.2](permissions.md#92-the-policy) looks at the directory as well,
+  by the names the list would answer with, because the process that wrote a
+  download is not always the one that answers the listing: Claude Desktop
+  starts the server twice and sends its calls to the second process, measured
+  2026-10-16, so the first learned of a download only from the disk, and a
+  file put there by hand is a change of the list too. A download told at once
+  is not told again, since the watcher's last sight is refreshed with it. A
+  list the server itself changed is the server's to announce, and the
   protocol has the notification for it: a client that listed once would
   otherwise keep the list from the start of its session. **Claude Desktop
   does not ask again, measured 2026-10-16:** its own log shows the
-  notification leaving the listing process two seconds after a download
-  made by the other one, the attach menu opened twice in the minutes
-  after still showed no file, and no `resources/list` followed. It acts
-  on `tools/list_changed` and not on this one, so there a download
-  appears in the menu at the next start. The server's half is done
-  either way, and `read_download` stays, for a client that does not
-  follow a resource link, which Claude Desktop does not.
+  notification leaving the listing process two seconds after a download made
+  by the other one, the attach menu opened twice in the minutes after still
+  showed no file, and no `resources/list` followed. It acts on
+  `tools/list_changed` and not on this one, so there a download appears in
+  the menu at the next start. The server's half is done either way, and
+  `read_download` stays, for a client that does not follow a resource link,
+  which Claude Desktop does not.
 - Monetary values are passed through as the API returns them, never rounded or
   reformatted, and always accompanied by the currency.
 - Every result echoes the identifiers it was called with, so an answer can be

@@ -91,7 +91,7 @@ that needs another layer adds it on purpose:
 | `server` | `tools`, `prompts`, `policy`, `api`, `files` and the three of the foundation |
 | `transport` | the three of the foundation, and the SDK's server type rather than this one |
 | `configui` | `api`, `policy`, `server` and the three of the foundation, imported by `cli` alone, and Jinja2 in `configui/templates.py` alone |
-| `cli` | everything, imported by nothing but `python -m` |
+| `cli` | everything but `prompts`, which only `server` imports, and imported by nothing but `python -m` |
 | `__main__` | `cli` |
 
 Two things the table does not follow from, decided 2026-09-30. `errors` is

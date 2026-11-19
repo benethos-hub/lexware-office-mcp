@@ -107,14 +107,15 @@ an interface offering to switch these tools on can say which kind of
 permanent it means, and so that the command line and the README can say it in
 words.
 
-**The domain is the module the tool lives in**, for every tool without
-exception: `articles`, `contacts`, `diagnostics`, `files`, `master_data`,
-`sales_documents`, `vouchers`. A tool that points at a sales document while
-doing something else — `download_document` fetches its PDF, `get_deeplink`
-builds a link to it — is grouped by what it does rather than by what it names,
-because that is where a reader looks for it and where the code keeps it.
-Anything else would need a second rule about which of the two wins.
-`server_status` has no domain, since it is classified nowhere.
+**The domain is the module the tool lives in**: `articles`, `contacts`,
+`diagnostics`, `files`, `master_data`, `sales_documents`, `vouchers`, with
+one exception, `get_deeplink`, which lives in `deeplinks.py` and is
+classified under `files`. A tool that points at a sales document while doing
+something else — `download_document` fetches its PDF, `get_deeplink` builds a
+link to it — is grouped by what it does rather than by what it names, because
+that is where a reader looks for it. Anything else would need a second rule
+about which of the two wins. `server_status` has no domain, since it is
+classified nowhere.
 
 **Enforcement happens twice, as defence in depth.** A disabled tool is left
 out of the list, so it never reaches the model and costs no tokens, and a call
@@ -217,7 +218,7 @@ already fetched stays until the client asks again, and most ask once.
 | Field | Values |
 |---|---|
 | `access` | `read` or `write` |
-| `domain` | the group it belongs to, one per module in `tools/`: diagnostics, contacts, articles, vouchers, sales_documents, files, master_data |
+| `domain` | the group it belongs to, one per module in `tools/` but `deeplinks.py`, whose tool counts under files: diagnostics, contacts, articles, vouchers, sales_documents, files, master_data |
 | `effect` | write tools only: `create`, `update`, `delete` |
 | `permanence` | what the API cannot take back of what the tool writes: empty when a call here removes it again, `app` when only the web app deletes it, `books` when it is a bookkeeping record that a Festschreibung can later bind, see [section 5](upstream-api.md#5-upstream-api) |
 
@@ -225,10 +226,9 @@ already fetched stays until the client asks again, and most ask once.
 not a figure of speech: what is deleted is gone, and what is created mostly
 cannot be deleted at all. `book` and `finalize` were in this vocabulary until
 2026-08-21, when the API seemed to have no state transitions to name them
-after. The one it has, booking an unchecked voucher, is a parameter of
-`update_voucher`, see [section 5](upstream-api.md#5-upstream-api). Nothing acts
-on it yet. When something does it should be a separate confirmation rather than
-a red label, or the flag is decoration.
+after. The one it has, booking an unchecked voucher, is `finalize` on
+`update_voucher`, behind the same `confirm` as the finalize of a sales
+document, see [section 8](tools.md#8-tools).
 
 The permissions page of
 [section 7.1](configuration-interface.md#71-the-configuration-interface)

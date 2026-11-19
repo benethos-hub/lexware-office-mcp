@@ -85,12 +85,14 @@ The consequences are the point of writing this down.
   Only a live run catches that, and only someone holding an account can perform
   one. This is why statements about the API in these documents carry **(to
   verify)** until a live call has confirmed them.
-- **The open questions below could not be closed by CI**, and none of them was.
-  Each was answered by a live call, or in one case by a decision not to make
-  one: a question about write behaviour needs write calls against a disposable
-  test account, see [section 11.1](data-and-secrets.md#111-test-environment),
-  which is a deliberate act by the account owner rather than something
-  automation initiates.
+- **The open questions of
+  [section 16](../ROADMAP.md#the-open-questions-answered) could not be closed
+  by CI**, and none of them was. Each was answered by a live call, or in one
+  case by a decision not to make one: a question about write behaviour needs
+  write calls against a disposable test account, see
+  [section 11.1](data-and-secrets.md#111-test-environment), which is a
+  deliberate act by the account owner rather than something automation
+  initiates.
 
 ### 14.2 A shape is recorded, so drift can be seen rather than remembered
 

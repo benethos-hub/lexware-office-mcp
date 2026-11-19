@@ -85,5 +85,6 @@ Three consequences follow, and they shape how this project is developed.
 **Confirmed on 2026-08-20:** an API key can be generated inside a test
 account, and it reaches the ordinary production endpoints. A key from a
 freshly created test account returned its profile, paged the voucher list and
-read master data. This was open question 8, and it was the one everything else
-depended on.
+read master data. This was
+[question 8](../ROADMAP.md#the-open-questions-answered), and it was the one
+everything else depended on.

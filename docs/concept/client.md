@@ -4,8 +4,9 @@ Part of the [concept](../CONCEPT.md): sections 10 to 10.2.
 
 ## 10. Client behaviour (`api/`)
 
-- One shared `httpx.AsyncClient` with `Authorization: Bearer` set once, a
-  connection pool, and `LXO_MCP_TIMEOUT`.
+- One shared `httpx.AsyncClient` with a connection pool and `LXO_MCP_TIMEOUT`,
+  the `Authorization: Bearer` header added to each request from the settings,
+  so a key saved after the start is used at once.
 - **Rate limiting:** a single process-wide token bucket, see section 10.1.
 - **Retries:** method-aware, see section 10.2. A 429 is always safe to retry,
   a failed POST is never retried, and 4xx other than 429 is never retried.
@@ -177,11 +178,6 @@ documentation states that a client which does not reduce its rate stays
 blocked permanently, so retrying harder is the one response that can turn a
 transient problem into a dead API key.
 
-**Authorization requests are separate.** The authorization server has its own
-undocumented limits. Should a future release ever obtain tokens rather than
-using a static API key, those calls get their own conservative bucket and are
-never counted against the resource budget.
-
 ### 10.2 Retry safety
 
 Retrying is not uniformly safe, and the difference matters more here than in
@@ -208,8 +204,9 @@ whether the document was created. The request may have been executed and only
 the response lost. Retrying then risks a second invoice, and the client
 cannot tell the two cases apart. **There is no idempotency key to lean on**,
 measured 2026-08-21 under three header names: the same POST sent twice
-creates two documents every time, see open question 2. So this is not a rule
-waiting for a better mechanism, it is the only correct behaviour the API
+creates two documents every time, see
+[question 2](../ROADMAP.md#the-open-questions-answered). So this is not a
+rule waiting for a better mechanism, it is the only correct behaviour the API
 allows. Instead the failure surfaces as an `UpstreamError` whose message says
 explicitly that the outcome is unknown and that the caller must check whether
 the document exists before trying again. Losing a request is recoverable,
@@ -249,6 +246,6 @@ is the same position as a lost response. It is reported the same way, as an
 `UpstreamError` whose message says the outcome is unknown, and never as a bare
 decoding error that would read like a failure worth retrying.
 
-Open question 2 is what would change this table: if the API offers an
-idempotency key, POST could be retried safely and the asymmetry would
-disappear.
+[Question 2](../ROADMAP.md#the-open-questions-answered) is what would change
+this table: if the API offers an idempotency key, POST could be retried
+safely and the asymmetry would disappear.

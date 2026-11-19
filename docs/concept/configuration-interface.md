@@ -128,57 +128,45 @@ docstrings stay English, and so do the messages `settings/` raises: those are
 quoted into the page rather than translated, because a German paraphrase
 would be a second copy of a rule that lives in the code.
 
-**Reworked, decided 2026-10-08.** The three pages of August had grown out of
-one afternoon: the overview was a table of fourteen settings with their
-variable names and the same path six times over, the credentials page held
-the key, the HTTP token and every other setting in one form, the permissions
-page put the legend and the profiles before the boxes and the save button
-after twenty-five rows, and a reload after a save repeated the post. The
-rework gave the interface a template engine, a frame, four pages and a
-start code, built the same day in that order: the engine and the frame
-with the three pages moved one to one, then the four pages below with
-Post/Redirect/Get and a question before every destructive action, then the
+**Reworked, decided 2026-10-08**, from the three pages of August, which had
+grown out of one afternoon, into a template engine, a frame, four pages and a
 start code.
 
-**The engine.** Jinja2, imported in exactly one module, `configui/templates.py`,
-with autoescaping on and `StrictUndefined`, so a typo in a template raises
-instead of rendering an empty cell. The one filter lives there as well,
-German numbers, and the source badge is a macro. A path is not shortened but
-folded, behind its file's name. The templates are package data
-under `configui/templates/`. `base.html` holds the sidebar, the top bar with
-the heading, the line under it and the page's primary action, the message,
-the content and a footer with the version. `components/ui.html` holds the
-macros every page is built from: a card, a field, the source badge, a tag, a
-notice, the CSRF field, an action with a question before it. A page has no
-markup of its own for any of these. `pages/` has one file per page,
+**The engine.** Jinja2, imported in exactly one module,
+`configui/templates.py`, with autoescaping on and `StrictUndefined`, so a
+typo in a template raises instead of rendering an empty cell. The one filter
+lives there as well, German numbers, and the source badge is a macro. A path
+is not shortened but folded, behind its file's name. The templates are
+package data under `configui/templates/`. `base.html` holds the sidebar, the
+top bar with the heading, the line under it and the page's primary action,
+the message, the content and a footer with the version. `components/ui.html`
+holds the macros every page is built from: a card, a field, the source badge,
+a tag, a notice, the CSRF field, an action with a question before it. A page
+has no markup of its own for any of these. `pages/` has one file per page,
 `partials/` the pieces of one page, such as the sidebar, the message and a
 tool group. The server stays the standard library's threading HTTP server: a
 web framework would be a second one in the package, for four forms.
 `pages.py` builds the context of each page and nothing else, `actions.py`
 answers with a redirect, a page and its message, or a download rather than
-bytes, and the page shell and the inline assets of August are gone.
-`state.py` changed in two places: the names of a value's source moved in
-from the page shell, and a setting's display reads a `Settings`, so the
-settings page reads its defaults the same way. `probe.py`, `profiles.py`,
-`transfer.py`, `stamp.py` and `cost.py` did not change. `tests/test_layers.py`
-confines `jinja2` to that one module, and checks that the server starts
-without loading it: the console script imports `configui` for every start,
-so `configui.start` imports the pages only when it runs.
+bytes, and `state.py` says which files apply and where each value came from,
+with a setting's display reading a `Settings`, so the settings page reads its
+defaults the same way. `tests/test_layers.py` confines `jinja2` to that one
+module, and checks that the server starts without loading it: the console
+script imports `configui` for every start, so `configui.start` imports the
+pages only when it runs.
 
 **Static files and a content security policy.** The stylesheet and the one
-script are files under `configui/static/`, served under `/static/`, and
-every response carries `Content-Security-Policy: default-src 'self'`. No
-inline style, no inline script, no inline handler. The script carries the
-file picker of the import, the live counter of the permissions page and the
-question a form asks through `data-confirm`. What the counter needs, the
-cost of each tool and whether it reads or removes, is on the checkbox as a
-`data-` attribute rather than in a script block. Until step 2 the stylesheet
-and two scripts were strings sent inline with every page, which was the
-right size for a page opened for minutes and had no answer to a policy. The
-policy names `base-uri`, `form-action` and `frame-ancestors` beside
-`default-src`, which does not cover them, and the static files are a fixed
-list: a request names one of the two or is answered with a 404, so no path
-a browser sends reaches the filesystem.
+script are files under `configui/static/`, served under `/static/`, and every
+response carries `Content-Security-Policy: default-src 'self'`. No inline
+style, no inline script, no inline handler. The script carries the file
+picker of the import, the live counter of the permissions page and the
+question a form asks through `data-confirm`. What the counter needs, the cost
+of each tool and whether it reads or removes, is on the checkbox as a `data-`
+attribute rather than in a script block. The policy names `base-uri`,
+`form-action` and `frame-ancestors` beside `default-src`, which does not
+cover them, and the static files are a fixed list: a request names one of the
+two or is answered with a 404, so no path a browser sends reaches the
+filesystem.
 
 **The look.** Colour tokens in a light, bluish palette, dark mode following
 the system setting, and three state colours, green, amber and red, each with
@@ -275,20 +263,15 @@ say to read one. Checklist for a new page: the template, the entry, the
 context function, the tests, a row in the table above, and a changelog entry
 only when a person notices.
 
-**What does not change.** The command and its flags, `--port`, `--host`,
-`--no-browser`, `--env-file` and `--tools-file`, and the port. `--public-port`
-and `--exit-when-idle` were added after the rework: the first for a container
-published under another port, it changes the port the printed address names and
-nothing else, the second ends the interface after that many minutes without a
-request, which the prompt passes. The three files, their formats, the search of
-[section 7](configuration.md#7-configuration) and the pinning below. The URLs
-of the pages and the posts, with `/settings` as a page, `/code` and `/static/`
-added. The guards above: loopback, the `Host` check, `Origin` with the port,
-the CSRF token, `no-store`, and `SO_REUSEADDR` off on Windows. The `setup`
-service of both Compose files, whose comments now say where the code is. The
-server, `settings/`, `policy.py` and the transport are not touched. The image
-grows by Jinja2 and MarkupSafe, 1.2 MB with their bytecode, measured on
-2026-10-08 in an installed environment.
+**The command and its flags.** `setup` takes `--port`, `--host`,
+`--no-browser`, `--env-file` and `--tools-file`, and two that came after the
+rework: `--public-port`, for a container published under another port,
+changes the port the printed address names and nothing else, and
+`--exit-when-idle` ends the interface after that many minutes without a
+request, which the prompt passes. The three files, their formats and the
+search of [section 7](configuration.md#7-configuration) are the server's.
+Jinja2 and MarkupSafe add 1.2 MB to an installation with their bytecode,
+measured on 2026-10-08.
 
 **Both processes fix their files when they start, and never move them.** The
 server pins its policy file in `build_server`, the interface pins its own in

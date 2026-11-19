@@ -107,16 +107,16 @@ Part of the [concept](../CONCEPT.md): section 6.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr through the one
   handler `logbook.configure` installs, uvicorn's included.
-- **What Docker keeps of a container's output is capped**, since 2026-09-29:
-  both Compose files give both services the `json-file` driver with five files
-  of 10 MB. Over HTTP uvicorn writes an access line of about 60 bytes, on
-  stderr beside this server's own lines, for every refused request and at
-  `DEBUG` for every request - measured on the 0.3.0 image, when it still
-  wrote every one of them to stdout. Without a cap Docker keeps all of it
-  for the life of the container, and a restart, whether `unless-stopped` or
-  the watch above, is the same container. The health check connects to the
-  port without a request and adds nothing. A `docker run` sets the same cap
-  with `--log-opt`, which the README shows.
+- **What Docker keeps of a container's output is capped**, since
+  2026-09-29: both Compose files give every service the `json-file` driver
+  with five files of 10 MB. Over HTTP uvicorn writes an access line of about
+  60 bytes, on stderr beside this server's own lines, for every refused
+  request and at `DEBUG` for every request - measured on the 0.3.0 image,
+  when it still wrote every one of them to stdout. Without a cap Docker keeps
+  all of it for the life of the container, and a restart, whether
+  `unless-stopped` or the watch above, is the same container. The health
+  check connects to the port without a request and adds nothing. A
+  `docker run` sets the same cap with `--log-opt`, which the README shows.
 - **The container files live in `containers/`**, since 2026-10-08:
   `images/lexware-office-mcp/Dockerfile`, and two Compose folders. Until
   then one `compose.yaml` in the root built from the checkout, and running
@@ -226,13 +226,12 @@ Part of the [concept](../CONCEPT.md): section 6.
   2026-08-23: they used to merge key by key, so a value could arrive from a
   file nobody had named and no page could sensibly report where it came from.
 
-  **Half of that was a defect rather than a decision.** `--env-file` was
-  documented as naming the file "instead of looking for one" from the day it
-  was added, in its own help text, in the epilog and in the table below, and
-  the code read it *after* every file the search found. So a flag whose whole
-  purpose was to make one client entry self-contained did not isolate
+  **`--env-file` replaces the search**, as `--tools-file` always did. Until
+  0.2.2 the code read the named file *after* every file the search found,
+  while its help text said "instead of looking for one", so a flag whose
+  whole purpose was to make one client entry self-contained did not isolate
   anything: a setting the named file omitted was still answered by the
-  machine. It now replaces the search, exactly as `--tools-file` always did.
+  machine.
 
   The other half is a decision: the search takes the highest candidate that
   exists rather than layering them, so both configuration files follow one

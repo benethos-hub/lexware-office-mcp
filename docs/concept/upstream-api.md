@@ -13,7 +13,8 @@ Facts taken from <https://developers.lexware.io/docs/>.
   token" interchangeably and describes no refresh flow, so the key is treated
   as a long-lived static secret. **There is no second way in**: the
   documentation describes no OAuth2 flow, no partner access and no scopes,
-  checked 2026-08-21, see open question 5.
+  checked 2026-08-21, see
+  [question 5](../ROADMAP.md#the-open-questions-answered).
 - **Rate limit:** up to 2 requests per second, enforced with the [token bucket
   algorithm](https://en.wikipedia.org/wiki/Token_bucket). The limit is **global
   across the whole API**, not per endpoint — the documentation states that "our
@@ -130,7 +131,8 @@ Event subscriptions (`/v1/event-subscriptions`) are deliberately unused, see
   a write in the fullest sense, and the voucher it produces cannot be deleted.
 - **The form.** The part must be named `file`, and `type` is a required form
   field whose only accepted value is `voucher` — `receipt` is refused with
-  "Invalid or missing upload type." That settles open question 3.
+  "Invalid or missing upload type." That settles
+  [question 3](../ROADMAP.md#the-open-questions-answered).
 - **Attaching to a voucher that already exists is a different call**, and a
   different form. `POST /v1/vouchers/{id}/files` takes the same part named
   `file` and **no `type` field**, answers **202** with `{id}` alone, and the
@@ -521,26 +523,24 @@ arriving.
 - **`sort` accepts four properties**, each ascending or descending:
   `voucherDate`, `voucherNumber`, `createdDate` and `updatedDate`, as the
   documentation says. Anything else is refused with "parameter 'sort' is
-  invalid". This line said "only the voucher date" from 2026-08-20 until a
-  live read on 2026-09-27 found all four honoured, so the tool offered one
-  of them and told the model the others did not exist.
+  invalid". All four were measured on 2026-09-27, until then the tool offered
+  the voucher date alone.
 - **A bookkeeping voucher cannot be deleted.** `DELETE /v1/vouchers/{id}`
   answers 404, so a wrong entry has to be corrected in the web app. It is
   booked as `open` the moment it is created.
 - **A POST can no longer ask for a status. This one changed under us.**
   **Measured 2026-08-20:** `voucherStatus: unchecked` was accepted, and five
-  vouchers created that day still sit in the test account saying so, one of
-  them remarked "ueber create_voucher angelegt". **Measured again 2026-08-23:**
-  the same call is refused with `voucherStatus: invalid_value`, across
-  `salesinvoice`, `purchaseinvoice` and `salescreditnote`, each with a valid
-  number, date, tax type and line. Three days, no change on this side.
+  vouchers created that day said so. **Measured again 2026-08-23:** the same
+  call is refused with `voucherStatus: invalid_value`, across `salesinvoice`,
+  `purchaseinvoice` and `salescreditnote`, each with a valid number, date,
+  tax type and line. Three days, no change on this side.
 
   This is the drift [section 14.1](testing.md#141-live-checks-are-not-a-gate)
   exists for: the offline suite mocks HTTP and stayed green throughout, and
-  only a live call could see it. The `unchecked` parameter is removed in 0.2.2
-  because a parameter that fails every time is worse than an absent one. If the
-  API accepts it again, it can come back — the payload builder is the only
-  place that would change.
+  only a live call could see it. The `unchecked` parameter was removed in
+  0.2.2 because a parameter that fails every time is worse than an absent
+  one. If the API accepts it again, it can come back — the payload builder is
+  the only place that would change.
 
   **The state itself is still reachable, just not this way.** `upload_file`
   creates a `purchaseinvoice` in `unchecked`, verified 2026-08-23 by reading
