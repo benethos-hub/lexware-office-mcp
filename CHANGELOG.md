@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-19
+
+A patch release for the documentation and the container image.
+Nothing a client receives changed: the tool list and every answer are
+those of 0.10.2. The specification moved into `docs/`, and the README
+links there. The image and the pinned extension carry pydantic 2.14.4.
+
 ### Changed
 
 - **The specification is in `docs/` now**, split by topic instead of one
@@ -1977,7 +1984,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.3...HEAD
+[0.10.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...v0.10.0

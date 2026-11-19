@@ -144,7 +144,7 @@ where it differs.
 
 | Module | Level | Line |
 |---|---|---|
-| `lifecycle` (`server`) | `INFO` | `0.10.2 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
+| `lifecycle` (`server`) | `INFO` | `0.10.3 started over stdio`, `Settings from <path>` or that no `.env` was found, what is enabled when nothing can write, where HTTP listens, ending on a changed `.env`, `Stopped by an interrupt` |
 | | `WARNING` | no policy file, what is enabled when something can write and which, bound to a non-loopback address, a token generated |
 | `policy` | `DEBUG` | a client that could not be told about the change and was dropped, which a client that went away makes normal |
 | | `INFO` | `The tool list changed, 2 clients told`, counting those told on their own channel and not the listen streams of the 2026-07-28 protocol, see [section 9.2](concept/permissions.md#92-the-policy) |
