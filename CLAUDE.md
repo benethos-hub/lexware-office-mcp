@@ -217,9 +217,10 @@ order fails the suite.
    output schema is published for it, since the only one the SDK could
    derive says nothing. A tool that answers with content blocks returns a
    `CallToolResult` and names its model, as the file tools do, see
-   docs/concept/tools.md section 8. A new tool or a changed docstring changes the Claude Desktop
-   manifest too: `uv run python .github/publish/mcpb/build.py
-   --sync-manifest` writes it, and `tests/test_mcpb.py` fails until it has.
+   docs/concept/tools.md section 8. A new tool or a changed docstring
+   changes the Claude Desktop manifest too: `uv run python
+   .github/publish/mcpb/build.py --sync-manifest` writes it, and
+   `tests/test_mcpb.py` fails until it has.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds. A named `Literal`
    or an argument model goes in `records/types.py`, not in the tool module.
@@ -325,7 +326,7 @@ last measurement of what the whole list costs.
 - The configuration interface renders without a browser, so a change to a
   page can be read as text:
   ```
-  uv run benethos-lexware-office-mcp setup --no-browser --port 8790       --env-file scratch/.env --tools-file scratch/tools.json
+  uv run benethos-lexware-office-mcp setup --no-browser --port 8790 --env-file scratch/.env --tools-file scratch/tools.json
   ```
   Point it at scratch files rather than at your own configuration - it
   writes what it is told to write. Every page asks for the start code, so
@@ -340,21 +341,21 @@ call before building on it, and mark unverified assumptions **(to verify)** in
 docs/ rather than stating them as fact.
 
 **Nor do they cover the SDK changing under the server.** The suite calls
-`MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and is
-answered by `_handle_call_tool`, which turns a return value into a result and
-an exception into an `is_error` result. The suite exercises the success
+`MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and
+is answered by `_handle_call_tool`, which turns a return value into a result
+and an exception into an `is_error` result. The suite exercises the success
 path of that conversion in `tests/test_stdio.py` and nothing else.
-`tests/stdio_check.py` asserts the rest without a key: the tool list with
-its annotations, and that a disabled tool, an unknown argument and an
-argument of the wrong type each come back as an error result carrying this
-server's sentence. `uv run python tests/stdio_check.py` runs it on the
-checkout, and `freshness.yml` runs it daily and after every run of Publish
-on the newest versions the ranges allow and on the published package. When
-`mcp` moves, drive the server the same way by hand as well - send
-`initialize`, `tools/list` and `tools/call` and diff the answers against the
-same run on the old version, since a byte diff sees what no fixed assertion
-asks for. The recipe and what to capture are in docs/concept/testing.md
-section 14.3. The 2.0.0 to 2.1.1 bump is why it is written down: the tool list came back
+`tests/stdio_check.py` asserts the rest without a key: the tool list with its
+annotations, and that a disabled tool, an unknown argument and an argument of
+the wrong type each come back as an error result carrying this server's
+sentence. `uv run python tests/stdio_check.py` runs it on the checkout, and
+`freshness.yml` runs it daily and after every run of Publish on the newest
+versions the ranges allow and on the published package. When `mcp` moves,
+drive the server the same way by hand as well - send `initialize`,
+`tools/list` and `tools/call` and diff the answers against the same run on
+the old version, since a byte diff sees what no fixed assertion asks for. The
+recipe and what to capture are in docs/concept/testing.md section 14.3. The
+2.0.0 to 2.1.1 bump is why it is written down: the tool list came back
 byte-identical while every error message this server sends had silently
 stopped reaching the model.
 

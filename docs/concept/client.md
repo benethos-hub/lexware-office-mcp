@@ -169,13 +169,13 @@ the limiter.
 
 **Backing off for real.** On 429 the request is retried with exponential
 backoff and jitter, honouring `Retry-After` when it is present - in full: the
-jitter shortens the computed delay, never the one the server asked for. After a small
-number of consecutive 429s the client stops retrying, drains the bucket for a
-cool-down window, and returns `RateLimitError` to the caller. This is a
-deliberate circuit breaker rather than politeness — the documentation states
-that a client which does not reduce its rate stays blocked permanently, so
-retrying harder is the one response that can turn a transient problem into a
-dead API key.
+jitter shortens the computed delay, never the one the server asked for. After
+a small number of consecutive 429s the client stops retrying, drains the
+bucket for a cool-down window, and returns `RateLimitError` to the caller.
+This is a deliberate circuit breaker rather than politeness — the
+documentation states that a client which does not reduce its rate stays
+blocked permanently, so retrying harder is the one response that can turn a
+transient problem into a dead API key.
 
 **Authorization requests are separate.** The authorization server has its own
 undocumented limits. Should a future release ever obtain tokens rather than
@@ -205,14 +205,15 @@ upstream tells us the outcome with certainty.
 
 **Why a failed POST is never retried.** A 5xx or a timeout says nothing about
 whether the document was created. The request may have been executed and only
-the response lost. Retrying then risks a second invoice, and the client cannot
-tell the two cases apart. **There is no idempotency key to lean on**, measured
-2026-08-21 under three header names: the same POST sent twice creates two
-documents every time, see open question 2. So this is not a rule waiting for
-a better mechanism, it is the only correct behaviour the API allows. Instead the failure surfaces as an `UpstreamError`
-whose message says explicitly that the outcome is unknown and that the caller
-must check whether the document exists before trying again. Losing a request is
-recoverable, silently issuing two invoices is not.
+the response lost. Retrying then risks a second invoice, and the client
+cannot tell the two cases apart. **There is no idempotency key to lean on**,
+measured 2026-08-21 under three header names: the same POST sent twice
+creates two documents every time, see open question 2. So this is not a rule
+waiting for a better mechanism, it is the only correct behaviour the API
+allows. Instead the failure surfaces as an `UpstreamError` whose message says
+explicitly that the outcome is unknown and that the caller must check whether
+the document exists before trying again. Losing a request is recoverable,
+silently issuing two invoices is not.
 
 **Why PUT is safe.** Beyond being idempotent, an update carries the `version`
 it read. If the first attempt succeeded, the version has moved on and the retry

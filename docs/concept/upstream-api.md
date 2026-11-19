@@ -335,10 +335,11 @@ a document is deletable in the app unless one of these stands in the way:
 its own: a finalized document can be reset to a draft in the app and then
 deleted, as long as it is not final festgeschrieben. That is one detail
 stricter in recollection than in the documentation, and worth having right,
-because it decides how a tool should word its warning. "This cannot be undone" is a claim about
-the whole product that this server is in no position to make. "The API cannot
-take it back, correcting it is a job for the web app" is true, checkable, and
-tells the caller where to go. The descriptions say the second.
+because it decides how a tool should word its warning. "This cannot be
+undone" is a claim about the whole product that this server is in no position
+to make. "The API cannot take it back, correcting it is a job for the web
+app" is true, checkable, and tells the caller where to go. The descriptions
+say the second.
 
 **What makes a record permanent differs by record, and the reasons are worth
 keeping apart.** For a **contact** it is a missing route and nothing more: the
