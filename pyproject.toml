@@ -76,8 +76,10 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/benethos-hub/lexware-office-mcp"
+Documentation = "https://github.com/benethos-hub/lexware-office-mcp#readme"
 Repository = "https://github.com/benethos-hub/lexware-office-mcp"
 Issues = "https://github.com/benethos-hub/lexware-office-mcp/issues"
+Changelog = "https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

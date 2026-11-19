@@ -34,6 +34,8 @@ links there. The image and the pinned extension carry pydantic 2.14.4.
   receives is byte for byte the same. It reaches the container image and
   the pinned extension, an installation from the index resolves it
   already.
+- **The project page on PyPI links to the documentation and the
+  changelog** as well, beside the repository and the issues.
 
 ## [0.10.2] - 2026-11-18
 
