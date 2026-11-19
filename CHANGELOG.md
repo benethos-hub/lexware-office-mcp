@@ -21,6 +21,12 @@ housekeeping are out of scope here — design decisions live in
   `docs/concept/`, and the architecture, the log and the roadmap stand
   beside it. The sections keep their numbers, so "section 9.2" still
   names the same thing, and the README links to the new places.
+- **pydantic 2.14.4 in the lockfile**, instead of 2.14.3, with
+  pydantic-core 2.50.5: fixes in JSON schemas and validation, and the
+  memory use of its JSON parser back to normal. The tool list a client
+  receives is byte for byte the same. It reaches the container image and
+  the pinned extension, an installation from the index resolves it
+  already.
 
 ## [0.10.2] - 2026-11-18
 
