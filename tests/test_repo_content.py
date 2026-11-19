@@ -186,6 +186,7 @@ def test_no_tracked_line_holds_an_address_a_path_or_a_key() -> None:
 
 AT = "@"
 SEP = "\\"
+VALUE = "abcd1234" + "efgh5678ijkl"
 
 
 @pytest.mark.parametrize(
@@ -278,9 +279,9 @@ def test_a_path_that_names_no_machine_passes(line: str) -> None:
 @pytest.mark.parametrize(
     "line",
     [
-        "LXO_MCP_API" + "_KEY=abcd1234efgh5678ijkl",
-        '"bearer_' + 'token": "abcd1234efgh5678ijkl"',
-        "Authorization: Bear" + "er abcd1234efgh5678ijkl",
+        "LXO_MCP_API_KEY=" + VALUE,
+        '"bearer_token": "' + VALUE + '"',
+        "Authorization: Bearer " + VALUE,
         "gh" + "p_abcdefghijklmnop1234",
     ],
 )
@@ -294,7 +295,7 @@ def test_a_credential_is_found(line: str) -> None:
         'API_KEY = "LXO_MCP_API' + '_KEY"',
         "token = secrets.token_urlsafe(32)",
         "LXO_MCP_API" + "_KEY=",
-        "token = 'abcd1234efgh5678ijkl'  # " + ALLOW,
+        "token = '" + VALUE + "'  # " + ALLOW,
     ],
 )
 def test_a_name_code_or_an_allowed_line_passes(line: str) -> None:
