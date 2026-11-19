@@ -63,6 +63,7 @@
 - [Logs](#logs)
 - [Example prompts](#example-prompts)
 - [Rate limits](#rate-limits)
+- [Documentation](#documentation)
 - [Development](#development)
 - [License](#license)
 - [Trademarks and affiliation](#trademarks-and-affiliation)
@@ -74,7 +75,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.10.2.**
+> **Status: 0.10.3.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -83,8 +84,9 @@ them for you.
 > Claude Desktop extension or from PyPI, and streamable HTTP behind a bearer
 > token where something else has to reach it - as a published container
 > image, with Compose files for running it and for building it from a
-> checkout. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md)
-> for the full technical specification and the roadmap.
+> checkout. See [the concept](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/CONCEPT.md)
+> for the full technical design, and [the roadmap](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ROADMAP.md)
+> for what each release brought.
 
 ## Why this exists
 
@@ -194,12 +196,12 @@ time and against an account you are willing to have changed:
 | `upload_file` | Upload a receipt from a path or a URL, which also creates its voucher |
 | `attach_file_to_voucher` | Hang a file on a voucher that already exists |
 
-`update_contact` and `update_voucher` cost two API calls rather than one.
-The API replaces a record instead of patching it, so the current one is read
-first and the change is laid on top. Without that, changing only an email
-address would empty out the addresses, the note and everything else. Both
-also need the `version` you last read: if the record changed in between, the
-update is refused and nothing is written.
+`update_contact`, `update_article` and `update_voucher` cost two API calls
+rather than one. The API replaces a record instead of patching it, so the
+current one is read first and the change is laid on top. Without that,
+changing only an email address would empty out the addresses, the note and
+everything else. All three also need the `version` you last read: if the
+record changed in between, the update is refused and nothing is written.
 
 One tool deletes, and it is the only one:
 
@@ -675,8 +677,8 @@ claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-
 Two things worth knowing about either entry:
 
 - **Pin a version** for stability:
-  `"args": ["benethos-lexware-office-mcp==0.10.2"]`, or
-  `uvx benethos-lexware-office-mcp==0.10.2` at the end of the command.
+  `"args": ["benethos-lexware-office-mcp==0.10.3"]`, or
+  `uvx benethos-lexware-office-mcp==0.10.3` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -1060,17 +1062,15 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.10.2` for an exact release,
+Pin a version for anything you depend on - `:0.10.3` for an exact release,
 `:0.10` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
-**The image carries the package's name, every release from 0.2.0 on.**
-It was published as `ghcr.io/benethos-hub/lexware-office-mcp` until 0.4.2,
-and the earlier releases were copied over with the same digest, so a tag
-pulls the same bytes under either name. The old name got the 0.4 patch
-releases and none from 0.5.0 on. Pulling that name, change it to the one
-above: the volumes stay as they are.
+**The image carries the package's name, every release from 0.2.0 on.** Until
+0.4.2 it was also published as `ghcr.io/benethos-hub/lexware-office-mcp`,
+which received no release from 0.5.0 on. Pulling that name, change it to the
+one above: the volumes stay as they are.
 
 ### With Compose
 
@@ -1109,11 +1109,8 @@ The folder's
 has the steps. A public address is not what it is for: one bearer token is
 all this server knows of who is asking.
 
-**The Compose file used to sit in the repository root** and build from the
-checkout. `containers/production/` keeps its project name, so its volumes
-carry over with the key, the token and the tools: `docker compose up -d`
-there replaces the container and keeps them. Building from a checkout is
-[`containers/development/`](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers#for-development),
+**Building from a checkout is
+[`containers/development/`](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers#for-development)**,
 which runs beside an installation in operation under a project of its own,
 on ports 8780 and 8781, and never touches its volumes.
 
@@ -1292,6 +1289,25 @@ only if you know this server is the only consumer.
 Both limiter values are configurable via `LXO_MCP_RATE` and `LXO_MCP_BURST` if
 your account behaves differently.
 
+## Documentation
+
+The design and the reasons behind it, in the repository:
+
+- [docs/CONCEPT.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/CONCEPT.md): what the server is
+  and does, and a list of every section, each in a file of its own under
+  [docs/concept/](https://github.com/benethos-hub/lexware-office-mcp/tree/main/docs/concept)
+- [docs/ARCHITECTURE.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ARCHITECTURE.md): the
+  layers, every module, and which may import which
+- [docs/LOGGING.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/LOGGING.md): every line the
+  server writes to stderr, and what a line never carries
+- [docs/ROADMAP.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ROADMAP.md): what each release
+  brought, and the questions a live account answered
+- [docs/RELEASING.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/RELEASING.md): the steps
+  of a release
+- [CHANGELOG.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md)
+- [containers/](https://github.com/benethos-hub/lexware-office-mcp/blob/main/containers/README.md): which folder is for
+  what
+
 ## Development
 
 ```bash
@@ -1324,11 +1340,13 @@ It reads your account and writes nothing to it. The server it builds gets the
 `read-only` preset, so the writing tools are not there to be called at all. It
 prints what it checked, what the account had nothing for, and what failed, and
 it masks record ids so the report can be pasted somewhere. `pytest` never runs
-it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) section 14.1 for why a live check is not a gate.
+it. See
+[section 14.1](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/concept/testing.md#141-live-checks-are-not-a-gate)
+of the concept for why a live check is not a gate.
 
-Contributions and issues are welcome.
-[SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md)
-is where design decisions are recorded, with the reasoning and the
+Contributions and issues are welcome. The documents under
+[docs/](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/CONCEPT.md)
+are where design decisions are recorded, with the reasoning and the
 measurements behind them.
 
 ## License

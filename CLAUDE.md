@@ -1,7 +1,8 @@
 # Working guidelines for Claude
 
 How to work in this repository. Read this before making changes. See
-[SPECS.md](SPECS.md) for what the project is and does.
+[docs/CONCEPT.md](docs/CONCEPT.md) for what the project is and does, and
+[docs/concept/](docs/concept/) for each topic.
 
 ## Golden rules
 
@@ -13,9 +14,9 @@ How to work in this repository. Read this before making changes. See
    in for a decision nobody made. **One exception, and only one:**
    `server_status`, which reads no record and writes nothing, is offered
    whatever the file says, so a model can still say why nothing else is
-   there. See SPECS.md section 9.2. Never call a write tool against an account
-   that has not been explicitly confirmed as a test account — call
-   `get_profile` first and check the organization.
+   there. See docs/concept/permissions.md section 9.2. Never call a write
+   tool against an account that has not been explicitly confirmed as a test
+   account — call `get_profile` first and check the organization.
 2. **Virtual environment only.** Never the global Python or pip. A
    `uv`-created `.venv` counts, so `uv run ...` satisfies this rule. Without
    uv, invoke the project interpreter directly:
@@ -34,9 +35,9 @@ How to work in this repository. Read this before making changes. See
 5. **One rate limiter.** Every request to Lexware passes the single
    `ratelimit.TokenBucket` that `api/connection.py` owns — retries and pagination
    follow-ups included. The upstream limit is global across all endpoints, so a
-   second bucket anywhere is a bug. See SPECS.md section 10.1. A file an upload
-   fetches from a URL comes from another server and takes no token, see
-   section 7.2. **A throwaway
+   second bucket anywhere is a bug. See docs/concept/client.md section 10.1.
+   A file an upload fetches from a URL comes from another server and takes
+   no token, see docs/concept/configuration.md section 7.2. **A throwaway
    probe script is not an exception**: build a `LexwareClient` rather than a
    bare `httpx.AsyncClient`, or the third request comes back 429 and the
    account has been told this key misbehaves.
@@ -65,7 +66,7 @@ How to work in this repository. Read this before making changes. See
 
 ## Project layout
 
-The structure, see SPECS.md section 4 for the full table.
+The structure, see docs/ARCHITECTURE.md for the full table.
 
 ```
 src/benethos_lexware_office_mcp/
@@ -126,6 +127,9 @@ src/benethos_lexware_office_mcp/
     _base.py      # the policy says: the Prompt class and the shared texts
     <name>.py     # one module per prompt: open_items, missing_receipts,
                   # contact_overview
+docs/             # CONCEPT.md, the overview with every section, beside it
+                  # ARCHITECTURE.md, LOGGING.md, ROADMAP.md and
+                  # RELEASING.md, and concept/, one file per topic
 tests/            # offline, httpx MockTransport - the whole of the gate
   helpers.py      # the client, provider, server and scripted transport every suite builds,
                   # and the served configuration interface with a browser for it
@@ -182,14 +186,16 @@ containers/       # README.md says which folder is for what
     codeql.yml    # weekly: the codeql job of ci.yml once more, for the
                   # queries GitHub adds in between
 glama.json        # names the maintainers who may claim the Glama listing
+.githooks/
+  pre-commit      # refuses keys, configuration, records and local paths
 ```
 
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
 endpoint is a method on `api/client.py`, the request mechanics stay in
 `api/connection.py`, and neither lives in a tool function. Which layer may
-import which is a table in `tests/test_layers.py`, see SPECS.md section 4: a
-new module or subpackage needs a row there, and an import against the order
-fails the suite.
+import which is a table in `tests/test_layers.py`, see docs/ARCHITECTURE.md:
+a new module or subpackage needs a row there, and an import against the
+order fails the suite.
 
 ## How to add or change a tool
 
@@ -210,10 +216,11 @@ fails the suite.
    plain `dict`: it is answered as text and as structured content, and no
    output schema is published for it, since the only one the SDK could
    derive says nothing. A tool that answers with content blocks returns a
-   `CallToolResult` and names its model, as the file tools do, see SPECS.md
-   section 8. A new tool or a changed docstring changes the Claude Desktop
-   manifest too: `uv run python .github/publish/mcpb/build.py
-   --sync-manifest` writes it, and `tests/test_mcpb.py` fails until it has.
+   `CallToolResult` and names its model, as the file tools do, see
+   docs/concept/tools.md section 8. A new tool or a changed docstring
+   changes the Claude Desktop manifest too: `uv run python
+   .github/publish/mcpb/build.py --sync-manifest` writes it, and
+   `tests/test_mcpb.py` fails until it has.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
    `Literal` for enums and `ge`/`le` for numeric bounds. A named `Literal`
    or an argument model goes in `records/types.py`, not in the tool module.
@@ -222,9 +229,9 @@ fails the suite.
    what it writes cannot be removed through the API: `"app"` when only the
    web app can delete it, `"books"` when it is a bookkeeping record that can
    later be bound by a Festschreibung. Neither says the record is permanent
-   at the moment it is written, see SPECS.md section 9.2. All of it is
-   metadata for whoever writes the policy file, never a permission: the file
-   alone decides. A new tool is **off** until the file
+   at the moment it is written, see docs/concept/permissions.md section 9.2.
+   All of it is metadata for whoever writes the policy file, never a
+   permission: the file alone decides. A new tool is **off** until the file
    names it, so run `--tools` after adding one, or it will not appear.
 
    **The MCP annotations follow from this and are not written per tool.**
@@ -232,7 +239,8 @@ fails the suite.
    `idempotentHint` from what you declare here, so a tool cannot tell the
    policy file one thing and a client another. The exception is a tool that
    answers without reaching the API: add it to `_CLOSED_WORLD` there.
-6. Record its API call cost in the tool table in SPECS.md section 8.
+6. Record its API call cost in the tool table in docs/concept/tools.md
+   section 8.
 7. Add offline tests. Never hit the network in the suite.
 
 Prefer grouping related endpoints behind one tool with an enum parameter over
@@ -258,7 +266,7 @@ with what.
 
 **Leave out:**
 
-- **why** it is built this way. Design reasoning belongs in SPECS.md. A caller
+- **why** it is built this way. Design reasoning belongs in docs/. A caller
   cannot act on it and pays for it every time.
 - behaviour the caller has no choice about. That a download never overwrites
   is true and worth documenting — in the README, not here.
@@ -267,7 +275,7 @@ with what.
 
 **Budget: under 700 characters.** Not a style rule but a ceiling that a
 rewrite into explanation will cross. When one grows past it, the fix is
-usually to move a paragraph into SPECS.md rather than to compress the wording.
+usually to move a paragraph into docs/ rather than to compress the wording.
 
 Nothing enforces this automatically, deliberately: a character count is a poor
 judge of whether a sentence earns its place, and a test would turn the
@@ -288,8 +296,8 @@ against - schemas included, and they are the larger half:
 uv run python -c "import asyncio,json;from benethos_lexware_office_mcp.server import mcp;print(sum(len(json.dumps(t.model_dump(exclude_none=True,by_alias=True),separators=(',',':'),default=str)) for t in asyncio.run(mcp.list_tools())))"
 ```
 
-Section 8 of SPECS.md records the same rule, and carries the last
-measurement of what the whole list costs.
+Section 8, in docs/concept/tools.md, records the same rule, and carries the
+last measurement of what the whole list costs.
 
 ## Verifying
 
@@ -318,7 +326,7 @@ measurement of what the whole list costs.
 - The configuration interface renders without a browser, so a change to a
   page can be read as text:
   ```
-  uv run benethos-lexware-office-mcp setup --no-browser --port 8790       --env-file scratch/.env --tools-file scratch/tools.json
+  uv run benethos-lexware-office-mcp setup --no-browser --port 8790 --env-file scratch/.env --tools-file scratch/tools.json
   ```
   Point it at scratch files rather than at your own configuration - it
   writes what it is told to write. Every page asks for the start code, so
@@ -330,23 +338,23 @@ measurement of what the whole list costs.
 HTTP completely and stays green through any change in Lexware's field names or
 response shapes. Verify anything new against the live API with a read-only
 call before building on it, and mark unverified assumptions **(to verify)** in
-SPECS.md rather than stating them as fact.
+docs/ rather than stating them as fact.
 
 **Nor do they cover the SDK changing under the server.** The suite calls
-`MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and is
-answered by `_handle_call_tool`, which turns a return value into a result and
-an exception into an `is_error` result. The suite exercises the success
+`MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and
+is answered by `_handle_call_tool`, which turns a return value into a result
+and an exception into an `is_error` result. The suite exercises the success
 path of that conversion in `tests/test_stdio.py` and nothing else.
-`tests/stdio_check.py` asserts the rest without a key: the tool list with
-its annotations, and that a disabled tool, an unknown argument and an
-argument of the wrong type each come back as an error result carrying this
-server's sentence. `uv run python tests/stdio_check.py` runs it on the
-checkout, and `freshness.yml` runs it daily and after every run of Publish
-on the newest versions the ranges allow and on the published package. When
-`mcp` moves, drive the server the same way by hand as well - send
-`initialize`, `tools/list` and `tools/call` and diff the answers against the
-same run on the old version, since a byte diff sees what no fixed assertion
-asks for. The recipe and what to capture are in SPECS.md section 14.3. The
+`tests/stdio_check.py` asserts the rest without a key: the tool list with its
+annotations, and that a disabled tool, an unknown argument and an argument of
+the wrong type each come back as an error result carrying this server's
+sentence. `uv run python tests/stdio_check.py` runs it on the checkout, and
+`freshness.yml` runs it daily and after every run of Publish on the newest
+versions the ranges allow and on the published package. When `mcp` moves,
+drive the server the same way by hand as well - send `initialize`,
+`tools/list` and `tools/call` and diff the answers against the same run on
+the old version, since a byte diff sees what no fixed assertion asks for. The
+recipe and what to capture are in docs/concept/testing.md section 14.3. The
 2.0.0 to 2.1.1 bump is why it is written down: the tool list came back
 byte-identical while every error message this server sends had silently
 stopped reaching the model.
@@ -355,7 +363,7 @@ stopped reaching the model.
 `errors.py` derives from the SDK's `ToolError`, because that type is what
 marks a failure as anticipated and gets its message delivered. Raise a plain
 `Exception` subclass and the model is told only which tool failed. See
-SPECS.md section 12.1.
+docs/concept/errors-and-output.md section 12.1.
 
 **A live check is always a manual run, never a gate.** No key ships with the
 repository and none goes into CI, so anything automated has to pass with no
@@ -371,7 +379,7 @@ uv run python live/smoke.py
 It is read-only, builds its server with the `read-only` preset so a writing
 tool is not there to be called, and reports a check it could not run as
 skipped rather than as passed. Add to it whenever a live measurement is worth
-repeating. See SPECS.md section 14.1.
+repeating. See docs/concept/testing.md section 14.1.
 
 **It asks whether the calls still work, not whether the answers still look the
 same.** Null and empty fields are dropped on the way to the client, so a field
@@ -386,80 +394,18 @@ It writes one timestamped file per run into `live/shapes/`, and comparing
 two of them is a `diff`. Take one before touching anything that depends on a
 response shape, and after any suspicion that the API moved. **A capture holds
 field names and types, never a record** - no id, name, address, amount or
-date, which `tests/test_api_shapes.py` checks. See SPECS.md section 14.2.
+date, which `tests/test_api_shapes.py` checks. See docs/concept/testing.md
+section 14.2.
 
 ## Releasing
 
-A patch release is cheap here and has been used for an image that had merely
-fallen behind, so the list is short on purpose. In this order:
+A release is its own `release/X.Y.Z` branch and pull request, and every
+step of it waits for the owner's word: never tag or publish one without
+being asked.
 
-1. **`uv lock --upgrade --dry-run`.** Dependabot proposes direct dependencies
-   only. Everything transitive moves when a direct bump happens to drag it
-   along, and otherwise never - and the container image is built from the
-   lockfile, so it is the one installation that inherits that silence. An
-   install from the index resolves the newest allowed versions on its own.
-   The issue "Pinned versions have newer releases", which `freshness.yml`
-   keeps daily, lists the same, transitive packages included. If the dry run
-   lists anything, refresh on its own branch first, with the suite and a look
-   at the notes of whatever sits in the transport or under the SDK. A new
-   minor of one of the six packages in a `~=` window is not in the dry run at
-   all, the issue lists it as outside the bounds: raise the window in
-   `pyproject.toml` on that branch, after its notes, and `uv lock` follows. A
-   security fix does not wait for this step: the bot's security updates cover
-   transitive packages too. **The base images as well**: the digest each
-   `FROM` line pins against the one its tag points to now. A rebuild under
-   the same tag moves the digest only, and Dependabot asks about it once a
-   week. If one moved, raise it on the same branch as a lockfile refresh, and
-   compare the packages of the old and the new image before the merge.
-2. **Live checks while an account exists.** `live/smoke.py` and
-   `live/api_shape.py`, and the capture stays as this release's marker.
-3. **The version, in every place that quotes it.** `pyproject.toml`, the
-   README's status line, pin example and exact image tag, `LXO_VERSION` in
-   `containers/production/.env.example`, the SPECS status line, the
-   `server_status` example in section 8, a roadmap row and the example start
-   line in section 11.2, the MCP Registry entry in
-   `.github/publish/mcp-registry/server.json` (its own version, the PyPI
-   package's, the image tag and the bundle's download address), the bundle's
-   manifest in `.github/publish/mcpb/manifest.json`, and the changelog
-   section with its link reference. Then `uv lock`, which carries the
-   package's own version. The guards in `tests/test_packaging.py` catch a
-   missed one in any of these places, and `uv lock --check` one in the
-   lockfile. **The minor line** (`:0.10` in the README, and in the comment of
-   `.env.example`) changes only with a minor release - the image tag itself
-   follows the release tag when the image is built.
-4. **A trial run, only when asked for.** It is there to test the publishing
-   machinery after a change to it, such as the move onto the
-   organisation's actions, and is never started on its own. When it is
-   asked for, start `publish.yml` by hand on main before tagging:
-   `pypi-trial` builds and checks the wheel and asks PyPI whether it would
-   take it, and the image goes out as `edge`, which has to be deleted by
-   hand afterwards. A warning that the version is on PyPI already is
-   expected before step 3 is merged. The pins of `mcp-publisher` and of the
-   mcpb packer live in the organisation's actions, not here.
-5. **Branch, PR, merge**, then `gh release create vX.Y.Z --target main`,
-   which fires `publish.yml`. Its first job, `ci-passed` (the
-   organisation's `python-release-ci-passed` workflow), waits for the CI
-   run the merge commit's push to main started and lets nothing be built
-   unless that run succeeded, so a tag on a commit that never reached main,
-   or on one whose CI is red, publishes nothing. That is the run as a whole,
-   so `codeql` or `dockerfile-lint` gone red stops a release as well, though
-   a merge does not wait for either. `ci-passed` also audits `uv.lock` once
-   more, and a waiver in `ignore-vulns` belongs there as well as in
-   `ci.yml`. Each action after it stops when the tag is not `v` plus the
-   version in its file, `pyproject.toml`, `manifest.json` or
-   `server.json`, so a tag ahead of step 3 publishes nothing rather than an
-   image with the old code.
-6. **Verify the delivered artefacts, not the build.** The PyPI simple index
-   with a cache-busting query - the JSON API lags for minutes after an upload
-   and has reported a finished release as missing. The ghcr index manifest
-   for the exact tag, the minor line and `latest`, all three on the same
-   revision. Then install the wheel into a scratch environment and pull the
-   image, and check inside each that the change the release is for is there.
-   The release carries both bundles, each twice, under its version and
-   without one. Last the registry entry, under
-   `https://registry.modelcontextprotocol.io/v0/servers?search=benethos-lexware-office-mcp`,
-   at this version, with this image tag and with the bundle's checksum in
-   place of the zeros the committed file holds.
+The steps in order, from the pins to what is checked after the publish:
+[docs/RELEASING.md](docs/RELEASING.md). Read it before any work on a
+release.
 
 ## Conventions
 
@@ -475,13 +421,26 @@ fallen behind, so the list is short on purpose. In this order:
   carry.
 - **No semicolons in prose** — README, docstrings, commit messages, docs. Code
   is unaffected.
+- **The concept moves with the code.** `docs/CONCEPT.md` is the overview,
+  and `docs/concept/` holds one file per topic. A change that departs from
+  them changes them in the same commit.
+- **A document is named for its subject.** One that stands directly in
+  `docs/` is written in capitals: `CONCEPT.md`, `ARCHITECTURE.md`. One that
+  grows too long becomes an overview, and its parts go into a folder of the
+  same name in lowercase beside it: `CONCEPT.md` and `concept/`. A part is
+  named in lowercase with hyphens. It starts with the name of its document,
+  as in `# Concept: tools and prompts`, and a line that leads back to the
+  overview. The overview lists every part in a table. A section keeps its
+  number wherever it moves, and a reference names the file that holds it,
+  as in `docs/concept/permissions.md section 9.2`. `tests/test_docs.py`
+  checks the links, the table and that no number is used twice.
 - `CHANGELOG.md` gets an entry under `[Unreleased]` in the same commit as the
   change it describes, never in a later pass. It records what changed **for
   someone using this server** — tools, parameters, output, configuration,
   behaviour, dependencies, packaging. It is not a work log. Conversations,
   research, decisions that were considered and dropped, and edits to the
   development guidelines do **not** get an entry. Where such a thing matters,
-  it belongs in `SPECS.md` as a design decision or in `README.md` as something
+  it belongs in `docs/` as a design decision or in `README.md` as something
   a user needs to know, and if it belongs in neither it does not belong in the
   repository at all.
 
@@ -494,6 +453,17 @@ fallen behind, so the list is short on purpose. In this order:
 - End commit messages with a `Co-Authored-By` line naming the Claude model
   that did the work, as the session reports it, for example
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- The pre-commit hook in `.githooks/` refuses a staged settings or policy
+  file, a download, a PDF, and an added line that looks like a key, names
+  a path of a machine or holds an e-mail address. It reports the file and
+  the line, never the text. It is enabled once per clone with
+  `git config core.hooksPath .githooks`. A line that has to show such a
+  form, a made-up key in a test for one, ends with
+  `pragma: allowlist secret` or follows a comment line saying only that,
+  which is the form that survives `ruff format`. `tests/test_repo_content.py`
+  holds every tracked file to the same rules, so CI catches what a clone
+  without the hook let through. A change to the patterns of one changes the
+  other.
 - Ship changes on a branch. One work stream, one branch — a branch covers the
   piece of work being done including the fixes found along the way, not one
   branch per file. Open the next branch when the *topic* changes, not when the
@@ -511,7 +481,8 @@ fallen behind, so the list is short on purpose. In this order:
   commit defeats the point of branching. Once a remote exists, the merge goes
   through a pull request instead and `main` is no longer written directly.
 - **Every CI job has to pass before a merge**, and each one is a required
-  check on `main`, but for `codeql` and `dockerfile-lint`, which report to
+  check on `main`, but for `coverage-badge`, which runs after a push to
+  `main` alone, and `codeql` and `dockerfile-lint`, which report to
   Security, Code scanning, so that a merge does not wait for what they find.
   A job calling a reusable workflow is named after both, as in
   `lint / lint`, `test / Python 3.11` and so on, and a renamed check has to

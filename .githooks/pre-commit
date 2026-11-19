@@ -1,0 +1,158 @@
+#!/bin/sh
+# Refuse a commit that would put a key, a configuration file, a downloaded
+# record or a path of this machine into the history. What is pushed once
+# stays in the history, so this stops it before it is recorded.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# Deliberate bypass:      git commit --no-verify
+# Example in a doc/test:  end the line with "pragma: allowlist secret",
+#                         or put a comment line saying it just above
+#
+# Checks the staged content, not the working tree, and only the lines a
+# commit adds. A finding names the file and the line, never the text: the
+# output of a hook ends up in terminals and in an assistant's context, and
+# a key must not travel there either.
+
+set -eu
+
+fail=0
+note() {
+    printf 'pre-commit: %s\n' "$1" >&2
+    fail=1
+}
+tab=$(printf '\t')
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -n "$staged" ] || exit 0
+
+# 1. Files that never belong in the repository: a settings file other than
+#    the example, the policy file and the saved profiles, which say what a
+#    real account may be asked to do, downloads and documents, which are
+#    real business records, and what a build or a scratch run leaves.
+forbidden=$(
+    printf '%s\n' "$staged" | while IFS= read -r file; do
+        case "$file" in
+            *.env.example) ;;
+            .env | */.env | .env.* | */.env.*) printf '%s\n' "$file" ;;
+            tools.json | */tools.json) printf '%s\n' "$file" ;;
+            tool_profiles.json | */tool_profiles.json) printf '%s\n' "$file" ;;
+            downloads/* | */downloads/*) printf '%s\n' "$file" ;;
+            scratch/* | dist/* | build/*) printf '%s\n' "$file" ;;
+            *.pdf | *.PDF) printf '%s\n' "$file" ;;
+        esac
+    done
+)
+if [ -n "$forbidden" ]; then
+    note "these files hold configuration or real records:"
+    printf '%s\n' "$forbidden" | sed 's/^/  /' >&2
+fi
+
+# Every added line as "file:line<TAB>text". A line with the pragma is left
+# out, and so is one right under a comment line that says only the pragma,
+# where a formatter moved it. One line of context shows that line when it
+# was there before.
+added=$(
+    git diff --cached -U1 --no-color --diff-filter=ACMR | awk '
+        /^diff --git / { head = 1; next }
+        head && /^\+\+\+ / { file = substr($0, 7); next }
+        head && !/^@@/ { next }
+        /^@@/ {
+            head = 0
+            before = ""
+            match($0, /\+[0-9]+/)
+            n = substr($0, RSTART + 1, RLENGTH - 1) + 0
+            next
+        }
+        /^-/ || /^\\/ { next }
+        {
+            text = substr($0, 2)
+            allowed = before ~ /^[[:space:]]*#.*pragma: allowlist secret[[:space:]]*$/
+            if (substr($0, 1, 1) == "+" && !allowed) {
+                printf "%s:%d\t%s\n", file, n, text
+            }
+            before = text
+            n++
+        }
+    ' | grep -v "$tab.*pragma: allowlist secret" || true
+)
+if [ -z "$added" ] && [ "$fail" -eq 0 ]; then
+    exit 0
+fi
+
+# Where a line matches: the "file:line" before the tab, once each.
+where() {
+    cut -f 1 | awk '!seen[$0]++' | sed 's/^/  /' >&2
+}
+
+# 2. Credentials, whatever the file is called. A setting's own name as a
+#    value, as in API_KEY = "LXO_MCP_API_KEY", is a name and not a key, so
+#    it is shortened first.
+patterns='sk-ant-[A-Za-z0-9_-]{16,}'
+patterns="$patterns|sk-[A-Za-z0-9_-]{20,}"
+patterns="$patterns|Bearer [A-Za-z0-9._-]{16,}"
+patterns="$patterns|gh[pousr]_[A-Za-z0-9]{16,}"
+patterns="$patterns|glpat-[A-Za-z0-9_-]{16,}"
+patterns="$patterns|AKIA[0-9A-Z]{16}"
+patterns="$patterns|BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY"
+# A name that ends in TOKEN, SECRET, PASSWORD or _KEY, maybe with more
+# parts such as _FILE, then = or :, maybe a quote, then the value.
+# _KEYWORD is no such name.
+patterns="$patterns|(TOKEN|SECRET|PASSWORD|_KEY)(_[A-Z]+)*[[:space:]]*[:=][[:space:]]*[\"']?[A-Za-z0-9+_-][A-Za-z0-9+/_.-]{11,}"
+# The same in any case, as JSON and YAML write it: a name that ends in
+# token, secret, password or _key, then = or :, then a quoted value, or a
+# bare one that ends the line or a word. A bare value with a dot or a
+# bracket is code, such as token = secrets.token_urlsafe(32).
+named="(^|[^a-z0-9])[\"']?[a-z0-9_]*(token|secret|password|passwd|_key)[\"']?"
+named="$named[[:space:]]*[:=][[:space:]]*"
+named="$named([\"'][A-Za-z0-9+_-][A-Za-z0-9+/_.-]{11,}|[A-Za-z0-9+_-][A-Za-z0-9+/_-]{11,}([[:space:]]|\$))"
+
+names=$(printf '%s\n' "$added" | sed -E "s/([:=][[:space:]]*[\"']?)LXO_MCP_[A-Z0-9_]+/\1LXO/g")
+hits=$(
+    {
+        printf '%s\n' "$names" | grep -E "$tab.*($patterns)" || true
+        printf '%s\n' "$names" | grep -iE "$tab.*($named)" || true
+    }
+)
+if [ -n "$hits" ]; then
+    note "lines that look like a credential:"
+    printf '%s\n' "$hits" | where
+fi
+
+# 3. A path of this machine or of a user, also as Git Bash and WSL write
+#    it. A path carries a user name and a directory layout. The programs'
+#    folders may be named on purpose.
+paths='[A-Za-z]:[\\/]+Users[\\/]'
+paths="$paths|(^|[^[:alnum:]_.])/(Users|home)/[[:alnum:]_]"
+paths="$paths|(^|[^[:alnum:]_.])/mnt/[a-z]/"
+paths="$paths|(^|[^[:alnum:]_.])/[A-Za-z]/(Users|home|projects)/[[:alnum:]_]"
+paths="$paths|(^|[^[:alnum:]_\\])[A-Za-z]:[\\/]+[[:alnum:]_]"
+hits=$(
+    printf '%s\n' "$added" \
+        | grep -E "$tab.*($paths)" \
+        | grep -vE "$tab.*[A-Za-z]:[\\/]+(Program Files|Windows)([\\/]|\$)" \
+        || true
+)
+if [ -n "$hits" ]; then
+    note "lines that name a path of a machine:"
+    printf '%s\n' "$hits" | where
+fi
+
+# 4. An e-mail address on a domain that is not reserved for examples. The
+#    commit trailer's address and GitHub's private addresses may stand.
+address='[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}'
+allowed='@(([A-Za-z0-9-]+\.)*example\.(com|org|net)|users\.noreply\.github\.com|([A-Za-z0-9-]+\.)+(example|test|invalid|localhost))$|^noreply@anthropic\.com$'
+hits=$(
+    printf '%s\n' "$added" | { grep -E "$tab.*$address" || true; } | while IFS="$tab" read -r at text; do
+        found=$(printf '%s\n' "$text" | grep -oE "$address" | grep -viE "$allowed" || true)
+        [ -z "$found" ] || printf '%s\n' "$at"
+    done
+)
+if [ -n "$hits" ]; then
+    note "lines that hold an e-mail address:"
+    printf '%s\n' "$hits" | where
+fi
+
+if [ "$fail" -ne 0 ]; then
+    printf 'pre-commit: nothing was committed (override with --no-verify).\n' >&2
+    exit 1
+fi

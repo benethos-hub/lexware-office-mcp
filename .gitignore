@@ -16,7 +16,7 @@ dist/
 .coverage.*
 htmlcov/
 
-# Secrets and real business data (see SPECS.md section 11)
+# Secrets and real business data (see docs/concept/data-and-secrets.md section 11)
 .env
 .env.*
 config/.env

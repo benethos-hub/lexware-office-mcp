@@ -61,7 +61,11 @@ def installation(
 ) -> Installation:
     monkeypatch.setattr(probe, "check", fake_check)
     return make_installation(
-        tmp_path, "LXO_MCP_PAGE_SIZE=50\n", api_key="secret-value", page_size=50
+        tmp_path,
+        "LXO_MCP_PAGE_SIZE=50\n",
+        # pragma: allowlist secret
+        api_key="secret-value",
+        page_size=50,
     )
 
 
@@ -99,6 +103,7 @@ def test_an_env_file_in_another_encoding_is_said_on_the_page(
     """Every page reads the .env. A request thread ending in a traceback
     left the browser with nothing, on the interface meant to repair it."""
     token = browser.token()  # while a page still renders
+    # pragma: allowlist secret
     original = "LXO_MCP_DOWNLOAD_DIR=C:/Jürgen\n".encode("cp1252")
     installation.env_path.write_bytes(original)
 
@@ -515,6 +520,7 @@ def test_a_refused_key_is_not_shown_again(
         probe, "check", lambda settings, **_: (None, "Die API hat abgelehnt")
     )
 
+    # pragma: allowlist secret
     status, body, _ = browser.post("/credentials", {"api_key": "typed-but-wrong"})
 
     assert status == 400
@@ -1137,6 +1143,7 @@ def test_the_transfer_page_is_gone(browser: Browser) -> None:
 def test_the_export_is_the_policy_file_itself(
     browser: Browser, installation: Installation
 ) -> None:
+    # pragma: allowlist secret
     installation.env_path.write_text("LXO_MCP_API_KEY=secret-value", encoding="utf-8")
     ToolPolicy(installation.settings.policy_file()).save({"get_profile": True})
 
@@ -1370,6 +1377,7 @@ def test_a_delete_that_cannot_be_written_is_reported(
 def test_a_saved_key_is_a_line_and_the_key_is_not(
     browser: Browser, lines: pytest.LogCaptureFixture
 ) -> None:
+    # pragma: allowlist secret
     browser.post("/credentials", {"api_key": "a-new-key-0123456789"})
 
     assert "API key written to .env, checked against the account first" in lines.text
@@ -1381,6 +1389,7 @@ def test_a_key_the_account_refused_is_a_warning(
 ) -> None:
     monkeypatch.setattr(probe, "check", lambda settings, **_: (None, "abgelehnt"))
 
+    # pragma: allowlist secret
     browser.post("/credentials", {"api_key": "wrong-key-0123456789"})
 
     assert "API key not saved: the account refused it" in lines.text

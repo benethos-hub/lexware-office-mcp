@@ -2,7 +2,7 @@
 
 One tool and no API call. A download says where bytes are, a deeplink says
 where a person should click, and the two stay apart so that neither can be
-wrong about the other, see SPECS.md section 13.
+wrong about the other, see docs/concept/errors-and-output.md section 13.
 """
 
 from __future__ import annotations

@@ -130,6 +130,7 @@ def test_an_empty_variable_cannot_hide_the_checkout_s_key(
     The stdio test once relied on it to keep a real key out of a subprocess.
     It names an empty file instead, which replaces the search.
     """
+    # pragma: allowlist secret
     env = make_checkout(tmp_path, "LXO_MCP_API_KEY=would-be-the-real-key\n")
     monkeypatch.setattr(L, "_project_config_dir", lambda: env.parent)
     monkeypatch.setattr(L, "config_dir", lambda: tmp_path / "absent")

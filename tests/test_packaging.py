@@ -51,11 +51,11 @@ VERSION_EXAMPLES = (
     ("containers/production/.env.example", r"(?m)^LXO_VERSION=(\d+\.\d+\.\d+)$"),
     # The status line each document opens with.
     ("README.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
-    ("SPECS.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
+    ("docs/CONCEPT.md", r"\*\*Status: (\d+\.\d+\.\d+)"),
     # The start line the log catalogue shows as an example.
-    ("SPECS.md", r"`(\d+\.\d+\.\d+) started over stdio`"),
-    # The answer of server_status that section 8 shows.
-    ("SPECS.md", r"(?m)^version: (\d+\.\d+\.\d+)$"),
+    ("docs/LOGGING.md", r"`(\d+\.\d+\.\d+) started over stdio`"),
+    # The answer of server_status that docs/concept/tools.md section 8 shows.
+    ("docs/concept/tools.md", r"(?m)^version: (\d+\.\d+\.\d+)$"),
     # The MCP Registry entry: its own version and the PyPI package's, then
     # the image tag, which carries the version in place of a field of its own.
     (".github/publish/mcp-registry/server.json", r'"version": "(\d+\.\d+\.\d+)"'),
@@ -76,7 +76,7 @@ MINOR_LINE_EXAMPLES = (
     ("README.md", r"`:(\d+\.\d+)`"),
     ("containers/production/.env.example", r"`(\d+\.\d+)`"),
     # The release list names it as the one to move with a minor release.
-    ("CLAUDE.md", r"`:(\d+\.\d+)`"),
+    ("docs/RELEASING.md", r"`:(\d+\.\d+)`"),
 )
 
 
@@ -129,7 +129,7 @@ def test_the_changelog_has_a_section_for_this_version() -> None:
 
 
 def test_the_roadmap_has_a_row_for_this_version() -> None:
-    text = (REPO / "SPECS.md").read_text(encoding="utf-8")
+    text = (REPO / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
 
     assert f"\n| {__version__} | " in text
 
@@ -614,7 +614,7 @@ def test_the_stdio_check_is_a_script_and_not_a_test() -> None:
     """pytest collects test_*.py, so the name keeps it out of the suite.
 
     It spawns a process and speaks the wire protocol, which is slow and
-    brittle as a gate, see SPECS.md section 14.3. It imports nothing from
+    brittle as a gate, see docs/concept/testing.md section 14.3. It imports nothing from
     the suite's helpers, because the published package is one of the
     environments it runs in and pytest is not installed there.
     """

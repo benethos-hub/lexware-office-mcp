@@ -382,7 +382,7 @@ def recurring_template(payload: dict[str, Any]) -> dict[str, Any]:
 
     Verified 2026-08-21 against a live one. The same function serves a list
     row and a full record, which differ by twelve fields upstream - see
-    SPECS.md section 5.
+    docs/concept/upstream-api.md section 5.
     """
     return _without(payload, ORGANIZATION_ID)
 

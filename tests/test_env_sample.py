@@ -94,12 +94,12 @@ def test_working_directory_env_beats_the_config_directory(tmp_path: Path) -> Non
     assert _env_lookup(cwd=tmp_path)["LXO_MCP_PAGE_SIZE"] == "9"
 
 
-@pytest.mark.parametrize("document", ["README.md", "SPECS.md"])
+@pytest.mark.parametrize("document", ["README.md", "docs/concept/configuration.md"])
 def test_every_setting_has_a_row_in_the_settings_table(document: str) -> None:
     """The sample is not the only list: both documents keep a table of them.
 
-    SPECS section 7 went without the eight HTTP settings from 0.2.0 on, and
-    nothing noticed, because nothing compared.
+    docs/concept/configuration.md section 7 went without the eight HTTP
+    settings from 0.2.0 on, and nothing noticed, because nothing compared.
     """
     text = (Path(__file__).resolve().parents[1] / document).read_text(encoding="utf-8")
     rows = set(re.findall(r"^\| `(LXO_MCP_[A-Z_]+)` \|", text, re.MULTILINE))

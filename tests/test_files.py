@@ -396,6 +396,7 @@ def test_a_symbolic_link_in_the_download_directory_is_not_published(
 @pytest.mark.parametrize(
     "failure",
     [
+        # pragma: allowlist secret
         PermissionError(13, "Permission denied", "/home/someone/cache/x.pdf"),
         OSError(28, "No space left on device"),
         FileExistsError("Too many files already named like 'x.pdf'."),

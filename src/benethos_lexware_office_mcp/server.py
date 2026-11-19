@@ -137,7 +137,7 @@ class PolicyServer(MCPServer):
 
     And ``server_status``, which it lists and calls whatever the file says:
     it reads no record, and it is what a model can ask when nothing else is
-    there. See SPECS.md section 9.2.
+    there. See docs/concept/permissions.md section 9.2.
 
     The filter sits here rather than at registration so that both directions
     take effect the same way: the file is read as the list is built, so a tool
@@ -158,12 +158,12 @@ class PolicyServer(MCPServer):
     watcher when the directory moved under another hand, since the process
     that downloaded is not always the one that lists.
 
-    What is told is the **connection**, never the session a request
-    arrived on: the SDK builds a ``ServerSession`` for each request and
-    lets it go with the answer, so a set of sessions is empty by the time
-    there is something to say. Measured 2026-10-16, see section 9.2. A
-    2026-07-28 client has no such channel and is told on the listen stream
-    it opened, through the bus the SDK serves those from.
+    What is told is the **connection**, never the session a request arrived on:
+    the SDK builds a ``ServerSession`` for each request and lets it go with the
+    answer, so a set of sessions is empty by the time there is something to
+    say. Measured 2026-10-16, see docs/concept/permissions.md section 9.2. A
+    2026-07-28 client has no such channel and is told on the listen stream it
+    opened, through the bus the SDK serves those from.
     """
 
     def __init__(

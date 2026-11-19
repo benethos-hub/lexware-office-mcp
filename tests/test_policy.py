@@ -166,6 +166,7 @@ def test_the_refusal_names_the_tool_but_never_a_path() -> None:
     def sample_named_tool() -> str:
         return "ran"
 
+    # pragma: allowlist secret
     policy = ToolPolicy(__import__("pathlib").Path("/home/someone/secret/tools.json"))
 
     with pytest.raises(PermissionDeniedError) as excinfo:

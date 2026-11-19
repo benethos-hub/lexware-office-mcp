@@ -36,9 +36,11 @@ def test_reads_the_forms_a_person_writes(tmp_path: Path) -> None:
 def test_a_byte_order_mark_does_not_hide_the_first_key(tmp_path: Path) -> None:
     """Notepad writes one, and it used to become part of LXO_MCP_API_KEY."""
     path = tmp_path / ".env"
+    # pragma: allowlist secret
     path.write_bytes(b"\xef\xbb\xbfLXO_MCP_API_KEY=from-notepad\nLXO_MCP_RATE=1\n")
 
     assert read_env_file(path) == {
+        # pragma: allowlist secret
         "LXO_MCP_API_KEY": "from-notepad",
         "LXO_MCP_RATE": "1",
     }
@@ -60,6 +62,7 @@ def test_a_file_in_another_encoding_is_refused_and_left_alone(tmp_path: Path) ->
     """Guessing would turn a `ü` into a path that does not exist, and an
     update would write the guess back over the original bytes."""
     env = tmp_path / ".env"
+    # pragma: allowlist secret
     original = "LXO_MCP_DOWNLOAD_DIR=C:/Jürgen\n".encode("cp1252")
     env.write_bytes(original)
 

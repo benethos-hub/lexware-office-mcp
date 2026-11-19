@@ -69,6 +69,7 @@ def test_a_refusal_is_reported_rather_than_raised() -> None:
 
 def test_the_key_is_never_in_the_message() -> None:
     """The interface exists partly so the key need never be seen."""
+    # pragma: allowlist secret
     settings = Settings(api_key="the-secret-key-value")
     provider = fast_provider(
         lambda _r: httpx.Response(400, text="bad key the-secret-key-value"),

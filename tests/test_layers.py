@@ -1,6 +1,6 @@
 """Which part of the package may import which, read from the source.
 
-The package is layered, see SPECS.md section 4: the foundation every layer
+The package is layered, see docs/ARCHITECTURE.md section 4: the foundation every layer
 stands on, then what talks to Lexware and what handles a file, then the
 tools, the server, how a client reaches it, and the two commands on top. The
 order holds exactly as long as nothing checks it, so this does: every import
@@ -147,7 +147,7 @@ def test_no_layer_below_the_tools_names_a_tool() -> None:
 
 
 # A dependency some modules may import and no other: the modules that are
-# its interface to the rest of the package, see SPECS.md section 4.
+# its interface to the rest of the package, see docs/ARCHITECTURE.md section 4.
 CONFINED: dict[str, frozenset[str]] = {
     # The configuration interface's templates. The server never renders a
     # page, so nothing but `setup` has a reason to load it.

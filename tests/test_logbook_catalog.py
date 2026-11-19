@@ -148,12 +148,14 @@ def test_nothing_outside_the_logbook_logs() -> None:
 
 def test_an_error_of_ours_is_named_by_its_class_alone() -> None:
     """Our messages are written for the model and quote what it sent."""
+    # pragma: allowlist secret
     error = ValidationError("No file at C:/Mustermann/receipt.pdf.")
 
     assert describe(error) == "ValidationError"
 
 
 def test_a_system_error_says_why_without_the_file() -> None:
+    # pragma: allowlist secret
     error = OSError(13, "Permission denied", "C:/Users/someone/tools.json")
 
     assert describe(error) == "PermissionError, Permission denied"

@@ -34,7 +34,7 @@ prompt the manifest does not declare, and compares a declared one with its
 text, which a prompt whose optional argument is left out beside a required
 one cannot match. The auto-update bundle keeps its manifest while the
 server moves on, so it would refuse every later prompt as well. With the
-flags Desktop checks neither, measured 2026-11-11, see SPECS.md section 8.
+flags Desktop checks neither, measured 2026-11-11, see docs/concept/tools.md section 8.
 """
 
 from __future__ import annotations

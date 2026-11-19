@@ -9,9 +9,33 @@ Every user-facing change gets an entry under `[Unreleased]` in the same commit
 that makes the change, never in a later cleanup pass. Entries describe what
 changed for someone using this server. Development process and internal
 housekeeping are out of scope here — design decisions live in
-[SPECS.md](SPECS.md).
+[docs/](docs/CONCEPT.md).
 
 ## [Unreleased]
+
+## [0.10.3] - 2026-11-19
+
+A patch release for the documentation and the container image.
+Nothing a client receives changed: the tool list and every answer are
+those of 0.10.2. The specification moved into `docs/`, and the README
+links there. The image and the pinned extension carry pydantic 2.14.4.
+
+### Changed
+
+- **The specification is in `docs/` now**, split by topic instead of one
+  file of four thousand lines. `docs/CONCEPT.md` is the overview and
+  lists every section, each topic has a file of its own in
+  `docs/concept/`, and the architecture, the log and the roadmap stand
+  beside it. The sections keep their numbers, so "section 9.2" still
+  names the same thing, and the README links to the new places.
+- **pydantic 2.14.4 in the lockfile**, instead of 2.14.3, with
+  pydantic-core 2.50.5: fixes in JSON schemas and validation, and the
+  memory use of its JSON parser back to normal. The tool list a client
+  receives is byte for byte the same. It reaches the container image and
+  the pinned extension, an installation from the index resolves it
+  already.
+- **The project page on PyPI links to the documentation and the
+  changelog** as well, beside the repository and the issues.
 
 ## [0.10.2] - 2026-11-18
 
@@ -1962,7 +1986,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.3...HEAD
+[0.10.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.9.1...v0.10.0

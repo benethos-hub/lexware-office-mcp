@@ -13,7 +13,7 @@ consults it when a call arrives. It exists so that a person, an interface or a
 script can *write* a sensible file - "the reading tools", "the voucher group"
 - and what lands on disk is then the whole truth, tool by tool.
 
-Enforcement happens at two levels, deliberately (SPECS.md section 9):
+Enforcement happens at two levels, deliberately (docs/concept/permissions.md section 9):
 
 1. **Listing.** ``server.PolicyServer`` leaves a disabled tool out of
    ``list_tools``, so it never reaches the model and costs no tokens. The file
@@ -69,16 +69,16 @@ Access = Literal["read", "write"]
 # document is created in its final state or not at all, and `finalize` is a
 # query parameter on the creation. The one transition the API has - booking
 # an unchecked voucher, found 2026-09-27 - is a parameter of an update, so it
-# needs no effect of its own. See SPECS.md section 5.
+# needs no effect of its own. See docs/concept/upstream-api.md section 5.
 Effect = Literal["", "create", "update", "delete"]
 
 IRREVERSIBLE: tuple[Effect, ...] = ("delete",)
 
 # What becomes of the record a tool leaves behind. **Not the same axis as
-# `effect`**, and the two point opposite ways: `delete_article` is the one
-# tool that destroys something, and also the one whose result could be
-# recreated exactly. The tools that leave a permanent mark are ordinary
-# creations sitting quietly under the `write` preset. See SPECS.md section 5,
+# `effect`**, and the two point opposite ways: `delete_article` is the one tool
+# that destroys something, and also the one whose result could be recreated
+# exactly. The tools that leave a permanent mark are ordinary creations sitting
+# quietly under the `write` preset. See docs/concept/upstream-api.md section 5,
 # "What a write leaves behind".
 #
 # - ``""``  the API can remove it again

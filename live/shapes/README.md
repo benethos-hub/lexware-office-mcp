@@ -22,7 +22,8 @@ appeared is invisible by construction.
 
 So the answers are recorded before any of that happens, and the check for
 drift becomes a `diff` between two files rather than a reading of dated prose
-in [SPECS.md](../../SPECS.md) section 5.
+in [docs/concept/upstream-api.md](../../docs/concept/upstream-api.md)
+section 5.
 
 ## Comparing two runs
 

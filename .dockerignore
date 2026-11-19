@@ -30,7 +30,7 @@ tests
 live
 scratch
 containers
-SPECS.md
+docs/
 CLAUDE.md
 CHANGELOG.md
 LICENSE

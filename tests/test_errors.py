@@ -41,7 +41,8 @@ def test_every_error_is_the_kind_the_sdk_hands_to_the_model() -> None:
 
     Measured against mcp 2.1.1 over real stdio before this test was written:
     without the inheritance the client received `Error executing tool
-    get_profile`, with it the whole sentence. See SPECS.md section 12.1.
+    get_profile`, with it the whole sentence. See
+    docs/concept/errors-and-output.md section 12.1.
     """
     for name in errors.__all__:
         attr = getattr(errors, name)

@@ -27,10 +27,10 @@ IBAN = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
 def captures() -> list[Path]:
     """Every capture, and never an empty list.
 
-    A guard that loops over nothing passes without checking anything, which
-    is the hole SPECS.md section 14.1 names: a test that reports green for
-    work it did not do. So the absence of captures fails here rather than
-    quietly disarming the three checks below.
+    A guard that loops over nothing passes without checking anything, which is
+    the hole docs/concept/testing.md section 14.1 names: a test that reports
+    green for work it did not do. So the absence of captures fails here rather
+    than quietly disarming the three checks below.
     """
     found = sorted(SHAPES.glob("shape-*.txt"))
     assert found, f"no capture in {SHAPES.name}, so nothing below checks anything"
@@ -52,10 +52,10 @@ def test_no_capture_carries_a_record_out_of_the_account(
 ) -> None:
     """The one rule that makes these files safe to version.
 
-    An id, an address or a date is a record rather than a shape, and section
-    11 of SPECS.md keeps all three out of versioned files. A capture that
-    picked one up would be a leak that no review is likely to catch, because
-    the files are long and look alike.
+    An id, an address or a date is a record rather than a shape, and section 11
+    of docs/concept/data-and-secrets.md keeps all three out of versioned files.
+    A capture that picked one up would be a leak that no review is likely to
+    catch, because the files are long and look alike.
     """
     for capture in captures():
         found = pattern.findall(capture.read_text(encoding="utf-8"))

@@ -1,7 +1,7 @@
 """A live upload fetched from a URL, against a confirmed test account.
 
 **Run by hand. Never a gate, never in CI, never collected by pytest**, see
-SPECS.md section 14.1. Unlike `smoke.py` this one **writes**: the upload
+docs/concept/testing.md section 14.1. Unlike `smoke.py` this one **writes**: the upload
 creates an `unchecked` voucher, and the API cannot delete a voucher - only
 the web app can, while nothing has bound it. So it refuses to write unless
 `--expect-company` and `--expect-organization` both name what `get_profile`

@@ -2,9 +2,10 @@
 
 **Run by hand. Never a gate, never in CI, never collected by pytest.** No key
 ships with this repository and none goes into a CI secret, so everything
-automated has to pass with no key, no network and no account - see SPECS.md
-section 14.1. It sits outside `testpaths` for that reason: a filename `pytest`
-happens not to match is a convention, a directory it does not walk is not.
+automated has to pass with no key, no network and no account - see
+docs/concept/testing.md section 14.1. It sits outside `testpaths` for that
+reason: a filename `pytest` happens not to match is a convention, a directory
+it does not walk is not.
 
 What it is for: the offline suite mocks HTTP completely and stays green
 through any change in Lexware's field names or response shapes. Only a live

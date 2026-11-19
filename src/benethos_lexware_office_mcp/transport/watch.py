@@ -3,7 +3,7 @@
 Settings are read when the process starts and never again, so a change to
 the file takes effect in a fresh process. Where something restarts this one
 - a container, a service manager - the HTTP transport can be told to end on a
-change and leave the rest to it. See SPECS.md section 6.
+change and leave the rest to it. See docs/concept/transport.md section 6.
 """
 
 from __future__ import annotations

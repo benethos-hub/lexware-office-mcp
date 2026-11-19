@@ -68,6 +68,7 @@ __all__ = [
 
 # Long enough to be registered as a secret, see `errors.register_secret`, so
 # a test that asserts redaction is asserting something.
+# pragma: allowlist secret
 API_KEY = "test-key-0123456789"
 
 Handler = Callable[[httpx.Request], httpx.Response]
