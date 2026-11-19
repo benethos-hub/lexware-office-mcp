@@ -196,12 +196,12 @@ time and against an account you are willing to have changed:
 | `upload_file` | Upload a receipt from a path or a URL, which also creates its voucher |
 | `attach_file_to_voucher` | Hang a file on a voucher that already exists |
 
-`update_contact` and `update_voucher` cost two API calls rather than one.
-The API replaces a record instead of patching it, so the current one is read
-first and the change is laid on top. Without that, changing only an email
-address would empty out the addresses, the note and everything else. Both
-also need the `version` you last read: if the record changed in between, the
-update is refused and nothing is written.
+`update_contact`, `update_article` and `update_voucher` cost two API calls
+rather than one. The API replaces a record instead of patching it, so the
+current one is read first and the change is laid on top. Without that,
+changing only an email address would empty out the addresses, the note and
+everything else. All three also need the `version` you last read: if the
+record changed in between, the update is refused and nothing is written.
 
 One tool deletes, and it is the only one:
 
@@ -1067,12 +1067,10 @@ Pin a version for anything you depend on - `:0.10.3` for an exact release,
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
 
-**The image carries the package's name, every release from 0.2.0 on.**
-It was published as `ghcr.io/benethos-hub/lexware-office-mcp` until 0.4.2,
-and the earlier releases were copied over with the same digest, so a tag
-pulls the same bytes under either name. The old name got the 0.4 patch
-releases and none from 0.5.0 on. Pulling that name, change it to the one
-above: the volumes stay as they are.
+**The image carries the package's name, every release from 0.2.0 on.** Until
+0.4.2 it was also published as `ghcr.io/benethos-hub/lexware-office-mcp`,
+which received no release from 0.5.0 on. Pulling that name, change it to the
+one above: the volumes stay as they are.
 
 ### With Compose
 
@@ -1111,11 +1109,8 @@ The folder's
 has the steps. A public address is not what it is for: one bearer token is
 all this server knows of who is asking.
 
-**The Compose file used to sit in the repository root** and build from the
-checkout. `containers/production/` keeps its project name, so its volumes
-carry over with the key, the token and the tools: `docker compose up -d`
-there replaces the container and keeps them. Building from a checkout is
-[`containers/development/`](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers#for-development),
+**Building from a checkout is
+[`containers/development/`](https://github.com/benethos-hub/lexware-office-mcp/tree/main/containers#for-development)**,
 which runs beside an installation in operation under a project of its own,
 on ports 8780 and 8781, and never touches its volumes.
 
@@ -1306,7 +1301,7 @@ The design and the reasons behind it, in the repository:
 - [docs/LOGGING.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/LOGGING.md): every line the
   server writes to stderr, and what a line never carries
 - [docs/ROADMAP.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ROADMAP.md): what each release
-  brought, and the open questions
+  brought, and the questions a live account answered
 - [docs/RELEASING.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/RELEASING.md): the steps
   of a release
 - [CHANGELOG.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md)

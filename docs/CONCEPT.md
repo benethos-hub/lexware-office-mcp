@@ -35,7 +35,7 @@ another document names section 9.2, and the list below leads to it.
 | [Testing](concept/testing.md) | 14 to 14.3 | The offline suite, the live checks, the shape captures and the SDK as a blind spot. |
 | [Architecture](ARCHITECTURE.md) | 4 | The layers, every module and which may import which. |
 | [Logging](LOGGING.md) | 11.2 | Every line on stderr: levels, the catalogue, what a line may never carry. |
-| [Roadmap](ROADMAP.md) | 16 | What exists, release by release, how a user configures the server, and the open questions. |
+| [Roadmap](ROADMAP.md) | 16 | What exists, release by release, how a user configures the server, and the questions a live account answered. |
 
 Sections 1 to 3 and 15 follow below. How a release is made is in
 [RELEASING.md](RELEASING.md).

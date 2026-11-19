@@ -152,20 +152,3 @@ docker compose pull && docker compose up -d
 
 Docker keeps at most five log files of 10 MB per container, the oldest
 dropped first.
-
-## From the Compose file before
-
-Until this folder, `compose.yaml` sat in the repository root and built
-the image from the checkout. This one has the same project name,
-`benethos-lexware-office-mcp`, and the same volumes, so the key, the
-token and the tools stay. In the clone:
-
-```sh
-cd containers/production
-cp .env.example .env
-docker compose up -d
-```
-
-Compose replaces the container and keeps the volumes. To build from the
-checkout instead, `containers/development/` does that, under a project
-and with volumes of its own.

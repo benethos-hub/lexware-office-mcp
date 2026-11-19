@@ -109,68 +109,60 @@ Nothing on the API side is outstanding.
    for the owner as well. Merges are squash or rebase, the history stays
    linear, and a merged branch deletes itself. Nothing is written to `main`
    directly any more.
-2. ~~**CI.**~~ **Done 2026-08-22.** `.github/workflows/ci.yml` holds four jobs:
-   `lint` (`ruff check`, the format check, `mypy` and `uv lock --check`),
-   `test` across the Python matrix of
-   [section 6](concept/transport.md#6-transport-and-runtime) with the
-   coverage floor, `fresh-install`, which builds the wheel, installs it with no
-   lockfile involved and asserts that an installation without a policy file
-   offers no tools at all - the rule of
-   [section 9.2](concept/permissions.md#92-the-policy), which no offline
-   test reaches because every one of them writes a policy file first - and
-   `docker`, which builds the image and asserts the same rule against the
-   artefact people actually run: the container generates its own bearer token,
-   refuses a request that does not carry it, and answers `tools/list` with
-   nothing but `server_status`. It asks the same over stdio as well, through
-   `docker run -i` without a network, the way a directory lists a server's
-   tools, and fails on any line on stdout that is not JSON-RPC. It also fails
-   the build if a plain `up` would start the configuration interface, which
-   belongs behind its profile. Both architectures a release publishes are
-   built, and only `linux/amd64` is started. `fresh-install` also runs the
-   commands of the build spec Glama keeps on its own site, which writes a
-   policy file with every tool on and asks for no key, and expects every tool
-   over stdio, so a changed flag fails here rather than in a build nobody
-   watches. The spec and the step change together. Every job passes with no
-   key, no network and no account, see
-   [section 14.1](concept/testing.md#141-live-checks-are-not-a-gate). A
-   fifth job, `lowest-versions`, was added 2026-09-27. It installs the oldest
-   allowed version of every direct dependency on Python 3.11, with no lockfile,
-   and runs the suite, so a lower bound in `pyproject.toml` that has stopped
-   being true shows up. It began as an early warning and is a required check
-   since 2026-10-13, like every other job. A sixth, `brand`, was added the same
-   day. It calls the organisation's reusable workflow, which wants
-   `assets/brand/` to hold `icon.svg` and, rendered from it, a 512x512
-   `icon.png` and a 1280x640 `social-preview.png`, neither committed before the
-   last change to the SVG. It was the first workflow not pinned to a commit:
-   the rules are the organisation's and are meant to reach every repository as
-   they change. Since 2026-10-10 only the newest Python of the matrix measures
-   coverage and holds the floor, `test (3.15)` once 3.15 joined the same day,
-   where coverage.py follows branches through `sys.monitoring`. The other
-   matrix jobs run the suite without measuring, since under the older tracer
-   the test step took up to 112 seconds on 3.12 against 42 to 46 on 3.14, and
-   30 to 43 without it. Locally coverage added 8 percent to a run on 3.14 and 1
-   percent on 3.15. The job keeps its name, so the floor stays a required check
-   once that name is one, and a line that only an older Python runs no longer
-   counts. `.github/dependabot.yml` asks weekly about the dependency ranges,
-   the pinned actions and the container base image.
-
-   **Since 2026-10-19 `lint`, `test` and `lowest-versions` call the
-   organisation's reusable workflows** in `benethos-hub/.github`, as `brand`
-   already did, and a seventh job, `audit`, checks every version in
-   `uv.lock` against PyPI and OSV. `lowest-versions` audits the versions it
-   has just tested as well. Its first run against this repository found
-   `mcp>=2.0.0` allowing GHSA-84m7-p3x7-pcfv, and the floor went to 2.2.0
-   before the move. `fresh-install` and `docker` stay here, they are this
-   project's own. The steps are the ones the jobs had, and `ci.yml` names
-   the tested Pythons, the coverage one, the oldest one and the coverage
-   floor explicitly rather than relying on the workflows' defaults, so
+2. ~~**CI.**~~ **Done 2026-08-22**, and grown since:
+   `.github/workflows/ci.yml` holds ten jobs. Eight call the organisation's
+   reusable workflows in `benethos-hub/.github`, which follow `main` there
+   rather than a commit, since the rules are the organisation's and are meant
+   to reach every repository as they change. `brand` wants `assets/brand/` to
+   hold `icon.svg` and, rendered from it, a 512x512 `icon.png` and a 1280x640
+   `social-preview.png`, neither committed before the last change to the SVG.
+   `lint` runs `ruff check`, the format check, `mypy` and `uv lock --check`.
+   `test` runs the suite across the Python matrix of
+   [section 6](concept/transport.md#6-transport-and-runtime), and
+   `coverage-badge` publishes the percentage the coverage run writes as
+   `coverage.json` on the `badges` branch after a push to main, never for a
+   pull request, so it is no required check. `lowest-versions` installs the
+   oldest allowed version of every direct dependency on Python 3.11, with no
+   lockfile, runs the suite and audits those versions, so a lower bound in
+   `pyproject.toml` that has stopped being true shows up: its first run found
+   `mcp>=2.0.0` allowing GHSA-84m7-p3x7-pcfv, and the floor went to 2.2.0.
+   `audit` checks every version in `uv.lock` against PyPI and OSV. `codeql`
+   and `dockerfile-lint` are described below. `ci.yml` names the tested
+   Pythons, the coverage one, the oldest one and the coverage floor
+   explicitly rather than relying on the workflows' defaults, so
    `tests/test_packaging.py` can hold them to the classifiers,
-   `requires-python` and CLAUDE.md. The workflows follow `main` there,
-   unpinned like `brand`, for the reason given above. The same day the
-   static coverage badge in the README gave way to one the coverage run
-   writes: `test` passes `badge: true`, and `coverage-badge` publishes the
-   percentage as `coverage.json` on the `badges` branch after a push to
-   main. It never runs for a pull request, so it is no required check.
+   `requires-python` and CLAUDE.md. Two jobs are this project's own.
+   `fresh-install` builds the wheel, installs it with no lockfile involved
+   and asserts that an installation without a policy file offers no tools at
+   all - the rule of [section 9.2](concept/permissions.md#92-the-policy),
+   which no offline test reaches because every one of them writes a policy
+   file first - and runs the commands of the build spec Glama keeps on its
+   own site, which writes a policy file with every tool on and asks for no
+   key, and expects every tool over stdio, so a changed flag fails here
+   rather than in a build nobody watches. The spec and the step change
+   together. `docker` builds the image and asserts the same rule against the
+   artefact people actually run: the container generates its own bearer
+   token, refuses a request that does not carry it, and answers `tools/list`
+   with nothing but `server_status`. It asks the same over stdio as well,
+   through `docker run -i` without a network, the way a directory lists a
+   server's tools, and fails on any line on stdout that is not JSON-RPC. It
+   also fails the build if a plain `up` would start the configuration
+   interface, which belongs behind its profile. Both architectures a release
+   publishes are built, and only `linux/amd64` is started. Every job passes
+   with no key, no network and no account, see
+   [section 14.1](concept/testing.md#141-live-checks-are-not-a-gate).
+   `.github/dependabot.yml` asks weekly about the dependency ranges, the
+   pinned actions and the container base image.
+
+   **Only the newest Python of the matrix measures coverage and holds the
+   floor**, decided 2026-10-10: `test / Python 3.15`, where coverage.py
+   follows branches through `sys.monitoring`. The other matrix jobs run the
+   suite without measuring, since under the older tracer the test step took
+   up to 112 seconds on 3.12 against 42 to 46 on 3.14, and 30 to 43 without
+   it. Locally coverage added 8 percent to a run on 3.14 and 1 percent on
+   3.15. The job keeps its name, so the floor stays a required check once
+   that name is one, and a line that only an older Python runs no longer
+   counts.
 
    **CodeQL became a job of this repository, decided 2026-11-05.** The
    default setup of code scanning, a setting with no file, ran the security
@@ -257,16 +249,14 @@ Nothing on the API side is outstanding.
    #134 passed, a commit only ever on a pull request branch stopped with
    "No CI run on main", and a wrong workflow name with GitHub's 404.
 5. **Publication of the image**, so that running this server in a container
-   does not require cloning the repository first. The same workflow gained a
-   second job that pushes the image, under the repository's name then and
-   the package's since 0.4.2, see below, for `linux/amd64` and `linux/arm64`,
-   authenticated by the automatic
-   `GITHUB_TOKEN`, which is why the registry is ghcr and not one that needs an
-   account and a stored secret. The two jobs are independent: a broken image
-   does not withhold the upload to PyPI. `workflow_dispatch` runs the image
-   half alone and tags it `edge`, since a release is otherwise the only way to
-   exercise a workflow that triggers on one. Only from `main`: `edge` is
-   public, and the form that starts a manual run offers every branch.
+   does not require cloning the repository first. A second job of
+   `publish.yml` pushes it for `linux/amd64` and `linux/arm64`, authenticated
+   by the automatic `GITHUB_TOKEN`, which is why the registry is ghcr and not
+   one that needs an account and a stored secret. The two jobs are
+   independent: a broken image does not withhold the upload to PyPI. A manual
+   run pushes the image as `edge` and tries PyPI without uploading, see
+   [RELEASING.md](RELEASING.md), and only from `main`: `edge` is public, and
+   the form that starts a manual run offers every branch.
 
    **The metadata has to sit on the index, not only on the manifests.** A
    multi-architecture image is an index pointing at one manifest per
@@ -605,14 +595,11 @@ Nothing on the API side is outstanding.
    The tools and prompts are written by `build.py --sync-manifest`, the two
    generated flags by hand, and a test holds them in place.
 
-**The numbers below no longer mean what they were named for.** They were
-assigned when the work was expected to arrive release by release, and it did
-not: writing, the policy and the configuration interface all landed before the
-first release rather than after it. So 0.1.0 is everything that has been built,
-and the table below records releases only. The tool groups of
-[section 8](concept/tools.md#8-tools) keep the same split but are named
-for what they are — reading, writing and irreversible — because they were never
-a release order and calling them phases suggested they were.
+**The table records releases.** 0.1.0 carried everything built before the
+first release, writing, the policy and the configuration interface among it,
+and the tool groups of [section 8](concept/tools.md#8-tools) are named for
+what they are, reading, writing and irreversible, not for an order of
+arrival.
 
 | Release | Content | State |
 |---|---|---|
@@ -644,13 +631,6 @@ a release order and calling them phases suggested they were.
 | 0.10.1 | The image and the pinned extension on a refreshed lockfile, and the SDK's HTTP client held at `WARNING` by name | **released 2026-11-17** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.0. The image is built with uv 0.13.8 from a lockfile that carries httpx2 and httpcore2 2.16.2, the SDK's HTTP client, and python-multipart 0.0.34, neither on the path of a request to Lexware. The log holds httpx2 and httpcore2 at `WARNING` by name beside httpx and httpcore. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.0's but for its date |
 | 0.10.2 | The image and the pinned extension on uv 0.13.9 and platformdirs 4.14.7 | **released 2026-11-18** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.1. The image is built with uv 0.13.9, which installs the same files as 0.13.8, and the lockfile carries platformdirs 4.14.7, with which the configuration and cache directories resolve to the same paths. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.1's but for its date |
 | 0.10.3 | The design documents in `docs/`, and pydantic 2.14.4 | **released 2026-11-19** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.2, byte for byte with every tool on. The specification moved from one file into `docs/`, split by topic with every section keeping its number, and the README links there. The lockfile carries pydantic 2.14.4 with pydantic-core 2.50.5. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.2's but for its date |
-
-**A number gets assigned when there is content for it, not before.** What
-was once listed as a phase of its own - booking a voucher, and the ZUGFeRD
-and XRechnung download variants - turned out on 2026-08-21 to be one
-operation the API seemed unable to perform and one that `download_document`
-and `download_file` already do through `file_format`. The first of them
-arrived with 0.3.0 after all, for an unchecked voucher.
 
 ## 16.1 Answered: how a user configures the server
 
@@ -704,7 +684,7 @@ and the page marks a setting it would be pointless to type over. The
 interface works for an installed package and for a clone, and names the file
 it is acting on rather than leaving it to be inferred.
 
-## Open questions
+## The open questions, answered
 
 Numbering is stable, so cross-references elsewhere keep pointing at the right
 item. Answered questions stay in place with their answer.

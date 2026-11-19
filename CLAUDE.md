@@ -477,7 +477,8 @@ release.
   commit defeats the point of branching. Once a remote exists, the merge goes
   through a pull request instead and `main` is no longer written directly.
 - **Every CI job has to pass before a merge**, and each one is a required
-  check on `main`, but for `codeql` and `dockerfile-lint`, which report to
+  check on `main`, but for `coverage-badge`, which runs after a push to
+  `main` alone, and `codeql` and `dockerfile-lint`, which report to
   Security, Code scanning, so that a merge does not wait for what they find.
   A job calling a reusable workflow is named after both, as in
   `lint / lint`, `test / Python 3.11` and so on, and a renamed check has to
