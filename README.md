@@ -63,6 +63,7 @@
 - [Logs](#logs)
 - [Example prompts](#example-prompts)
 - [Rate limits](#rate-limits)
+- [Documentation](#documentation)
 - [Development](#development)
 - [License](#license)
 - [Trademarks and affiliation](#trademarks-and-affiliation)
@@ -83,8 +84,9 @@ them for you.
 > Claude Desktop extension or from PyPI, and streamable HTTP behind a bearer
 > token where something else has to reach it - as a published container
 > image, with Compose files for running it and for building it from a
-> checkout. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md)
-> for the full technical specification and the roadmap.
+> checkout. See [the concept](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/CONCEPT.md)
+> for the full technical design, and [the roadmap](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ROADMAP.md)
+> for what each release brought.
 
 ## Why this exists
 
@@ -1292,6 +1294,23 @@ only if you know this server is the only consumer.
 Both limiter values are configurable via `LXO_MCP_RATE` and `LXO_MCP_BURST` if
 your account behaves differently.
 
+## Documentation
+
+The design and the reasons behind it, in the repository:
+
+- [docs/CONCEPT.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/CONCEPT.md): what the server is
+  and does, and a list of every section, each in a file of its own under
+  [docs/concept/](https://github.com/benethos-hub/lexware-office-mcp/tree/main/docs/concept)
+- [docs/ARCHITECTURE.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ARCHITECTURE.md): the
+  layers, every module, and which may import which
+- [docs/LOGGING.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/LOGGING.md): every line the
+  server writes to stderr, and what a line never carries
+- [docs/ROADMAP.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ROADMAP.md): what each release
+  brought, and the open questions
+- [CHANGELOG.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md)
+- [containers/](https://github.com/benethos-hub/lexware-office-mcp/blob/main/containers/README.md): which folder is for
+  what
+
 ## Development
 
 ```bash
@@ -1324,11 +1343,13 @@ It reads your account and writes nothing to it. The server it builds gets the
 `read-only` preset, so the writing tools are not there to be called at all. It
 prints what it checked, what the account had nothing for, and what failed, and
 it masks record ids so the report can be pasted somewhere. `pytest` never runs
-it. See [SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md) section 14.1 for why a live check is not a gate.
+it. See
+[section 14.1](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/concept/testing.md#141-live-checks-are-not-a-gate)
+of the concept for why a live check is not a gate.
 
-Contributions and issues are welcome.
-[SPECS.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/SPECS.md)
-is where design decisions are recorded, with the reasoning and the
+Contributions and issues are welcome. The documents under
+[docs/](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/CONCEPT.md)
+are where design decisions are recorded, with the reasoning and the
 measurements behind them.
 
 ## License

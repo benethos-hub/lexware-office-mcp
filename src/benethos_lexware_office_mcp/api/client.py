@@ -631,9 +631,10 @@ class Health:
 def _found(status: int | None) -> Checked:
     """What one answer says, ``None`` being none at all.
 
-    A 401 is the key refused, see SPECS.md section 12. A 403 is a key the API
-    knows that may not read this path, so it is taken. A 5xx is Lexware not
-    serving, which is no better than no answer for whoever asked.
+    A 401 is the key refused, see docs/concept/errors-and-output.md section 12.
+    A 403 is a key the API knows that may not read this path, so it is taken. A
+    5xx is Lexware not serving, which is no better than no answer for whoever
+    asked.
     """
     if status is None or status >= 500:
         return Checked(token_set=True, reachable=False)

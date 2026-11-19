@@ -365,7 +365,7 @@ async def test_the_api_key_never_appears_in_an_error() -> None:
     assert API_KEY not in str(excinfo.value)
 
 
-# -- retry rules, SPECS section 10.2 --------------------------------------
+# -- retry rules, docs/concept/client.md section 10.2 ------------------------
 
 
 async def test_a_get_is_retried_after_a_server_error() -> None:

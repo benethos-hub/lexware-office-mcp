@@ -1,7 +1,8 @@
 # Working guidelines for Claude
 
 How to work in this repository. Read this before making changes. See
-[SPECS.md](SPECS.md) for what the project is and does.
+[docs/CONCEPT.md](docs/CONCEPT.md) for what the project is and does, and
+[docs/concept/](docs/concept/) for each topic.
 
 ## Golden rules
 
@@ -13,9 +14,9 @@ How to work in this repository. Read this before making changes. See
    in for a decision nobody made. **One exception, and only one:**
    `server_status`, which reads no record and writes nothing, is offered
    whatever the file says, so a model can still say why nothing else is
-   there. See SPECS.md section 9.2. Never call a write tool against an account
-   that has not been explicitly confirmed as a test account — call
-   `get_profile` first and check the organization.
+   there. See docs/concept/permissions.md section 9.2. Never call a write
+   tool against an account that has not been explicitly confirmed as a test
+   account — call `get_profile` first and check the organization.
 2. **Virtual environment only.** Never the global Python or pip. A
    `uv`-created `.venv` counts, so `uv run ...` satisfies this rule. Without
    uv, invoke the project interpreter directly:
@@ -34,9 +35,9 @@ How to work in this repository. Read this before making changes. See
 5. **One rate limiter.** Every request to Lexware passes the single
    `ratelimit.TokenBucket` that `api/connection.py` owns — retries and pagination
    follow-ups included. The upstream limit is global across all endpoints, so a
-   second bucket anywhere is a bug. See SPECS.md section 10.1. A file an upload
-   fetches from a URL comes from another server and takes no token, see
-   section 7.2. **A throwaway
+   second bucket anywhere is a bug. See docs/concept/client.md section 10.1.
+   A file an upload fetches from a URL comes from another server and takes
+   no token, see docs/concept/configuration.md section 7.2. **A throwaway
    probe script is not an exception**: build a `LexwareClient` rather than a
    bare `httpx.AsyncClient`, or the third request comes back 429 and the
    account has been told this key misbehaves.
@@ -65,7 +66,7 @@ How to work in this repository. Read this before making changes. See
 
 ## Project layout
 
-The structure, see SPECS.md section 4 for the full table.
+The structure, see docs/ARCHITECTURE.md for the full table.
 
 ```
 src/benethos_lexware_office_mcp/
@@ -126,6 +127,9 @@ src/benethos_lexware_office_mcp/
     _base.py      # the policy says: the Prompt class and the shared texts
     <name>.py     # one module per prompt: open_items, missing_receipts,
                   # contact_overview
+docs/             # CONCEPT.md, the overview with every section, beside it
+                  # ARCHITECTURE.md, LOGGING.md and ROADMAP.md, and
+                  # concept/, one file per topic
 tests/            # offline, httpx MockTransport - the whole of the gate
   helpers.py      # the client, provider, server and scripted transport every suite builds,
                   # and the served configuration interface with a browser for it
@@ -187,9 +191,9 @@ glama.json        # names the maintainers who may claim the Glama listing
 Keep the layers separate: **tools stay thin** and delegate to `api/`. A new
 endpoint is a method on `api/client.py`, the request mechanics stay in
 `api/connection.py`, and neither lives in a tool function. Which layer may
-import which is a table in `tests/test_layers.py`, see SPECS.md section 4: a
-new module or subpackage needs a row there, and an import against the order
-fails the suite.
+import which is a table in `tests/test_layers.py`, see docs/ARCHITECTURE.md:
+a new module or subpackage needs a row there, and an import against the
+order fails the suite.
 
 ## How to add or change a tool
 
@@ -210,8 +214,8 @@ fails the suite.
    plain `dict`: it is answered as text and as structured content, and no
    output schema is published for it, since the only one the SDK could
    derive says nothing. A tool that answers with content blocks returns a
-   `CallToolResult` and names its model, as the file tools do, see SPECS.md
-   section 8. A new tool or a changed docstring changes the Claude Desktop
+   `CallToolResult` and names its model, as the file tools do, see
+   docs/concept/tools.md section 8. A new tool or a changed docstring changes the Claude Desktop
    manifest too: `uv run python .github/publish/mcpb/build.py
    --sync-manifest` writes it, and `tests/test_mcpb.py` fails until it has.
 4. Give every parameter an `Annotated[type, Field(description=...)]`, use
@@ -222,9 +226,9 @@ fails the suite.
    what it writes cannot be removed through the API: `"app"` when only the
    web app can delete it, `"books"` when it is a bookkeeping record that can
    later be bound by a Festschreibung. Neither says the record is permanent
-   at the moment it is written, see SPECS.md section 9.2. All of it is
-   metadata for whoever writes the policy file, never a permission: the file
-   alone decides. A new tool is **off** until the file
+   at the moment it is written, see docs/concept/permissions.md section 9.2.
+   All of it is metadata for whoever writes the policy file, never a
+   permission: the file alone decides. A new tool is **off** until the file
    names it, so run `--tools` after adding one, or it will not appear.
 
    **The MCP annotations follow from this and are not written per tool.**
@@ -232,7 +236,8 @@ fails the suite.
    `idempotentHint` from what you declare here, so a tool cannot tell the
    policy file one thing and a client another. The exception is a tool that
    answers without reaching the API: add it to `_CLOSED_WORLD` there.
-6. Record its API call cost in the tool table in SPECS.md section 8.
+6. Record its API call cost in the tool table in docs/concept/tools.md
+   section 8.
 7. Add offline tests. Never hit the network in the suite.
 
 Prefer grouping related endpoints behind one tool with an enum parameter over
@@ -258,7 +263,7 @@ with what.
 
 **Leave out:**
 
-- **why** it is built this way. Design reasoning belongs in SPECS.md. A caller
+- **why** it is built this way. Design reasoning belongs in docs/. A caller
   cannot act on it and pays for it every time.
 - behaviour the caller has no choice about. That a download never overwrites
   is true and worth documenting — in the README, not here.
@@ -267,7 +272,7 @@ with what.
 
 **Budget: under 700 characters.** Not a style rule but a ceiling that a
 rewrite into explanation will cross. When one grows past it, the fix is
-usually to move a paragraph into SPECS.md rather than to compress the wording.
+usually to move a paragraph into docs/ rather than to compress the wording.
 
 Nothing enforces this automatically, deliberately: a character count is a poor
 judge of whether a sentence earns its place, and a test would turn the
@@ -288,8 +293,8 @@ against - schemas included, and they are the larger half:
 uv run python -c "import asyncio,json;from benethos_lexware_office_mcp.server import mcp;print(sum(len(json.dumps(t.model_dump(exclude_none=True,by_alias=True),separators=(',',':'),default=str)) for t in asyncio.run(mcp.list_tools())))"
 ```
 
-Section 8 of SPECS.md records the same rule, and carries the last
-measurement of what the whole list costs.
+Section 8, in docs/concept/tools.md, records the same rule, and carries the
+last measurement of what the whole list costs.
 
 ## Verifying
 
@@ -330,7 +335,7 @@ measurement of what the whole list costs.
 HTTP completely and stays green through any change in Lexware's field names or
 response shapes. Verify anything new against the live API with a read-only
 call before building on it, and mark unverified assumptions **(to verify)** in
-SPECS.md rather than stating them as fact.
+docs/ rather than stating them as fact.
 
 **Nor do they cover the SDK changing under the server.** The suite calls
 `MCPServer.call_tool`. A client does not: it speaks JSON-RPC over stdio and is
@@ -346,8 +351,8 @@ on the newest versions the ranges allow and on the published package. When
 `mcp` moves, drive the server the same way by hand as well - send
 `initialize`, `tools/list` and `tools/call` and diff the answers against the
 same run on the old version, since a byte diff sees what no fixed assertion
-asks for. The recipe and what to capture are in SPECS.md section 14.3. The
-2.0.0 to 2.1.1 bump is why it is written down: the tool list came back
+asks for. The recipe and what to capture are in docs/concept/testing.md
+section 14.3. The 2.0.0 to 2.1.1 bump is why it is written down: the tool list came back
 byte-identical while every error message this server sends had silently
 stopped reaching the model.
 
@@ -355,7 +360,7 @@ stopped reaching the model.
 `errors.py` derives from the SDK's `ToolError`, because that type is what
 marks a failure as anticipated and gets its message delivered. Raise a plain
 `Exception` subclass and the model is told only which tool failed. See
-SPECS.md section 12.1.
+docs/concept/errors-and-output.md section 12.1.
 
 **A live check is always a manual run, never a gate.** No key ships with the
 repository and none goes into CI, so anything automated has to pass with no
@@ -371,7 +376,7 @@ uv run python live/smoke.py
 It is read-only, builds its server with the `read-only` preset so a writing
 tool is not there to be called, and reports a check it could not run as
 skipped rather than as passed. Add to it whenever a live measurement is worth
-repeating. See SPECS.md section 14.1.
+repeating. See docs/concept/testing.md section 14.1.
 
 **It asks whether the calls still work, not whether the answers still look the
 same.** Null and empty fields are dropped on the way to the client, so a field
@@ -386,7 +391,8 @@ It writes one timestamped file per run into `live/shapes/`, and comparing
 two of them is a `diff`. Take one before touching anything that depends on a
 response shape, and after any suspicion that the API moved. **A capture holds
 field names and types, never a record** - no id, name, address, amount or
-date, which `tests/test_api_shapes.py` checks. See SPECS.md section 14.2.
+date, which `tests/test_api_shapes.py` checks. See docs/concept/testing.md
+section 14.2.
 
 ## Releasing
 
@@ -415,9 +421,10 @@ fallen behind, so the list is short on purpose. In this order:
    `live/api_shape.py`, and the capture stays as this release's marker.
 3. **The version, in every place that quotes it.** `pyproject.toml`, the
    README's status line, pin example and exact image tag, `LXO_VERSION` in
-   `containers/production/.env.example`, the SPECS status line, the
-   `server_status` example in section 8, a roadmap row and the example start
-   line in section 11.2, the MCP Registry entry in
+   `containers/production/.env.example`, the status line of
+   `docs/CONCEPT.md`, the `server_status` example in
+   `docs/concept/tools.md`, a row in `docs/ROADMAP.md`, the example start
+   line in `docs/LOGGING.md`, the MCP Registry entry in
    `.github/publish/mcp-registry/server.json` (its own version, the PyPI
    package's, the image tag and the bundle's download address), the bundle's
    manifest in `.github/publish/mcpb/manifest.json`, and the changelog
@@ -481,7 +488,7 @@ fallen behind, so the list is short on purpose. In this order:
   behaviour, dependencies, packaging. It is not a work log. Conversations,
   research, decisions that were considered and dropped, and edits to the
   development guidelines do **not** get an entry. Where such a thing matters,
-  it belongs in `SPECS.md` as a design decision or in `README.md` as something
+  it belongs in `docs/` as a design decision or in `README.md` as something
   a user needs to know, and if it belongs in neither it does not belong in the
   repository at all.
 

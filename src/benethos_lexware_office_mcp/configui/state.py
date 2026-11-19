@@ -55,9 +55,10 @@ SETUP_PROMPT_KEY = "LXO_MCP_SETUP_PROMPT"
 # account. See settings/locations.py for the full precedence.
 ENV_SOURCE = "Umgebung"
 CLI_SOURCE = "Aufruf"
-# Nobody named this file: the search of section 7 found it when the process
-# started, and it has been held since. Not a built-in default, which is the
-# name of a file rather than a path to one.
+# Nobody named this file: the search of docs/concept/configuration.md
+# section 7 found it when the process started, and it has been held since.
+# Not a built-in default, which is the name of a file rather than a path to
+# one.
 SEARCH_SOURCE = "Suche"
 FILE_SOURCE = "Datei"
 DEFAULT_SOURCE = "Default"
@@ -77,11 +78,12 @@ class Installation:
 
     def __post_init__(self) -> None:
         # **Pinned once, at start**, exactly as the server pins its own: the
-        # search of section 7 can answer differently the moment a file
-        # appears somewhere, and a process that quietly changed which policy
-        # file it obeys - or edits - is the harder thing to reason about.
-        # Deleting the pinned file therefore disables everything rather than
-        # promoting the next candidate, which is the safer failure.
+        # search of docs/concept/configuration.md section 7 can answer
+        # differently the moment a file appears somewhere, and a process that
+        # quietly changed which policy file it obeys - or edits - is the harder
+        # thing to reason about. Deleting the pinned file therefore disables
+        # everything rather than promoting the next candidate, which is the
+        # safer failure.
         #
         # It also survives `reload`, which resolves only files and the
         # environment and would otherwise lose a path named on the command

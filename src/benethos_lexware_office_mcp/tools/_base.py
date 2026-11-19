@@ -107,9 +107,9 @@ def _annotations(name: str) -> ToolAnnotations | None:
     # `open_world_hint` is only stated where it is *not* what the protocol
     # already assumes, which saves it being repeated on two dozen tools. The
     # three hints below are stated either way: a client that skips a default
-    # would then read "deletes things" as nothing at all, and this list is
-    # sent often enough that the difference was worth measuring - see SPECS.md
-    # section 8.
+    # would then read "deletes things" as nothing at all, and this list is sent
+    # often enough that the difference was worth measuring - see
+    # docs/concept/tools.md section 8.
     if meta.access == "read":
         return ToolAnnotations(
             read_only_hint=True,
@@ -121,7 +121,7 @@ def _annotations(name: str) -> ToolAnnotations | None:
         # has no patch, and a delete removes it - both destroy what was there.
         destructive_hint=meta.effect != "create",
         # A second create makes a second record: the API offers no
-        # idempotency key, measured 2026-08-21, see SPECS.md section 16. A
+        # idempotency key, measured 2026-08-21, see docs/ROADMAP.md section 16. A
         # repeat of an update or a delete leaves the books as they already
         # are - the update spends a version it no longer has and is refused,
         # the delete finds nothing left to remove.
@@ -247,11 +247,11 @@ def as_result(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
     and publishes an output schema for it: ``{"type": "object",
     "additionalProperties": true}`` with a generated title, seventy-odd
     characters that say nothing and are sent with every request, see
-    SPECS.md section 8. The result it builds from the record is kept exactly,
-    the JSON text for a client that reads content and the record itself as
-    the structured half, by making it here with the same serializer, and the
-    tool is registered as unstructured so no schema is published. The file
-    tools build their own result and declare a schema worth sending.
+    docs/concept/tools.md section 8. The result it builds from the record is
+    kept exactly, the JSON text for a client that reads content and the record
+    itself as the structured half, by making it here with the same serializer,
+    and the tool is registered as unstructured so no schema is published. The
+    file tools build their own result and declare a schema worth sending.
     """
 
     @functools.wraps(func)

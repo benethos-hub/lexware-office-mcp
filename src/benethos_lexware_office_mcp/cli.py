@@ -1,11 +1,11 @@
 """The command line: the console script and ``python -m``.
 
-``benethos-lexware-office-mcp`` starts the server over **stdio**, which is
-what Claude Desktop and comparable local clients use, or with ``--transport
+``benethos-lexware-office-mcp`` starts the server over **stdio**, which is what
+Claude Desktop and comparable local clients use, or with ``--transport
 streamable-http`` or ``sse`` over HTTP behind a bearer token that is required
-rather than offered (SPECS.md section 6). The same entry point writes the
-policy file with ``--tools``, prints the settings sample, and serves the
-configuration interface with ``setup``.
+rather than offered (docs/concept/transport.md section 6). The same entry point
+writes the policy file with ``--tools``, prints the settings sample, and serves
+the configuration interface with ``setup``.
 
 Everything a command prints goes to stderr. Under stdio stdout is the
 JSON-RPC stream, and a command that shares an entry point with the server

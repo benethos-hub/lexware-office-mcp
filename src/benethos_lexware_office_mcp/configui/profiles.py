@@ -5,7 +5,7 @@ nothing else, exactly as before. Choosing a profile here fills in the form and
 stops there — the file is written when the person presses save, by the same
 code that writes any other change. Anything else would mean two files with a
 say in what a live accounting system may be asked to do, and section 9.2 of
-SPECS.md has one.
+docs/concept/permissions.md has one.
 
 A profile stores **the names that were on**, not a flag per tool. That makes
 it behave like the policy file it feeds: a name it does not carry is off. A

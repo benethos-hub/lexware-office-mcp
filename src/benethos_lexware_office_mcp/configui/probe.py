@@ -114,7 +114,7 @@ async def _ask(
 
     A bare ``httpx`` call here would sit outside the one token bucket that
     ``api/connection.py`` owns, and the upstream limit is counted per account rather
-    than per program. See SPECS.md section 10.1.
+    than per program. See docs/concept/client.md section 10.1.
     """
     owned = provider is None
     provider = provider or ClientProvider(settings)

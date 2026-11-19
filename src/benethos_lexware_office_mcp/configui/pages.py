@@ -125,7 +125,7 @@ GROUP_LABELS: dict[str, str] = {
 # **Neither of these says "gone forever", and neither says "bound now".**
 # Nothing this API creates is festgeschrieben at the moment it is created: a
 # voucher stays editable, and a sales document is a draft unless the call asks
-# for `finalize`. See SPECS.md section 5.
+# for `finalize`. See docs/concept/upstream-api.md section 5.
 PERMANENCE_LABELS: dict[str, tuple[str, str]] = {
     "app": (
         "nur App",

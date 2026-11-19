@@ -396,8 +396,8 @@ async def test_the_search_offers_no_parameter_that_looks_like_a_text_search() ->
 
 async def test_the_deleting_tool_says_the_api_has_no_way_back() -> None:
     """It says that rather than "cannot be undone": this server speaks for the
-    interface it uses, and the web app is a different question. See SPECS
-    section 5."""
+    interface it uses, and the web app is a different question. See
+    docs/concept/upstream-api.md section 5."""
     handler = Scripted()
     server, provider = server_with(handler)
 

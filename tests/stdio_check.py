@@ -4,7 +4,7 @@ The suite calls ``MCPServer.call_tool`` in-process. A client sends JSON-RPC
 over stdio and is answered by the SDK, which turns a return value into a
 result and an exception into an error result. The suite does not see that
 conversion, and the 2.0.0 to 2.1.1 bump changed it while every test stayed
-green, see SPECS.md section 14.3. This script spawns the server the way a
+green, see docs/concept/testing.md section 14.3. This script spawns the server the way a
 client does, under the interpreter it runs with, against a scratch policy
 file and an empty settings file, and asserts what a client has to receive:
 

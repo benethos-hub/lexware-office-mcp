@@ -3,8 +3,8 @@
 Countries, payment conditions, posting categories and print layouts have
 nothing in common except how they are used: something else needs an id or a
 code from them before it can be written. They are therefore one tool with a
-`kind` rather than four, which is what section 8 of SPECS.md asks for wherever
-endpoints differ only in their path.
+`kind` rather than four, which is what section 8 of docs/concept/tools.md asks
+for wherever endpoints differ only in their path.
 
 Two of the four are long - 257 countries and 231 posting categories in a live
 account - and none of them pages, so the trimming that keeps an answer small

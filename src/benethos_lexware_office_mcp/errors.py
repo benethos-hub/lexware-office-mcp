@@ -192,7 +192,7 @@ class UpstreamError(ToolError):
     """The API failed for a reason the caller cannot act on (HTTP 5xx, network).
 
     Carries ``outcome_unknown`` for the case that matters most here: a write
-    that may or may not have been applied. See SPECS.md section 10.2 — a
+    that may or may not have been applied. See docs/concept/client.md section 10.2 — a
     failed POST is never retried, because a duplicate document cannot be
     undone by the client.
     """

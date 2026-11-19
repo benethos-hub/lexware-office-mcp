@@ -15,7 +15,7 @@ accumulated, then goes out. That is why the local bucket has to be at least as
 strict as the remote one — a request our shaper lets through early is a request
 their policer destroys.
 
-See SPECS.md section 10.1.
+See docs/concept/client.md section 10.1.
 """
 
 from __future__ import annotations

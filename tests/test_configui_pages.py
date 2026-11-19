@@ -570,7 +570,7 @@ def test_the_marks_do_not_claim_a_record_can_never_be_deleted(
 
     An earlier wording said "bleibt dauerhaft" on every one of these, which
     overstated the case the same way the tool descriptions once did - see
-    SPECS.md section 5.
+    docs/concept/upstream-api.md section 5.
     """
     body = text(pages.permissions(inst))
 

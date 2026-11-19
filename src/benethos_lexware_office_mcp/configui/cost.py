@@ -1,7 +1,7 @@
 """What each tool costs in the model's context, measured rather than guessed.
 
 Every enabled tool is sent to the model on **every** request, name, schemas
-and description together. Section 8 of SPECS.md measures the whole list at
+and description together. Section 8 of docs/concept/tools.md measures the whole list at
 around two thousand characters per tool, and the six structured writing tools
 carry half of it. That is the number this interface puts next to the checkbox:
 switching a tool on is a permission decision and a budget decision at the same

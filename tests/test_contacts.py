@@ -4,7 +4,7 @@ The fixtures are shapes a live account actually returned on 2026-08-20, with
 placeholder identifiers: a company and a person contact, the page envelope
 including the ``sort`` block that gets dropped, and the error bodies. The
 write half was exercised against the same account, which is where the merging
-behaviour asserted here comes from. See SPECS.md section 5.
+behaviour asserted here comes from. See docs/concept/upstream-api.md section 5.
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 A client such as Claude Desktop starts this server as its own child and
 speaks JSON-RPC over its stdin and stdout. Nothing else can reach it, so
 none of the guards in :mod:`.http` apply - and stdout carries the stream,
-so nothing but the SDK may write there. See SPECS.md section 6.
+so nothing but the SDK may write there. See docs/concept/transport.md section 6.
 """
 
 from __future__ import annotations

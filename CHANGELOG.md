@@ -9,9 +9,18 @@ Every user-facing change gets an entry under `[Unreleased]` in the same commit
 that makes the change, never in a later cleanup pass. Entries describe what
 changed for someone using this server. Development process and internal
 housekeeping are out of scope here — design decisions live in
-[SPECS.md](SPECS.md).
+[docs/](docs/CONCEPT.md).
 
 ## [Unreleased]
+
+### Changed
+
+- **The specification is in `docs/` now**, split by topic instead of one
+  file of four thousand lines. `docs/CONCEPT.md` is the overview and
+  lists every section, each topic has a file of its own in
+  `docs/concept/`, and the architecture, the log and the roadmap stand
+  beside it. The sections keep their numbers, so "section 9.2" still
+  names the same thing, and the README links to the new places.
 
 ## [0.10.2] - 2026-11-18
 

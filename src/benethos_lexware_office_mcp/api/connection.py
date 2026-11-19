@@ -5,10 +5,10 @@ single shared token bucket, decides what may be retried, and maps every
 upstream status onto a ``ToolError``. The endpoints themselves are
 ``client.LexwareClient``, which is one of these.
 
-The retry rules are the part worth reading twice (SPECS.md section 10.2). A
-duplicate request here can create a second invoice with a consecutive number
-in someone's bookkeeping, which the caller cannot undo. So retrying is decided
-per method **and** per failure mode:
+The retry rules are the part worth reading twice (docs/concept/client.md
+section 10.2). A duplicate request here can create a second invoice with a
+consecutive number in someone's bookkeeping, which the caller cannot undo. So
+retrying is decided per method **and** per failure mode:
 
 ===========================  ======  ============  ======
 Failure                      GET     PUT, DELETE   POST

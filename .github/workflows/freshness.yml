@@ -56,9 +56,9 @@ concurrency:
   group: freshness
 
 jobs:
-  # The suite is offline and needs no key, so it runs as it is. The stdio
-  # check is what the suite cannot see: the SDK's conversion of a result
-  # and an error on the way to the client, see SPECS.md section 14.3.
+  # The suite is offline and needs no key, so it runs as it is. The stdio check
+  # is what the suite cannot see: the SDK's conversion of a result and an error
+  # on the way to the client, see docs/concept/testing.md section 14.3.
   newest:
     name: Newest versions allowed
     runs-on: ubuntu-latest

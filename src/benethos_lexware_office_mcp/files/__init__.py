@@ -2,5 +2,5 @@
 
 The mechanics behind the `files` tools. Storage on disk, publication as an
 MCP resource, rendering a PDF's pages, and the content blocks a download is
-delivered as. See SPECS.md section 13.
+delivered as. See docs/concept/errors-and-output.md section 13.
 """

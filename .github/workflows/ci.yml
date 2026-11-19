@@ -3,10 +3,11 @@ name: CI
 # Everything here has to pass with no API key, no network to Lexware and no
 # account. No key ships with this repository and none goes into CI, so a check
 # that needs one cannot be a gate. The live checks live in live/, outside the
-# directory pytest walks, and are run by hand - see SPECS.md section 14.1.
+# directory pytest walks, and are run by hand - see docs/concept/testing.md
+# section 14.1.
 #
 # Every action is pinned to a commit, its version beside it for the reader
-# and for Dependabot, which raises both. See SPECS.md section 16.
+# and for Dependabot, which raises both. See docs/ROADMAP.md section 16.
 
 on:
   push:
@@ -428,8 +429,8 @@ jobs:
       # environment, and list its tools. The HTTP steps above never go that
       # way. This one sends initialize and tools/list through `docker run -i`
       # without a network, fails on any line on stdout that is not JSON-RPC,
-      # and holds the answer to the rule of SPECS.md section 9.2: with no
-      # policy file, server_status and nothing else.
+      # and holds the answer to the rule of docs/concept/permissions.md
+      # section 9.2: with no policy file, server_status and nothing else.
       - name: Over stdio, with nothing handed to it, it lists its status alone
         run: |
           python3 - <<'PY'

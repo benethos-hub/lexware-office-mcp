@@ -278,7 +278,7 @@ class SalesLineItem(BaseModel):
 # -- links ----------------------------------------------------------------
 
 # Deeplinks reach further than documents do, but not to a stored file:
-# the web app has no page for one. Verified 2026-08-21, see SPECS.md
+# the web app has no page for one. Verified 2026-08-21, see docs/concept/upstream-api.md
 # section 5.
 LinkTarget = Literal[DocumentType, "contact", "voucher"]
 
@@ -334,7 +334,7 @@ class Download(BaseModel):
     # No deeplink. A download reports where the bytes are, and a link into
     # the web app is `get_deeplink`'s answer to a different question. Keeping
     # them apart is what stops one from being wrong about the other, see
-    # SPECS.md section 13.
+    # docs/concept/errors-and-output.md section 13.
 
 
 class Delivered(BaseModel):

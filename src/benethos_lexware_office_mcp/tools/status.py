@@ -1,14 +1,14 @@
 """``server_status``: which server is running, and with details how it is.
 
-The one tool outside the policy file, see SPECS.md section 9.2. It reads no
-record and writes nothing, and with every other tool off it is what a model
-can still ask. So it is listed and callable whatever the file says, it
-never fails, and it writes no line of its own: a status question is not an
-activity worth a line on stderr.
+The one tool outside the policy file, see docs/concept/permissions.md section
+9.2. It reads no record and writes nothing, and with every other tool off it is
+what a model can still ask. So it is listed and callable whatever the file
+says, it never fails, and it writes no line of its own: a status question is
+not an activity worth a line on stderr.
 
 The answer is plain text, one ``key: value`` per line, in an order that
 never changes. A field may be added after the others, never renamed or
-removed, see SPECS.md section 8. The core is answered from memory. With
+removed, see docs/concept/tools.md section 8. The core is answered from memory. With
 ``details`` come two blocks: ``upstream``, whether Lexware answers and takes
 the key, from :class:`..api.client.Health`, and ``policy``, whether the
 policy file was read.

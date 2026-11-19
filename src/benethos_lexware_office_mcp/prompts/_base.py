@@ -9,7 +9,8 @@ docstring the description a client shows, as a tool's do.
 with against the one its extension declares, with every argument written as
 ``${arguments.<name>}``, and drops an answer that differs. So an argument goes
 into the text exactly as it was given, and a text says in words what an empty
-one means rather than choosing another sentence for it. See SPECS.md section 8.
+one means rather than choosing another sentence for it. See
+docs/concept/tools.md section 8.
 """
 
 from __future__ import annotations

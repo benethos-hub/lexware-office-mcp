@@ -3,8 +3,8 @@
 A path is only useful to a client that shares a filesystem with the server.
 Claude Desktop launches the server as a child process and does share one, but
 that is a coincidence of the stdio transport rather than something to build
-on: the HTTP transport of section 6 puts the server on another machine, and
-the path stops meaning anything.
+on: the HTTP transport of docs/concept/transport.md section 6 puts the server
+on another machine, and the path stops meaning anything.
 
 What holds in both cases is that the file is on the **server's** disk and the
 server is the one reading it. MCP has exactly that shape — a resource the

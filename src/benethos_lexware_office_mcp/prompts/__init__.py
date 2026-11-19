@@ -8,7 +8,7 @@ same careful sequence every time. Every recipe reads and none writes.
 A prompt is offered whatever the policy file says. It reaches no data and
 calls nothing, the person picks it and the model is left with the tools the
 file allows, so a recipe whose tool is withheld says so rather than working
-around it. See SPECS.md section 8.
+around it. See docs/concept/tools.md section 8.
 
 Each prompt is a subclass of ``_base.Prompt`` in a module of its own name, as
 each tool sits in the module of its group. The text names tools and fields in

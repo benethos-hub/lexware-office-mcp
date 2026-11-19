@@ -46,7 +46,7 @@ def test_reading_and_writing_are_never_confused(listed: dict[str, Tool]) -> None
 def test_a_create_only_adds_and_is_not_idempotent(listed: dict[str, Tool]) -> None:
     """No idempotency key exists, so a second call makes a second record.
 
-    Measured against the live API on 2026-08-21, see SPECS.md section 16.
+    Measured against the live API on 2026-08-21, see docs/ROADMAP.md section 16.
     """
     creates = [n for n, m in known_tools().items() if m.effect == "create"]
     assert creates, "the fixture would prove nothing without one"

@@ -3,7 +3,7 @@
 **Run by hand. Never a gate, never in CI, never collected by pytest.** It
 lives outside ``testpaths`` for that reason, beside ``smoke.py``, so the
 guarantee is where the file sits rather than in what it is called. See
-SPECS.md section 14.1.
+docs/concept/testing.md section 14.1.
 
     uv run python live/api_shape.py
     uv run python live/api_shape.py --env-file path/to/.env
@@ -17,7 +17,7 @@ that happens.
 
 Each run writes one timestamped file into ``live/shapes/``. Comparing two
 of them is an ordinary ``diff``, which is the whole point: the alternative is
-reading dated prose in SPECS.md section 5 and hoping to notice.
+reading dated prose in docs/concept/upstream-api.md section 5 and hoping to notice.
 
 **What a file may contain, and what it may not.** Field names, their JSON
 types, and - for a short list of fields whose *vocabulary* is the thing that
@@ -50,7 +50,7 @@ SHAPES = HERE / "shapes"
 # Fields whose set of allowed values is worth recording, because a changed
 # vocabulary is drift that a type alone cannot show - which is how
 # `voucherStatus: unchecked` stopped being accepted between two Thursdays,
-# see SPECS.md section 5.
+# see docs/concept/upstream-api.md section 5.
 #
 # Every entry here is a closed set the API defines. Free text a person typed
 # is deliberately absent: `unitName`, `title`, `note` and `remark` are all
@@ -160,8 +160,8 @@ DOCUMENT_PATHS = {
 MASTER_DATA = ("countries", "payment-conditions", "posting-categories", "print-layouts")
 
 # A bookkeeping voucher, as opposed to a sales document. The two live at
-# different paths and only the second has a rendered file, see SPECS.md
-# section 5.
+# different paths and only the second has a rendered file, see
+# docs/concept/upstream-api.md section 5.
 BOOKKEEPING = {
     "salesinvoice",
     "purchaseinvoice",
