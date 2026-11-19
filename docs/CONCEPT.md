@@ -15,7 +15,7 @@
 
 This file is the overview: what the project is, what is in scope, its
 names and its conventions. Each topic has a file of its own in
-[concept/](concept/), and three that stand on their own sit beside this
+[concept/](concept/), and four that stand on their own sit beside this
 one. The sections keep their numbers: "section 9.2" in the code or in
 another document names section 9.2, and the list below leads to it.
 
@@ -37,7 +37,8 @@ another document names section 9.2, and the list below leads to it.
 | [Logging](LOGGING.md) | 11.2 | Every line on stderr: levels, the catalogue, what a line may never carry. |
 | [Roadmap](ROADMAP.md) | 16 | What exists, release by release, how a user configures the server, and the open questions. |
 
-Sections 1 to 3 and 15 follow below.
+Sections 1 to 3 and 15 follow below. How a release is made is in
+[RELEASING.md](RELEASING.md).
 
 ## Every section
 

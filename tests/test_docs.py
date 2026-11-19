@@ -5,7 +5,7 @@ its parts in a folder of the same name in lowercase beside it: `concept/`.
 The sections keep their numbers across the files, so a reference such as
 "section 9.2" is a link to the file that holds it. Rename a heading or move
 a section and such a link still renders, it just lands nowhere. See
-CLAUDE.md, "Documentation".
+CLAUDE.md, "Conventions".
 """
 
 from __future__ import annotations

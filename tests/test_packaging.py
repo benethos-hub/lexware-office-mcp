@@ -76,7 +76,7 @@ MINOR_LINE_EXAMPLES = (
     ("README.md", r"`:(\d+\.\d+)`"),
     ("containers/production/.env.example", r"`(\d+\.\d+)`"),
     # The release list names it as the one to move with a minor release.
-    ("CLAUDE.md", r"`:(\d+\.\d+)`"),
+    ("docs/RELEASING.md", r"`:(\d+\.\d+)`"),
 )
 
 

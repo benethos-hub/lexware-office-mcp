@@ -1307,6 +1307,8 @@ The design and the reasons behind it, in the repository:
   server writes to stderr, and what a line never carries
 - [docs/ROADMAP.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/ROADMAP.md): what each release
   brought, and the open questions
+- [docs/RELEASING.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/docs/RELEASING.md): the steps
+  of a release
 - [CHANGELOG.md](https://github.com/benethos-hub/lexware-office-mcp/blob/main/CHANGELOG.md)
 - [containers/](https://github.com/benethos-hub/lexware-office-mcp/blob/main/containers/README.md): which folder is for
   what
