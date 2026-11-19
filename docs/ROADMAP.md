@@ -6,9 +6,8 @@ Section 16 of the [concept](CONCEPT.md).
 
 Built, tested offline and exercised against a live test account:
 
-- **every module in the table of [section 4](ARCHITECTURE.md).** None is marked
-  planned any more. The table is the list, so that this does not become a
-  second one to keep in step.
+- **every module in the table of [section 4](ARCHITECTURE.md)**, which is the
+  list, so that this does not become a second one to keep in step
 - twenty-six tools, twenty-five of them in seven groups, over **stdio**
   and, since 0.2.0, over **streamable-HTTP** or **SSE** behind a required
   bearer token. Reading:
@@ -200,11 +199,6 @@ Nothing on the API side is outstanding.
    `tests/test_packaging.py` holds the pattern to every Dockerfile, the
    registries to every `FROM` line and the one permission.
 
-   **The first run earned its keep**: green on 3.11 to 3.13 and red on 3.14,
-   where a parameter description had silently disappeared from a tool schema.
-   See [section 6](concept/transport.md#6-transport-and-runtime) for what
-   changed in Python and why the workaround it broke was there.
-
    **A new job is not required by itself.** The jobs that block a merge are
    listed in the branch protection, all eleven since 2026-10-19:
    `lint / lint`, `test / Python 3.11` to `test / Python 3.15`,
@@ -218,8 +212,8 @@ Nothing on the API side is outstanding.
    never reported until then.
 3. ~~**`config/.env.sample` inside the wheel.**~~ **Done 2026-08-22.** The
    sample moved into the package as `env.sample`, so it is installed with the
-   code instead of sitting beside it, and `--settings-sample` prints it.
-   Building the wheel now finds it among thirty-nine files. See section 16.1.
+   code instead of sitting beside it, and `--settings-sample` prints it, see
+   [section 16.1](#161-answered-how-a-user-configures-the-server).
 4. ~~**Publication to PyPI**~~, which is what makes the installation
    instructions in the README true for someone who has not cloned the
    repository.
@@ -227,14 +221,13 @@ Nothing on the API side is outstanding.
    Trusted Publishing, so no token is stored here. It needs a pending
    publisher on PyPI first, for `publish.yml` and the environment
    `pypi-benethos-lexware-office-mcp`.
-   **The release itself:** a `release/X.Y.Z` branch that moves the CHANGELOG
-   `[Unreleased]` section to a numbered one with its compare links, bumps the
-   version pin in the README's client example, and brings the installation
-   instructions in line, then a tag and a GitHub release on the merged commit,
-   which is what triggers the upload. **Every job first checks that the tag
-   is the version in its file**: a tag ahead of the version has PyPI refuse
-   the upload, and without the check the image job would still push the
-   tag's version, its minor line and `latest` with the old code.
+   **The release itself** is a `release/X.Y.Z` branch and pull request, then
+   a tag and a GitHub release on the merged commit, which is what triggers
+   the upload, step by step in [RELEASING.md](RELEASING.md). **Every job
+   first checks that the tag is the version in its file**: a tag ahead of
+   the version has PyPI refuse the upload, and without the check the image
+   job would still push the tag's version, its minor line and `latest` with
+   the old code.
    **Since 2026-10-19 every upload is an action of the organisation**,
    `publish/pypi`, `publish/ghcr`, `publish/mcpb` and
    `publish/mcp-registry` in `benethos-hub/.github`, followed at `main`
@@ -301,29 +294,11 @@ Nothing on the API side is outstanding.
    `ghcr.io/benethos-hub/benethos-lexware-office-mcp`, the name on PyPI,
    where it had carried the repository's. The publishing environment is
    named the same way, `pypi-benethos-lexware-office-mcp`, so the badge,
-   the deployment and the package name one thing. For 0.4.2 the job
-   pushed under both names, the package's first, so a pull of `:0.4` or
-   `:latest` under the old one kept getting releases. The old name got
-   the 0.4 patch releases and stopped with 0.5.0, as the changelog had
-   announced, and since then the job pushes under the package's name
-   alone. The documentation and the Compose files moved to the new
-   name once 0.4.2 had created the package, since until then nothing
-   could be pulled under it.
-
-   **The releases before it were copied over**, the same day, 0.2.0 to
-   0.4.1 with their minor lines, index by index with the same digest, so
-   no tag means different bytes under the two names and nothing was
-   rebuilt. `edge` was not copied, it is no release. Copying left one
-   referrer tag per architecture and release, `sha256-…`, standing in for
-   the attestations, since ghcr has no referrers API: they were deleted,
-   with the check that no release index lists them. 0.4.2 was then deleted
-   under the new name and copied back at once with the same digest, because
-   the package page calls the most recently created version the latest, and
-   that had become 0.4.1. Rebuilding 0.4.2 instead would have changed its
-   digest after the release. Verified anonymously afterwards: thirteen
-   tags, each with the digest the old name has, every child manifest
-   there, nothing else in the package, and 0.2.0 and 0.4.2 pulled and
-   started.
+   the deployment and the package name one thing. The releases before it,
+   0.2.0 to 0.4.1, were copied under the new name with their digests, so
+   no tag means different bytes under the two names, and the old name
+   received the 0.4 patch releases and stopped with 0.5.0, as the
+   changelog had announced.
 6. **The workflow actions are pinned to a commit**, decided 2026-09-30 after
    a review, reversing the major tags of 2026-08-23:
    `actions/checkout@3d3c42e… # v7.0.1`. A tag is a pointer its publisher
