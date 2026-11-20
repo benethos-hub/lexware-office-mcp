@@ -53,7 +53,7 @@ Built, tested offline and exercised against a live test account:
   offered whatever the policy file says, with both extensions leaving their
   tools and prompts to the server, see [section 8](concept/tools.md#8-tools)
 - **a container image and two Compose folders**, two stages, non-root,
-  180 MB on 2026-11-19, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-20, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -365,10 +365,11 @@ Nothing on the API side is outstanding.
    direct packages, the actions, the base images and a new line of the
    compose images. The report adds the packages beneath them, the versions a
    range does not allow yet, and a rebuild of a base image under the same
-   tag, which is the cue for a patch release. Nothing is written to the repository, the upgrade of the lockfile
-   is a dry run inside the runner, and the issue closes when there is nothing
-   to report. A job that fails is a line in it, so a run that proved nothing
-   never closes it. It is no required check, and a pull request never runs it.
+   tag, which is the cue for a patch release. Nothing is written to the
+   repository, the upgrade of the lockfile is a dry run inside the runner,
+   and the issue closes when there is nothing to report. A job that fails is
+   a line in it, so a run that proved nothing never closes it. It is no
+   required check, and a pull request never runs it.
    Its first run the same evening opened the issue with platformdirs 4.14.5, a
    patch within the range. **The same run asks a second question**, since the
    same evening: whether the newest versions the ranges allow still work, which
@@ -637,6 +638,7 @@ arrival.
 | 0.10.1 | The image and the pinned extension on a refreshed lockfile, and the SDK's HTTP client held at `WARNING` by name | **released 2026-11-17** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.0. The image is built with uv 0.13.8 from a lockfile that carries httpx2 and httpcore2 2.16.2, the SDK's HTTP client, and python-multipart 0.0.34, neither on the path of a request to Lexware. The log holds httpx2 and httpcore2 at `WARNING` by name beside httpx and httpcore. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.0's but for its date |
 | 0.10.2 | The image and the pinned extension on uv 0.13.9 and platformdirs 4.14.7 | **released 2026-11-18** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.1. The image is built with uv 0.13.9, which installs the same files as 0.13.8, and the lockfile carries platformdirs 4.14.7, with which the configuration and cache directories resolve to the same paths. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.1's but for its date |
 | 0.10.3 | The design documents in `docs/`, and pydantic 2.14.4 | **released 2026-11-19** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.2, byte for byte with every tool on. The specification moved from one file into `docs/`, split by topic with every section keeping its number, and the README links there. The lockfile carries pydantic 2.14.4 with pydantic-core 2.50.5. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.2's but for its date |
+| 0.10.4 | The image and the pinned extension on platformdirs 4.14.8 | **released 2026-11-20** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.3, and no file of the package moved. The lockfile carries platformdirs 4.14.8, with which the configuration and cache directories resolve to the same paths as with 4.14.7, on Windows and in the image. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.3's but for its date |
 
 ## 16.1 Answered: how a user configures the server
 
