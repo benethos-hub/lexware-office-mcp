@@ -13,6 +13,15 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **platformdirs 4.14.8 in the lockfile** for the image and the pinned
+  extension, instead of 4.14.7. It checks the parents of the directories
+  it creates on Unix and ignores a Windows folder override that names no
+  server or share. The configuration and cache directories this server
+  uses resolve to the same paths as before, on Windows and in the image.
+  An installation from the index resolves this version already.
+
 ## [0.10.3] - 2026-11-19
 
 A patch release for the documentation and the container image.
