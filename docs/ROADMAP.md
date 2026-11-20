@@ -53,7 +53,7 @@ Built, tested offline and exercised against a live test account:
   offered whatever the policy file says, with both extensions leaving their
   tools and prompts to the server, see [section 8](concept/tools.md#8-tools)
 - **a container image and two Compose folders**, two stages, non-root,
-  180 MB on 2026-11-19, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-20, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -365,10 +365,11 @@ Nothing on the API side is outstanding.
    direct packages, the actions, the base images and a new line of the
    compose images. The report adds the packages beneath them, the versions a
    range does not allow yet, and a rebuild of a base image under the same
-   tag, which is the cue for a patch release. Nothing is written to the repository, the upgrade of the lockfile
-   is a dry run inside the runner, and the issue closes when there is nothing
-   to report. A job that fails is a line in it, so a run that proved nothing
-   never closes it. It is no required check, and a pull request never runs it.
+   tag, which is the cue for a patch release. Nothing is written to the
+   repository, the upgrade of the lockfile is a dry run inside the runner,
+   and the issue closes when there is nothing to report. A job that fails is
+   a line in it, so a run that proved nothing never closes it. It is no
+   required check, and a pull request never runs it.
    Its first run the same evening opened the issue with platformdirs 4.14.5, a
    patch within the range. **The same run asks a second question**, since the
    same evening: whether the newest versions the ranges allow still work, which
