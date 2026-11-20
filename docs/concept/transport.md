@@ -186,7 +186,9 @@ Part of the [concept](../CONCEPT.md): section 6.
   to `internal`, whose root each client trusts once, and which the volume
   `caddy-data` keeps so a restart is no new root. `files` takes one of the
   operator's, `acme` a public CA's. The image is `caddy:2`, the major line
-  unpinned, so a `pull` brings Caddy's security fixes.
+  unpinned, so a `pull` brings Caddy's security fixes. Dependabot watches
+  the compose file and proposes the tag of the next line when one comes
+  out, decided 2026-11-20.
 
   **A public address is not what this is for**, and the README says so.
   One static bearer token is all the server knows of who is asking, it has

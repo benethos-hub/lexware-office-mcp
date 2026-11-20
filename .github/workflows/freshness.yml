@@ -12,10 +12,10 @@ name: Freshness
 #   Dockerfile by digest and by tag, every image of the compose files with
 #   a digit in its tag, every action pinned to a commit, and under Checks
 #   one sentence per job below on what passed. Dependabot proposes the
-#   direct dependencies, the actions and the images of the Dockerfile. The
-#   issue adds the packages beneath them, the versions beyond a range, the
-#   rebuilds of a base image under the same tag and the one place to see
-#   all of it.
+#   direct dependencies, the actions, the images of the Dockerfile and a
+#   new line of the compose images. The issue adds the packages beneath
+#   them, the versions beyond a range, the rebuilds of a base image under
+#   the same tag and the one place to see all of it.
 #
 #   "Newest dependency versions break the server", this repository's
 #   question. uvx without a pin and pip install resolve the newest versions

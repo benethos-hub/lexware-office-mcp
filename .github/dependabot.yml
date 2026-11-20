@@ -14,7 +14,7 @@ updates:
   # Left to itself Dependabot takes this project for a library, since its
   # description matches PyPI, and widens to a range over two minors, which is
   # no patch window any more. The option exists for this ecosystem alone
-  # among the three here.
+  # among the ones here.
   - package-ecosystem: "uv"
     directory: "/"
     versioning-strategy: "increase-if-necessary"
@@ -57,6 +57,23 @@ updates:
   # patch to them arrives.
   - package-ecosystem: "docker"
     directory: "/containers/images/lexware-office-mcp"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The images of the compose files. caddy:2 in the production file names
+  # its major line without a digest, so a pull brings each fix within the
+  # line, also to an operator who runs the compose file. Dependabot raises
+  # the tag when a new line comes out, such as caddy 3. The server's own
+  # image is named through LXO_VERSION and the development file builds it
+  # here, so neither is anything Dependabot can raise.
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/containers/production"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
