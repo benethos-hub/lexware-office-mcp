@@ -162,7 +162,8 @@ services:
     profiles: ["https"]
     # The major line, so `docker compose pull` brings Caddy's security fixes
     # without anyone editing this file. Caddy keeps its configuration
-    # compatible within a major version.
+    # compatible within a major version. Dependabot proposes the next line
+    # when one comes out.
     image: caddy:2
     container_name: benethos-lexware-office-mcp-caddy
     # Compose cannot require the domain for one profile only, `:?` would stop

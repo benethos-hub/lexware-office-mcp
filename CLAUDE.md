@@ -156,7 +156,8 @@ containers/       # README.md says which folder is for what
   production/     # the published image at the version .env names, no clone needed
   development/    # built from this checkout, a project, ports and volumes of its own
 .github/
-  dependabot.yml  # the declared ranges, the pinned actions and the pinned images
+  dependabot.yml  # the declared ranges, the pinned actions, the pinned images
+                  # and the line of each compose image
   publish/
     mcp-registry/
       server.json # the MCP Registry entry, sent by publish.yml at a release

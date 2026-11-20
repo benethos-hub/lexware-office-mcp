@@ -844,6 +844,28 @@ def test_production_runs_the_published_image_at_the_named_version() -> None:
     assert all("build:" not in block for block in services.values())
 
 
+def test_dependabot_reads_every_compose_file_with_an_image_it_can_raise() -> None:
+    """A tag without a digest brings each fix within its line by a pull, and
+    nobody hears of the next line unless Dependabot reads the file.
+
+    An image built here or named through a variable is nothing it can raise,
+    so a folder holding only those is not listed.
+    """
+    dependabot = (REPO / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    entry = dependabot.split('package-ecosystem: "docker-compose"', 1)[1]
+    entry = entry.split("package-ecosystem", 1)[0]
+    listed = set(re.findall(r'^\s+- "(/[^"]*)"$', entry, re.MULTILINE))
+
+    raisable = set()
+    for compose in COMPOSE_FILES:
+        for block in _services(compose).values():
+            image = re.search(r"^\s+image: (\S+)$", block, re.MULTILINE)
+            if image and "build:" not in block and "${" not in image[1]:
+                raisable.add("/" + compose.parent.relative_to(REPO).as_posix())
+
+    assert listed == raisable == {"/containers/production"}
+
+
 def test_development_builds_the_image_from_this_checkout() -> None:
     services = _services(COMPOSE_FILES[0])
     dockerfile = DOCKERFILE.relative_to(REPO).as_posix()
