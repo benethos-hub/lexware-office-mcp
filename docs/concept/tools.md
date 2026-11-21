@@ -126,7 +126,7 @@ many seconds ago, never a date. The core, always, answered from memory:
 
 ```
 name: benethos-lexware-office-mcp
-version: 0.10.4
+version: 0.10.5
 transport: stdio
 python: 3.15.2
 mcp: 2.3.0
