@@ -13,6 +13,16 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **certifi 2026.11.20 in the lockfile** for the image and the pinned
+  extension, instead of 2026.10.23. Its bundle drops five root
+  certificates and adds none: Buypass Class 2 and Class 3, Certigna, and
+  QuoVadis Root CA 1 G3 and 3 G3. Lexware's API chains to a root that
+  stays. An upload fetched from a URL `LXO_MCP_UPLOAD_URLS` allows is
+  refused when that server's chain ends at one of the five. An
+  installation from the index resolves this version already.
+
 ## [0.10.4] - 2026-11-20
 
 A patch release for the container image and the pinned extension.
