@@ -13,6 +13,13 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-11-21
+
+A patch release for the container image and the pinned extension.
+The tool list is that of 0.10.4. The lockfile carries certifi
+2026.11.20, whose bundle trusts five root certificates fewer. An
+installation from the index resolved it already.
+
 ### Changed
 
 - **certifi 2026.11.20 in the lockfile** for the image and the pinned
@@ -2012,7 +2019,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.4...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.5...HEAD
+[0.10.5]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.1...v0.10.2
