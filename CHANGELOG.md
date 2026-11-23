@@ -13,6 +13,17 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **sse-starlette 3.7.1 in the lockfile** for the image and the pinned
+  extension, instead of 3.7.0. Over HTTP, a client holding an event
+  stream open while the server stops now sees the stream end cleanly,
+  where it used to see the connection cut mid-response and the server
+  logged `ASGI callable returned without completing response`. A
+  container stopped with `docker stop` is the usual case. Over stdio
+  nothing changes. An installation from the index resolves this version
+  already.
+
 ## [0.10.5] - 2026-11-21
 
 A patch release for the container image and the pinned extension.
