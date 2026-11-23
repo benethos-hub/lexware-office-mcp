@@ -109,7 +109,8 @@ src/benethos_lexware_office_mcp/
   policy.py       # the tool policy file, and what a tool declares itself to be
   transport/      # how a client reaches the server
     stdio.py      # the default: the client owns the process
-    http.py       # the bearer guard, a generated token, the host allowlist
+    http.py       # the bearer guard, a generated token, the host allowlist,
+                  # and one answer per request around the SSE app
     setup_prompt.py # over stdio, a prompt that starts `setup` for the person
     watch.py      # ending the process when its settings file changes
   configui/       # the local configuration interface, `setup` serves it:
