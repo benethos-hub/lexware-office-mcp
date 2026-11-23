@@ -1,6 +1,6 @@
 # Concept of the unofficial Lexware Office MCP server
 
-> **Status: 0.10.5.** Every tool of [section 8](concept/tools.md#8-tools)
+> **Status: 0.10.6.** Every tool of [section 8](concept/tools.md#8-tools)
 > is built, tested and exercised against a live account, and so is every module
 > of [section 4](ARCHITECTURE.md), including the HTTP transport of
 > [section 6](concept/transport.md#6-transport-and-runtime) and the
