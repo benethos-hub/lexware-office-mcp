@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import anyio
 import pytest
 
 from benethos_lexware_office_mcp import cli
@@ -151,6 +152,109 @@ async def test_no_other_scope_gets_past_the_guard(kind: str) -> None:
     assert scope["reached"] == []
     if kind == "websocket":
         assert sent == [{"type": "websocket.close", "code": 1008}]
+
+
+async def _answered(*messages: dict[str, Any]) -> list[dict[str, Any]]:
+    """What reaches the server when an app sends ``messages`` behind
+    ``single_response``."""
+    sent: list[dict[str, Any]] = []
+
+    async def inner(scope: Any, receive: Any, send: Any) -> None:
+        for message in messages:
+            await send(message)
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    await transport.single_response(inner)({"type": "http"}, None, send)
+    return sent
+
+
+START = {"type": "http.response.start", "status": 200, "headers": []}
+
+
+async def test_an_answer_after_a_complete_one_is_dropped() -> None:
+    first = {"type": "http.response.body", "body": b"first"}
+
+    sent = await _answered(START, first, START, {"type": "http.response.body"})
+
+    assert sent == [START, first]
+
+
+async def test_a_second_start_before_any_body_is_dropped() -> None:
+    body = {"type": "http.response.body", "body": b"once"}
+
+    assert await _answered(START, START, body) == [START, body]
+
+
+async def test_a_streamed_answer_passes_whole() -> None:
+    parts = [
+        {"type": "http.response.body", "body": b"a", "more_body": True},
+        {"type": "http.response.body", "body": b"b", "more_body": True},
+        {"type": "http.response.body", "body": b"", "more_body": False},
+    ]
+
+    assert await _answered(START, *parts) == [START, *parts]
+
+
+async def test_a_scope_other_than_http_passes_the_answer_guard_untouched() -> None:
+    sent: list[dict[str, Any]] = []
+    messages = [{"type": "lifespan.startup.complete"}] * 2
+
+    async def inner(scope: Any, receive: Any, send: Any) -> None:
+        for message in messages:
+            await send(message)
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    await transport.single_response(inner)({"type": "lifespan"}, None, send)
+
+    assert sent == messages
+
+
+async def test_over_sse_an_ended_stream_is_answered_once() -> None:
+    """The SDK's SSE endpoint answers again once its stream has ended, and
+    uvicorn logs that as a traceback. Here the client goes away after the
+    first event, which ends the stream the same way a shutdown does."""
+    settings = Settings(api_key="k", transport="sse", bearer_token=TOKEN)
+    app = transport.http_app(build_server(settings), settings)
+    sent: list[dict[str, Any]] = []
+    first_event = anyio.Event()
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+        if message["type"] == "http.response.body" and message.get("body"):
+            first_event.set()
+
+    async def receive() -> dict[str, Any]:
+        await first_event.wait()
+        return {"type": "http.disconnect"}
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": settings.http_path,
+        "raw_path": settings.http_path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "scheme": "http",
+        "server": ("127.0.0.1", 8770),
+        "client": ("127.0.0.1", 50000),
+        "headers": [
+            (b"host", b"127.0.0.1:8770"),
+            (b"authorization", f"Bearer {TOKEN}".encode()),
+            (b"accept", b"text/event-stream"),
+        ],
+        "http_version": "1.1",
+    }
+    with anyio.fail_after(5):
+        await app(scope, receive, send)
+
+    starts = [m for m in sent if m["type"] == "http.response.start"]
+    assert len(starts) == 1
+    assert sent[-1]["type"] == "http.response.body"
+    assert not sent[-1].get("more_body", False)
 
 
 def test_the_allowlist_keeps_the_loopback_entries() -> None:
