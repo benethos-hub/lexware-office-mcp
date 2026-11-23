@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-11-23
+
+A patch release for the HTTP transports. The tool list is that of
+0.10.5. Over `--transport sse`, stopping the server no longer
+leaves a traceback in the log, and the lockfile carries
+sse-starlette 3.7.1, which ends an open event stream cleanly when
+the server stops. Over stdio nothing changes.
+
 ### Changed
 
 - **sse-starlette 3.7.1 in the lockfile** for the image and the pinned
@@ -2038,7 +2046,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.5...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.6...HEAD
+[0.10.6]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.2...v0.10.3
