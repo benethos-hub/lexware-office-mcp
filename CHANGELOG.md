@@ -24,6 +24,14 @@ housekeeping are out of scope here — design decisions live in
   nothing changes. An installation from the index resolves this version
   already.
 
+### Fixed
+
+- **Over `--transport sse`, stopping the server no longer leaves a
+  traceback in the log** for each open stream. The SDK's SSE endpoint
+  answered once more after its stream had ended, which uvicorn logged as
+  a `RuntimeError`. The second answer is now dropped before it reaches
+  uvicorn. Clients were not affected and see no change.
+
 ## [0.10.5] - 2026-11-21
 
 A patch release for the container image and the pinned extension.

@@ -20,6 +20,9 @@ local access.
 Neither guard makes the port safe to publish on a network. They make it
 survivable on a machine shared with other processes, which is what a
 container on a loopback-published port is.
+
+Around the SSE app alone sits one more wrapper, which is no guard:
+``single_response`` keeps the SDK's endpoint from answering a request twice.
 """
 
 from __future__ import annotations
@@ -39,12 +42,13 @@ from .watch import Snapshot, watch_for_change
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from mcp.server.mcpserver import MCPServer
-    from starlette.types import ASGIApp, Receive, Scope, Send
+    from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 __all__ = [
     "bearer_middleware",
     "bearer_ready",
     "run_http",
+    "single_response",
     "transport_security",
     "uvicorn_config",
 ]
@@ -111,6 +115,47 @@ async def _unauthorized(send: Send) -> None:
     await send({"type": "http.response.body", "body": b'{"error":"unauthorized"}'})
 
 
+def single_response(app: ASGIApp) -> ASGIApp:
+    """Wrap an ASGI app so each request is answered once and only once.
+
+    The SDK's SSE endpoint returns a ``Response()`` once its stream has
+    ended, and Starlette sends it as a second answer to the same request.
+    uvicorn refuses that with a ``RuntimeError`` and logs its traceback,
+    every time the server ends an open stream, on Ctrl+C, ``docker stop``
+    or a restart after the settings changed. The client has its answer by
+    then and is not affected.
+
+    So whatever arrives after the answer is complete is dropped, and so is a
+    second start. Every other scope passes through untouched. Upstream this
+    is https://github.com/modelcontextprotocol/python-sdk/issues/883, and
+    this goes once the SSE endpoint stops answering twice.
+    """
+
+    async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await app(scope, receive, send)
+            return
+        started = finished = False
+
+        async def send_once(message: Message) -> None:
+            nonlocal started, finished
+            if finished:
+                return
+            if message["type"] == "http.response.start":
+                if started:
+                    return
+                started = True
+            elif message["type"] == "http.response.body" and not message.get(
+                "more_body", False
+            ):
+                finished = True
+            await send(message)
+
+        await app(scope, receive, send_once)
+
+    return guarded
+
+
 def transport_security(allowed_hosts: tuple[str, ...]) -> Any:
     """The DNS-rebinding policy: the loopback defaults plus what was named."""
     from mcp.server.transport_security import TransportSecuritySettings
@@ -173,10 +218,12 @@ def http_app(server: MCPServer, settings: Settings) -> ASGIApp:
 
     security = transport_security(settings.allowed_hosts)
     if settings.transport == "sse":
-        app = server.sse_app(
-            sse_path=settings.http_path,
-            transport_security=security,
-            host=settings.http_host,
+        app = single_response(
+            server.sse_app(
+                sse_path=settings.http_path,
+                transport_security=security,
+                host=settings.http_host,
+            )
         )
     else:
         app = server.streamable_http_app(

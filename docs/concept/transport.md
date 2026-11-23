@@ -99,11 +99,21 @@ Part of the [concept](../CONCEPT.md): section 6.
   without it the process still ran 40 seconds after the change, with it
   the process ended after 8.8, the poll and the grace period.
 
-  **Every SSE stream that ends this way leaves a traceback** in the log,
-  `RuntimeError: Expected ASGI message 'http.response.body', but got
-  'http.response.start'`, raised by Starlette when the SDK's SSE endpoint
-  answers once more after its stream. It is the SDK's and changes nothing
-  for the client, which reconnects either way.
+  **An SSE stream the server ends is answered once**, since 2026-11-23.
+  The SDK's SSE endpoint returns a `Response()` once its stream has
+  ended, and Starlette sends it as a second answer to the same request.
+  uvicorn refused that with a traceback in the log, `RuntimeError:
+  Expected ASGI message 'http.response.body', but got
+  'http.response.start'`, and from sse-starlette 3.7.1 on `Unexpected
+  ASGI message 'http.response.start' sent, after response already
+  completed`. Measured: it came whenever the server ended an open stream,
+  and not when the client closed it. `single_response` in
+  `transport/http.py` sits around the SSE app alone and drops whatever
+  arrives after the answer is complete, and a second start. Streamable
+  HTTP never answered twice and is left without it. Upstream this is
+  [python-sdk issue 883](https://github.com/modelcontextprotocol/python-sdk/issues/883),
+  open since 2025-06-04, and the wrapper goes once the endpoint stops
+  answering twice.
 - **stdio is sacred.** stdout carries the JSON-RPC stream. Library and server
   code never `print()` to stdout, all logging goes to stderr through the one
   handler `logbook.configure` installs, uvicorn's included.
