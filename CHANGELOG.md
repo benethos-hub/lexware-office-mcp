@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Changed
+
+- **The image's base rebuilt**, `python:3.15-slim` on a new digest with
+  Debian 13.8. glibc and zlib come with security fixes, OpenSSL moves
+  to 3.5.9, and Python stays at 3.15.2.
+
 ## [0.10.6] - 2026-11-23
 
 A patch release for the HTTP transports. The tool list is that of
