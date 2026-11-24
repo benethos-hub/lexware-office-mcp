@@ -53,7 +53,7 @@ Built, tested offline and exercised against a live test account:
   offered whatever the policy file says, with both extensions leaving their
   tools and prompts to the server, see [section 8](concept/tools.md#8-tools)
 - **a container image and two Compose folders**, two stages, non-root,
-  180 MB on 2026-11-23, on Python 3.15.2. The server on a loopback-published
+  180 MB on 2026-11-24, on Python 3.15.2. The server on a loopback-published
   port and the configuration interface behind a `setup` profile on the same
   volume. A bearer token made on first start rather than baked in, and a
   process that ends when its settings file changes so the new ones take
@@ -641,6 +641,7 @@ arrival.
 | 0.10.4 | The image and the pinned extension on platformdirs 4.14.8 | **released 2026-11-20** - a patch, because nothing a client receives changed: the tool list and every answer are those of 0.10.3, and no file of the package moved. The lockfile carries platformdirs 4.14.8, with which the configuration and cache directories resolve to the same paths as with 4.14.7, on Windows and in the image. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.3's but for its date |
 | 0.10.5 | The image and the pinned extension on certifi 2026.11.20 | **released 2026-11-21** - a patch: the tool list is that of 0.10.4, and no file of the package moved. The lockfile carries certifi 2026.11.20, whose bundle drops five root certificates and adds none, none of them on the chain to Lexware's API. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.4's but for its date |
 | 0.10.6 | One answer per SSE request, and sse-starlette 3.7.1 | **released 2026-11-23** - a patch: the tool list is that of 0.10.5. Over `--transport sse`, stopping the server no longer leaves a traceback for each open stream (python-sdk issue 883, worked around in `transport/http.py`), and the lockfile carries sse-starlette 3.7.1, which ends an open event stream cleanly at shutdown. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.5's but for its date |
+| 0.10.7 | The image on Debian 13.8 | **released 2026-11-24** - a patch: the tool list is that of 0.10.6, and only the image changes. Its base `python:3.15-slim` was rebuilt with Debian 13.8, which brings glibc and zlib with security fixes and OpenSSL 3.5.9, Python staying at 3.15.2. Verified live read-only against the third test account: `live/smoke.py` 14 of 14, and a shape capture identical to 0.10.6's but for its date |
 
 ## 16.1 Answered: how a user configures the server
 

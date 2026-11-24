@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-11-24
+
+A patch release for the container image. The tool list is that
+of 0.10.6, and the package and the bundles change in their version
+alone.
+
 ### Changed
 
 - **The image's base rebuilt**, `python:3.15-slim` on a new digest with
@@ -2052,7 +2058,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.6...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.7...HEAD
+[0.10.7]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.6...v0.10.7
 [0.10.6]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.3...v0.10.4
