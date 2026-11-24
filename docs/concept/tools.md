@@ -147,6 +147,7 @@ details:
     token_valid: yes
   policy:
     file_loaded: yes
+    tools_offered: server_status, get_profile, search_contacts, get_contact
 ```
 
 - `reachable` is whether Lexware answered, below 500. A 5xx is no better
@@ -157,8 +158,16 @@ details:
   is yes.
 - `file_loaded` is whether the policy file was there and read as flags. A
   broken file enables nothing, as a missing one does, so both are no. No
-  path and no list of tools: the list the client holds is what the file
-  allows, and a key might still be refused a path, which only a call shows.
+  path.
+- `tools_offered` is the names `tools/list` answers with at that moment,
+  read from the policy file as the list is, so `server_status` is always
+  among them and alone when the file enables nothing. It is `unknown` when
+  the list could not be read. A model that misses a tool can tell from it
+  whether the file withholds the tool or the client hides it, since a
+  client may let a person switch tools off. It says what is offered, not
+  what the key may do: a key might still be refused a path, which only a
+  call shows. It sits in `policy` rather than in `upstream`, because the
+  file decides which tools there are and Lexware has no say in it.
 
 **The check of Lexware**, `Health` in `api/client.py` and `Connection.probe`
 beside the request mechanics, is one `GET /v1/profile`, the cheapest call there

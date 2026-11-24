@@ -11,7 +11,7 @@ never changes. A field may be added after the others, never renamed or
 removed, see docs/concept/tools.md section 8. The core is answered from memory. With
 ``details`` come two blocks: ``upstream``, whether Lexware answers and takes
 the key, from :class:`..api.client.Health`, and ``policy``, whether the
-policy file was read.
+policy file was read and which tools are offered.
 """
 
 from __future__ import annotations
@@ -73,6 +73,19 @@ def _loaded(policy: ToolPolicy) -> str:
         return "no"
 
 
+async def _offered(server: MCPServer) -> str:
+    """The tools the server offers now, as ``tools/list`` names them.
+
+    Read from the policy file the moment it is asked, the way the list is,
+    and never from Lexware: which of them a key may use only a call shows.
+    """
+    try:
+        tools = await server.list_tools()
+    except Exception:  # noqa: BLE001 - a status answer never fails
+        return "unknown"
+    return ", ".join(tool.name for tool in tools)
+
+
 def render(block: Block, depth: int = 0) -> list[str]:
     """``block`` as lines: ``key: value``, a nested block indented below its key."""
     lines: list[str] = []
@@ -132,7 +145,13 @@ def register(
         if details:
             parts: Block = [
                 ("upstream", upstream(await provider.health.check())),
-                ("policy", [("file_loaded", _loaded(policy))]),
+                (
+                    "policy",
+                    [
+                        ("file_loaded", _loaded(policy)),
+                        ("tools_offered", await _offered(server)),
+                    ],
+                ),
             ]
             block.append(("details", parts))
         text = "\n".join(render(block))

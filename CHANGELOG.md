@@ -13,6 +13,14 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+### Added
+
+- **`server_status` names the tools on offer.** With `details`, the
+  `policy` block ends in `tools_offered`, the names the tool list holds
+  at that moment, `server_status` always among them. A model missing a
+  tool can tell whether the policy file withholds it or the client hides
+  it.
+
 ## [0.10.7] - 2026-11-24
 
 A patch release for the container image. The tool list is that
