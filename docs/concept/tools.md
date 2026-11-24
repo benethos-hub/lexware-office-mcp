@@ -9,18 +9,18 @@ every request, so a wide surface is paid for continuously. Related endpoints
 are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
-**What the tool list actually costs, measured on 2026-11-09 after
-`get_article` named its neighbours, and before that at every change to a
+**What the tool list actually costs, measured on 2026-11-24 after
+`server_status` named the tools on offer, and before that at every change to a
 description or a parameter since 2026-08-21.** Serialized as the compact JSON
-a `tools/list` answer is, twenty-six tools come to **52,332 characters**,
-around 2,000 each, of which `server_status` is 788. Roughly 13,500 to 16,000
+a `tools/list` answer is, twenty-six tools come to **52,406 characters**,
+around 2,000 each, of which `server_status` is 862. Roughly 13,500 to 16,000
 tokens, estimated at 3.2 to 3.8 characters per token rather than counted with
 a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 34,571 | 66% |
-| Tool descriptions, the part under a ceiling | 11,856 | 23% |
+| Tool descriptions, the part under a ceiling | 11,929 | 23% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,108 | 2% |
 | Names, titles and the rest | ~2,230 | 4% |
@@ -116,7 +116,9 @@ can still ask, which is why it sits outside the policy file, see
 it is sent on every request. Two of its sentences answer what a model misread
 twice in one Claude Desktop test on 2026-11-07: that a policy file not loaded
 is why no other tool is there, and that an answer from before the settings
-changed no longer says how the server is.
+changed no longer says how the server is. A third says that the client may
+hide some of the tools offered, since `tools_offered` names what the server
+offers, not what the client shows.
 
 **The answer is plain text**, one `key: value` per line, a block as a line
 `name:` with its fields indented two spaces below it. No structured content,

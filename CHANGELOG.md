@@ -19,7 +19,7 @@ housekeeping are out of scope here — design decisions live in
   `policy` block ends in `tools_offered`, the names the tool list holds
   at that moment, `server_status` always among them. A model missing a
   tool can tell whether the policy file withholds it or the client hides
-  it.
+  it, and the tool's description says that a client may hide some.
 
 ## [0.10.7] - 2026-11-24
 
