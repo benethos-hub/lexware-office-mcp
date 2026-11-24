@@ -159,7 +159,7 @@ whatever the file says. It reads no record and writes nothing:
 
 | Tool | What it does |
 |---|---|
-| `server_status` | Which server is running, its version, transport and uptime, without an API call. With `details`, whether Lexware answers and takes the key, and whether the policy file is loaded |
+| `server_status` | Which server is running, its version, transport and uptime, without an API call. With `details`, whether Lexware answers and takes the key, whether the policy file is loaded, and which tools are offered |
 
 Read tools:
 

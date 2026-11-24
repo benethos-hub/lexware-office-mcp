@@ -9,18 +9,18 @@ every request, so a wide surface is paid for continuously. Related endpoints
 are therefore grouped behind one tool with an enum parameter rather than
 exposed one tool per path.
 
-**What the tool list actually costs, measured on 2026-11-09 after
-`get_article` named its neighbours, and before that at every change to a
+**What the tool list actually costs, measured on 2026-11-24 after
+`server_status` named the tools on offer, and before that at every change to a
 description or a parameter since 2026-08-21.** Serialized as the compact JSON
-a `tools/list` answer is, twenty-six tools come to **52,332 characters**,
-around 2,000 each, of which `server_status` is 788. Roughly 13,500 to 16,000
+a `tools/list` answer is, twenty-six tools come to **52,406 characters**,
+around 2,000 each, of which `server_status` is 862. Roughly 13,500 to 16,000
 tokens, estimated at 3.2 to 3.8 characters per token rather than counted with
 a tokenizer.
 
 | Part | Characters | Share |
 |---|---|---|
 | Input schemas | 34,571 | 66% |
-| Tool descriptions, the part under a ceiling | 11,856 | 23% |
+| Tool descriptions, the part under a ceiling | 11,929 | 23% |
 | Output schemas, the three file tools alone | 2,567 | 5% |
 | Annotations | 1,108 | 2% |
 | Names, titles and the rest | ~2,230 | 4% |
@@ -116,7 +116,9 @@ can still ask, which is why it sits outside the policy file, see
 it is sent on every request. Two of its sentences answer what a model misread
 twice in one Claude Desktop test on 2026-11-07: that a policy file not loaded
 is why no other tool is there, and that an answer from before the settings
-changed no longer says how the server is.
+changed no longer says how the server is. A third says that the client may
+hide some of the tools offered, since `tools_offered` names what the server
+offers, not what the client shows.
 
 **The answer is plain text**, one `key: value` per line, a block as a line
 `name:` with its fields indented two spaces below it. No structured content,
@@ -147,6 +149,7 @@ details:
     token_valid: yes
   policy:
     file_loaded: yes
+    tools_offered: server_status, get_profile, search_contacts, get_contact
 ```
 
 - `reachable` is whether Lexware answered, below 500. A 5xx is no better
@@ -157,8 +160,16 @@ details:
   is yes.
 - `file_loaded` is whether the policy file was there and read as flags. A
   broken file enables nothing, as a missing one does, so both are no. No
-  path and no list of tools: the list the client holds is what the file
-  allows, and a key might still be refused a path, which only a call shows.
+  path.
+- `tools_offered` is the names `tools/list` answers with at that moment,
+  read from the policy file as the list is, so `server_status` is always
+  among them and alone when the file enables nothing. It is `unknown` when
+  the list could not be read. A model that misses a tool can tell from it
+  whether the file withholds the tool or the client hides it, since a
+  client may let a person switch tools off. It says what is offered, not
+  what the key may do: a key might still be refused a path, which only a
+  call shows. It sits in `policy` rather than in `upstream`, because the
+  file decides which tools there are and Lexware has no say in it.
 
 **The check of Lexware**, `Health` in `api/client.py` and `Connection.probe`
 beside the request mechanics, is one `GET /v1/profile`, the cheapest call there

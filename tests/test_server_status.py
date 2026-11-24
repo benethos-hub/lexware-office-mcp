@@ -24,7 +24,7 @@ from benethos_lexware_office_mcp.policy import ToolPolicy, known_tools, preset
 from benethos_lexware_office_mcp.server import PolicyServer, build_server
 from benethos_lexware_office_mcp.settings import Settings
 from benethos_lexware_office_mcp.tools import status
-from helpers import API_KEY, Scripted, fast_provider, server_obeying
+from helpers import API_KEY, Scripted, fast_provider, server_obeying, write_policy
 
 CORE = ["name", "version", "transport", "python", "mcp", "uptime_seconds"]
 
@@ -215,6 +215,7 @@ async def test_details_name_every_field_in_order() -> None:
         "upstream.token_set",
         "upstream.token_valid",
         "policy.file_loaded",
+        "policy.tools_offered",
     ]
     assert handler.calls == 1
     assert handler.methods == ["GET"]
@@ -420,3 +421,63 @@ async def test_the_policy_says_whether_its_file_was_read(
     server, _ = checked((200, PROFILE), tool_policy_path=policy)
 
     assert (await details_of(server))["policy.file_loaded"] == loaded
+
+
+def offered(found: dict[str, str]) -> list[str]:
+    return found["policy.tools_offered"].split(", ")
+
+
+async def test_the_tools_offered_are_the_ones_the_list_shows(tmp_path: Path) -> None:
+    flags = {"get_profile": True, "search_contacts": True, "get_contact": False}
+    server = server_obeying(tmp_path, {**flags, "no_such_tool": True})
+
+    listed = [tool.name for tool in await server.list_tools()]
+
+    assert offered(await details_of(server)) == listed
+    assert set(listed) == {"server_status", "get_profile", "search_contacts"}
+
+
+async def test_every_tool_on_offers_every_tool(tmp_path: Path) -> None:
+    server = server_obeying(tmp_path, dict.fromkeys(known_tools(), True))
+
+    assert set(offered(await details_of(server))) == {*known_tools(), "server_status"}
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, "{not json", '["get_profile"]', "{}", '{"get_profile": false}'],
+    ids=["missing", "unreadable", "not an object", "empty", "all off"],
+)
+async def test_with_no_other_tool_only_the_status_is_offered(
+    tmp_path: Path, content: str | None
+) -> None:
+    policy = tmp_path / "tools.json"
+    if content is not None:
+        policy.write_text(content, encoding="utf-8")
+    server, _ = checked((200, PROFILE), tool_policy_path=policy)
+
+    assert (await details_of(server))["policy.tools_offered"] == "server_status"
+
+
+async def test_the_tools_offered_follow_the_file_while_the_server_runs(
+    tmp_path: Path,
+) -> None:
+    server = server_obeying(tmp_path, {"get_profile": True})
+    assert offered(await details_of(server)) == ["server_status", "get_profile"]
+
+    write_policy(tmp_path / "tools.json", {"get_profile": False})
+
+    assert offered(await details_of(server)) == ["server_status"]
+
+
+async def test_a_list_that_cannot_be_read_is_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server, _ = checked((200, PROFILE))
+
+    async def failing() -> list[Any]:
+        raise RuntimeError("the policy could not be read")
+
+    monkeypatch.setattr(server, "list_tools", failing)
+
+    assert (await details_of(server))["policy.tools_offered"] == "unknown"
