@@ -75,7 +75,7 @@ through the official
 contacts, articles and vouchers in plain language, and let the client fetch
 them for you.
 
-> **Status: 0.10.7.**
+> **Status: 0.10.8.**
 > The server handles contacts, vouchers and documents: find them, read them,
 > create them, change them, see what is still unpaid, download a PDF and
 > upload a receipt and book it. `get_profile` answers which account is
@@ -145,8 +145,8 @@ without a restart.
 The client starts the server, or reaches it over HTTP, and speaks MCP with
 it. What a model can do is settled before anything reaches Lexware: a tool
 the policy file does not name does not exist for the client, `server_status`
-aside, which only says what is running, and every call that is left goes
-through one API client with one rate limiter. The key and
+aside, which only says what is running and what is offered, and every call
+that is left goes through one API client with one rate limiter. The key and
 the permissions live in two files that `setup` writes, a process of its own
 that the client's prompt **Set up Lexware Office** starts, and so does
 `benethos-lexware-office-mcp setup` in a terminal.
@@ -677,8 +677,8 @@ claude mcp add benethos-lexware-office-mcp --scope user -- uvx benethos-lexware-
 Two things worth knowing about either entry:
 
 - **Pin a version** for stability:
-  `"args": ["benethos-lexware-office-mcp==0.10.7"]`, or
-  `uvx benethos-lexware-office-mcp==0.10.7` at the end of the command.
+  `"args": ["benethos-lexware-office-mcp==0.10.8"]`, or
+  `uvx benethos-lexware-office-mcp==0.10.8` at the end of the command.
   Without a pin, `uvx` takes the newest release it can resolve, and a client
   restart is enough to change what it runs.
 - **`uvx` has to be on the `PATH` the client uses**, which is not always the
@@ -1062,7 +1062,7 @@ this repository is needed to run one:
 docker pull ghcr.io/benethos-hub/benethos-lexware-office-mcp:latest
 ```
 
-Pin a version for anything you depend on - `:0.10.7` for an exact release,
+Pin a version for anything you depend on - `:0.10.8` for an exact release,
 `:0.10` to follow its patch releases. `:latest` moves with every release, and
 `:edge` is built on demand from whatever `main` holds and is not a release at
 all.
