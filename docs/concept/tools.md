@@ -159,8 +159,8 @@ details:
   is no, and a 403 is a key the API knows that may not read this path, so it
   is yes.
 - `file_loaded` is whether the policy file was there and read as flags. A
-  broken file enables nothing, as a missing one does, so both are no. No
-  path.
+  broken file enables nothing, as a missing one does, so both are no. The
+  file's path is not shown.
 - `tools_offered` is the names `tools/list` answers with at that moment,
   read from the policy file as the list is, so `server_status` is always
   among them and alone when the file enables nothing. It is `unknown` when
