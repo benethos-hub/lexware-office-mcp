@@ -53,7 +53,7 @@ dependencies = [
     # 2.2.0 fixes GHSA-84m7-p3x7-pcfv: a stateful Streamable HTTP server never
     # reclaimed its sessions, and this server offers that transport.
     "mcp~=2.3.0",
-    "httpx~=0.28.1",
+    "httpx~=0.29.0",
     # Imported directly by the server, the tools and the records, so named
     # here and not only reached through mcp. It pins pydantic-core exactly,
     # which tools/_base.py imports too.

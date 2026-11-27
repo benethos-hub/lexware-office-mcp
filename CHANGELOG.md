@@ -21,6 +21,16 @@ housekeeping are out of scope here — design decisions live in
   tool can tell whether the policy file withholds it or the client hides
   it, and the tool's description says that a client may hide some.
 
+### Changed
+
+- **httpx 0.29.0**, which carries every request to Lexware and every
+  upload fetched from a URL, for every installation: its window moves to
+  `~=0.29.0`. It needs Python 3.10 or newer, and this package needs 3.11
+  anyway.
+- **uv 0.13.10 builds the image**, instead of 0.13.9. It rejects a wheel
+  whose ZIP entries disagree on their size (GHSA-vjvj-3m3f-fgmm). The
+  installed files are the same as before.
+
 ## [0.10.7] - 2026-11-24
 
 A patch release for the container image. The tool list is that
