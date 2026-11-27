@@ -13,6 +13,12 @@ housekeeping are out of scope here — design decisions live in
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-11-27
+
+`server_status` names the tools on offer, httpx moves to 0.29.0,
+and uv 0.13.10 builds the image. The tool names and their
+parameters are those of 0.10.7.
+
 ### Added
 
 - **`server_status` names the tools on offer.** With `details`, the
@@ -2076,7 +2082,8 @@ subscriptions — see the roadmap in [SPECS.md](SPECS.md) section 16, along with
 the questions still open against the live API. The HTTP transport is planned
 for 0.2.0 and will ship with its own authentication in front of the API key.
 
-[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.7...HEAD
+[Unreleased]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.8...HEAD
+[0.10.8]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.7...v0.10.8
 [0.10.7]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.6...v0.10.7
 [0.10.6]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/benethos-hub/lexware-office-mcp/compare/v0.10.4...v0.10.5
